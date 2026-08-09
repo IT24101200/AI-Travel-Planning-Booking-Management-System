@@ -1,0 +1,22 @@
+# C# backend
+backend/bin/
+backend/obj/
+*.user
+backend/appsettings.Development.json
+
+# React frontend
+frontend-react/node_modules/
+frontend-react/dist/
+
+# Flutter
+mobile_flutter/.dart_tool/
+mobile_flutter/build/
+
+# Python agents
+agentic-ai/venv/
+agentic-ai/__pycache__/
+*.pyc
+
+# secrets, any location
+.env
+.env.local
