@@ -11,5 +11,6 @@ namespace backend.Data
         }
 
         public DbSet<Destination> Destinations { get; set; }
+        public DbSet<Tour> Tours { get; set; }
     }
 }

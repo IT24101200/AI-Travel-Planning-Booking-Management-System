@@ -12,6 +12,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<DestinationService>();
+builder.Services.AddScoped<TourService>();
 builder.Services.AddControllers();
 
 var app = builder.Build();
