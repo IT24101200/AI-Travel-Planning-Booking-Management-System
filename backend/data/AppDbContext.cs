@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using backend.Models;
 
 namespace backend.Data
 {
@@ -8,5 +9,7 @@ namespace backend.Data
             : base(options)
         {
         }
+
+        public DbSet<Destination> Destinations { get; set; }
     }
 }
