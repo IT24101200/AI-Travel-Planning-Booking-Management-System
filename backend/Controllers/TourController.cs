@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using backend.DTOs;
 using backend.Services;
@@ -17,6 +18,7 @@ namespace backend.Controllers
 
         // GET /api/tour
         [HttpGet]
+        [Authorize]
         public async Task<IActionResult> Search(
             [FromQuery] int? destinationId,
             [FromQuery] string? category,
@@ -33,6 +35,7 @@ namespace backend.Controllers
 
         // GET /api/tour/{id}
         [HttpGet("{id}")]
+        [Authorize]
         public async Task<IActionResult> GetById(int id)
         {
             var tour = await _service.GetByIdAsync(id);
@@ -42,6 +45,7 @@ namespace backend.Controllers
 
         // POST /api/tour
         [HttpPost]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Create([FromBody] CreateTourDto dto)
         {
             var created = await _service.CreateAsync(dto);
@@ -50,6 +54,7 @@ namespace backend.Controllers
 
         // PUT /api/tour/{id}
         [HttpPut("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateTourDto dto)
         {
             var updated = await _service.UpdateAsync(id, dto);
@@ -59,6 +64,7 @@ namespace backend.Controllers
 
         // DELETE /api/tour/{id} — soft delete only
         [HttpDelete("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
             var deleted = await _service.SoftDeleteAsync(id);
