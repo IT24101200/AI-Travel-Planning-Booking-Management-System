@@ -23,5 +23,8 @@ namespace backend.Models
         public double Latitude { get; set; }
 
         public double Longitude { get; set; }
+
+        // Navigation
+        public ICollection<TripRequest> TripRequests { get; set; } = new List<TripRequest>();
     }
 }
