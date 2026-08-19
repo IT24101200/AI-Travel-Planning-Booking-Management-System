@@ -91,7 +91,7 @@ namespace backend.Services
             return await _db.TripRequests.CountAsync(t => t.CustomerId == customerId);
         }
 
-        public async Task<TripRequestDto?> GetByIdAsync(Guid tripRequestId)
+        public async Task<TripRequestDto?> GetByIdAsync(int tripRequestId)
         {
             var trip = await _db.TripRequests
                 .Include(t => t.Destination)
@@ -100,7 +100,7 @@ namespace backend.Services
             return trip == null ? null : MapToDto(trip);
         }
 
-        public async Task<TripRequestDto?> GetStatusAsync(Guid tripRequestId, string customerId)
+        public async Task<TripRequestDto?> GetStatusAsync(int tripRequestId, string customerId)
         {
             var trip = await _db.TripRequests
                 .Include(t => t.Destination)
@@ -109,7 +109,7 @@ namespace backend.Services
             return trip == null ? null : MapToDto(trip);
         }
 
-        public async Task<TripRequestDto?> CancelAsync(Guid tripRequestId, string customerId)
+        public async Task<TripRequestDto?> CancelAsync(int tripRequestId, string customerId)
         {
             var trip = await _db.TripRequests
                 .Include(t => t.Destination)
@@ -137,7 +137,7 @@ namespace backend.Services
             return MapToDto(trip);
         }
 
-        public async Task<List<AgentLogDto>> GetAgentLogsAsync(Guid tripRequestId, string customerId)
+        public async Task<List<AgentLogDto>> GetAgentLogsAsync(int tripRequestId, string customerId)
         {
             // Verify ownership
             var ownsTrip = await _db.TripRequests

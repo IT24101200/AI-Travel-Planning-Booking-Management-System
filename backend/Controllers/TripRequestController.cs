@@ -81,7 +81,7 @@ namespace backend.Controllers
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(TripRequestDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetById(Guid id)
+        public async Task<IActionResult> GetById(int id)
         {
             var userId = GetUserId();
             var trip = await _tripRequestService.GetStatusAsync(id, userId);
@@ -98,7 +98,7 @@ namespace backend.Controllers
         [HttpGet("{id}/status")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetStatus(Guid id)
+        public async Task<IActionResult> GetStatus(int id)
         {
             var userId = GetUserId();
             var trip = await _tripRequestService.GetStatusAsync(id, userId);
@@ -123,7 +123,7 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(TripRequestDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Cancel(Guid id)
+        public async Task<IActionResult> Cancel(int id)
         {
             var userId = GetUserId();
 
@@ -148,7 +148,7 @@ namespace backend.Controllers
         [HttpGet("{id}/logs")]
         [ProducesResponseType(typeof(List<AgentLogDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetAgentLogs(Guid id)
+        public async Task<IActionResult> GetAgentLogs(int id)
         {
             var userId = GetUserId();
             var logs = await _tripRequestService.GetAgentLogsAsync(id, userId);

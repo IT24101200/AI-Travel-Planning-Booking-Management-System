@@ -11,7 +11,7 @@ namespace backend.Models
     {
         [Key]
         [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public Guid Id { get; set; }
+        public int Id { get; set; }
 
         [Required]
         public string CustomerId { get; set; } = string.Empty;
@@ -19,7 +19,7 @@ namespace backend.Models
         /// <summary>
         /// Optional FK to Destination. Null if not yet resolved.
         /// </summary>
-        public Guid? DestinationId { get; set; }
+        public int? DestinationId { get; set; }
 
         [Required]
         [MaxLength(2000)]

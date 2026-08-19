@@ -7,7 +7,7 @@ namespace backend.DTOs
     /// </summary>
     public class TripRequestCreateDto
     {
-        public Guid? DestinationId { get; set; }
+        public int? DestinationId { get; set; }
 
         [Required(ErrorMessage = "Request text is required.")]
         [MaxLength(2000)]

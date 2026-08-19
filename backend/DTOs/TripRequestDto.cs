@@ -5,9 +5,9 @@ namespace backend.DTOs
     /// </summary>
     public class TripRequestDto
     {
-        public Guid Id { get; set; }
+        public int Id { get; set; }
         public string CustomerId { get; set; } = string.Empty;
-        public Guid? DestinationId { get; set; }
+        public int? DestinationId { get; set; }
         public string? DestinationName { get; set; }
         public string RawRequestText { get; set; } = string.Empty;
         public DateTime StartDate { get; set; }

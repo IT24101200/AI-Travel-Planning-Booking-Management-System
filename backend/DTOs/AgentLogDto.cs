@@ -6,7 +6,7 @@ namespace backend.DTOs
     public class AgentLogDto
     {
         public Guid Id { get; set; }
-        public Guid TripRequestId { get; set; }
+        public int TripRequestId { get; set; }
         public string AgentName { get; set; } = string.Empty;
         public string StepName { get; set; } = string.Empty;
         public string? Input { get; set; }

@@ -13,7 +13,7 @@ namespace backend.Models
         public Guid Id { get; set; }
 
         [Required]
-        public Guid TripRequestId { get; set; }
+        public int TripRequestId { get; set; }
 
         [Required]
         [MaxLength(100)]
