@@ -1,20 +1,28 @@
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace backend.Models
 {
-    /// <summary>
-    /// Travel destination. Stub model — full implementation owned by another student.
-    /// </summary>
     public class Destination
     {
         [Key]
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public Guid Id { get; set; }
+        public int Id { get; set; }
 
         [Required]
-        [MaxLength(200)]
+        [MaxLength(100)]
         public string Name { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(100)]
+        public string Country { get; set; } = string.Empty;
+
+        [MaxLength(1000)]
+        public string? Description { get; set; }
+
+        public string? ImageUrl { get; set; }
+
+        public double Latitude { get; set; }
+
+        public double Longitude { get; set; }
 
         // Navigation
         public ICollection<TripRequest> TripRequests { get; set; } = new List<TripRequest>();

@@ -3,7 +3,6 @@ using backend.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
-
 namespace backend.Data
 {
     public class AppDbContext : IdentityDbContext<IdentityUser>
@@ -20,8 +19,9 @@ namespace backend.Data
         public DbSet<TripRequest> TripRequests => Set<TripRequest>();
         public DbSet<AgentLog> AgentLogs => Set<AgentLog>();
 
-        // ── Shared / Stub DbSets ──
-        public DbSet<Destination> Destinations => Set<Destination>();
+        // ── Shared / Other Student DbSets ──
+        public DbSet<Destination> Destinations { get; set; }
+        public DbSet<Tour> Tours { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -116,12 +116,6 @@ namespace backend.Data
                 entity.Property(a => a.AgentName).IsRequired().HasMaxLength(100);
                 entity.Property(a => a.StepName).IsRequired().HasMaxLength(100);
                 entity.Property(a => a.Timestamp).HasDefaultValueSql("NOW()");
-            });
-
-            // ── Destination (stub) ──
-            builder.Entity<Destination>(entity =>
-            {
-                entity.Property(d => d.Name).IsRequired().HasMaxLength(200);
             });
         }
     }

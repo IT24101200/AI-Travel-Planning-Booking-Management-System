@@ -122,6 +122,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+builder.Services.AddScoped<DestinationService>();
+builder.Services.AddScoped<TourService>();
+
 var app = builder.Build();
 
 // ── Middleware Pipeline ──

@@ -3,6 +3,8 @@ backend/bin/
 backend/obj/
 *.user
 backend/appsettings.Development.json
+backend.Tests/bin/
+backend.Tests/obj/
 
 # React frontend
 frontend-react/node_modules/
