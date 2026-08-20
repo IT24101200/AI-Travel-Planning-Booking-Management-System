@@ -72,6 +72,7 @@ builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
+builder.Services.AddScoped<IItineraryService, ItineraryService>();
 
 // ── Swagger / OpenAPI ──
 builder.Services.AddEndpointsApiExplorer();

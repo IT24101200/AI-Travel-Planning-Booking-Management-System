@@ -22,6 +22,8 @@ namespace backend.Data
         // ── Shared / Other Student DbSets ──
         public DbSet<Destination> Destinations { get; set; }
         public DbSet<Tour> Tours { get; set; }
+        public DbSet<Itinerary> Itineraries { get; set; }
+        public DbSet<ItineraryItem> ItineraryItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -116,6 +118,45 @@ namespace backend.Data
                 entity.Property(a => a.AgentName).IsRequired().HasMaxLength(100);
                 entity.Property(a => a.StepName).IsRequired().HasMaxLength(100);
                 entity.Property(a => a.Timestamp).HasDefaultValueSql("NOW()");
+            });
+
+            // ── Itinerary ──
+            builder.Entity<Itinerary>(entity =>
+            {
+                entity.Property(i => i.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20)
+                      .HasDefaultValue(ItineraryStatus.Draft);
+
+                entity.HasOne(i => i.Customer)
+                      .WithMany()
+                      .HasForeignKey(i => i.CustomerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(i => i.TripRequest)
+                      .WithMany()
+                      .HasForeignKey(i => i.TripRequestId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.Property(i => i.TotalEstimatedCost).HasColumnType("decimal(18,2)");
+                entity.Property(i => i.Currency).HasMaxLength(10).HasDefaultValue("USD");
+                entity.Property(i => i.CreatedAt).HasDefaultValueSql("NOW()");
+            });
+
+            // ── ItineraryItem ──
+            builder.Entity<ItineraryItem>(entity =>
+            {
+                entity.HasOne(ii => ii.Itinerary)
+                      .WithMany(i => i.ItineraryItems)
+                      .HasForeignKey(ii => ii.ItineraryId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(ii => ii.Tour)
+                      .WithMany()
+                      .HasForeignKey(ii => ii.TourId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.Property(ii => ii.PriceAtSelection).HasColumnType("decimal(18,2)");
             });
         }
     }
