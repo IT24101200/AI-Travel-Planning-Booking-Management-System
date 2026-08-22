@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Travel Planning &amp; Booking Management System — SE3090</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg:#0A1626;
+  --bg-deep:#071120;
+  --panel:#0F1F38;
+  --panel-2:#122542;
+  --line:rgba(120,160,210,0.16);
+  --line-soft:rgba(120,160,210,0.08);
+  --ink:#E9EFF7;
+  --ink-dim:#93A8C4;
+  --ink-faint:#5E7392;
+
+  --a:#5EEAD4; /* Student A / Coordinator */
+  --b:#FBBF24; /* Student B / Itinerary */
+  --c:#F472B6; /* Student C / Booking */
+  --d:#A78BFA; /* Student D / Validation */
+  --gate:#38BDF8; /* human approval / structural */
+  --danger:#FB7185;
+  --ok:#4ADE80;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:
+    linear-gradient(var(--line-soft) 1px, transparent 1px) 0 0/48px 48px,
+    linear-gradient(90deg, var(--line-soft) 1px, transparent 1px) 0 0/48px 48px,
+    var(--bg);
+  color:var(--ink);
+  font-family:'IBM Plex Sans', sans-serif;
+  font-size:15px;
+  line-height:1.55;
+}
+@media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
+
+/* ---------- typography helpers ---------- */
+h1,h2,h3{font-family:'Space Grotesk', sans-serif; margin:0; color:var(--ink); letter-spacing:-0.01em;}
+.mono{font-family:'IBM Plex Mono', monospace;}
+.eyebrow{
+  font-family:'IBM Plex Mono', monospace;
+  font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--gate); display:flex; align-items:center; gap:10px; margin-bottom:14px;
+}
+.eyebrow::before{content:""; width:22px; height:1px; background:var(--gate); display:inline-block;}
+.sec-title{font-size:clamp(24px,3vw,34px); font-weight:600; margin-bottom:6px;}
+.sec-sub{color:var(--ink-dim); max-width:760px; font-size:14.5px; margin-bottom:36px;}
+
+section{padding:76px 0; border-bottom:1px solid var(--line);}
+section:last-of-type{border-bottom:none;}
+
+/* ---------- panel / card shells ---------- */
+.panel{
+  position:relative;
+  background:linear-gradient(180deg, var(--panel), var(--panel-2));
+  border:1px solid var(--line);
+  border-radius:2px;
+}
+.panel::before, .panel::after{
+  content:""; position:absolute; width:9px; height:9px;
+  border:1px solid var(--ink-faint); opacity:.55;
+}
+.panel::before{top:-1px; left:-1px; border-right:none; border-bottom:none;}
+.panel::after{bottom:-1px; right:-1px; border-left:none; border-top:none;}
+
+.tag{
+  display:inline-flex; align-items:center; gap:6px;
+  font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+  padding:3px 9px; border:1px solid currentColor; border-radius:20px;
+}
+
+/* ================= HERO ================= */
+.hero{padding:96px 0 70px; border-bottom:1px solid var(--line); position:relative; overflow:hidden;}
+.hero .kicker{
+  font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--ink-faint); margin-bottom:22px;
+}
+.hero .kicker span{color:var(--gate);}
+.hero h1{font-size:clamp(34px,5.6vw,58px); font-weight:700; line-height:1.04; max-width:900px;}
+.hero h1 em{font-style:normal; color:var(--gate);}
+.hero p.lede{max-width:680px; color:var(--ink-dim); font-size:16.5px; margin-top:22px;}
+
+.stack-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:30px;}
+.stack-pill{
+  font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink);
+  border:1px solid var(--line); padding:6px 12px; border-radius:20px; background:rgba(255,255,255,0.02);
+}
+
+.stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; margin-top:56px; background:var(--line); border:1px solid var(--line);}
+.stat{background:var(--bg-deep); padding:22px 20px;}
+.stat .num{font-family:'Space Grotesk',sans-serif; font-size:34px; font-weight:700; color:var(--gate);}
+.stat .lbl{font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-dim); margin-top:4px;}
+
+.rule-note{
+  margin-top:32px; padding:16px 18px; border-left:2px solid var(--gate);
+  background:rgba(56,189,248,0.06); font-size:13.8px; color:var(--ink-dim); max-width:760px;
+}
+.rule-note b{color:var(--ink); font-weight:600;}
+
+/* ================= TEAM / OWNERSHIP ================= */
+.team-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+.team-card{padding:22px 20px 24px; border-top:3px solid var(--c-accent);}
+.team-card .who{display:flex; align-items:baseline; gap:8px; margin-bottom:14px;}
+.team-card .letter{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:26px; color:var(--c-accent);}
+.team-card .role{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint);}
+.team-card h3{font-size:15.5px; margin-bottom:12px; font-weight:600;}
+.team-card .field{font-size:12px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.06em; margin-top:12px;}
+.team-card .val{font-size:13.5px; color:var(--ink-dim); margin-top:3px;}
+.team-card .agent-badge{
+  display:inline-block; margin-top:14px; padding:5px 10px; border-radius:3px;
+  font-family:'IBM Plex Mono',monospace; font-size:11px; background:rgba(255,255,255,0.04); border:1px solid var(--c-accent); color:var(--c-accent);
+}
+
+.a-card{--c-accent:var(--a);} .b-card{--c-accent:var(--b);} .c-card{--c-accent:var(--c);} .d-card{--c-accent:var(--d);}
+
+/* roles strip */
+.roles-strip{display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:16px;}
+.role-card{padding:18px 20px;}
+.role-card .role-name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:16px; margin-bottom:8px; color:var(--gate);}
+.role-card p{margin:0; color:var(--ink-dim); font-size:13px;}
+
+/* checklist */
+.checklist{margin-top:22px; display:grid; grid-template-columns:1fr 1fr; gap:8px 20px;}
+.checklist .item{display:flex; gap:9px; font-size:13.2px; color:var(--ink-dim); align-items:flex-start;}
+.checklist .item .ck{color:var(--ok); font-family:'IBM Plex Mono',monospace; flex:0 0 auto;}
+
+/* ================= AGENT WORKFLOW (signature) ================= */
+.pipeline-wrap{padding:34px 26px 30px; overflow-x:auto;}
+.pipeline{display:flex; align-items:stretch; gap:0; min-width:920px;}
+.node{
+  flex:1 1 0; padding:18px 16px; border:1px solid var(--line); border-radius:3px; position:relative;
+  background:rgba(255,255,255,0.015);
+}
+.node .step{font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-faint); letter-spacing:.06em;}
+.node .name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:15px; margin-top:6px;}
+.node .desc{font-size:11.8px; color:var(--ink-dim); margin-top:6px; line-height:1.45;}
+.node .tool{margin-top:10px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-faint);}
+.node.agent-a{border-top:3px solid var(--a);} .node.agent-a .name{color:var(--a);}
+.node.agent-b{border-top:3px solid var(--b);} .node.agent-b .name{color:var(--b);}
+.node.agent-c{border-top:3px solid var(--c);} .node.agent-c .name{color:var(--c);}
+.node.agent-d{border-top:3px solid var(--d);} .node.agent-d .name{color:var(--d);}
+.arrow{flex:0 0 30px; display:flex; align-items:center; justify-content:center; color:var(--ink-faint); font-size:16px;}
+
+.gate-row{min-width:920px; margin-top:0; display:flex; align-items:center; gap:14px; padding:20px 0 0;}
+.gate-line{flex:1; height:1px; background:repeating-linear-gradient(90deg, var(--gate) 0 6px, transparent 6px 12px);}
+.gate-box{
+  border:1px solid var(--gate); color:var(--gate); background:rgba(56,189,248,0.08);
+  padding:10px 18px; border-radius:3px; font-family:'IBM Plex Mono',monospace; font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+  white-space:nowrap; display:flex; align-items:center; gap:8px;
+}
+
+.retry-note{min-width:920px; margin-top:14px; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-faint); display:flex; align-items:center; gap:8px;}
+.retry-note::before{content:"↺"; color:var(--a); font-size:14px;}
+
+.post-gate{min-width:920px; display:flex; gap:0; margin-top:22px;}
+.post-node{flex:1; padding:14px 16px; border:1px solid var(--line); background:rgba(74,222,128,0.05); border-top:3px solid var(--ok);}
+.post-node .name{font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:13.5px; color:var(--ok);}
+.post-node .desc{font-size:11.5px; color:var(--ink-dim); margin-top:4px;}
+
+.workflow-narrative{margin-top:34px; padding:26px 28px;}
+.workflow-narrative p{margin:0; color:var(--ink-dim); font-size:14px; line-height:1.75;}
+.workflow-narrative b{color:var(--ink); font-weight:600;}
+
+/* ================= DATABASE ================= */
+.db-groups{display:grid; grid-template-columns:repeat(4,1fr); gap:14px;}
+.db-group{padding:18px 18px 20px; border-top:3px solid var(--g-accent);}
+.db-group h3{font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:var(--g-accent); font-family:'IBM Plex Mono',monospace; margin-bottom:12px;}
+.db-group table{width:100%; border-collapse:collapse;}
+.db-group td{font-size:12.6px; padding:6px 0; border-top:1px solid var(--line-soft); color:var(--ink-dim);}
+.db-group tr:first-child td{border-top:none;}
+.db-group td.tname{color:var(--ink); font-family:'IBM Plex Mono',monospace; font-size:11.8px;}
+.g-a{--g-accent:var(--a);} .g-b{--g-accent:var(--b);} .g-c{--g-accent:var(--c);} .g-d{--g-accent:var(--d);}
+
+.db-cross{margin-top:14px; padding:16px 18px; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap; align-items:center;}
+.db-cross .lbl{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gate); text-transform:uppercase; letter-spacing:.06em;}
+.db-cross p{margin:4px 0 0; font-size:12.8px; color:var(--ink-dim); max-width:640px;}
+
+/* ================= SCREENS ================= */
+.screen-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+.screen-card{padding:22px 22px 24px; border-left:3px solid var(--s-accent);}
+.screen-card .head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+.screen-card .head h3{font-size:16px; color:var(--s-accent);}
+.screen-card .head .letter{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:var(--s-accent); opacity:.5;}
+.plat-block{margin-top:14px;}
+.plat-block .plat-lbl{font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:6px;}
+.plat-block ul{margin:0; padding-left:0; list-style:none;}
+.plat-block li{font-size:12.6px; color:var(--ink-dim); padding:4px 0 4px 14px; position:relative; line-height:1.45;}
+.plat-block li::before{content:"—"; position:absolute; left:0; color:var(--ink-faint);}
+.plat-block li b{color:var(--ink); font-weight:600;}
+.s-a{--s-accent:var(--a);} .s-b{--s-accent:var(--b);} .s-c{--s-accent:var(--c);} .s-d{--s-accent:var(--d);}
+
+/* ================= TIMELINE ================= */
+.timeline{position:relative; margin-top:20px; padding-left:26px;}
+.timeline::before{content:""; position:absolute; left:5px; top:6px; bottom:6px; width:1px; background:var(--line);}
+.tl-row{position:relative; padding-bottom:26px;}
+.tl-row:last-child{padding-bottom:0;}
+.tl-row::before{content:""; position:absolute; left:-26px; top:5px; width:9px; height:9px; border-radius:50%; background:var(--bg-deep); border:2px solid var(--gate);}
+.tl-head{display:flex; align-items:baseline; gap:12px; margin-bottom:10px; flex-wrap:wrap;}
+.tl-week{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; color:var(--gate);}
+.tl-dates{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint);}
+.tl-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px;}
+.tl-cell{padding:12px 13px; font-size:12px; color:var(--ink-dim); line-height:1.5;}
+.tl-cell .who{font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.05em; margin-bottom:5px; display:block;}
+.tl-cell.a .who{color:var(--a);} .tl-cell.b .who{color:var(--b);} .tl-cell.c .who{color:var(--c);} .tl-cell.d .who{color:var(--d);}
+.tl-deliv{margin-top:10px; font-size:12px; color:var(--ok); display:flex; gap:8px;}
+.tl-deliv::before{content:"▣"; flex:0 0 auto;}
+
+/* ================= SPEC ALIGNMENT ================= */
+.spec-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:6px;}
+.spec-item{padding:13px 15px; display:flex; gap:12px; align-items:flex-start;}
+.spec-item .sid{font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gate); flex:0 0 auto; padding-top:1px;}
+.spec-item .txt{font-size:12.2px; color:var(--ink-dim); line-height:1.5;}
+.spec-item .txt b{color:var(--ink); font-weight:600; display:block; font-size:12.6px; margin-bottom:2px;}
+
+/* ================= TESTING ================= */
+.test-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
+.test-row{padding:16px 18px; display:grid; grid-template-columns:130px 1fr; gap:14px; align-items:start;}
+.test-row .layer{font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--gate); text-transform:uppercase; letter-spacing:.04em;}
+.test-row p{margin:0; font-size:12.6px; color:var(--ink-dim); line-height:1.55;}
+
+.integration-block{margin-top:14px; padding:22px 24px; display:flex; gap:22px; align-items:flex-start; border-left:3px solid var(--gate);}
+.integration-block .stripe-mark{font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px; color:var(--gate); flex:0 0 auto;}
+.integration-block p{margin:0; font-size:13.5px; color:var(--ink-dim); line-height:1.65;}
+
+/* ================= RISK ================= */
+.risk-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px;}
+.risk-card{padding:17px 19px;}
+.risk-top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px;}
+.risk-top .rtitle{font-size:13.6px; font-weight:600; color:var(--ink); line-height:1.4;}
+.sev{font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.06em; padding:3px 9px; border-radius:20px; flex:0 0 auto;}
+.sev.high{color:var(--danger); border:1px solid var(--danger);}
+.sev.med{color:var(--b); border:1px solid var(--b);}
+.risk-card .mit{font-size:12.4px; color:var(--ink-dim); display:flex; gap:8px;}
+.risk-card .mit::before{content:"→"; color:var(--ok); flex:0 0 auto;}
+
+/* ================= ACTION LIST ================= */
+.action-cols{display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px;}
+.action-col{padding:20px 20px 22px;}
+.action-col .phase{font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--gate); margin-bottom:14px;}
+.action-col ol{margin:0; padding-left:0; list-style:none; counter-reset:act;}
+.action-col li{counter-increment:act; font-size:12.8px; color:var(--ink-dim); padding:9px 0; border-top:1px solid var(--line-soft); display:flex; gap:10px;}
+.action-col li:first-child{border-top:none;}
+.action-col li::before{content:counter(act); font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gate); flex:0 0 18px; padding-top:1px;}
+.action-col li b{color:var(--ink); font-weight:600;}
+
+/* ================= FOOTER ================= */
+footer{padding:44px 0 60px; text-align:center;}
+footer p{margin:0; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-faint); letter-spacing:.04em;}
+
+/* responsive */
+@media (max-width:980px){
+  .team-grid, .db-groups{grid-template-columns:repeat(2,1fr);}
+  .screen-grid, .test-grid, .risk-grid, .roles-strip{grid-template-columns:1fr;}
+  .stat-row{grid-template-columns:repeat(2,1fr);}
+  .action-cols{grid-template-columns:1fr;}
+  .spec-grid{grid-template-columns:1fr;}
+  .checklist{grid-template-columns:1fr;}
+}
+@media (max-width:640px){
+  .wrap{padding:0 18px;}
+  section{padding:52px 0;}
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">SE3090 · Assignment 1 <span>/// Project Master Document</span></div>
+    <h1>AI Travel Planning &amp; <em>Booking Management</em> System</h1>
+    <p class="lede">Customers describe a trip in plain language. A four‑agent AI workflow plans it, checks real availability, validates cost against budget — then <b style="color:var(--ink)">pauses for a human travel agent's approval</b> before anything is booked or charged.</p>
+
+    <div class="stack-row">
+      <span class="stack-pill">ASP.NET Core Web API</span>
+      <span class="stack-pill">PostgreSQL</span>
+      <span class="stack-pill">Entity Framework Core</span>
+      <span class="stack-pill">React — staff dashboard</span>
+      <span class="stack-pill">Flutter — customer app</span>
+      <span class="stack-pill">JWT Auth</span>
+      <span class="stack-pill">LangGraph (Python agents)</span>
+      <span class="stack-pill">Stripe Sandbox</span>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="num">4</div><div class="lbl">Students</div></div>
+      <div class="stat"><div class="num">4</div><div class="lbl">Components</div></div>
+      <div class="stat"><div class="num">4</div><div class="lbl">AI agents</div></div>
+      <div class="stat"><div class="num">17</div><div class="lbl">DB tables</div></div>
+    </div>
+
+    <div class="rule-note">One shared API rule: <b>React and Flutter never talk to each other</b>, and never touch the database or AI service directly — every request routes through the one ASP.NET Core API.</div>
+  </div>
+</header>
+
+<!-- ============ TEAM & ROLES ============ -->
+<section id="team">
+  <div class="wrap">
+    <div class="eyebrow">Ownership</div>
+    <h2 class="sec-title">Team &amp; component ownership</h2>
+    <p class="sec-sub">Each student owns one full‑stack component and the AI agent tied to that component's data — one coherent story per student, front‑to‑back.</p>
+
+    <div class="team-grid">
+      <div class="panel team-card a-card">
+        <div class="who"><span class="letter">A</span><span class="role">Profile &amp; Trip Requests</span></div>
+        <div class="field">Tables owned</div><div class="val">Customer · Preference · Notification · TripRequest</div>
+        <div class="agent-badge">Agent: Coordinator / Planning</div>
+      </div>
+      <div class="panel team-card b-card">
+        <div class="who"><span class="letter">B</span><span class="role">Tours &amp; Itineraries</span></div>
+        <div class="field">Tables owned</div><div class="val">Destination · Tour · Itinerary · ItineraryItem</div>
+        <div class="agent-badge">Agent: Itinerary / Domain Analysis</div>
+      </div>
+      <div class="panel team-card c-card">
+        <div class="who"><span class="letter">C</span><span class="role">Accommodation &amp; Transport</span></div>
+        <div class="field">Tables owned</div><div class="val">Hotel · Room · TransportOption</div>
+        <div class="agent-badge">Agent: Booking / Tool‑Use</div>
+      </div>
+      <div class="panel team-card d-card">
+        <div class="who"><span class="letter">D</span><span class="role">Booking, Approval &amp; Payments</span></div>
+        <div class="field">Tables owned</div><div class="val">Booking · BookingItem · BookingApproval · Payment · TravelAgent</div>
+        <div class="agent-badge">Agent: Validation / Approval</div>
+      </div>
+    </div>
+
+    <div class="roles-strip">
+      <div class="panel role-card"><div class="role-name">Customer</div><p>Sets preferences, submits trip requests, reviews &amp; pays for proposed bookings, tracks status.</p></div>
+      <div class="panel role-card"><div class="role-name">Travel Agent</div><p>Reviews AI‑proposed bookings, approves / rejects / requests revisions, manages tours, hotels, transport.</p></div>
+      <div class="panel role-card"><div class="role-name">Admin</div><p>Identity role only — system‑wide settings and travel‑agent accounts. No separate profile table.</p></div>
+    </div>
+
+    <div class="checklist">
+      <div class="item"><span class="ck">✓</span> 3+ user roles with different permissions</div>
+      <div class="item"><span class="ck">✓</span> 4 major business components, one per student</div>
+      <div class="item"><span class="ck">✓</span> CRUD + status workflows + search/filter/sort/pagination + reporting in every component</div>
+      <div class="item"><span class="ck">✓</span> Genuinely different purposes: React (staff/approval) vs. Flutter (customer/operational)</div>
+      <div class="item"><span class="ck">✓</span> One meaningful third‑party integration — Stripe Sandbox</div>
+      <div class="item"><span class="ck">✓</span> One complete cross‑platform workflow — request → agents → approval → confirmed</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ AGENTIC AI WORKFLOW ============ -->
+<section id="agents">
+  <div class="wrap">
+    <div class="eyebrow">Signature system</div>
+    <h2 class="sec-title">The four‑agent pipeline</h2>
+    <p class="sec-sub">Plan → analyse domain → use tools → validate &amp; gate for a human. Nothing is booked or charged until a travel agent acts.</p>
+
+    <div class="panel pipeline-wrap">
+      <div class="pipeline">
+        <div class="node agent-a">
+          <div class="step">01 · Student A</div>
+          <div class="name">Coordinator / Planning</div>
+          <div class="desc">Reads the TripRequest, builds a structured plan, delegates onward. No tools — its output is a routing decision.</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node agent-b">
+          <div class="step">02 · Student B</div>
+          <div class="name">Itinerary / Domain Analysis</div>
+          <div class="desc">Builds a conflict‑free day‑by‑day itinerary from the tour catalog.</div>
+          <div class="tool">tool: search_tours()</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node agent-c">
+          <div class="step">03 · Student C</div>
+          <div class="name">Booking / Tool‑Use</div>
+          <div class="desc">Checks real room &amp; transport availability for the exact dates — never invents an option.</div>
+          <div class="tool">tools: check_hotel_availability(), check_transport_availability()</div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="node agent-d">
+          <div class="step">04 · Student D</div>
+          <div class="name">Validation / Approval</div>
+          <div class="desc">Checks total cost + availability against budget and business rules.</div>
+          <div class="tool">tools: create_booking(), initiate_payment() — both gated behind approval</div>
+        </div>
+      </div>
+
+      <div class="retry-note">If it doesn't fit budget: Coordinator retries <b style="color:var(--ink)">once</b> with a reduced ceiling (RetryCount 0→1) — then stops with a clear FailureReason.</div>
+
+      <div class="gate-row"><div class="gate-line"></div><div class="gate-box">⏸ Booking = Awaiting Approval &nbsp;/&nbsp; Human Approval Gate</div><div class="gate-line"></div></div>
+
+      <div class="post-gate">
+        <div class="post-node"><div class="name">Confirmed</div><div class="desc">Travel agent approves in the React dashboard, alongside a plain‑language AgentLog trail.</div></div>
+        <div class="post-node"><div class="name">Payment</div><div class="desc">Processed through Stripe Sandbox once status = Confirmed.</div></div>
+        <div class="post-node"><div class="name">Notification</div><div class="desc">Customer sees Confirmed + QR ticket instantly in the Flutter app.</div></div>
+      </div>
+    </div>
+
+    <div class="panel workflow-narrative">
+      <p>A customer opens the Flutter app, sets preferences, and submits a trip request. It's saved as a <b>TripRequest</b> and handed to the agent subsystem. The <b>Coordinator</b> builds a plan and delegates to the <b>Itinerary Agent</b>, which assembles a schedule with no overlapping time slots. That draft passes to the <b>Booking Agent</b>, which checks real availability and proposes a priced package. The <b>Validation Agent</b> checks the total against budget and rules — retrying once with a reduced budget if needed. A passing package moves to <b>Awaiting Approval</b> and the workflow halts. A travel agent reviews the proposal and the AgentLog trail, then approves, rejects, or requests a revision — permanently recorded. On approval: <b>Confirmed → Stripe payment → invoice → notification</b>, and the customer sees a QR ticket appear in Flutter. Every step is logged back to the originating trip request, so any booking traces to the reasoning behind it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DATABASE ============ -->
+<section id="database">
+  <div class="wrap">
+    <div class="eyebrow">Data layer</div>
+    <h2 class="sec-title">Database schema — 17 tables</h2>
+    <p class="sec-sub">Customer and TravelAgent extend ASP.NET Core Identity. Admin is an identity role only — no profile table.</p>
+
+    <div class="db-groups">
+      <div class="panel db-group g-a">
+        <h3>A · Profile &amp; requests</h3>
+        <table>
+          <tr><td class="tname">Customer</td><td>extends Identity</td></tr>
+          <tr><td class="tname">Preference</td><td>budget, activities</td></tr>
+          <tr><td class="tname">Notification</td><td>channel, status</td></tr>
+          <tr><td class="tname">TripRequest</td><td>RetryCount, FailureReason</td></tr>
+        </table>
+      </div>
+      <div class="panel db-group g-b">
+        <h3>B · Tours &amp; itineraries</h3>
+        <table>
+          <tr><td class="tname">Destination</td><td>lat/lng</td></tr>
+          <tr><td class="tname">Tour</td><td>price, status</td></tr>
+          <tr><td class="tname">Itinerary</td><td>Draft→Accepted</td></tr>
+          <tr><td class="tname">ItineraryItem</td><td>start/end time</td></tr>
+        </table>
+      </div>
+      <div class="panel db-group g-c">
+        <h3>C · Accommodation &amp; transport</h3>
+        <table>
+          <tr><td class="tname">Hotel</td><td>lat/lng, rating</td></tr>
+          <tr><td class="tname">Room</td><td>price lives here</td></tr>
+          <tr><td class="tname">TransportOption</td><td>one row / dated departure</td></tr>
+        </table>
+      </div>
+      <div class="panel db-group g-d">
+        <h3>D · Booking &amp; payments</h3>
+        <table>
+          <tr><td class="tname">Booking</td><td>BookingReference (QR)</td></tr>
+          <tr><td class="tname">BookingItem</td><td>Tour/Room/Transport</td></tr>
+          <tr><td class="tname">BookingApproval</td><td>human decision record</td></tr>
+          <tr><td class="tname">Payment</td><td>StripeReference</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel db-cross">
+      <div>
+        <div class="lbl">Cross‑cutting</div>
+        <p><b class="mono" style="color:var(--ink)">AgentLog</b> — written by the Python agent service after each meaningful step: TripRequestId, AgentName, plain‑English StepDescription. No JSON schema needed, just a readable trail.</p>
+      </div>
+      <div>
+        <div class="lbl">Relationship spine</div>
+        <p class="mono">Customer → TripRequest → Itinerary → Booking → BookingItem / Payment / BookingApproval</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCREENS ============ -->
+<section id="screens">
+  <div class="wrap">
+    <div class="eyebrow">Interfaces</div>
+    <h2 class="sec-title">Screen‑by‑screen breakdown</h2>
+    <p class="sec-sub">React serves staff/admin/approval work. Flutter serves the customer‑facing, on‑the‑go experience — genuinely different purposes per platform.</p>
+
+    <div class="screen-grid">
+      <div class="panel screen-card s-a">
+        <div class="head"><h3>Student A</h3><span class="letter">A</span></div>
+        <div class="plat-block"><div class="plat-lbl">React</div><ul>
+          <li><b>Customer Directory</b> — search/filter/sort/pagination, view profile</li>
+          <li><b>Notification Logs</b> — filter by status/date, resend failed</li>
+        </ul></div>
+        <div class="plat-block"><div class="plat-lbl">Flutter</div><ul>
+          <li><b>Profile &amp; Preferences</b> — budget slider, activity tags</li>
+          <li><b>Trip Request</b> — "Plan my trip" triggers the agent workflow</li>
+          <li><b>Notifications</b> &amp; <b>Trip History</b> — status badges</li>
+        </ul></div>
+      </div>
+
+      <div class="panel screen-card s-b">
+        <div class="head"><h3>Student B</h3><span class="letter">B</span></div>
+        <div class="plat-block"><div class="plat-lbl">React</div><ul>
+          <li><b>Tour Catalog Management</b> — CRUD, image field</li>
+          <li><b>Itinerary Review</b> — day‑by‑day, edit before release</li>
+        </ul></div>
+        <div class="plat-block"><div class="plat-lbl">Flutter</div><ul>
+          <li><b>Tour Search &amp; Browse</b> — filter chips, cards</li>
+          <li><b>Tour Details</b> — price breakdown, gallery</li>
+          <li><b>My Itinerary</b> — timeline, "request changes"</li>
+        </ul></div>
+      </div>
+
+      <div class="panel screen-card s-c">
+        <div class="head"><h3>Student C</h3><span class="letter">C</span></div>
+        <div class="plat-block"><div class="plat-lbl">React</div><ul>
+          <li><b>Hotel &amp; Vendor Management</b> — price via Room</li>
+          <li><b>Transport Fleet Management</b> — filter by type/route</li>
+        </ul></div>
+        <div class="plat-block"><div class="plat-lbl">Flutter</div><ul>
+          <li><b>Accommodation</b> &amp; <b>Transport Options</b> — select preferred</li>
+          <li><b>Trip Map</b> <i>(device feature)</i> — pins hotel + tour + transport</li>
+        </ul></div>
+      </div>
+
+      <div class="panel screen-card s-d">
+        <div class="head"><h3>Student D</h3><span class="letter">D</span></div>
+        <div class="plat-block"><div class="plat-lbl">React</div><ul>
+          <li><b>Booking Approval Dashboard</b> — AgentLog trail per entry</li>
+          <li><b>Payments &amp; Revenue Report</b> — summary cards, monthly chart</li>
+        </ul></div>
+        <div class="plat-block"><div class="plat-lbl">Flutter</div><ul>
+          <li><b>Checkout &amp; Payment</b> — Stripe sandbox card form</li>
+          <li><b>Booking Status</b> — QR ticket <i>(device feature)</i></li>
+          <li><b>Trip Confirmation</b> — downloadable ticket</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TIMELINE ============ -->
+<section id="timeline">
+  <div class="wrap">
+    <div class="eyebrow">Schedule</div>
+    <h2 class="sec-title">9‑week timeline</h2>
+    <p class="sec-sub">Order: Backend → React → Flutter, with agent work starting Week 5 so it isn't left to the end.</p>
+
+    <div class="timeline">
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 1</span><span class="tl-dates">31 Jul – 6 Aug</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Draft TripRequest/Customer schema, user stories</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Draft Tour/Itinerary schema, user stories</div>
+          <div class="panel tl-cell c"><span class="who">C</span>Draft Hotel/Transport schema, user stories</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Draft Booking/Payment schema, Stripe research</div>
+        </div>
+        <div class="tl-deliv">Repo live · ER diagram v1 · shared scaffolding merged · CI running</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 2</span><span class="tl-dates">7–13 Aug</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>TripRequestController, CustomerController skeleton</div>
+          <div class="panel tl-cell b"><span class="who">B</span>TourController, ItineraryController skeleton</div>
+          <div class="panel tl-cell c"><span class="who">C</span>HotelController, TransportController skeleton</div>
+          <div class="panel tl-cell d"><span class="who">D</span>BookingController, PaymentController skeleton</div>
+        </div>
+        <div class="tl-deliv">Auth working · migrations applied · 4 skeleton APIs · CI green</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 3</span><span class="tl-dates">14–20 Aug</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Trip request submission logic, preference validation</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Itinerary conflict‑checking, tour search/filter/pagination</div>
+          <div class="panel tl-cell c"><span class="who">C</span>AvailabilityService (room+dates), concurrency transaction</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Booking status workflow, Stripe Sandbox call</div>
+        </div>
+        <div class="tl-deliv">Backend functionally complete for all 4 components, tested, Swagger live</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 4</span><span class="tl-dates">21–27 Aug</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>React — Customer Directory, Notification Logs</div>
+          <div class="panel tl-cell b"><span class="who">B</span>React — Tour Catalog, Itinerary Review</div>
+          <div class="panel tl-cell c"><span class="who">C</span>React — Hotel &amp; Vendor Mgmt, Transport Fleet</div>
+          <div class="panel tl-cell d"><span class="who">D</span>React — Booking Approval Dashboard, Payments Report</div>
+        </div>
+        <div class="tl-deliv">React shell live with auth + protected routes</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 5</span><span class="tl-dates">28 Aug – 3 Sep</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Finish React; start Coordinator Agent</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Finish React; start Itinerary Agent</div>
+          <div class="panel tl-cell c"><span class="who">C</span>Finish React; start Booking Agent</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Finish React; start Validation Agent</div>
+        </div>
+        <div class="tl-deliv">React fully functional, deployed to staging · all 4 agents scaffolded</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 6</span><span class="tl-dates">4–10 Sep</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Flutter — Trip Request, Profile; continue Coordinator</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Flutter — Tour Search, Details; continue Itinerary Agent</div>
+          <div class="panel tl-cell c"><span class="who">C</span>Flutter — Accommodation, Transport; continue Booking Agent</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Flutter — Checkout screen; continue Validation Agent</div>
+        </div>
+        <div class="tl-deliv">Flutter shell working with auth · agents advancing individually</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 7</span><span class="tl-dates">11–17 Sep</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Finish Notifications, Trip History</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Finish My Itinerary</div>
+          <div class="panel tl-cell c"><span class="who">C</span>Finish Trip Map (device feature)</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Finish Booking Status, QR Confirmation</div>
+        </div>
+        <div class="tl-deliv">Flutter complete · all 4 agents wired end‑to‑end with retry + approval gate working</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 8</span><span class="tl-dates">18–24 Sep</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Performance testing (k6) on trip‑request endpoints</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Agent evaluation — itinerary golden cases</div>
+          <div class="panel tl-cell c"><span class="who">C</span>Agent evaluation — availability golden cases + concurrency</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Agent evaluation — validation/approval, prompt‑injection test</div>
+        </div>
+        <div class="tl-deliv">Full cross‑platform workflow verified · everything deployed · Flutter APK built</div>
+      </div>
+
+      <div class="tl-row">
+        <div class="tl-head"><span class="tl-week">Week 9</span><span class="tl-dates">25–30 Sep</span></div>
+        <div class="tl-grid">
+          <div class="panel tl-cell a"><span class="who">A</span>Individual report + AI log + reflection + viva prep</div>
+          <div class="panel tl-cell b"><span class="who">B</span>Same, for Component B</div>
+          <div class="panel tl-cell c"><span class="who">C</span>Same, for Component C</div>
+          <div class="panel tl-cell d"><span class="who">D</span>Same, for Component D</div>
+        </div>
+        <div class="tl-deliv">Consolidated PDF · demo video with cached fallback · links checked in incognito · submitted</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SPEC ALIGNMENT ============ -->
+<section id="spec">
+  <div class="wrap">
+    <div class="eyebrow">Compliance</div>
+    <h2 class="sec-title">Spec alignment check</h2>
+    <p class="sec-sub">Every numbered requirement mapped to where it's covered in this plan.</p>
+
+    <div class="spec-grid">
+      <div class="panel spec-item"><span class="sid">§1</span><span class="txt"><b>One shared API/DB across React &amp; Flutter</b>Enforced by design from Week 2 onward</span></div>
+      <div class="panel spec-item"><span class="sid">§2</span><span class="txt"><b>Mandatory tech stack</b>Throughout</span></div>
+      <div class="panel spec-item"><span class="sid">§3</span><span class="txt"><b>4 components, 1 owner each, distinct agents</b>Team &amp; ownership section</span></div>
+      <div class="panel spec-item"><span class="sid">§4</span><span class="txt"><b>Roles, CRUD, client purposes, integration</b>Roles &amp; checklist section</span></div>
+      <div class="panel spec-item"><span class="sid">§5</span><span class="txt"><b>Secure ASP.NET Core backend</b>Weeks 2–3</span></div>
+      <div class="panel spec-item"><span class="sid">§6</span><span class="txt"><b>PostgreSQL, normalized, migrations</b>Database section, Weeks 1–2</span></div>
+      <div class="panel spec-item"><span class="sid">§7</span><span class="txt"><b>React app</b>Weeks 4–5</span></div>
+      <div class="panel spec-item"><span class="sid">§8</span><span class="txt"><b>Flutter app + device feature</b>Weeks 6–7 (QR ticket + Trip Map)</span></div>
+      <div class="panel spec-item"><span class="sid">§9</span><span class="txt"><b>4 distinct agents, plan/tools/validate/approve</b>Agent pipeline, Weeks 5–7</span></div>
+      <div class="panel spec-item"><span class="sid">§10</span><span class="txt"><b>Required cross‑platform workflow pattern</b>Workflow narrative, Weeks 7–8</span></div>
+      <div class="panel spec-item"><span class="sid">§11</span><span class="txt"><b>Third‑party integration</b>Stripe section, Week 3</span></div>
+      <div class="panel spec-item"><span class="sid">§12</span><span class="txt"><b>Testing across all layers + agent evaluation</b>Testing plan</span></div>
+      <div class="panel spec-item"><span class="sid">§13</span><span class="txt"><b>Git, GitHub Actions CI</b>Branching, Week 1 onward</span></div>
+      <div class="panel spec-item"><span class="sid">§14</span><span class="txt"><b>Deployment, README, ADR</b>Week 1 → 5 → 8 → 9</span></div>
+      <div class="panel spec-item"><span class="sid">§15</span><span class="txt"><b>Submission format, single PDF</b>Week 9</span></div>
+      <div class="panel spec-item"><span class="sid">§17</span><span class="txt"><b>Demo + viva readiness</b>Week 9, cached fallback run</span></div>
+      <div class="panel spec-item"><span class="sid">§18</span><span class="txt"><b>AI usage disclosure &amp; logging</b>Logged continuously, declared Week 9</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TESTING + INTEGRATION ============ -->
+<section id="testing">
+  <div class="wrap">
+    <div class="eyebrow">Quality &amp; integration</div>
+    <h2 class="sec-title">Testing plan</h2>
+    <p class="sec-sub">Rule‑based assertions are the primary method for agent evaluation — LLM‑as‑judge only supports the evidence, never replaces it.</p>
+
+    <div class="test-grid">
+      <div class="panel test-row"><div class="layer">Backend unit</div><p>Preference/TripRequest validation (A) · itinerary time‑conflict rejection (B) · AvailabilityService room‑count math (C) · booking status transition guard (D)</p></div>
+      <div class="panel test-row"><div class="layer">Integration</div><p>Controller + DB round‑trip via WebApplicationFactory; role‑based authorization / IDOR checks</p></div>
+      <div class="panel test-row"><div class="layer">Concurrency</div><p>Two simultaneous bookings on the last available room — confirm exactly one succeeds</p></div>
+      <div class="panel test-row"><div class="layer">Database</div><p>Migrations apply cleanly; FK violations rejected; BookingReference uniqueness enforced</p></div>
+      <div class="panel test-row"><div class="layer">React</div><p>Vitest + RTL component tests for the Approval Dashboard; protected‑route redirect; form validation</p></div>
+      <div class="panel test-row"><div class="layer">Flutter</div><p>Widget tests for Trip Request form; navigation tests; mocked API integration tests</p></div>
+      <div class="panel test-row"><div class="layer">End‑to‑end</div><p>Scripted Postman/Newman run: request → agents → Awaiting Approval → React approve → Flutter Confirmed</p></div>
+      <div class="panel test-row"><div class="layer">Agent evaluation</div><p>3–5 golden‑case trip requests, budget/overlap/status assertions, a prompt‑injection case, a budget‑too‑low retry case</p></div>
+    </div>
+
+    <div class="panel integration-block">
+      <div class="stripe-mark">Stripe</div>
+      <p><b style="color:var(--ink)">Stripe Sandbox</b> — central to Component D, not a bolt‑on. Called directly from the backend for a synchronous success/fail response; no webhook, no idempotency key (a stated, deliberate simplification for the ADR). Keys live in user‑secrets locally and GitHub secrets in CI — never in appsettings.json.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RISK ============ -->
+<section id="risk">
+  <div class="wrap">
+    <div class="eyebrow">Risk register</div>
+    <h2 class="sec-title">What could go wrong</h2>
+
+    <div class="risk-grid">
+      <div class="panel risk-card">
+        <div class="risk-top"><span class="rtitle">Team still building Git/VS Code comfort while learning 4 new technologies</span><span class="sev high">High</span></div>
+        <div class="mit">Week 1 is shared scaffolding only, done together</div>
+      </div>
+      <div class="panel risk-card">
+        <div class="risk-top"><span class="rtitle">Academic workload alongside a 9‑week project</span><span class="sev high">High</span></div>
+        <div class="mit">Scope in this document exists specifically to protect against this</div>
+      </div>
+      <div class="panel risk-card">
+        <div class="risk-top"><span class="rtitle">Stripe keys committed to source</span><span class="sev med">Medium</span></div>
+        <div class="mit">.gitignore set up before the first commit</div>
+      </div>
+      <div class="panel risk-card">
+        <div class="risk-top"><span class="rtitle">Live LLM calls failing during the demo</span><span class="sev med">Medium</span></div>
+        <div class="mit">Keep a cached known‑good run as a fallback</div>
+      </div>
+      <div class="panel risk-card">
+        <div class="risk-top"><span class="rtitle">Student D carries booking + approval + payments</span><span class="sev med">Medium</span></div>
+        <div class="mit">Invoice generation can drop to a stretch goal without losing required marks</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ACTION LIST ============ -->
+<section id="actions">
+  <div class="wrap">
+    <div class="eyebrow">Do this first</div>
+    <h2 class="sec-title">Prioritized action list</h2>
+
+    <div class="action-cols">
+      <div class="panel action-col">
+        <div class="phase">Week 1 · together, before solo coding</div>
+        <ol>
+          <li>Scaffold all four projects, get Identity/JWT auth working</li>
+          <li>Create the shared <b>AppDbContext</b>, agree the schema as a team</li>
+          <li>Confirm RoomId/CheckInDate/CheckOutDate and lat/lng fields — <b>hard blockers if missed</b></li>
+          <li>Set up <b>.gitignore</b> before the first commit</li>
+        </ol>
+      </div>
+      <div class="panel action-col">
+        <div class="phase">Weeks 2–7 · per component</div>
+        <ol>
+          <li>Backend → React → Flutter → agent, in that order, per component</li>
+          <li>AgentLog writing wired up as soon as the first agent exists</li>
+          <li>BookingReference generation ready before Checkout needs it</li>
+          <li>The Coordinator's one‑retry logic — what makes it a real agent</li>
+        </ol>
+      </div>
+      <div class="panel action-col">
+        <div class="phase">Weeks 8–9 · close out</div>
+        <ol>
+          <li>Concurrency test on the last‑room scenario</li>
+          <li>Database seeder populated for a clean demo walkthrough</li>
+          <li>ADRs: flat transport model, one‑retry decision, simplified Stripe, soft‑delete strategy</li>
+          <li>Demo rehearsed with a cached agent run as fallback</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>SE3090 · Assignment 1 — 4 students · 4 components · 4 agents · 17 tables · 9 weeks</p>
+  </div>
+</footer>
+
+</body>
+</html>
