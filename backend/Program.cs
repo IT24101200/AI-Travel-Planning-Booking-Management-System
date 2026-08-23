@@ -126,6 +126,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<DestinationService>();
 builder.Services.AddScoped<TourService>();
 
+// ── DI: Student C Services ──
+builder.Services.AddScoped<IHotelService, HotelService>();
+builder.Services.AddScoped<ITransportService, TransportService>();
+builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
+
 var app = builder.Build();
 
 // ── Middleware Pipeline ──

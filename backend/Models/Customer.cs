@@ -25,6 +25,10 @@ namespace backend.Models
 
         public DateTime LastActiveAt { get; set; } = DateTime.UtcNow;
 
+        [Required]
+        [MaxLength(50)]
+        public string Role { get; set; } = "Customer";
+
         // ── Navigation Properties ──
         public Preference? Preference { get; set; }
         public ICollection<Notification> Notifications { get; set; } = new List<Notification>();

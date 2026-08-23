@@ -25,6 +25,11 @@ namespace backend.Data
         public DbSet<Itinerary> Itineraries { get; set; }
         public DbSet<ItineraryItem> ItineraryItems { get; set; }
 
+        // ── Student C DbSets ──
+        public DbSet<Hotel> Hotels { get; set; }
+        public DbSet<Room> Rooms { get; set; }
+        public DbSet<TransportOption> TransportOptions { get; set; }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder); // Required for Identity tables
@@ -157,6 +162,59 @@ namespace backend.Data
                       .OnDelete(DeleteBehavior.Restrict);
 
                 entity.Property(ii => ii.PriceAtSelection).HasColumnType("decimal(18,2)");
+            });
+
+            // ════════════════════════════════════════════════════════════
+            //  STUDENT C — Hotel, Room, TransportOption
+            // ════════════════════════════════════════════════════════════
+
+            // ── Hotel ──
+            builder.Entity<Hotel>(entity =>
+            {
+                entity.HasOne(h => h.Destination)
+                      .WithMany()              // Destination doesn't need a Hotels collection
+                      .HasForeignKey(h => h.DestinationId)
+                      .OnDelete(DeleteBehavior.Restrict);  // don't cascade-delete hotels if destination removed
+
+                entity.Property(h => h.Name).IsRequired().HasMaxLength(200);
+                entity.Property(h => h.Address).HasMaxLength(500);
+
+                entity.Property(h => h.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20)
+                      .HasDefaultValue(HotelStatus.Active);
+            });
+
+            // ── Room ──
+            builder.Entity<Room>(entity =>
+            {
+                entity.HasOne(r => r.Hotel)
+                      .WithMany(h => h.Rooms)
+                      .HasForeignKey(r => r.HotelId)
+                      .OnDelete(DeleteBehavior.Cascade);  // delete rooms if hotel is deleted
+
+                entity.Property(r => r.RoomType).IsRequired().HasMaxLength(50);
+                entity.Property(r => r.PricePerNight).HasColumnType("decimal(18,2)");
+                entity.Property(r => r.Currency).HasMaxLength(10).HasDefaultValue("USD");
+            });
+
+            // ── TransportOption ──
+            builder.Entity<TransportOption>(entity =>
+            {
+                entity.Property(t => t.Type)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+
+                entity.Property(t => t.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20)
+                      .HasDefaultValue(TransportStatus.Active);
+
+                entity.Property(t => t.Provider).IsRequired().HasMaxLength(150);
+                entity.Property(t => t.RouteFrom).IsRequired().HasMaxLength(200);
+                entity.Property(t => t.RouteTo).IsRequired().HasMaxLength(200);
+                entity.Property(t => t.Price).HasColumnType("decimal(18,2)");
+                entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("USD");
             });
         }
     }

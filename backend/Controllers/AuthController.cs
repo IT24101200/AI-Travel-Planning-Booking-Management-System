@@ -61,13 +61,14 @@ namespace backend.Controllers
                 FullName = dto.FullName,
                 Phone = dto.Phone,
                 JoinedAt = DateTime.UtcNow,
-                LastActiveAt = DateTime.UtcNow
+                LastActiveAt = DateTime.UtcNow,
+                Role = string.IsNullOrWhiteSpace(dto.Role) ? "Customer" : dto.Role
             };
 
             _db.Customers.Add(customer);
             await _db.SaveChangesAsync();
 
-            var token = GenerateJwtToken(user);
+            var token = await GenerateJwtTokenAsync(user);
 
             return Created("", new
             {
@@ -106,7 +107,7 @@ namespace backend.Controllers
                 await _db.SaveChangesAsync();
             }
 
-            var token = GenerateJwtToken(user);
+            var token = await GenerateJwtTokenAsync(user);
 
             return Ok(new
             {
@@ -118,19 +119,26 @@ namespace backend.Controllers
             });
         }
 
-        private string GenerateJwtToken(IdentityUser user)
+        private async Task<string> GenerateJwtTokenAsync(IdentityUser user)
         {
             var jwtSettings = _configuration.GetSection("Jwt");
             var key = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
                 System.Text.Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
 
-            var claims = new[]
+            var claims = new List<System.Security.Claims.Claim>
             {
                 new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id),
                 new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, user.Email!),
                 new System.Security.Claims.Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti,
                     Guid.NewGuid().ToString())
             };
+
+            // Fetch the role from the Customer table and add it to the token claims
+            var customer = await _db.Customers.FindAsync(user.Id);
+            if (customer != null && !string.IsNullOrWhiteSpace(customer.Role))
+            {
+                claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, customer.Role));
+            }
 
             var creds = new Microsoft.IdentityModel.Tokens.SigningCredentials(
                 key, Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256);
@@ -165,6 +173,12 @@ namespace backend.Controllers
         [Phone]
         [MaxLength(20)]
         public string? Phone { get; set; }
+
+        /// <summary>
+        /// Optional role for testing purposes (e.g. "TravelAgent", "Admin"). Defaults to "Customer".
+        /// </summary>
+        [MaxLength(50)]
+        public string? Role { get; set; }
     }
 
     public class LoginDto
