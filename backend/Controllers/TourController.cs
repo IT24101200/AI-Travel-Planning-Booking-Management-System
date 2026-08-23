@@ -7,6 +7,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TourController : ControllerBase
     {
         private readonly TourService _service;
@@ -18,7 +19,7 @@ namespace backend.Controllers
 
         // GET /api/tour
         [HttpGet]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> Search(
             [FromQuery] int? destinationId,
             [FromQuery] string? category,
@@ -35,7 +36,7 @@ namespace backend.Controllers
 
         // GET /api/tour/{id}
         [HttpGet("{id}")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetById(int id)
         {
             var tour = await _service.GetByIdAsync(id);

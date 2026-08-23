@@ -11,6 +11,7 @@ namespace backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TransportController : ControllerBase
     {
         private readonly ITransportService _transportService;
@@ -29,7 +30,7 @@ namespace backend.Controllers
         /// GET /api/transport?type=Flight&routeFrom=Colombo&page=1&pageSize=10
         /// </summary>
         [HttpGet]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> Search(
             [FromQuery] string? type,
             [FromQuery] string? routeFrom,
@@ -67,7 +68,7 @@ namespace backend.Controllers
         /// GET /api/transport/5
         /// </summary>
         [HttpGet("{id}")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetById(int id)
         {
             var transport = await _transportService.GetByIdAsync(id);
@@ -124,7 +125,7 @@ namespace backend.Controllers
         /// This is what the Booking Agent calls via check_transport_availability tool.
         /// </summary>
         [HttpGet("{id}/availability")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> CheckAvailability(int id)
         {
             var availability = await _availabilityService.CheckTransportAvailabilityAsync(id);

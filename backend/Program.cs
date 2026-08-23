@@ -6,10 +6,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using DotNetEnv;
+
+Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
 
-var connectionString = builder.Configuration.GetConnectionString("Default")
+var connectionString = builder.Configuration["SUPERBASE_URL"]
+    ?? builder.Configuration.GetConnectionString("Default")
     ?? builder.Configuration["DATABASE_URL"]
     ?? builder.Configuration["ConnectionStrings:Default"];
 

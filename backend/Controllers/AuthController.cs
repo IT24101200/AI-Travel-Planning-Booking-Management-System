@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,6 +32,7 @@ namespace backend.Controllers
         /// Register a new customer account.
         /// </summary>
         [HttpPost("register")]
+        [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
@@ -62,7 +64,7 @@ namespace backend.Controllers
                 Phone = dto.Phone,
                 JoinedAt = DateTime.UtcNow,
                 LastActiveAt = DateTime.UtcNow,
-                Role = string.IsNullOrWhiteSpace(dto.Role) ? "Customer" : dto.Role
+                Role = "Customer"
             };
 
             _db.Customers.Add(customer);
@@ -84,6 +86,7 @@ namespace backend.Controllers
         /// Login with email and password.
         /// </summary>
         [HttpPost("login")]
+        [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
@@ -170,15 +173,12 @@ namespace backend.Controllers
         [MaxLength(150)]
         public string FullName { get; set; } = string.Empty;
 
-        [Phone]
-        [MaxLength(20)]
-        public string? Phone { get; set; }
+        [Required(ErrorMessage = "Phone number is required.")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
+        public string Phone { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Optional role for testing purposes (e.g. "TravelAgent", "Admin"). Defaults to "Customer".
-        /// </summary>
-        [MaxLength(50)]
-        public string? Role { get; set; }
+
     }
 
     public class LoginDto
