@@ -16,6 +16,7 @@ namespace backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class HotelController : ControllerBase
     {
         private readonly IHotelService _hotelService;
@@ -36,7 +37,7 @@ namespace backend.Controllers
         /// GET /api/hotel?search=Hilton&destinationId=1&minStarRating=3&page=1&pageSize=10
         /// </summary>
         [HttpGet]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAll(
             [FromQuery] string? search,
             [FromQuery] int? destinationId,
@@ -72,7 +73,7 @@ namespace backend.Controllers
         /// GET /api/hotel/5
         /// </summary>
         [HttpGet("{id}")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetById(int id)
         {
             var hotel = await _hotelService.GetByIdAsync(id);
@@ -127,7 +128,7 @@ namespace backend.Controllers
         /// GET /api/hotel/5/rooms
         /// </summary>
         [HttpGet("{hotelId}/rooms")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetRooms(int hotelId)
         {
             var rooms = await _hotelService.GetRoomsByHotelAsync(hotelId);
@@ -139,7 +140,7 @@ namespace backend.Controllers
         /// GET /api/hotel/5/rooms/3
         /// </summary>
         [HttpGet("{hotelId}/rooms/{roomId}")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetRoom(int hotelId, int roomId)
         {
             var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId);
@@ -197,7 +198,7 @@ namespace backend.Controllers
         /// This is what the Booking Agent calls via check_hotel_availability tool.
         /// </summary>
         [HttpGet("{hotelId}/rooms/{roomId}/availability")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> CheckRoomAvailability(
             int hotelId, int roomId,
             [FromQuery] DateTime checkIn,

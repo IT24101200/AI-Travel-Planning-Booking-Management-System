@@ -7,6 +7,7 @@ namespace backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class DestinationController : ControllerBase
     {
         private readonly DestinationService _service;
@@ -18,7 +19,7 @@ namespace backend.Controllers
 
         // GET /api/destinations
         [HttpGet]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetAll()
         {
             var destinations = await _service.GetAllAsync();
@@ -27,7 +28,7 @@ namespace backend.Controllers
 
         // GET /api/destinations/{id}
         [HttpGet("{id}")]
-        [Authorize]
+        [AllowAnonymous]
         public async Task<IActionResult> GetById(int id)
         {
             var destination = await _service.GetByIdAsync(id);
