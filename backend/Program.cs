@@ -6,8 +6,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using DotNetEnv;
+
+Env.Load();
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddEnvironmentVariables();
 
 // Load environment variables from 'env' file if present
 var envFilePath = Path.Combine(builder.Environment.ContentRootPath, "env");
@@ -31,10 +35,10 @@ if (File.Exists(envFilePath))
     }
 }
 
-var connectionString = builder.Configuration.GetConnectionString("Default")
-    ?? builder.Configuration["DATABASE_URL"]
-    ?? builder.Configuration["SUPERBASE_URL"]
+var connectionString = builder.Configuration["SUPERBASE_URL"]
     ?? Environment.GetEnvironmentVariable("SUPERBASE_URL")
+    ?? builder.Configuration.GetConnectionString("Default")
+    ?? builder.Configuration["DATABASE_URL"]
     ?? builder.Configuration["ConnectionStrings:Default"];
 
 // ── Database ──
@@ -154,6 +158,11 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped<DestinationService>();
 builder.Services.AddScoped<TourService>();
+
+// ── DI: Student C Services ──
+builder.Services.AddScoped<IHotelService, HotelService>();
+builder.Services.AddScoped<ITransportService, TransportService>();
+builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
 var app = builder.Build();
 

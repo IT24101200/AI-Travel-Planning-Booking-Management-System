@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using backend.Data;
 using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,6 +32,7 @@ namespace backend.Controllers
         /// Register a new customer account.
         /// </summary>
         [HttpPost("register")]
+        [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
@@ -61,13 +63,14 @@ namespace backend.Controllers
                 FullName = dto.FullName,
                 Phone = dto.Phone,
                 JoinedAt = DateTime.UtcNow,
-                LastActiveAt = DateTime.UtcNow
+                LastActiveAt = DateTime.UtcNow,
+                Role = "Customer"
             };
 
             _db.Customers.Add(customer);
             await _db.SaveChangesAsync();
 
-            var token = GenerateJwtToken(user);
+            var token = await GenerateJwtTokenAsync(user);
 
             return Created("", new
             {
@@ -83,6 +86,7 @@ namespace backend.Controllers
         /// Login with email and password.
         /// </summary>
         [HttpPost("login")]
+        [AllowAnonymous]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
@@ -106,7 +110,7 @@ namespace backend.Controllers
                 await _db.SaveChangesAsync();
             }
 
-            var token = GenerateJwtToken(user);
+            var token = await GenerateJwtTokenAsync(user);
 
             return Ok(new
             {
@@ -118,19 +122,26 @@ namespace backend.Controllers
             });
         }
 
-        private string GenerateJwtToken(IdentityUser user)
+        private async Task<string> GenerateJwtTokenAsync(IdentityUser user)
         {
             var jwtSettings = _configuration.GetSection("Jwt");
             var key = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
                 System.Text.Encoding.UTF8.GetBytes(jwtSettings["Key"]!));
 
-            var claims = new[]
+            var claims = new List<System.Security.Claims.Claim>
             {
                 new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, user.Id),
                 new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Email, user.Email!),
                 new System.Security.Claims.Claim(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti,
                     Guid.NewGuid().ToString())
             };
+
+            // Fetch the role from the Customer table and add it to the token claims
+            var customer = await _db.Customers.FindAsync(user.Id);
+            if (customer != null && !string.IsNullOrWhiteSpace(customer.Role))
+            {
+                claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, customer.Role));
+            }
 
             var creds = new Microsoft.IdentityModel.Tokens.SigningCredentials(
                 key, Microsoft.IdentityModel.Tokens.SecurityAlgorithms.HmacSha256);
@@ -162,9 +173,12 @@ namespace backend.Controllers
         [MaxLength(150)]
         public string FullName { get; set; } = string.Empty;
 
-        [Phone]
-        [MaxLength(20)]
-        public string? Phone { get; set; }
+        [Required(ErrorMessage = "Phone number is required.")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
+        public string Phone { get; set; } = string.Empty;
+
+
     }
 
     public class LoginDto
