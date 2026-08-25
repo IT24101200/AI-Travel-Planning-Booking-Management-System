@@ -9,8 +9,32 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load environment variables from 'env' file if present
+var envFilePath = Path.Combine(builder.Environment.ContentRootPath, "env");
+if (!File.Exists(envFilePath))
+{
+    envFilePath = Path.Combine(Directory.GetCurrentDirectory(), "env");
+}
+if (File.Exists(envFilePath))
+{
+    foreach (var line in File.ReadAllLines(envFilePath))
+    {
+        if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#")) continue;
+        var parts = line.Split('=', 2);
+        if (parts.Length == 2)
+        {
+            var key = parts[0].Trim();
+            var val = parts[1].Trim().Trim('"').Trim('\'');
+            Environment.SetEnvironmentVariable(key, val);
+            builder.Configuration[key] = val;
+        }
+    }
+}
+
 var connectionString = builder.Configuration.GetConnectionString("Default")
     ?? builder.Configuration["DATABASE_URL"]
+    ?? builder.Configuration["SUPERBASE_URL"]
+    ?? Environment.GetEnvironmentVariable("SUPERBASE_URL")
     ?? builder.Configuration["ConnectionStrings:Default"];
 
 // ── Database ──
@@ -73,6 +97,11 @@ builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
+
+// ── DI: Student D Services ──
+builder.Services.AddScoped<IBookingService, BookingService>();
+builder.Services.AddScoped<IApprovalService, ApprovalService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 // ── Swagger / OpenAPI ──
 builder.Services.AddEndpointsApiExplorer();

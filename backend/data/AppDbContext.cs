@@ -25,6 +25,13 @@ namespace backend.Data
         public DbSet<Itinerary> Itineraries { get; set; }
         public DbSet<ItineraryItem> ItineraryItems { get; set; }
 
+        // ── Student D DbSets ──
+        public DbSet<Booking> Bookings => Set<Booking>();
+        public DbSet<BookingItem> BookingItems => Set<BookingItem>();
+        public DbSet<BookingApproval> BookingApprovals => Set<BookingApproval>();
+        public DbSet<Payment> Payments => Set<Payment>();
+        public DbSet<TravelAgent> TravelAgents => Set<TravelAgent>();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder); // Required for Identity tables
@@ -157,6 +164,113 @@ namespace backend.Data
                       .OnDelete(DeleteBehavior.Restrict);
 
                 entity.Property(ii => ii.PriceAtSelection).HasColumnType("decimal(18,2)");
+            });
+
+            // ── Student D: Booking ──
+            builder.Entity<Booking>(entity =>
+            {
+                entity.HasIndex(b => b.BookingReference).IsUnique();
+
+                entity.Property(b => b.BookingReference).IsRequired().HasMaxLength(50);
+                entity.Property(b => b.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(30)
+                      .HasDefaultValue(BookingStatus.Draft);
+
+                entity.Property(b => b.TotalCost).HasColumnType("decimal(18,2)");
+                entity.Property(b => b.Currency).HasMaxLength(10).HasDefaultValue("USD");
+                entity.Property(b => b.CreatedAt).HasDefaultValueSql("NOW()");
+                entity.Property(b => b.UpdatedAt).HasDefaultValueSql("NOW()");
+
+                entity.HasOne(b => b.Customer)
+                      .WithMany()
+                      .HasForeignKey(b => b.CustomerId)
+                      .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.Itinerary)
+                      .WithMany()
+                      .HasForeignKey(b => b.ItineraryId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── Student D: BookingItem ──
+            builder.Entity<BookingItem>(entity =>
+            {
+                entity.Property(bi => bi.ItemType)
+                      .HasConversion<string>()
+                      .HasMaxLength(20);
+
+                entity.Property(bi => bi.UnitPrice).HasColumnType("decimal(18,2)");
+                entity.Property(bi => bi.Subtotal).HasColumnType("decimal(18,2)");
+
+                entity.HasOne(bi => bi.Booking)
+                      .WithMany(b => b.BookingItems)
+                      .HasForeignKey(bi => bi.BookingId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(bi => bi.Tour)
+                      .WithMany()
+                      .HasForeignKey(bi => bi.TourId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(bi => bi.Room)
+                      .WithMany()
+                      .HasForeignKey(bi => bi.RoomId)
+                      .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(bi => bi.TransportOption)
+                      .WithMany()
+                      .HasForeignKey(bi => bi.TransportOptionId)
+                      .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // ── Student D: BookingApproval ──
+            builder.Entity<BookingApproval>(entity =>
+            {
+                entity.Property(ba => ba.Decision)
+                      .HasConversion<string>()
+                      .HasMaxLength(30);
+
+                entity.Property(ba => ba.Comment).HasMaxLength(1000);
+                entity.Property(ba => ba.DecidedAt).HasDefaultValueSql("NOW()");
+
+                entity.HasOne(ba => ba.Booking)
+                      .WithMany(b => b.BookingApprovals)
+                      .HasForeignKey(ba => ba.BookingId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(ba => ba.TravelAgent)
+                      .WithMany(ta => ta.BookingApprovals)
+                      .HasForeignKey(ba => ba.TravelAgentId)
+                      .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── Student D: Payment ──
+            builder.Entity<Payment>(entity =>
+            {
+                entity.Property(p => p.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20)
+                      .HasDefaultValue(PaymentStatus.Pending);
+
+                entity.Property(p => p.Amount).HasColumnType("decimal(18,2)");
+                entity.Property(p => p.Currency).HasMaxLength(10).HasDefaultValue("USD");
+                entity.Property(p => p.StripeReference).HasMaxLength(100);
+                entity.Property(p => p.PaymentDate).HasDefaultValueSql("NOW()");
+
+                entity.HasOne(p => p.Booking)
+                      .WithMany(b => b.Payments)
+                      .HasForeignKey(p => p.BookingId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── Student D: TravelAgent ──
+            builder.Entity<TravelAgent>(entity =>
+            {
+                entity.HasKey(ta => ta.Id);
+                entity.Property(ta => ta.FullName).IsRequired().HasMaxLength(150);
+                entity.Property(ta => ta.Department).HasMaxLength(100);
+                entity.Property(ta => ta.HireDate).HasDefaultValueSql("NOW()");
             });
         }
     }
