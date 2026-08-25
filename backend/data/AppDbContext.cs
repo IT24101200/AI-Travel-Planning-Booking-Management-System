@@ -171,7 +171,6 @@ namespace backend.Data
                 entity.Property(ii => ii.PriceAtSelection).HasColumnType("decimal(18,2)");
             });
 
-<<<<<<< HEAD
             // ── Student D: Booking ──
             builder.Entity<Booking>(entity =>
             {
@@ -277,7 +276,8 @@ namespace backend.Data
                 entity.Property(ta => ta.FullName).IsRequired().HasMaxLength(150);
                 entity.Property(ta => ta.Department).HasMaxLength(100);
                 entity.Property(ta => ta.HireDate).HasDefaultValueSql("NOW()");
-=======
+            });
+
             // ════════════════════════════════════════════════════════════
             //  STUDENT C — Hotel, Room, TransportOption
             // ════════════════════════════════════════════════════════════
@@ -286,9 +286,9 @@ namespace backend.Data
             builder.Entity<Hotel>(entity =>
             {
                 entity.HasOne(h => h.Destination)
-                      .WithMany()              // Destination doesn't need a Hotels collection
+                      .WithMany()
                       .HasForeignKey(h => h.DestinationId)
-                      .OnDelete(DeleteBehavior.Restrict);  // don't cascade-delete hotels if destination removed
+                      .OnDelete(DeleteBehavior.Restrict);
 
                 entity.Property(h => h.Name).IsRequired().HasMaxLength(200);
                 entity.Property(h => h.Address).HasMaxLength(500);
@@ -305,7 +305,7 @@ namespace backend.Data
                 entity.HasOne(r => r.Hotel)
                       .WithMany(h => h.Rooms)
                       .HasForeignKey(r => r.HotelId)
-                      .OnDelete(DeleteBehavior.Cascade);  // delete rooms if hotel is deleted
+                      .OnDelete(DeleteBehavior.Cascade);
 
                 entity.Property(r => r.RoomType).IsRequired().HasMaxLength(50);
                 entity.Property(r => r.PricePerNight).HasColumnType("decimal(18,2)");
@@ -329,7 +329,6 @@ namespace backend.Data
                 entity.Property(t => t.RouteTo).IsRequired().HasMaxLength(200);
                 entity.Property(t => t.Price).HasColumnType("decimal(18,2)");
                 entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("USD");
->>>>>>> main
             });
         }
     }
