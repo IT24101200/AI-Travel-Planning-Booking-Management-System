@@ -266,5 +266,75 @@ namespace backend.Tests
             var updatedBooking = await bookingService.GetBookingByIdAsync(booking.Id);
             Assert.Equal(BookingStatus.Confirmed, updatedBooking!.Status);
         }
+
+        [Fact]
+        public async Task CreateBooking_ThrowsKeyNotFoundException_WhenCustomerDoesNotExist()
+        {
+            // Arrange
+            using var context = CreateContext();
+            var service = new BookingService(context);
+
+            var dto = new BookingCreateDto
+            {
+                CustomerId = "non-existent-cust",
+                ItineraryId = 10,
+                Items = new List<BookingItemCreateDto>
+                {
+                    new BookingItemCreateDto { ItemType = BookingItemType.Tour, TourId = 1, Quantity = 1, UnitPrice = 100 }
+                }
+            };
+
+            // Act & Assert (HTTP 404 response trigger)
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => service.CreateBookingAsync(dto));
+        }
+
+        [Fact]
+        public async Task CreateBooking_ThrowsArgumentException_WhenItemHasMultipleOrNoFKs()
+        {
+            // Arrange
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+            var service = new BookingService(context);
+
+            var dto = new BookingCreateDto
+            {
+                CustomerId = "cust-1",
+                ItineraryId = 10,
+                Items = new List<BookingItemCreateDto>
+                {
+                    // Invalid item with BOTH TourId and RoomId set (violates Rule 6)
+                    new BookingItemCreateDto
+                    {
+                        ItemType = BookingItemType.Tour,
+                        TourId = 100,
+                        RoomId = 5,
+                        Quantity = 1,
+                        UnitPrice = 100
+                    }
+                }
+            };
+
+            // Act & Assert (HTTP 400 response trigger)
+            var ex = await Assert.ThrowsAsync<ArgumentException>(() => service.CreateBookingAsync(dto));
+            Assert.Contains("must have exactly one of TourId, RoomId, or TransportOptionId set", ex.Message);
+        }
+
+        [Fact]
+        public async Task ProcessPayment_ThrowsKeyNotFoundException_WhenBookingDoesNotExist()
+        {
+            // Arrange
+            using var context = CreateContext();
+            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build());
+
+            var paymentDto = new PaymentCreateDto
+            {
+                BookingId = 9999,
+                Amount = 100,
+                Currency = "USD"
+            };
+
+            // Act & Assert (HTTP 404 response trigger)
+            await Assert.ThrowsAsync<KeyNotFoundException>(() => paymentService.ProcessPaymentAsync(paymentDto));
+        }
     }
 }
