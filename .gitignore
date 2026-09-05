@@ -22,3 +22,9 @@ agentic-ai/__pycache__/
 # secrets, any location
 .env
 .env.local
+backend/env
+env
+
+# Personal guide docs
+student_d_guide.md
+SE3090_Travel_Planning_Complete_Master.md
