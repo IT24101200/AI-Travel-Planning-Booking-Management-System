@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.DTOs;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
@@ -12,6 +13,7 @@ namespace backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ApprovalController : ControllerBase
     {
         private readonly IApprovalService _approvalService;
@@ -25,9 +27,11 @@ namespace backend.Controllers
 
         /// <summary>
         /// Record a human approval decision (Approved / Rejected / RevisionRequested).
+        /// Only TravelAgent or Admin can submit approval decisions.
         /// Automatically updates booking status.
         /// </summary>
         [HttpPost]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(ApprovalDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -55,8 +59,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Get all human approval decisions recorded for a specific booking.
+        /// Only TravelAgent or Admin can view approval records.
         /// </summary>
         [HttpGet("booking/{bookingId}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(IEnumerable<ApprovalDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetApprovalsByBooking(int bookingId)
         {
@@ -65,9 +71,11 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Get all pending bookings awaiting travel agent approval (includes AgentLog trail).
+        /// Get all pending bookings awaiting travel agent approval.
+        /// Only TravelAgent or Admin can view the pending queue.
         /// </summary>
         [HttpGet("pending")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(IEnumerable<BookingDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetPendingApprovals()
         {
@@ -77,8 +85,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Get all historical approval audit records.
+        /// Only TravelAgent or Admin can view all approvals.
         /// </summary>
         [HttpGet]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(IEnumerable<ApprovalDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllApprovals()
         {

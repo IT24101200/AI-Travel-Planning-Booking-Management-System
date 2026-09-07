@@ -13,6 +13,7 @@ namespace backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class BookingController : ControllerBase
     {
         private readonly IBookingService _bookingService;
@@ -101,8 +102,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Update booking status (PUT method — enforces status transition rules).
+        /// Only TravelAgent or Admin can change booking status.
         /// </summary>
         [HttpPut("{id}/status")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(BookingDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -113,8 +116,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Update booking status (PATCH method — enforces status transition rules).
+        /// Only TravelAgent or Admin can change booking status.
         /// </summary>
         [HttpPatch("{id}/status")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(BookingDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -124,9 +129,10 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Delete a booking by ID.
+        /// Delete a booking by ID. Only TravelAgent or Admin can delete.
         /// </summary>
         [HttpDelete("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteBooking(int id)

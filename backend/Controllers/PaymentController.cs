@@ -1,5 +1,6 @@
 using backend.DTOs;
 using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace backend.Controllers
@@ -10,6 +11,7 @@ namespace backend.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class PaymentController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
@@ -74,9 +76,10 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Get all payment records.
+        /// Get all payment records. Only TravelAgent or Admin can view all payments.
         /// </summary>
         [HttpGet]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(IEnumerable<PaymentDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAllPayments()
         {
@@ -86,8 +89,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Get Revenue Summary & Monthly Analytics Report for Staff Dashboard.
+        /// Only TravelAgent or Admin can view the revenue report.
         /// </summary>
         [HttpGet("revenue-report")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(RevenueReportDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetRevenueReport()
         {

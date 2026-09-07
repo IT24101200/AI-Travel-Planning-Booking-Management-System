@@ -83,6 +83,69 @@ namespace backend.Controllers
         }
 
         /// <summary>
+        /// Register a new staff account (TravelAgent or Admin).
+        /// Requires a secret staff code to prevent unauthorised staff sign-ups.
+        /// </summary>
+        [HttpPost("register-staff")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RegisterStaff([FromBody] RegisterStaffDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            // Simple secret code check — set "StaffSecretCode" in appsettings.json
+            var correctCode = _configuration["StaffSecretCode"] ?? "staff123";
+            if (dto.StaffSecretCode != correctCode)
+                return BadRequest(new { message = "Invalid staff secret code." });
+
+            // Only allow valid roles
+            var allowedRoles = new[] { "TravelAgent", "Admin" };
+            if (!allowedRoles.Contains(dto.Role))
+                return BadRequest(new { message = "Role must be 'TravelAgent' or 'Admin'." });
+
+            var existingUser = await _userManager.FindByEmailAsync(dto.Email);
+            if (existingUser != null)
+                return BadRequest(new { message = "An account with this email already exists." });
+
+            var user = new IdentityUser
+            {
+                UserName = dto.Email,
+                Email = dto.Email
+            };
+
+            var result = await _userManager.CreateAsync(user, dto.Password);
+            if (!result.Succeeded)
+                return BadRequest(new { message = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
+
+            var customer = new Customer
+            {
+                Id = user.Id,
+                FullName = dto.FullName,
+                Phone = dto.Phone,
+                JoinedAt = DateTime.UtcNow,
+                LastActiveAt = DateTime.UtcNow,
+                Role = dto.Role   // "TravelAgent" or "Admin"
+            };
+
+            _db.Customers.Add(customer);
+            await _db.SaveChangesAsync();
+
+            var token = await GenerateJwtTokenAsync(user);
+
+            return Created("", new
+            {
+                message = $"Staff account created with role '{dto.Role}'.",
+                token,
+                userId = user.Id,
+                email = user.Email,
+                fullName = customer.FullName,
+                role = customer.Role
+            });
+        }
+
+        /// <summary>
         /// Login with email and password.
         /// </summary>
         [HttpPost("login")]
@@ -189,5 +252,33 @@ namespace backend.Controllers
 
         [Required]
         public string Password { get; set; } = string.Empty;
+    }
+
+    public class RegisterStaffDto
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [Required]
+        [MinLength(6)]
+        public string Password { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(150)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Phone number is required.")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
+        public string Phone { get; set; } = string.Empty;
+
+        /// <summary>Role must be "TravelAgent" or "Admin".</summary>
+        [Required]
+        public string Role { get; set; } = "TravelAgent";
+
+        /// <summary>Secret code required to create staff accounts.</summary>
+        [Required]
+        public string StaffSecretCode { get; set; } = string.Empty;
     }
 }

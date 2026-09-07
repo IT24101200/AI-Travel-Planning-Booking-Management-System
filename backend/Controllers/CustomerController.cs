@@ -58,9 +58,11 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Get a specific customer's profile by ID (admin/directory use).
+        /// Get a specific customer's profile by ID — Staff directory use only.
+        /// Only TravelAgent or Admin can look up other customer profiles.
         /// </summary>
         [HttpGet("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(CustomerDto), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetById(string id)
@@ -74,9 +76,11 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// List all customers with search, sort, and pagination (for Customer Directory).
+        /// List all customers with search, sort, and pagination (Staff Customer Directory).
+        /// Only TravelAgent or Admin can access the full customer list.
         /// </summary>
         [HttpGet]
+        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll(
             [FromQuery] string? search,

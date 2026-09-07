@@ -135,6 +135,37 @@ namespace backend.Services
             return MapToDto(notification);
         }
 
+        public async Task<NotificationDto> SendNotificationAsync(SendNotificationDto dto)
+        {
+            // Validate customer exists
+            var customerExists = await _db.Customers.AnyAsync(c => c.Id == dto.CustomerId);
+            if (!customerExists)
+                throw new KeyNotFoundException($"Customer with ID '{dto.CustomerId}' not found.");
+
+            // Parse Channel enum from string
+            if (!Enum.TryParse<NotificationChannel>(dto.Channel, true, out var channel))
+                throw new ArgumentException($"Invalid channel '{dto.Channel}'. Valid values: Email, SMS, Push, InApp.");
+
+            // Parse MessageType enum from string
+            if (!Enum.TryParse<MessageType>(dto.MessageType, true, out var messageType))
+                throw new ArgumentException($"Invalid messageType '{dto.MessageType}'. Valid values: TripUpdate, BookingConfirmation, PaymentReceipt, SystemAlert, Promotion, Reminder.");
+
+            var notification = new Notification
+            {
+                CustomerId  = dto.CustomerId,
+                Channel     = channel,
+                MessageType = messageType,
+                Content     = dto.Content,
+                Status      = NotificationStatus.Sent,
+                SentAt      = DateTime.UtcNow
+            };
+
+            _db.Notifications.Add(notification);
+            await _db.SaveChangesAsync();
+
+            return MapToDto(notification);
+        }
+
         private static NotificationDto MapToDto(Notification n)
         {
             return new NotificationDto
