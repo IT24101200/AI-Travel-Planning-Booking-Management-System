@@ -11,8 +11,9 @@ namespace backend.DTOs
         [MaxLength(150)]
         public string FullName { get; set; } = string.Empty;
 
-        [MaxLength(20)]
-        [Phone]
-        public string? Phone { get; set; }
+        [Required(ErrorMessage = "Phone number is required.")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
+        public string Phone { get; set; } = string.Empty;
     }
 }

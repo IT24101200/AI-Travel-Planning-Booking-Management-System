@@ -1,140 +1,136 @@
-using backend.Data;
-using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using backend.DTOs;
+using backend.Services;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Student C — Transport Fleet & Route Management Controller.
-    /// Manages vehicles, trains, and inter-city transport segments.
+    /// REST API for Transport Option management.
+    /// Same pattern as TourController.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class TransportController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly ITransportService _transportService;
+        private readonly IAvailabilityService _availabilityService;
 
-        public TransportController(AppDbContext db)
+        public TransportController(
+            ITransportService transportService,
+            IAvailabilityService availabilityService)
         {
-            _db = db;
+            _transportService = transportService;
+            _availabilityService = availabilityService;
         }
 
         /// <summary>
-        /// List all transport options with optional type and route filtering.
+        /// Search transport options with filters and pagination.
+        /// GET /api/transport?type=Flight&routeFrom=Colombo&page=1&pageSize=10
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string? type, [FromQuery] string? search)
+        [AllowAnonymous]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? type,
+            [FromQuery] string? routeFrom,
+            [FromQuery] string? routeTo,
+            [FromQuery] decimal? minPrice,
+            [FromQuery] decimal? maxPrice,
+            [FromQuery] string? status,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
-            var query = _db.TransportOptions.AsQueryable();
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
 
-            if (!string.IsNullOrWhiteSpace(type) && type != "All")
-                query = query.Where(t => t.Type == type);
+            var results = await _transportService.SearchAsync(
+                type, routeFrom, routeTo, minPrice, maxPrice, status,
+                sortBy, descending, page, pageSize);
+            var totalCount = await _transportService.GetTotalCountAsync(
+                type, routeFrom, routeTo, minPrice, maxPrice, status);
 
-            if (!string.IsNullOrWhiteSpace(search))
-                query = query.Where(t => t.RouteFrom.Contains(search) ||
-                                         t.RouteTo.Contains(search) ||
-                                         t.Provider.Contains(search));
-
-            var list = await query
-                .OrderBy(t => t.RouteFrom)
-                .Select(t => new
-                {
-                    t.Id,
-                    t.Type,
-                    t.Provider,
-                    Route = $"{t.RouteFrom} → {t.RouteTo}",
-                    t.RouteFrom,
-                    t.RouteTo,
-                    Departure = t.DepartureTime.ToString(@"hh\:mm"),
-                    Arrival = t.ArrivalTime.ToString(@"hh\:mm"),
-                    t.Capacity,
-                    t.Price,
-                    t.Currency,
-                    t.Status
-                })
-                .ToListAsync();
-
-            return Ok(list);
+            return Ok(new
+            {
+                data = results,
+                totalCount,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            });
         }
 
         /// <summary>
-        /// Add a new transit route or vehicle option.
+        /// Get a single transport option by ID.
+        /// GET /api/transport/5
+        /// </summary>
+        [HttpGet("{id}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var transport = await _transportService.GetByIdAsync(id);
+            if (transport is null) return NotFound();
+            return Ok(transport);
+        }
+
+        /// <summary>
+        /// Create a new transport option. Only TravelAgent or Admin.
+        /// POST /api/transport
         /// </summary>
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] CreateTransportDto dto)
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> Create([FromBody] CreateTransportOptionDto dto)
         {
-            var item = new TransportOption
-            {
-                Type = dto.Type,
-                Provider = dto.Provider,
-                RouteFrom = dto.RouteFrom,
-                RouteTo = dto.RouteTo,
-                DepartureTime = TimeSpan.TryParse(dto.Departure, out var dep) ? dep : new TimeSpan(8, 0, 0),
-                ArrivalTime = TimeSpan.TryParse(dto.Arrival, out var arr) ? arr : new TimeSpan(12, 0, 0),
-                Capacity = dto.Capacity > 0 ? dto.Capacity : 30,
-                Price = dto.Price,
-                Currency = "USD",
-                Status = dto.Status ?? "Active"
-            };
-
-            _db.TransportOptions.Add(item);
-            await _db.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetAll), new { id = item.Id }, item);
+            var created = await _transportService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
 
         /// <summary>
-        /// Update transit option.
+        /// Update a transport option. Only TravelAgent or Admin.
+        /// PUT /api/transport/5
         /// </summary>
         [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] CreateTransportDto dto)
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> Update(int id, [FromBody] CreateTransportOptionDto dto)
         {
-            var item = await _db.TransportOptions.FindAsync(id);
-            if (item == null)
-                return NotFound(new { message = "Transport option not found." });
-
-            item.Type = dto.Type;
-            item.Provider = dto.Provider;
-            item.RouteFrom = dto.RouteFrom;
-            item.RouteTo = dto.RouteTo;
-            if (TimeSpan.TryParse(dto.Departure, out var dep)) item.DepartureTime = dep;
-            if (TimeSpan.TryParse(dto.Arrival, out var arr)) item.ArrivalTime = arr;
-            if (dto.Capacity > 0) item.Capacity = dto.Capacity;
-            item.Price = dto.Price;
-            item.Status = dto.Status ?? item.Status;
-
-            await _db.SaveChangesAsync();
-            return Ok(item);
+            var updated = await _transportService.UpdateAsync(id, dto);
+            if (!updated) return NotFound();
+            return NoContent();
         }
 
         /// <summary>
-        /// Remove transit option.
+        /// Soft delete a transport option (sets status to Inactive).
+        /// DELETE /api/transport/5
         /// </summary>
         [HttpDelete("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var item = await _db.TransportOptions.FindAsync(id);
-            if (item == null)
-                return NotFound(new { message = "Transport option not found." });
-
-            _db.TransportOptions.Remove(item);
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "Transport option deleted." });
+            var deleted = await _transportService.SoftDeleteAsync(id);
+            if (!deleted) return NotFound();
+            return NoContent();
         }
-    }
 
-    public class CreateTransportDto
-    {
-        public string Type { get; set; } = "Train";
-        public string Provider { get; set; } = string.Empty;
-        public string RouteFrom { get; set; } = string.Empty;
-        public string RouteTo { get; set; } = string.Empty;
-        public string? Departure { get; set; }
-        public string? Arrival { get; set; }
-        public int Capacity { get; set; } = 40;
-        public decimal Price { get; set; }
-        public string? Status { get; set; } = "Active";
+        // ══════════════════════════════════════════════════════════════════
+        //  AVAILABILITY
+        // ══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Check availability (remaining seats) for a transport option.
+        /// GET /api/transport/5/availability
+        /// 
+        /// This is what the Booking Agent calls via check_transport_availability tool.
+        /// </summary>
+        [HttpGet("{id}/availability")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CheckAvailability(int id)
+        {
+            var availability = await _availabilityService.CheckTransportAvailabilityAsync(id);
+            if (availability is null) return NotFound();
+            return Ok(availability);
+        }
     }
 }

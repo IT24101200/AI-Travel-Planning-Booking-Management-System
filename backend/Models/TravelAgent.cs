@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.AspNetCore.Identity;
 
 namespace backend.Models
 {
     /// <summary>
-    /// Travel Agent profile linked directly to an ASP.NET Identity user.
-    /// The Id is the IdentityUser.Id.
+    /// TravelAgent entity linked to IdentityUser (AspNetUsers).
     /// </summary>
     public class TravelAgent
     {
@@ -16,11 +17,14 @@ namespace backend.Models
         public string FullName { get; set; } = string.Empty;
 
         [MaxLength(100)]
-        public string Department { get; set; } = "Operations";
+        public string Department { get; set; } = string.Empty;
 
         public DateTime HireDate { get; set; } = DateTime.UtcNow;
 
-        // Navigation property for approvals done by this agent
+        // ── Navigation Properties ──
+        [ForeignKey(nameof(Id))]
+        public IdentityUser? User { get; set; }
+
         public ICollection<BookingApproval> BookingApprovals { get; set; } = new List<BookingApproval>();
     }
 }

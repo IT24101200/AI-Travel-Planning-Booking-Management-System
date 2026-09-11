@@ -1,147 +1,103 @@
-using backend.Data;
-using backend.Models;
+using backend.DTOs;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Student D — Payment & Revenue Controller.
-    /// Manages transaction records (Stripe Sandbox integration) and financial summaries.
-    /// All endpoints require authentication. Customers can only see their own payments.
-    /// Staff/agents can see all payments and the revenue summary.
+    /// Student D — Payment API Controller.
+    /// Integrates with Stripe Sandbox for payment processing and revenue reports.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
     public class PaymentController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly IPaymentService _paymentService;
 
-        public PaymentController(AppDbContext db)
+        public PaymentController(IPaymentService paymentService)
         {
-            _db = db;
+            _paymentService = paymentService;
         }
 
         /// <summary>
-        /// List payments. Staff see all; customers only see their own (IDOR protection).
+        /// Process payment through Stripe Sandbox.
+        /// Rule 2 Guard: Returns 400 Bad Request if booking status is NOT Confirmed.
         /// </summary>
-        [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string? status)
+        [HttpPost]
+        [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> ProcessPayment([FromBody] PaymentCreateDto dto)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isStaff = IsStaffUser(userId);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            var query = _db.Payments
-                .Include(p => p.Booking)
-                    .ThenInclude(b => b.Customer)
-                .AsQueryable();
-
-            // IDOR protection: customers can only see their own payments
-            if (!isStaff)
+            try
             {
-                query = query.Where(p => p.Booking.CustomerId == userId);
+                var payment = await _paymentService.ProcessPaymentAsync(dto);
+                return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, payment);
             }
-
-            if (!string.IsNullOrWhiteSpace(status) && status != "All")
+            catch (KeyNotFoundException ex)
             {
-                query = query.Where(p => p.Status == status);
+                return NotFound(new { message = ex.Message });
             }
-
-            var list = await query
-                .OrderByDescending(p => p.PaymentDate)
-                .Select(p => new
-                {
-                    p.Id,
-                    BookingReference = p.Booking.BookingReference,
-                    CustomerName = p.Booking.Customer != null ? p.Booking.Customer.FullName : "Customer",
-                    p.Amount,
-                    p.Currency,
-                    p.Status,
-                    p.StripeReference,
-                    PaymentDate = p.PaymentDate.ToString("yyyy-MM-dd HH:mm")
-                })
-                .ToListAsync();
-
-            return Ok(list);
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
-        /// Get a single payment by ID with IDOR check.
-        /// Customers can only access their own payment records.
+        /// Get payment details by ID.
         /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetPaymentById(int id)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isStaff = IsStaffUser(userId);
-
-            var payment = await _db.Payments
-                .Include(p => p.Booking)
-                    .ThenInclude(b => b.Customer)
-                .FirstOrDefaultAsync(p => p.Id == id);
-
+            var payment = await _paymentService.GetPaymentByIdAsync(id);
             if (payment == null)
-                return NotFound(new { message = "Payment not found." });
+                return NotFound(new { message = $"Payment with ID {id} not found." });
 
-            // IDOR check: verify this payment belongs to the logged-in customer
-            if (!isStaff && payment.Booking.CustomerId != userId)
-                return Forbid();
-
-            return Ok(new
-            {
-                payment.Id,
-                BookingReference = payment.Booking.BookingReference,
-                CustomerName = payment.Booking.Customer?.FullName ?? "Customer",
-                payment.Amount,
-                payment.Currency,
-                payment.Status,
-                payment.StripeReference,
-                PaymentDate = payment.PaymentDate.ToString("yyyy-MM-dd HH:mm")
-            });
+            return Ok(payment);
         }
 
         /// <summary>
-        /// Get high-level revenue and business health metrics for staff dashboards.
-        /// Staff-only endpoint — customers cannot access revenue summaries.
+        /// Get all payments for a specific booking.
         /// </summary>
-        [HttpGet("revenue-summary")]
-        public async Task<IActionResult> GetRevenueSummary()
+        [HttpGet("booking/{bookingId}")]
+        [ProducesResponseType(typeof(IEnumerable<PaymentDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetPaymentsByBooking(int bookingId)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (!IsStaffUser(userId))
-                return Forbid();
-
-            var totalRevenue = await _db.Payments
-                .Where(p => p.Status == "Paid")
-                .SumAsync(p => (decimal?)p.Amount) ?? 0m;
-
-            var paidCount = await _db.Payments.CountAsync(p => p.Status == "Paid");
-            var pendingCount = await _db.Bookings.CountAsync(b => b.Status == "AwaitingApproval");
-            var confirmedCount = await _db.Bookings.CountAsync(b => b.Status == "Confirmed");
-
-            var averageOrder = paidCount > 0 ? totalRevenue / paidCount : 0m;
-
-            return Ok(new
-            {
-                TotalRevenue = totalRevenue,
-                Currency = "USD",
-                PaidBookingsCount = paidCount,
-                PendingApprovalsCount = pendingCount,
-                ConfirmedBookingsCount = confirmedCount,
-                AverageOrderValue = Math.Round(averageOrder, 2)
-            });
+            var result = await _paymentService.GetPaymentsByBookingIdAsync(bookingId);
+            return Ok(result);
         }
 
         /// <summary>
-        /// Check if the user is a staff member (travel agent) by looking up TravelAgents table.
+        /// Get all payment records. Only TravelAgent or Admin can view all payments.
         /// </summary>
-        private bool IsStaffUser(string? userId)
+        [HttpGet]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(IEnumerable<PaymentDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllPayments()
         {
-            if (string.IsNullOrEmpty(userId)) return false;
-            return _db.TravelAgents.Any(a => a.Id == userId);
+            var result = await _paymentService.GetAllPaymentsAsync();
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// Get Revenue Summary & Monthly Analytics Report for Staff Dashboard.
+        /// Only TravelAgent or Admin can view the revenue report.
+        /// </summary>
+        [HttpGet("revenue-report")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(RevenueReportDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetRevenueReport()
+        {
+            var report = await _paymentService.GetRevenueReportAsync();
+            return Ok(report);
         }
     }
 }

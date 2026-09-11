@@ -121,6 +121,37 @@ namespace backend.Controllers
             }
         }
 
+        /// <summary>
+        /// Send a new notification to a customer.
+        /// Only TravelAgent or Admin can send notifications.
+        /// Channel values: Email, SMS, Push, InApp
+        /// MessageType values: TripUpdate, BookingConfirmation, PaymentReceipt, SystemAlert, Promotion, Reminder
+        /// </summary>
+        [HttpPost("send")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(NotificationDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Send([FromBody] SendNotificationDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var result = await _notificationService.SendNotificationAsync(dto);
+                return CreatedAtAction(nameof(GetMyNotifications), result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         private string GetUserId()
         {
             return User.FindFirstValue(ClaimTypes.NameIdentifier)

@@ -1,144 +1,99 @@
-using backend.Data;
-using backend.Models;
+using System.Security.Claims;
+using backend.DTOs;
+using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Student D — Human-in-the-Loop Booking Approval Controller.
-    /// Manages the approval gate where travel agents review AI itineraries before payment.
+    /// Student D — Booking Approval API Controller.
+    /// Manages human travel agent decisions (Approved, Rejected, RevisionRequested)
+    /// and maintains an immutable audit trail.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class ApprovalController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly IApprovalService _approvalService;
+        private readonly IBookingService _bookingService;
 
-        public ApprovalController(AppDbContext db)
+        public ApprovalController(IApprovalService approvalService, IBookingService bookingService)
         {
-            _db = db;
+            _approvalService = approvalService;
+            _bookingService = bookingService;
         }
 
         /// <summary>
-        /// Get all bookings pending travel agent approval, complete with itinerary and AI agent log trails.
+        /// Record a human approval decision (Approved / Rejected / RevisionRequested).
+        /// Only TravelAgent or Admin can submit approval decisions.
+        /// Automatically updates booking status.
         /// </summary>
-        [HttpGet("pending")]
-        public async Task<IActionResult> GetPendingApprovals()
+        [HttpPost]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(ApprovalDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> SubmitApproval([FromBody] ApprovalCreateDto dto)
         {
-            var pending = await _db.Bookings
-                .Include(b => b.Customer)
-                .Include(b => b.Itinerary)
-                    .ThenInclude(i => i.Items)
-                        .ThenInclude(item => item.Tour)
-                .Include(b => b.Approvals)
-                .Where(b => b.Status == "AwaitingApproval")
-                .OrderByDescending(b => b.CreatedAt)
-                .ToListAsync();
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            var result = pending.Select(b => new
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "agent-system";
+
+            try
             {
-                b.Id,
-                Reference = b.BookingReference,
-                Customer = b.Customer?.FullName ?? "Valued Traveler",
-                CustomerEmail = b.Customer?.Id,
-                Destination = b.Itinerary?.Items?.FirstOrDefault()?.Tour?.DestinationId.ToString() ?? "Sri Lanka",
-                StartDate = b.Itinerary?.StartDate.ToString("yyyy-MM-dd"),
-                EndDate = b.Itinerary?.EndDate.ToString("yyyy-MM-dd"),
-                Days = b.Itinerary != null ? Math.Max(1, (b.Itinerary.EndDate - b.Itinerary.StartDate).Days) : 5,
-                b.TotalCost,
-                b.Currency,
-                b.Status,
-                RequestedAt = b.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
-                Items = b.Itinerary?.Items.Select(item => new
-                {
-                    item.DayNumber,
-                    TourName = item.Tour?.Name ?? "Scheduled Excursion",
-                    item.PriceAtSelection
-                }),
-                Approvals = b.Approvals.Select(a => new
-                {
-                    a.Decision,
-                    a.Comment,
-                    a.DecidedAt
-                })
-            });
+                var result = await _approvalService.CreateApprovalAsync(userId, dto);
+                return CreatedAtAction(nameof(GetApprovalsByBooking), new { bookingId = dto.BookingId }, result);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
 
+        /// <summary>
+        /// Get all human approval decisions recorded for a specific booking.
+        /// Only TravelAgent or Admin can view approval records.
+        /// </summary>
+        [HttpGet("booking/{bookingId}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(IEnumerable<ApprovalDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetApprovalsByBooking(int bookingId)
+        {
+            var result = await _approvalService.GetApprovalsByBookingIdAsync(bookingId);
             return Ok(result);
         }
 
         /// <summary>
-        /// Record a human travel agent's decision (Approved, Rejected, RevisionRequested) with comments.
+        /// Get all pending bookings awaiting travel agent approval.
+        /// Only TravelAgent or Admin can view the pending queue.
         /// </summary>
-        [HttpPost("{bookingId}/decide")]
-        public async Task<IActionResult> DecideApproval(int bookingId, [FromBody] ApprovalDecisionDto dto)
+        [HttpGet("pending")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(IEnumerable<BookingDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetPendingApprovals()
         {
-            var booking = await _db.Bookings.FindAsync(bookingId);
-            if (booking == null)
-                return NotFound(new { message = "Booking not found." });
-
-            var agentId = User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? "agent-system";
-
-            // Ensure travel agent record exists for foreign key
-            var agentExists = await _db.TravelAgents.AnyAsync(a => a.Id == agentId);
-            if (!agentExists)
-            {
-                _db.TravelAgents.Add(new TravelAgent
-                {
-                    Id = agentId,
-                    FullName = "Travel Consultant",
-                    Department = "Operations"
-                });
-                await _db.SaveChangesAsync();
-            }
-
-            // Create permanent human-in-the-loop decision row
-            var approval = new BookingApproval
-            {
-                BookingId = bookingId,
-                TravelAgentId = agentId,
-                Decision = dto.Decision,
-                Comment = dto.Comment,
-                DecidedAt = DateTime.UtcNow
-            };
-
-            _db.BookingApprovals.Add(approval);
-
-            // Update booking status according to decision
-            if (dto.Decision == "Approved")
-            {
-                booking.Status = "Confirmed";
-            }
-            else if (dto.Decision == "Rejected")
-            {
-                booking.Status = "Rejected";
-            }
-            else if (dto.Decision == "RevisionRequested")
-            {
-                booking.Status = "Draft";
-            }
-
-            booking.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync();
-
-            return Ok(new
-            {
-                message = $"Booking {booking.BookingReference} updated to {booking.Status}.",
-                booking.Id,
-                booking.BookingReference,
-                booking.Status,
-                Decision = dto.Decision,
-                dto.Comment,
-                DecidedAt = approval.DecidedAt
-            });
+            var pendingBookings = await _bookingService.GetPendingBookingsForApprovalAsync();
+            return Ok(pendingBookings);
         }
-    }
 
-    public class ApprovalDecisionDto
-    {
-        public string Decision { get; set; } = "Approved"; // Approved, Rejected, RevisionRequested
-        public string? Comment { get; set; }
+        /// <summary>
+        /// Get all historical approval audit records.
+        /// Only TravelAgent or Admin can view all approvals.
+        /// </summary>
+        [HttpGet]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(IEnumerable<ApprovalDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetAllApprovals()
+        {
+            var result = await _approvalService.GetAllApprovalsAsync();
+            return Ok(result);
+        }
     }
 }

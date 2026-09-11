@@ -1,31 +1,37 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using backend.Models.Enums;
 
 namespace backend.Models
 {
     /// <summary>
-    /// Student D — Human-in-the-loop audit record of a travel agent's decision.
+    /// Permanent audit record of a human travel agent decision.
+    /// Rows are immutable — never updated or deleted.
     /// </summary>
     public class BookingApproval
     {
         [Key]
         public int Id { get; set; }
 
-        [ForeignKey(nameof(Booking))]
+        [Required]
         public int BookingId { get; set; }
-        public Booking Booking { get; set; } = null!;
-
-        [ForeignKey(nameof(TravelAgent))]
-        public string TravelAgentId { get; set; } = string.Empty;
-        public TravelAgent TravelAgent { get; set; } = null!;
 
         [Required]
-        [MaxLength(30)]
-        public string Decision { get; set; } = "Approved"; // Approved, Rejected, RevisionRequested
+        public string TravelAgentId { get; set; } = string.Empty;
+
+        [Required]
+        public ApprovalDecision Decision { get; set; }
 
         [MaxLength(1000)]
-        public string? Comment { get; set; }
+        public string Comment { get; set; } = string.Empty;
 
         public DateTime DecidedAt { get; set; } = DateTime.UtcNow;
+
+        // ── Navigation Properties ──
+        [ForeignKey(nameof(BookingId))]
+        public Booking Booking { get; set; } = null!;
+
+        [ForeignKey(nameof(TravelAgentId))]
+        public TravelAgent TravelAgent { get; set; } = null!;
     }
 }

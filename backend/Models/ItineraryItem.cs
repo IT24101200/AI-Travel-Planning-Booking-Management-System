@@ -4,30 +4,39 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace backend.Models
 {
     /// <summary>
-    /// Student B — Individual scheduled activity within an itinerary day.
+    /// One tour scheduled on a specific day within an Itinerary.
     /// </summary>
     public class ItineraryItem
     {
         [Key]
         public int Id { get; set; }
 
-        [ForeignKey(nameof(Itinerary))]
+        [Required]
         public int ItineraryId { get; set; }
-        public Itinerary Itinerary { get; set; } = null!;
 
-        [ForeignKey(nameof(Tour))]
+        [Required]
         public int TourId { get; set; }
-        public Tour Tour { get; set; } = null!;
 
+        [Required]
         public int DayNumber { get; set; }
 
+        [Required]
         public int SequenceOrder { get; set; }
 
+        [Required]
         public TimeSpan StartTime { get; set; }
 
+        [Required]
         public TimeSpan EndTime { get; set; }
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal PriceAtSelection { get; set; }
+
+        // ── Navigation ──
+        [ForeignKey(nameof(ItineraryId))]
+        public Itinerary Itinerary { get; set; } = null!;
+
+        [ForeignKey(nameof(TourId))]
+        public Tour Tour { get; set; } = null!;
     }
 }

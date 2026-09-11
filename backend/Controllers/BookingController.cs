@@ -1,83 +1,167 @@
-using backend.Data;
-using backend.Models;
+using System.Security.Claims;
+using backend.DTOs;
+using backend.Models.Enums;
+using backend.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Student D — Commercial Booking Management Controller.
-    /// Sole source of commercial truth for bookings and reservations.
+    /// Student D — Booking Management API Controller.
+    /// Handles Booking CRUD and status workflow state transitions.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class BookingController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly IBookingService _bookingService;
 
-        public BookingController(AppDbContext db)
+        public BookingController(IBookingService bookingService)
         {
-            _db = db;
+            _bookingService = bookingService;
         }
 
         /// <summary>
-        /// List all bookings with optional status filter and customer search.
+        /// Create a new booking (Initial status: AwaitingApproval).
+        /// </summary>
+        [HttpPost]
+        [ProducesResponseType(typeof(BookingDto), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> CreateBooking([FromBody] BookingCreateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var created = await _bookingService.CreateBookingAsync(dto);
+                return CreatedAtAction(nameof(GetBookingById), new { id = created.Id }, created);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Get all bookings (Supports filtering by CustomerId and BookingStatus).
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] string? status, [FromQuery] string? search)
+        [ProducesResponseType(typeof(IEnumerable<BookingDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetBookings([FromQuery] string? customerId, [FromQuery] BookingStatus? status)
         {
-            var query = _db.Bookings
-                .Include(b => b.Customer)
-                .Include(b => b.Itinerary)
-                .AsQueryable();
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
 
-            if (!string.IsNullOrWhiteSpace(status) && status != "All")
+            // Customer users can only view their own bookings
+            if (!isStaff && !string.IsNullOrEmpty(userId))
             {
-                query = query.Where(b => b.Status == status);
+                customerId = userId;
             }
 
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                query = query.Where(b => b.BookingReference.Contains(search) ||
-                                         (b.Customer != null && b.Customer.FullName.Contains(search)));
-            }
-
-            var bookings = await query
-                .OrderByDescending(b => b.CreatedAt)
-                .Select(b => new
-                {
-                    b.Id,
-                    Reference = b.BookingReference,
-                    CustomerName = b.Customer != null ? b.Customer.FullName : "Customer",
-                    b.Status,
-                    b.TotalCost,
-                    b.Currency,
-                    CreatedAt = b.CreatedAt.ToString("yyyy-MM-dd HH:mm"),
-                    UpdatedAt = b.UpdatedAt.ToString("yyyy-MM-dd HH:mm")
-                })
-                .ToListAsync();
-
-            return Ok(bookings);
+            var result = await _bookingService.GetBookingsAsync(customerId, status);
+            return Ok(result);
         }
 
         /// <summary>
-        /// Get detailed booking record including line items and approval status.
+        /// Get a single booking by ID (IDOR security check enforced).
         /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
+        [ProducesResponseType(typeof(BookingDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetBookingById(int id)
         {
-            var booking = await _db.Bookings
-                .Include(b => b.Customer)
-                .Include(b => b.Itinerary)
-                .Include(b => b.Items)
-                .Include(b => b.Approvals)
-                .Include(b => b.Payment)
-                .FirstOrDefaultAsync(b => b.Id == id);
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
 
-            if (booking == null)
-                return NotFound(new { message = "Booking not found." });
+            try
+            {
+                var booking = await _bookingService.GetBookingByIdAsync(id, userId, isStaff);
+                if (booking == null)
+                    return NotFound(new { message = $"Booking with ID {id} not found." });
 
-            return Ok(booking);
+                return Ok(booking);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Update booking status (PUT method — enforces status transition rules).
+        /// Only TravelAgent or Admin can change booking status.
+        /// </summary>
+        [HttpPut("{id}/status")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(BookingDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateBookingStatusPut(int id, [FromBody] BookingStatusUpdateDto dto)
+        {
+            return await UpdateBookingStatusInternal(id, dto);
+        }
+
+        /// <summary>
+        /// Update booking status (PATCH method — enforces status transition rules).
+        /// Only TravelAgent or Admin can change booking status.
+        /// </summary>
+        [HttpPatch("{id}/status")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(BookingDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateBookingStatusPatch(int id, [FromBody] BookingStatusUpdateDto dto)
+        {
+            return await UpdateBookingStatusInternal(id, dto);
+        }
+
+        /// <summary>
+        /// Delete a booking by ID. Only TravelAgent or Admin can delete.
+        /// </summary>
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteBooking(int id)
+        {
+            var success = await _bookingService.DeleteBookingAsync(id);
+            if (!success)
+                return NotFound(new { message = $"Booking with ID {id} not found." });
+
+            return NoContent();
+        }
+
+        private async Task<IActionResult> UpdateBookingStatusInternal(int id, BookingStatusUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            try
+            {
+                var updated = await _bookingService.UpdateBookingStatusAsync(id, dto.Status);
+                return Ok(updated);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
     }
 }

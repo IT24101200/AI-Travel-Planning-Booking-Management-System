@@ -1,164 +1,224 @@
-using backend.Data;
-using backend.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using backend.DTOs;
+using backend.Services;
 
 namespace backend.Controllers
 {
     /// <summary>
-    /// Student C — Hotel & Vendor Management Controller.
-    /// Manages hotel properties and room inventories.
+    /// REST API for Hotel & Room management.
+    /// 
+    /// Pattern: Same as TourController/DestinationController.
+    /// - GET endpoints: any authenticated user can read
+    /// - POST/PUT/DELETE: only TravelAgent or Admin roles
+    /// 
+    /// Rooms are nested under hotels: /api/hotel/{hotelId}/rooms
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class HotelController : ControllerBase
     {
-        private readonly AppDbContext _db;
+        private readonly IHotelService _hotelService;
+        private readonly IAvailabilityService _availabilityService;
 
-        public HotelController(AppDbContext db)
+        public HotelController(IHotelService hotelService, IAvailabilityService availabilityService)
         {
-            _db = db;
+            _hotelService = hotelService;
+            _availabilityService = availabilityService;
         }
 
+        // ══════════════════════════════════════════════════════════════════
+        //  HOTEL ENDPOINTS
+        // ══════════════════════════════════════════════════════════════════
+
         /// <summary>
-        /// List all hotels with optional destination filter.
+        /// Search hotels with optional filters and pagination.
+        /// GET /api/hotel?search=Hilton&destinationId=1&minStarRating=3&page=1&pageSize=10
         /// </summary>
         [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] int? destinationId, [FromQuery] string? search)
+        [AllowAnonymous]
+        public async Task<IActionResult> GetAll(
+            [FromQuery] string? search,
+            [FromQuery] int? destinationId,
+            [FromQuery] int? minStarRating,
+            [FromQuery] string? status,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
         {
-            var query = _db.Hotels
-                .Include(h => h.Destination)
-                .Include(h => h.Rooms)
-                .AsQueryable();
+            // Validate pagination (same as CustomerController)
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
 
-            if (destinationId.HasValue)
-                query = query.Where(h => h.DestinationId == destinationId.Value);
+            var hotels = await _hotelService.GetAllAsync(
+                search, destinationId, minStarRating, status, sortBy, descending, page, pageSize);
+            var totalCount = await _hotelService.GetTotalCountAsync(
+                search, destinationId, minStarRating, status);
 
-            if (!string.IsNullOrWhiteSpace(search))
-                query = query.Where(h => h.Name.Contains(search) || h.Address.Contains(search));
-
-            var list = await query
-                .OrderBy(h => h.Name)
-                .Select(h => new
-                {
-                    h.Id,
-                    h.Name,
-                    DestinationName = h.Destination != null ? h.Destination.Name : "Sri Lanka",
-                    h.Address,
-                    h.StarRating,
-                    h.Status,
-                    RoomCount = h.Rooms.Sum(r => r.TotalRooms),
-                    PriceNight = h.Rooms.Any() ? h.Rooms.Min(r => r.PricePerNight) : 100m,
-                    Currency = h.Rooms.Any() ? h.Rooms.First().Currency : "USD"
-                })
-                .ToListAsync();
-
-            return Ok(list);
+            return Ok(new
+            {
+                data = hotels,
+                totalCount,
+                page,
+                pageSize,
+                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+            });
         }
 
         /// <summary>
-        /// Get hotel details including room types.
+        /// Get a single hotel by ID, including its rooms.
+        /// GET /api/hotel/5
         /// </summary>
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetById(int id)
         {
-            var hotel = await _db.Hotels
-                .Include(h => h.Destination)
-                .Include(h => h.Rooms)
-                .FirstOrDefaultAsync(h => h.Id == id);
-
-            if (hotel == null)
-                return NotFound(new { message = "Hotel not found." });
-
+            var hotel = await _hotelService.GetByIdAsync(id);
+            if (hotel is null) return NotFound();
             return Ok(hotel);
         }
 
         /// <summary>
-        /// Create a new hotel property.
+        /// Create a new hotel. Only TravelAgent or Admin.
+        /// POST /api/hotel
         /// </summary>
         [HttpPost]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Create([FromBody] CreateHotelDto dto)
         {
-            var hotel = new Hotel
-            {
-                DestinationId = dto.DestinationId > 0 ? dto.DestinationId : 1,
-                Name = dto.Name,
-                Address = dto.Address ?? "",
-                StarRating = dto.StarRating > 0 ? dto.StarRating : 4,
-                Status = dto.Status ?? "Active"
-            };
-
-            _db.Hotels.Add(hotel);
-            await _db.SaveChangesAsync();
-
-            // Create default room tier
-            var room = new Room
-            {
-                HotelId = hotel.Id,
-                RoomType = "Standard Deluxe",
-                PricePerNight = dto.PriceNight > 0 ? dto.PriceNight : 120m,
-                TotalRooms = dto.TotalRooms > 0 ? dto.TotalRooms : 10,
-                Capacity = 2,
-                Currency = "USD"
-            };
-
-            _db.Rooms.Add(room);
-            await _db.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetById), new { id = hotel.Id }, hotel);
+            var created = await _hotelService.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
 
         /// <summary>
-        /// Update an existing hotel.
+        /// Update a hotel. Only TravelAgent or Admin.
+        /// PUT /api/hotel/5
         /// </summary>
         [HttpPut("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateHotelDto dto)
         {
-            var hotel = await _db.Hotels.Include(h => h.Rooms).FirstOrDefaultAsync(h => h.Id == id);
-            if (hotel == null)
-                return NotFound(new { message = "Hotel not found." });
-
-            hotel.Name = dto.Name;
-            hotel.Address = dto.Address ?? hotel.Address;
-            hotel.StarRating = dto.StarRating;
-            hotel.Status = dto.Status ?? hotel.Status;
-
-            if (dto.PriceNight > 0 && hotel.Rooms.Any())
-            {
-                var room = hotel.Rooms.First();
-                room.PricePerNight = dto.PriceNight;
-                if (dto.TotalRooms > 0) room.TotalRooms = dto.TotalRooms;
-            }
-
-            await _db.SaveChangesAsync();
-            return Ok(hotel);
+            var updated = await _hotelService.UpdateAsync(id, dto);
+            if (!updated) return NotFound();
+            return NoContent();
         }
 
         /// <summary>
-        /// Delete a hotel property.
+        /// Soft delete a hotel (sets status to Inactive).
+        /// DELETE /api/hotel/5
         /// </summary>
         [HttpDelete("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var hotel = await _db.Hotels.FindAsync(id);
-            if (hotel == null)
-                return NotFound(new { message = "Hotel not found." });
-
-            _db.Hotels.Remove(hotel);
-            await _db.SaveChangesAsync();
-
-            return Ok(new { message = "Hotel deleted successfully." });
+            var deleted = await _hotelService.SoftDeleteAsync(id);
+            if (!deleted) return NotFound();
+            return NoContent();
         }
-    }
 
-    public class CreateHotelDto
-    {
-        public int DestinationId { get; set; } = 1;
-        public string Name { get; set; } = string.Empty;
-        public string? Address { get; set; }
-        public int StarRating { get; set; } = 4;
-        public string? Status { get; set; } = "Active";
-        public decimal PriceNight { get; set; } = 120m;
-        public int TotalRooms { get; set; } = 15;
+        // ══════════════════════════════════════════════════════════════════
+        //  ROOM ENDPOINTS (nested under a hotel)
+        // ══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// List all room types for a hotel.
+        /// GET /api/hotel/5/rooms
+        /// </summary>
+        [HttpGet("{hotelId}/rooms")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRooms(int hotelId)
+        {
+            var rooms = await _hotelService.GetRoomsByHotelAsync(hotelId);
+            return Ok(rooms);
+        }
+
+        /// <summary>
+        /// Get a specific room.
+        /// GET /api/hotel/5/rooms/3
+        /// </summary>
+        [HttpGet("{hotelId}/rooms/{roomId}")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetRoom(int hotelId, int roomId)
+        {
+            var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId);
+            if (room is null) return NotFound();
+            return Ok(room);
+        }
+
+        /// <summary>
+        /// Add a room type to a hotel.
+        /// POST /api/hotel/5/rooms
+        /// </summary>
+        [HttpPost("{hotelId}/rooms")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> AddRoom(int hotelId, [FromBody] CreateRoomDto dto)
+        {
+            var room = await _hotelService.AddRoomAsync(hotelId, dto);
+            if (room is null) return NotFound(new { message = "Hotel not found." });
+            return CreatedAtAction(nameof(GetRoom), new { hotelId, roomId = room.Id }, room);
+        }
+
+        /// <summary>
+        /// Update a room type.
+        /// PUT /api/hotel/5/rooms/3
+        /// </summary>
+        [HttpPut("{hotelId}/rooms/{roomId}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> UpdateRoom(int hotelId, int roomId, [FromBody] CreateRoomDto dto)
+        {
+            var updated = await _hotelService.UpdateRoomAsync(hotelId, roomId, dto);
+            if (!updated) return NotFound();
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Delete a room type.
+        /// DELETE /api/hotel/5/rooms/3
+        /// </summary>
+        [HttpDelete("{hotelId}/rooms/{roomId}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> DeleteRoom(int hotelId, int roomId)
+        {
+            var deleted = await _hotelService.DeleteRoomAsync(hotelId, roomId);
+            if (!deleted) return NotFound();
+            return NoContent();
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  AVAILABILITY ENDPOINT
+        // ══════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Check room availability for specific dates.
+        /// GET /api/hotel/5/rooms/3/availability?checkIn=2026-09-10&checkOut=2026-09-15
+        /// 
+        /// This is what the Booking Agent calls via check_hotel_availability tool.
+        /// </summary>
+        [HttpGet("{hotelId}/rooms/{roomId}/availability")]
+        [AllowAnonymous]
+        public async Task<IActionResult> CheckRoomAvailability(
+            int hotelId, int roomId,
+            [FromQuery] DateTime checkIn,
+            [FromQuery] DateTime checkOut)
+        {
+            // Basic validation
+            if (checkIn >= checkOut)
+                return BadRequest(new { message = "Check-in date must be before check-out date." });
+
+            if (checkIn < DateTime.UtcNow.Date)
+                return BadRequest(new { message = "Check-in date cannot be in the past." });
+
+            // Verify the room belongs to this hotel
+            var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId);
+            if (room is null) return NotFound();
+
+            var availability = await _availabilityService.CheckRoomAvailabilityAsync(roomId, checkIn, checkOut);
+            if (availability is null) return NotFound();
+
+            return Ok(availability);
+        }
     }
 }

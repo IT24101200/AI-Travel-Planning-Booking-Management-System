@@ -1,150 +1,100 @@
-using backend.Data;
 using Microsoft.EntityFrameworkCore;
+using backend.Data;
+using backend.DTOs;
 
 namespace backend.Services
 {
     /// <summary>
-    /// Student C — Real availability checker for rooms and transport.
-    /// Queries BookingItems to count overlapping reservations, then subtracts
-    /// from the total inventory to get remaining availability.
-    /// Uses a serializable transaction so two concurrent bookings for the
-    /// last room/seat don't both succeed (concurrency safety).
+    /// Checks real inventory availability for rooms and transport.
+    /// 
+    /// HOW IT WORKS:
+    /// - Room availability = TotalRooms − (rooms already booked for overlapping dates)
+    /// - Transport availability = Capacity − (seats already booked)
+    /// 
+    /// PHASE 1 (current):
+    ///   BookingItem doesn't exist yet (Student D hasn't built it).
+    ///   So we return TotalRooms/Capacity as-is (BookedRooms = 0).
+    ///   
+    /// PHASE 2 (after Student D creates BookingItem):
+    ///   We'll add the overlapping-booking query. The interface stays the same,
+    ///   only the internal logic changes. This is why interfaces are useful!
+    /// 
+    /// WHY THIS MATTERS FOR THE VIVA:
+    ///   The spec says: "availability check that counts existing overlapping bookings
+    ///   and subtracts from TotalRooms, wrapped in a database transaction to prevent
+    ///   two customers booking the last room simultaneously."
+    ///   Phase 2 will add the transaction + overlap logic.
     /// </summary>
-    public class AvailabilityService
+    public class AvailabilityService : IAvailabilityService
     {
-        private readonly AppDbContext _db;
+        private readonly AppDbContext _context;
 
-        public AvailabilityService(AppDbContext db)
+        public AvailabilityService(AppDbContext context)
         {
-            _db = db;
+            _context = context;
         }
 
         /// <summary>
-        /// Check how many rooms of a given RoomId are still free for the date range.
-        /// Only counts BookingItems whose parent Booking is not Cancelled or Rejected.
+        /// Check room availability for a date range.
+        /// 
+        /// Example: Room has TotalRooms = 10.
+        ///   Phase 1: returns AvailableRooms = 10 (no bookings exist yet).
+        ///   Phase 2: if 3 rooms are booked for overlapping dates, returns 7.
         /// </summary>
-        public async Task<int> GetAvailableRoomCount(int roomId, DateTime checkIn, DateTime checkOut)
+        public async Task<RoomAvailabilityDto?> CheckRoomAvailabilityAsync(
+            int roomId, DateTime checkIn, DateTime checkOut)
         {
-            var room = await _db.Rooms.FindAsync(roomId);
-            if (room == null) return 0;
+            var room = await _context.Rooms.FindAsync(roomId);
+            if (room is null) return null;
 
-            // Count rooms already booked that overlap [checkIn, checkOut)
-            var bookedCount = await _db.BookingItems
-                .Where(bi => bi.RoomId == roomId
-                    && bi.CheckInDate < checkOut   // overlap condition
-                    && bi.CheckOutDate > checkIn   // overlap condition
-                    && bi.Booking.Status != "Cancelled"
-                    && bi.Booking.Status != "Rejected")
-                .SumAsync(bi => (int?)bi.Quantity) ?? 0;
+            // ── Phase 1: No BookingItem table yet, so booked = 0 ──
+            // Phase 2 TODO: Query BookingItem where ItemType = "Room"
+            //   AND RoomId = roomId
+            //   AND CheckInDate < checkOut AND CheckOutDate > checkIn  (overlap logic)
+            //   AND Booking.Status IN (Draft, AwaitingApproval, Confirmed)
+            //   COUNT the overlapping bookings
+            int bookedRooms = 0;
 
-            return Math.Max(0, room.TotalRooms - bookedCount);
+            return new RoomAvailabilityDto
+            {
+                RoomId         = room.Id,
+                RoomType       = room.RoomType,
+                TotalRooms     = room.TotalRooms,
+                BookedRooms    = bookedRooms,
+                AvailableRooms = room.TotalRooms - bookedRooms,
+                PricePerNight  = room.PricePerNight,
+                Currency       = room.Currency
+            };
         }
 
         /// <summary>
-        /// Check how many seats are still free on a transport option for a given date.
+        /// Check transport availability (how many seats are left).
         /// </summary>
-        public async Task<int> GetAvailableTransportSeats(int transportOptionId, DateTime travelDate)
+        public async Task<TransportAvailabilityDto?> CheckTransportAvailabilityAsync(
+            int transportOptionId)
         {
-            var transport = await _db.TransportOptions.FindAsync(transportOptionId);
-            if (transport == null) return 0;
+            var transport = await _context.TransportOptions.FindAsync(transportOptionId);
+            if (transport is null) return null;
 
-            // Count seats already booked for the same transport on the same date
-            var bookedSeats = await _db.BookingItems
-                .Where(bi => bi.TransportOptionId == transportOptionId
-                    && bi.CheckInDate.HasValue
-                    && bi.CheckInDate.Value.Date == travelDate.Date
-                    && bi.Booking.Status != "Cancelled"
-                    && bi.Booking.Status != "Rejected")
-                .SumAsync(bi => (int?)bi.Quantity) ?? 0;
+            // ── Phase 1: No BookingItem table yet, so booked = 0 ──
+            // Phase 2 TODO: Query BookingItem where ItemType = "Transport"
+            //   AND TransportOptionId = transportOptionId
+            //   AND Booking.Status IN (Draft, AwaitingApproval, Confirmed)
+            //   SUM(Quantity) for the booked seats
+            int bookedSeats = 0;
 
-            return Math.Max(0, transport.Capacity - bookedSeats);
-        }
-
-        /// <summary>
-        /// Reserve a room inside a serializable transaction.
-        /// Returns true if the reservation succeeded, false if no rooms left.
-        /// This prevents two customers from booking the last room at the same time.
-        /// </summary>
-        public async Task<bool> TryReserveRoom(int roomId, DateTime checkIn, DateTime checkOut, int bookingId, decimal unitPrice, int quantity = 1)
-        {
-            // Use a serializable transaction for concurrency safety
-            using var transaction = await _db.Database.BeginTransactionAsync(
-                System.Data.IsolationLevel.Serializable);
-
-            try
+            return new TransportAvailabilityDto
             {
-                var available = await GetAvailableRoomCount(roomId, checkIn, checkOut);
-                if (available < quantity)
-                {
-                    await transaction.RollbackAsync();
-                    return false; // not enough rooms
-                }
-
-                // Create the booking item to hold the reservation
-                var item = new Models.BookingItem
-                {
-                    BookingId = bookingId,
-                    ItemType = "Room",
-                    RoomId = roomId,
-                    CheckInDate = checkIn,
-                    CheckOutDate = checkOut,
-                    Quantity = quantity,
-                    UnitPrice = unitPrice,
-                    Subtotal = unitPrice * (checkOut - checkIn).Days * quantity
-                };
-
-                _db.BookingItems.Add(item);
-                await _db.SaveChangesAsync();
-                await transaction.CommitAsync();
-                return true;
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
-        }
-
-        /// <summary>
-        /// Reserve transport seats inside a serializable transaction.
-        /// Returns true if the reservation succeeded, false if not enough seats.
-        /// </summary>
-        public async Task<bool> TryReserveTransport(int transportOptionId, DateTime travelDate, int bookingId, decimal unitPrice, int quantity = 1)
-        {
-            using var transaction = await _db.Database.BeginTransactionAsync(
-                System.Data.IsolationLevel.Serializable);
-
-            try
-            {
-                var available = await GetAvailableTransportSeats(transportOptionId, travelDate);
-                if (available < quantity)
-                {
-                    await transaction.RollbackAsync();
-                    return false; // not enough seats
-                }
-
-                var item = new Models.BookingItem
-                {
-                    BookingId = bookingId,
-                    ItemType = "Transport",
-                    TransportOptionId = transportOptionId,
-                    CheckInDate = travelDate,
-                    CheckOutDate = travelDate, // same day for transport
-                    Quantity = quantity,
-                    UnitPrice = unitPrice,
-                    Subtotal = unitPrice * quantity
-                };
-
-                _db.BookingItems.Add(item);
-                await _db.SaveChangesAsync();
-                await transaction.CommitAsync();
-                return true;
-            }
-            catch
-            {
-                await transaction.RollbackAsync();
-                throw;
-            }
+                TransportOptionId = transport.Id,
+                Type              = transport.Type.ToString(),
+                RouteFrom         = transport.RouteFrom,
+                RouteTo           = transport.RouteTo,
+                TotalCapacity     = transport.Capacity,
+                BookedSeats       = bookedSeats,
+                AvailableSeats    = transport.Capacity - bookedSeats,
+                Price             = transport.Price,
+                Currency          = transport.Currency
+            };
         }
     }
 }

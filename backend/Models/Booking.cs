@@ -1,10 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using backend.Models.Enums;
 
 namespace backend.Models
 {
     /// <summary>
-    /// Student D — Commercial booking record gating payment and customer fulfillment.
+    /// Sole commercial source of truth for bookings.
     /// </summary>
     public class Booking
     {
@@ -15,22 +16,18 @@ namespace backend.Models
         [MaxLength(50)]
         public string BookingReference { get; set; } = string.Empty;
 
-        [ForeignKey(nameof(Customer))]
+        [Required]
         public string CustomerId { get; set; } = string.Empty;
-        public Customer Customer { get; set; } = null!;
-
-        [ForeignKey(nameof(Itinerary))]
-        public int ItineraryId { get; set; }
-        public Itinerary Itinerary { get; set; } = null!;
 
         [Required]
-        [MaxLength(30)]
-        public string Status { get; set; } = "AwaitingApproval"; // Draft, AwaitingApproval, Confirmed, Rejected, Cancelled, Completed
+        public int ItineraryId { get; set; }
+
+        [Required]
+        public BookingStatus Status { get; set; } = BookingStatus.Draft;
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal TotalCost { get; set; }
 
-        [Required]
         [MaxLength(10)]
         public string Currency { get; set; } = "USD";
 
@@ -38,9 +35,15 @@ namespace backend.Models
 
         public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-        // Navigation
-        public ICollection<BookingItem> Items { get; set; } = new List<BookingItem>();
-        public ICollection<BookingApproval> Approvals { get; set; } = new List<BookingApproval>();
-        public Payment? Payment { get; set; }
+        // ── Navigation Properties ──
+        [ForeignKey(nameof(CustomerId))]
+        public Customer Customer { get; set; } = null!;
+
+        [ForeignKey(nameof(ItineraryId))]
+        public Itinerary Itinerary { get; set; } = null!;
+
+        public ICollection<BookingItem> BookingItems { get; set; } = new List<BookingItem>();
+        public ICollection<BookingApproval> BookingApprovals { get; set; } = new List<BookingApproval>();
+        public ICollection<Payment> Payments { get; set; } = new List<Payment>();
     }
 }
