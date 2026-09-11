@@ -1,122 +1,111 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useCallback, useMemo, useState } from 'react'
+import { Route, Routes, useLocation } from 'react-router-dom'
+import { Backdrop } from './components/background/Backdrop.jsx'
+import { Navbar } from './components/layout/Navbar.jsx'
+import { Footer } from './components/layout/Footer.jsx'
+import { ScrollToTop } from './components/layout/ScrollToTop.jsx'
+import { SceneContext } from './lib/sceneContext.js'
+import { AuthProvider } from './lib/auth.jsx'
+import { RequireAuth } from './components/auth/RequireAuth.jsx'
+import { StaffLayout } from './components/layout/StaffLayout.jsx'
+import { featuredIds } from './data/destinations.js'
+import { useWeatherTheme } from './lib/useWeatherTheme.js'
+import Home from './pages/site/Home.jsx'
+import Destinations from './pages/site/Destinations.jsx'
+import DestinationDetail from './pages/site/DestinationDetail.jsx'
+import Experiences from './pages/site/Experiences.jsx'
+import Planner from './pages/site/Planner.jsx'
+import About from './pages/site/About.jsx'
+import Contact from './pages/site/Contact.jsx'
+import NotFound from './pages/site/NotFound.jsx'
+import Login from './pages/auth/Login.jsx'
+import CustomerDirectory from './pages/customers/CustomerDirectory.jsx'
+import NotificationLogs from './pages/customers/NotificationLogs.jsx'
+import TourCatalogManagement from './pages/tours/TourCatalogManagement.jsx'
+import ItineraryReview from './pages/tours/ItineraryReview.jsx'
+import HotelVendorManagement from './pages/hotels/HotelVendorManagement.jsx'
+import TransportFleetManagement from './pages/hotels/TransportFleetManagement.jsx'
+import BookingApprovalDashboard from './pages/bookings/BookingApprovalDashboard.jsx'
+import PaymentsRevenueReport from './pages/bookings/PaymentsRevenueReport.jsx'
 
-function App() {
-  const [count, setCount] = useState(0)
+/**
+ * Public marketing site + staff console.
+ * - SceneContext shares the active destination between cards, hero and backdrop.
+ * - useWeatherTheme is lifted here so the hero AND the backdrop dim together.
+ * - /staff/* is JWT-guarded (RequireAuth) per the master doc: React = staff/admin.
+ */
+export default function App() {
+  const [scene, setScene] = useState({ activeId: featuredIds[0], leavingId: null })
+  const { pathname } = useLocation()
+  const weatherTheme = useWeatherTheme()
+  const isStaffRoute = pathname.startsWith('/staff')
+  const timeOfDay = weatherTheme?.timeOfDay || 'morning'
+
+  const setActiveId = useCallback((id) => {
+    setScene((prev) => (prev.activeId === id ? prev : { activeId: id, leavingId: prev.activeId }))
+  }, [])
+
+  const value = useMemo(
+    () => ({
+      activeId: scene.activeId,
+      setActiveId,
+    }),
+    [scene.activeId, setActiveId],
+  )
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <AuthProvider>
+      <SceneContext.Provider value={value}>
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
 
-      <div className="ticks"></div>
+        <Backdrop
+          activeId={scene.activeId}
+          leavingId={scene.leavingId}
+          calm={pathname !== '/'}
+          weather={weatherTheme?.weather}
+          timeOfDay={timeOfDay}
+        />
+        <ScrollToTop />
+        <Navbar />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        <main id="main">
+          <Routes>
+            <Route path="/" element={<Home weatherTheme={weatherTheme} />} />
+            <Route path="/destinations" element={<Destinations />} />
+            <Route path="/destinations/:id" element={<DestinationDetail />} />
+            <Route path="/experiences" element={<Experiences />} />
+            <Route path="/planner" element={<Planner />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/login" element={<Login />} />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+            <Route
+              path="/staff"
+              element={
+                <RequireAuth roles={['staff', 'admin', 'agent']}>
+                  <StaffLayout />
+                </RequireAuth>
+              }
+            >
+              <Route index element={<BookingApprovalDashboard />} />
+              <Route path="bookings" element={<BookingApprovalDashboard />} />
+              <Route path="payments" element={<PaymentsRevenueReport />} />
+              <Route path="customers" element={<CustomerDirectory />} />
+              <Route path="notifications" element={<NotificationLogs />} />
+              <Route path="tours" element={<TourCatalogManagement />} />
+              <Route path="itineraries" element={<ItineraryReview />} />
+              <Route path="hotels" element={<HotelVendorManagement />} />
+              <Route path="transport" element={<TransportFleetManagement />} />
+            </Route>
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </main>
+
+        {!isStaffRoute && <Footer />}
+      </SceneContext.Provider>
+    </AuthProvider>
   )
 }
-
-export default App

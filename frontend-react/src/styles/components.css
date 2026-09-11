@@ -1,0 +1,138 @@
+/* ==========================================================================
+   Reusable UI: buttons, chips, cards, glass panels.
+   ========================================================================== */
+
+.btn {
+  --btn-bg: var(--jungle-700);
+  --btn-fg: #fff;
+  --btn-line: transparent;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0.8rem 1.5rem;
+  border: 1px solid var(--btn-line);
+  border-radius: var(--r-pill);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  transition:
+    transform var(--t-fast) var(--ease-out),
+    box-shadow var(--t-base) var(--ease-out),
+    background-color var(--t-base) var(--ease-out);
+}
+
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.28), transparent 60%);
+  opacity: 0;
+  transition: opacity var(--t-base) var(--ease-out);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.btn:hover::after {
+  opacity: 1;
+}
+.btn:active {
+  transform: translateY(0) scale(0.985);
+}
+
+.btn--gold {
+  --btn-bg: var(--sand-500);
+  --btn-fg: var(--jungle-900);
+}
+.btn--light {
+  --btn-bg: var(--glass-strong);
+  --btn-fg: var(--jungle-800);
+  --btn-line: var(--line);
+  backdrop-filter: blur(10px);
+}
+.btn--ghost {
+  --btn-bg: transparent;
+  --btn-fg: var(--jungle-800);
+  --btn-line: var(--line-strong);
+}
+.btn--on-dark {
+  --btn-bg: rgba(255, 255, 255, 0.1);
+  --btn-fg: #fff;
+  --btn-line: var(--glass-dark-line);
+  backdrop-filter: blur(10px);
+}
+.btn--sm {
+  padding: 0.55rem 1.05rem;
+  font-size: 0.875rem;
+}
+.btn--block {
+  width: 100%;
+}
+
+.link-arrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--jungle-600);
+}
+.link-arrow svg {
+  transition: transform var(--t-base) var(--ease-out);
+}
+.link-arrow:hover svg {
+  transform: translateX(5px);
+}
+
+/* --- Chips ------------------------------------------------------------- */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.34rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--leaf-50);
+  color: var(--jungle-700);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.chip--gold {
+  background: var(--sand-100);
+  border-color: var(--sand-200);
+  color: var(--sand-700);
+}
+
+.chip--glass {
+  background: var(--glass-dark);
+  border-color: var(--glass-dark-line);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+
+/* --- Glass panel ------------------------------------------------------- */
+
+.panel {
+  border: 1px solid var(--glass-line);
+  border-radius: var(--r-lg);
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(120%);
+  box-shadow: var(--shadow-md);
+}
+
+.panel--solid {
+  background: var(--surface);
+  border-color: var(--line);
+}

@@ -1,0 +1,178 @@
+/* ==========================================================================
+   Cards: place cards, experience cards, stat tiles, quotes.
+   ========================================================================== */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+  transition:
+    transform var(--t-base) var(--ease-out),
+    box-shadow var(--t-base) var(--ease-out),
+    border-color var(--t-base) var(--ease-out);
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  border-color: var(--leaf-200);
+  box-shadow: var(--shadow-lg);
+}
+
+.card__media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--jungle-800);
+}
+
+/* Support both real photos and SVG scenes */
+.card__media > svg,
+.card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 900ms var(--ease-out);
+}
+
+.card:hover .card__media > svg,
+.card:hover .card__img {
+  transform: scale(1.06);
+}
+
+.card__media-top {
+  position: absolute;
+  inset-inline: 0.85rem;
+  top: 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.card__body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.15rem 1.25rem 1.35rem;
+}
+
+.card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.card__title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-strong);
+}
+
+.card__text {
+  font-size: 0.9375rem;
+  color: var(--text);
+}
+
+.card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.card__price b {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--jungle-700);
+}
+
+.card__price span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* --- Grids ------------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  gap: clamp(1rem, 2vw, 1.6rem);
+}
+
+.grid--3 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+}
+
+.grid--4 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+}
+
+.grid--2 {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+}
+
+/* --- Stat tiles -------------------------------------------------------- */
+
+.stat {
+  display: grid;
+  gap: 0.3rem;
+  padding: 1.4rem 1.5rem;
+  border-left: 3px solid var(--leaf-500);
+  background: rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.stat__num {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3.4vw, 2.9rem);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--jungle-700);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__label {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* --- Experience tile ---------------------------------------------------- */
+
+.exp .card__body {
+  gap: 0.55rem;
+  padding: 1.5rem;
+}
+
+.exp__glyph {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-bottom: 0.35rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--leaf-100), var(--leaf-50));
+  color: var(--jungle-600);
+  transition: background var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
+}
+
+.exp:hover .exp__glyph {
+  background: linear-gradient(145deg, var(--jungle-600), var(--ocean-700));
+  color: var(--leaf-200);
+}

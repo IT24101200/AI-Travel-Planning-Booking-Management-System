@@ -1,0 +1,214 @@
+/* ==========================================================================
+   Page sections shared across the site.
+   ========================================================================== */
+
+.sec-head {
+  display: grid;
+  gap: 0.9rem;
+  max-width: 46rem;
+  margin-bottom: clamp(2rem, 4vw, 3.25rem);
+}
+
+.sec-head--split {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  max-width: none;
+}
+
+.sec-head--center {
+  margin-inline: auto;
+  text-align: center;
+  justify-items: center;
+}
+
+.sec-head h2 {
+  color: var(--text-strong);
+  text-shadow: 0 1px 12px rgba(255, 255, 255, 0.6);
+}
+
+.sec-head .lede {
+  color: var(--text);
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.5);
+}
+
+.sec-head--on-dark h2 {
+  color: #fff;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6);
+}
+
+.sec-head--on-dark .lede {
+  color: rgba(233, 245, 239, 0.85);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* Homepage body wrapper: keeps background transparent so scenic backdrop & sky show through */
+.home-body {
+  position: relative;
+  z-index: 2;
+}
+
+/* --- Spotlight: text + live scene preview ------------------------------ */
+
+.spotlight {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 3rem);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+}
+
+/* Frosted glass card for spotlight text so it is 100% legible over any scenic photo */
+.spotlight__content {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: var(--r-xl);
+  padding: clamp(1.75rem, 3.5vw, 2.75rem);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.16);
+}
+
+.spotlight h2 {
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+}
+
+.spotlight .lede {
+  color: var(--text);
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .spotlight {
+    grid-template-columns: 1fr;
+  }
+}
+
+.spotlight__figure {
+  position: relative;
+  aspect-ratio: 5 / 4;
+  border-radius: var(--r-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  background: var(--jungle-800);
+}
+
+.spotlight__figure > svg,
+.spotlight__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: kenburns 16s var(--ease-in-out) infinite alternate;
+}
+
+.spotlight__badge {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--glass-dark-line);
+  border-radius: var(--r-md);
+  background: var(--glass-dark);
+  backdrop-filter: blur(14px);
+  color: #fff;
+}
+
+.spotlight__badge b {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+
+.spotlight__badge span {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.spotlight__list {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.6rem;
+}
+
+.spotlight__list li {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  font-size: 0.9375rem;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.spotlight__list svg {
+  margin-top: 0.15rem;
+  color: var(--leaf-600);
+}
+
+/* --- Quote / testimonial ---------------------------------------------- */
+
+.quote {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  transition: transform var(--t-base) var(--ease-out), box-shadow var(--t-base) var(--ease-out);
+}
+
+.quote:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+}
+
+.quote__stars {
+  display: flex;
+  gap: 0.15rem;
+  color: var(--sand-500);
+}
+
+.quote__text {
+  font-family: var(--font-display);
+  font-size: 1.075rem;
+  line-height: 1.45;
+  color: var(--text-strong);
+}
+
+.quote__who {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-top: 0.4rem;
+}
+
+.quote__avatar {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--leaf-100);
+  color: var(--jungle-700);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.quote__who b {
+  display: block;
+  font-size: 0.9375rem;
+  color: var(--text-strong);
+}
+
+.quote__who span {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}

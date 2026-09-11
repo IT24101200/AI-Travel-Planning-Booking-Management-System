@@ -125,6 +125,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped<DestinationService>();
 builder.Services.AddScoped<TourService>();
 
+// ── DI: Student C Availability Service (real overlap checking + concurrency) ──
+builder.Services.AddScoped<AvailabilityService>();
+
 var app = builder.Build();
 
 // ── Middleware Pipeline ──

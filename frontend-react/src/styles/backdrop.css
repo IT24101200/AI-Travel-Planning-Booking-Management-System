@@ -1,0 +1,468 @@
+/* ==========================================================================
+   Animated backdrop.
+   Three stacked layers, all fixed behind the page:
+     1. .scene    - layered SVG landscape, cross-fades when a place is picked
+     2. .backdrop__canvas - <canvas> drawing drifting motes + click bursts
+     3. .backdrop__veil   - readability wash so text always passes contrast
+   ========================================================================== */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-backdrop);
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--jungle-900);
+}
+
+.scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transform: scale(1.06);
+  will-change: opacity, transform;
+}
+
+.scene svg,
+.scene__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The place you just picked fades up; the one you left fades out beneath it.
+   Both hold their end state (`forwards`), and under reduced motion the blanket
+   rule in animations.css collapses them to an instant swap. */
+.scene--in {
+  animation: scene-in 1200ms var(--ease-out) forwards;
+}
+
+.scene--out {
+  animation: scene-out 1000ms var(--ease-in-out) forwards;
+}
+
+/* Slow parallax drift while a scene is on stage. */
+.scene--in .scene__far {
+  animation: drift 26s var(--ease-in-out) infinite;
+}
+.scene--in .scene__mid {
+  animation: drift 18s var(--ease-in-out) infinite reverse;
+}
+
+.backdrop__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.backdrop__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(6, 35, 27, 0.65) 0%, rgba(6, 35, 27, 0.3) 40%, rgba(251, 250, 245, 0.35) 75%, rgba(251, 250, 245, 0.7) 100%);
+}
+
+/* Pages other than the landing page need dark background across the entire masthead */
+.backdrop--calm .backdrop__veil {
+  background: linear-gradient(
+    180deg,
+    rgba(4, 24, 18, 0.82) 0%,
+    rgba(4, 24, 18, 0.65) 50%,
+    rgba(4, 24, 18, 0.45) 100%
+  );
+}
+
+/* Weather-driven dimming: rain/storm/night get extra legibility wash. */
+.backdrop--rainy .backdrop__veil,
+.backdrop--stormy .backdrop__veil {
+  background:
+    linear-gradient(180deg, rgba(6, 25, 35, 0.75) 0%, rgba(6, 25, 35, 0.45) 50%, rgba(241, 245, 241, 0.35) 80%, rgba(241, 245, 241, 0.65) 100%);
+}
+
+.backdrop--night .backdrop__veil {
+  background:
+    linear-gradient(180deg, rgba(3, 12, 24, 0.82) 0%, rgba(3, 12, 24, 0.55) 50%, rgba(3, 12, 24, 0.3) 72%, rgba(240, 244, 241, 0.3) 88%, rgba(240, 244, 241, 0.6) 100%);
+}
+
+.backdrop--calm.backdrop--night .backdrop__veil {
+  background: linear-gradient(
+    180deg,
+    rgba(3, 12, 24, 0.88) 0%,
+    rgba(3, 12, 24, 0.72) 50%,
+    rgba(3, 12, 24, 0.5) 100%
+  );
+}
+
+/* --- Click hint --------------------------------------------------------- */
+
+.tap-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 1.6rem;
+  translate: -50% 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem 0.4rem 0.5rem;
+  border: 1px solid var(--glass-dark-line);
+  border-radius: var(--r-pill);
+  background: var(--glass-dark);
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  animation: fade 900ms var(--ease-out) 600ms both;
+}
+
+.tap-hint__dot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.tap-hint__dot::before,
+.tap-hint__dot::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+
+.tap-hint__dot::before {
+  width: 0.42rem;
+  height: 0.42rem;
+  background: var(--sand-400);
+}
+
+.tap-hint__dot::after {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--sand-400);
+  animation: pulse-ring 2.4s var(--ease-out) infinite;
+}
+
+/* ==========================================================================
+   Celestial Sky System: Sun, Evening Sunset, Moon & Stars in Backdrop
+   ========================================================================== */
+
+.sky-celestial {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* --- Atmospheric sky washes --- */
+.sky-atmosphere {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 1.4s var(--ease-in-out);
+  pointer-events: none;
+}
+
+.sky-atmosphere--active {
+  opacity: 1;
+}
+
+.sky-atmosphere--day {
+  background: radial-gradient(
+    circle at 74% 16%,
+    rgba(255, 235, 175, 0.35) 0%,
+    rgba(255, 245, 215, 0.16) 32%,
+    rgba(255, 255, 255, 0.05) 55%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+}
+
+.sky-atmosphere--evening {
+  background: linear-gradient(
+    180deg,
+    rgba(95, 30, 85, 0.55) 0%,
+    rgba(225, 90, 45, 0.5) 20%,
+    rgba(255, 145, 45, 0.38) 36%,
+    rgba(255, 195, 80, 0.2) 50%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+}
+
+.sky-atmosphere--night {
+  background: linear-gradient(
+    180deg,
+    rgba(2, 6, 20, 0.78) 0%,
+    rgba(6, 16, 40, 0.56) 24%,
+    rgba(12, 26, 55, 0.3) 46%,
+    transparent 72%
+  );
+  mix-blend-mode: multiply;
+}
+
+/* --- Celestial bodies container --- */
+.sky-body {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  transition: opacity 1s var(--ease-in-out), transform 1s var(--ease-in-out), visibility 1s;
+  pointer-events: none;
+}
+
+.sky-body--active {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* --- 1. DAYTIME SUN --- */
+.sky-body--sun {
+  mix-blend-mode: screen;
+}
+
+.sky-sun__core {
+  position: absolute;
+  left: 74%;
+  top: 16%;
+  translate: -50% -50%;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 35%, #fff9e6 68%, #ffd86b 100%);
+  box-shadow:
+    0 0 30px 10px rgba(255, 255, 255, 1),
+    0 0 65px 25px rgba(255, 220, 105, 0.85),
+    0 0 115px 55px rgba(255, 180, 50, 0.55);
+}
+
+.sky-sun__corona-inner {
+  position: absolute;
+  left: 74%;
+  top: 16%;
+  translate: -50% -50%;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 235, 130, 0.65) 0%, rgba(255, 200, 70, 0.3) 48%, transparent 72%);
+  animation: sun-pulse 6s var(--ease-in-out) infinite alternate;
+}
+
+.sky-sun__corona-outer {
+  position: absolute;
+  left: 74%;
+  top: 16%;
+  translate: -50% -50%;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 220, 100, 0.4) 0%, rgba(255, 180, 60, 0.16) 42%, transparent 70%);
+}
+
+.sky-sun__rays {
+  position: absolute;
+  left: 74%;
+  top: 16%;
+  translate: -50% -50%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 248, 205, 0.28) 0%,
+    rgba(255, 215, 120, 0.12) 42%,
+    transparent 68%
+  );
+  transform: rotate(25deg);
+}
+
+@keyframes sun-pulse {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.88;
+  }
+  100% {
+    transform: scale(1.06);
+    opacity: 1;
+  }
+}
+
+/* --- 2. EVENING SUNSET SKY --- */
+.sky-body--evening {
+  mix-blend-mode: screen;
+}
+
+.sky-evening__sunset-orb {
+  position: absolute;
+  left: 71%;
+  top: 20%;
+  translate: -50% -50%;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffdf2 22%, #ff8c24 58%, #e6300a 100%);
+  box-shadow:
+    0 0 40px 14px rgba(255, 140, 40, 0.95),
+    0 0 95px 38px rgba(245, 80, 25, 0.75),
+    0 0 160px 70px rgba(210, 35, 20, 0.5);
+}
+
+.sky-evening__horizon-flare {
+  position: absolute;
+  left: 71%;
+  top: 21%;
+  translate: -50% -50%;
+  width: 700px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 145, 50, 0.65) 0%,
+    rgba(240, 75, 45, 0.38) 38%,
+    rgba(180, 35, 75, 0.18) 65%,
+    transparent 82%
+  );
+}
+
+.sky-evening__crepuscular-glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 8%;
+  height: 40%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 160, 60, 0.22) 0%,
+    rgba(235, 85, 45, 0.35) 50%,
+    rgba(160, 25, 75, 0.2) 85%,
+    transparent 100%
+  );
+}
+
+/* --- 3. NIGHT SKY: MOON & STARS --- */
+.sky-stars {
+  position: absolute;
+  inset: 0;
+}
+
+.sky-star {
+  position: absolute;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 5px 1px #ffffff, 0 0 10px 2px rgba(190, 225, 255, 0.9);
+  animation: star-twinkle 2.8s var(--ease-in-out) infinite;
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+}
+
+.sky-moon__wrap {
+  position: absolute;
+  left: 76%;
+  top: 15%;
+  translate: -50% -50%;
+  width: 72px;
+  height: 72px;
+}
+
+.sky-moon__halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(225, 242, 255, 0.45) 0%,
+    rgba(180, 220, 255, 0.22) 42%,
+    rgba(130, 185, 255, 0.08) 65%,
+    transparent 78%
+  );
+  mix-blend-mode: screen;
+}
+
+.sky-moon__disc {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-shadow:
+    0 0 30px 10px rgba(225, 242, 255, 0.95),
+    0 0 80px 28px rgba(170, 215, 255, 0.6);
+}
+
+.sky-moon__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* --- Weather diffusion (clouds / rain / storm) only on active body --- */
+.sky-celestial--cloudy .sky-body--active,
+.sky-celestial--rainy .sky-body--active {
+  filter: blur(3px) brightness(0.95);
+  opacity: 0.82;
+}
+
+.sky-celestial--rainy .sky-stars,
+.sky-celestial--stormy .sky-stars {
+  opacity: 0.2;
+}
+
+/* --- Mobile responsiveness --- */
+@media (max-width: 768px) {
+  .sky-sun__core {
+    left: 78%;
+    top: 12%;
+    width: 48px;
+    height: 48px;
+  }
+  .sky-sun__corona-inner {
+    left: 78%;
+    top: 12%;
+    width: 130px;
+    height: 130px;
+  }
+  .sky-sun__corona-outer {
+    left: 78%;
+    top: 12%;
+    width: 280px;
+    height: 280px;
+  }
+  .sky-evening__sunset-orb {
+    left: 72%;
+    top: 24%;
+    width: 58px;
+    height: 58px;
+  }
+  .sky-evening__horizon-flare {
+    left: 72%;
+    top: 25%;
+    width: 440px;
+    height: 140px;
+  }
+  .sky-moon__wrap {
+    left: 78%;
+    top: 13%;
+    width: 52px;
+    height: 52px;
+  }
+  .sky-moon__halo {
+    width: 180px;
+    height: 180px;
+  }
+}
