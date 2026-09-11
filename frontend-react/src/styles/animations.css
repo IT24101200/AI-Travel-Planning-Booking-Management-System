@@ -1,0 +1,167 @@
+/* ==========================================================================
+   Motion: scroll reveals, ambient loops, click feedback.
+   Every animation here is disabled under prefers-reduced-motion (bottom).
+   ========================================================================== */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-1.4deg);
+  }
+  50% {
+    transform: rotate(1.4deg);
+  }
+}
+
+@keyframes kenburns {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.14) translate3d(-1.5%, -2%, 0);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -220% 0;
+  }
+  to {
+    background-position: 220% 0;
+  }
+}
+
+@keyframes pulse-ring {
+  from {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Backdrop cross-fade. Animations (not transitions) so a freshly mounted
+   landscape layer still animates itself in on the very first frame. */
+@keyframes scene-in {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+    filter: saturate(0.8) blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.005);
+    filter: saturate(1) blur(0);
+  }
+}
+
+@keyframes scene-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+/* --- Scroll reveal ----------------------------------------------------- */
+
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 720ms var(--ease-out),
+    transform 720ms var(--ease-out);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.reveal--visible {
+  opacity: 1;
+  transform: none;
+}
+
+.reveal[data-variant='left'] {
+  transform: translateX(-32px);
+}
+.reveal[data-variant='right'] {
+  transform: translateX(32px);
+}
+.reveal[data-variant='zoom'] {
+  transform: scale(0.94);
+}
+.reveal--visible[data-variant='left'],
+.reveal--visible[data-variant='right'],
+.reveal--visible[data-variant='zoom'] {
+  transform: none;
+}
+
+/* --- Ambient loops ---------------------------------------------------- */
+
+.float-slow {
+  animation: drift 9s var(--ease-in-out) infinite;
+}
+
+.sway-slow {
+  transform-origin: 50% 100%;
+  animation: sway 7s var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}

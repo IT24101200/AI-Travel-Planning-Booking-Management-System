@@ -1,0 +1,110 @@
+/* ==========================================================================
+   Design tokens - "natural theme" palette drawn from the Sri Lankan landscape:
+   jungle canopy, tea terraces, Indian Ocean, temple gold and laterite clay.
+   ========================================================================== */
+
+:root {
+  /* Canopy greens */
+  --jungle-900: #06231b;
+  --jungle-800: #0a3628;
+  --jungle-700: #0f4a37;
+  --jungle-600: #166b4f;
+  --jungle-500: #1f8c66;
+  --leaf-400: #35b183;
+  --leaf-300: #6ed4ab;
+  --leaf-200: #b6ecd6;
+  --leaf-100: #d9f4e7;
+  --leaf-50: #eefaf4;
+
+  /* Ocean */
+  --ocean-800: #073f49;
+  --ocean-700: #0b5f6b;
+  --ocean-500: #0f8f9e;
+  --ocean-400: #29aebd;
+  --ocean-300: #7fd4de;
+
+  /* Temple gold + sand */
+  --sand-700: #a86f1f;
+  --sand-600: #c98a2e;
+  --sand-500: #e0a63f;
+  --sand-400: #f0c469;
+  --sand-200: #f8e2b4;
+  --sand-100: #fbeed3;
+
+  /* Clay + sunset */
+  --coral-500: #e4694a;
+  --coral-400: #ef8a6d;
+  --clay-600: #9c4726;
+  --clay-500: #b4552f;
+
+  /* Neutrals */
+  --ivory: #fbfaf5;
+  --mist: #f1f5f1;
+  --paper: #ffffff;
+  --ink: #08201a;
+  --ink-2: #3a564c;
+  --ink-3: #6b8578;
+  --ink-4: #9db0a6;
+  --line: #e2e9e3;
+  --line-strong: #cdd9d0;
+
+  /* Semantic roles */
+  --bg: var(--ivory);
+  --bg-alt: var(--mist);
+  --surface: var(--paper);
+  --text: var(--ink-2);
+  --text-strong: var(--ink);
+  --text-muted: var(--ink-3);
+  --brand: var(--jungle-600);
+  --brand-strong: var(--jungle-800);
+  --accent: var(--sand-500);
+  --accent-ink: var(--sand-700);
+
+  /* Glass surfaces used over the animated backdrop */
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.9);
+  --glass-line: rgba(255, 255, 255, 0.55);
+  --glass-dark: rgba(6, 35, 27, 0.42);
+  --glass-dark-line: rgba(255, 255, 255, 0.16);
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px rgba(8, 32, 26, 0.06);
+  --shadow-sm: 0 2px 8px rgba(8, 32, 26, 0.07);
+  --shadow-md: 0 12px 28px -12px rgba(8, 32, 26, 0.22);
+  --shadow-lg: 0 28px 60px -24px rgba(8, 32, 26, 0.32);
+  --shadow-glow: 0 0 0 1px rgba(53, 177, 131, 0.25), 0 18px 44px -18px rgba(15, 74, 55, 0.4);
+
+  /* Radii */
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 16px;
+  --r-lg: 24px;
+  --r-xl: 34px;
+  --r-pill: 999px;
+
+  /* Type */
+  --font-display: 'Fraunces', 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+  /* Rhythm */
+  --shell: 1200px;
+  --shell-wide: 1400px;
+  --gutter: clamp(1.25rem, 4vw, 3rem);
+  --section-y: clamp(4.5rem, 9vw, 8rem);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --t-fast: 160ms;
+  --t-base: 280ms;
+  --t-slow: 620ms;
+
+  /* Layering */
+  --z-backdrop: 0;
+  --z-canvas: 1;
+  --z-content: 2;
+  --z-header: 40;
+  --z-overlay: 60;
+}

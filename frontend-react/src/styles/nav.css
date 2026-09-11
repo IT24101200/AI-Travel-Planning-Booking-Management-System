@@ -1,0 +1,268 @@
+/* ==========================================================================
+   Site header / primary navigation.
+   Transparent over the hero, frosted glass once the page scrolls.
+   ========================================================================== */
+
+.header {
+  position: fixed;
+  inset-inline: 0;
+  top: 0;
+  z-index: var(--z-header);
+  transition:
+    background-color var(--t-base) var(--ease-out),
+    box-shadow var(--t-base) var(--ease-out),
+    border-color var(--t-base) var(--ease-out),
+    backdrop-filter var(--t-base) var(--ease-out);
+  border-bottom: 1px solid transparent;
+  /* Transparency mode: fully see-through at rest over the hero. */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+
+
+.header__inner {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 4.75rem;
+}
+
+.header--pinned {
+  background: rgba(4, 22, 17, 0.88);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.4);
+}
+
+/* Premium Navbar Buttons */
+.btn--nav-outline {
+  --btn-bg: rgba(255, 255, 255, 0.12);
+  --btn-fg: #fff;
+  --btn-line: transparent;
+  backdrop-filter: blur(12px);
+  border-radius: 20px;
+}
+.btn--nav-outline:hover {
+  --btn-bg: rgba(255, 255, 255, 0.2);
+  --btn-line: transparent;
+}
+
+.btn--nav-primary {
+  --btn-bg: var(--sand-500);
+  --btn-fg: var(--jungle-900);
+  --btn-line: transparent;
+  box-shadow: 0 4px 16px rgba(224, 159, 62, 0.3);
+  border-radius: 20px;
+}
+.btn--nav-primary:hover {
+  box-shadow: 0 6px 24px rgba(224, 159, 62, 0.45);
+}
+
+.header--pinned .header__inner {
+  height: 4.1rem;
+}
+
+/* Brand ---------------------------------------------------------------- */
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-right: auto;
+}
+
+.brand__mark {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--jungle-600), var(--ocean-700));
+  color: var(--leaf-200);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand__name {
+  display: grid;
+  line-height: 1.1;
+}
+
+.brand__name b {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-shadow: 0 1px 10px rgba(4, 22, 17, 0.8);
+  transition: color var(--t-base) var(--ease-out), text-shadow var(--t-base) var(--ease-out);
+}
+
+.brand__name span {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 8px rgba(4, 22, 17, 0.8);
+  transition: color var(--t-base) var(--ease-out), text-shadow var(--t-base) var(--ease-out);
+}
+
+/* Links ---------------------------------------------------------------- */
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Nav links are white by default (over dark hero/backdrop) */
+.nav__link {
+  position: relative;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--r-pill);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 8px rgba(4, 22, 17, 0.85);
+  white-space: nowrap;
+  transition: color var(--t-fast) var(--ease-out), text-shadow var(--t-base) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+
+.nav__link::after {
+  content: '';
+  position: absolute;
+  left: 0.85rem;
+  right: 0.85rem;
+  bottom: 0.28rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--sand-400);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--t-base) var(--ease-out);
+}
+
+.nav__link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.nav__link:hover::after,
+.nav__link.is-active::after {
+  transform: scaleX(1);
+}
+
+.nav__link.is-active {
+  color: #fff;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* Hamburger ------------------------------------------------------------ */
+
+.burger {
+  display: none;
+  width: 2.65rem;
+  height: 2.65rem;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--glass-strong);
+  cursor: pointer;
+}
+
+.burger__bars {
+  position: relative;
+}
+
+.burger__bars,
+.burger__bars::before,
+.burger__bars::after {
+  display: block;
+  width: 1.1rem;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--jungle-800);
+  transition: transform var(--t-base) var(--ease-out), opacity var(--t-fast) linear;
+}
+
+.burger__bars::before,
+.burger__bars::after {
+  content: '';
+  position: absolute;
+}
+
+.burger__bars::before {
+  transform: translateY(-6px);
+}
+.burger__bars::after {
+  transform: translateY(6px);
+}
+
+.burger[aria-expanded='true'] .burger__bars {
+  background: transparent;
+}
+.burger[aria-expanded='true'] .burger__bars::before {
+  transform: rotate(45deg);
+}
+.burger[aria-expanded='true'] .burger__bars::after {
+  transform: rotate(-45deg);
+}
+
+/* Mobile drawer -------------------------------------------------------- */
+
+.drawer {
+  position: fixed;
+  inset: 4.1rem 0 auto;
+  z-index: var(--z-header);
+  display: grid;
+  gap: 0.2rem;
+  padding: 1rem var(--gutter) 1.6rem;
+  background: rgba(251, 250, 245, 0.97);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--line);
+  box-shadow: var(--shadow-lg);
+  animation: rise 320ms var(--ease-out);
+}
+
+.drawer__link {
+  padding: 0.85rem 0.25rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--text-strong);
+}
+
+.drawer__link.is-active {
+  color: var(--jungle-600);
+  font-weight: 600;
+}
+
+.drawer .btn {
+  margin-top: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .nav {
+    display: none;
+  }
+
+  .burger {
+    display: grid;
+  }
+}
+
+@media (max-width: 600px) {
+  .brand__name {
+    display: none;
+  }
+}

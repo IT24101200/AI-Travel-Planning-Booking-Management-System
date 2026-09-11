@@ -44,13 +44,14 @@ var connectionString = builder.Configuration["SUPERBASE_URL"]
 // ── Database ──
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    if (string.IsNullOrWhiteSpace(connectionString))
+    if (!string.IsNullOrWhiteSpace(connectionString))
     {
-        options.UseNpgsql("Host=localhost;Port=5432;Database=travel_booking_db;Username=postgres;Password=7552632");
+        options.UseNpgsql(connectionString);
     }
     else
     {
-        options.UseNpgsql(connectionString);
+        // Safe local default without sensitive credentials
+        options.UseNpgsql("Host=localhost;Port=5432;Database=travel_booking_db;Username=postgres;Password=");
     }
 });
 
@@ -150,9 +151,14 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000")
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
@@ -165,6 +171,36 @@ builder.Services.AddScoped<ITransportService, TransportService>();
 builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
 var app = builder.Build();
+
+// ── Role Seeding on Startup ──
+using (var scope = app.Services.CreateScope())
+{
+    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    string[] roles = ["Customer", "TravelAgent", "Admin"];
+    foreach (var role in roles)
+    {
+        if (!await roleManager.RoleExistsAsync(role))
+        {
+            await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+}
+
+// ── Global Exception Handling ──
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            statusCode = 500,
+            message = "An unexpected internal server error occurred. Please try again later."
+        };
+        await context.Response.WriteAsJsonAsync(response);
+    });
+});
 
 // ── Middleware Pipeline ──
 if (app.Environment.IsDevelopment())

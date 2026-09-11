@@ -26,11 +26,13 @@ namespace backend.Controllers
             [FromQuery] decimal? minPrice,
             [FromQuery] decimal? maxPrice,
             [FromQuery] string? status,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 10)
         {
             var results = await _service.SearchAsync(
-                destinationId, category, minPrice, maxPrice, status, page, pageSize);
+                destinationId, category, minPrice, maxPrice, status, sortBy, descending, page, pageSize);
             return Ok(results);
         }
 

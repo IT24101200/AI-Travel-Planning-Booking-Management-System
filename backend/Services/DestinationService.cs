@@ -14,9 +14,33 @@ namespace backend.Services
             _context = context;
         }
 
-        public async Task<List<DestinationDto>> GetAllAsync()
+        public async Task<List<DestinationDto>> GetAllAsync(
+            string? search = null,
+            string? sortBy = null,
+            bool descending = false,
+            int page = 1,
+            int pageSize = 50)
         {
-            return await _context.Destinations
+            var query = _context.Destinations.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+                query = query.Where(d => d.Name.ToLower().Contains(term) || d.Country.ToLower().Contains(term));
+            }
+
+            query = sortBy?.ToLower() switch
+            {
+                "country" => descending ? query.OrderByDescending(d => d.Country) : query.OrderBy(d => d.Country),
+                _ => descending ? query.OrderByDescending(d => d.Name) : query.OrderBy(d => d.Name)
+            };
+
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            return await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
                 .Select(d => ToDto(d))
                 .ToListAsync();
         }

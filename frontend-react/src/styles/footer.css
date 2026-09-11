@@ -1,0 +1,115 @@
+/* ==========================================================================
+   Footer.
+   ========================================================================== */
+
+.footer {
+  position: relative;
+  margin-top: auto;
+  padding-block: clamp(3rem, 6vw, 5rem) 2rem;
+  background: var(--jungle-900);
+  color: rgba(233, 245, 239, 0.72);
+  overflow: hidden;
+}
+
+.footer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(60rem 22rem at 12% -10%, rgba(31, 140, 102, 0.4), transparent 65%),
+    radial-gradient(44rem 20rem at 92% 8%, rgba(15, 143, 158, 0.32), transparent 68%);
+  pointer-events: none;
+}
+
+.footer > * {
+  position: relative;
+}
+
+.footer__grid {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  grid-template-columns: minmax(0, 1.4fr) repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.footer__brand .brand__name b {
+  color: #fff;
+}
+
+.footer__brand .brand__name span,
+.footer__blurb {
+  color: rgba(233, 245, 239, 0.62);
+}
+
+.footer__blurb {
+  margin-top: 1rem;
+  max-width: 34ch;
+  font-size: 0.9375rem;
+}
+
+.footer__col h4 {
+  margin-bottom: 0.9rem;
+  color: #fff;
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.footer__col li + li {
+  margin-top: 0.55rem;
+}
+
+.footer__col a {
+  font-size: 0.9375rem;
+  color: rgba(233, 245, 239, 0.72);
+  transition: color var(--t-fast) var(--ease-out);
+}
+
+.footer__col a:hover {
+  color: var(--sand-400);
+}
+
+.footer__social {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.35rem;
+}
+
+.footer__social a {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  color: rgba(233, 245, 239, 0.8);
+  transition:
+    background-color var(--t-base) var(--ease-out),
+    border-color var(--t-base) var(--ease-out),
+    transform var(--t-fast) var(--ease-out);
+}
+
+.footer__social a:hover {
+  background: rgba(224, 166, 63, 0.18);
+  border-color: var(--sand-500);
+  color: var(--sand-400);
+  transform: translateY(-2px);
+}
+
+.footer__base {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: clamp(2.5rem, 5vw, 4rem);
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.83rem;
+  color: rgba(233, 245, 239, 0.5);
+}
+
+.footer__base nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}

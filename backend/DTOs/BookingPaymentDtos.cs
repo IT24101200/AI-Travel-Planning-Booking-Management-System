@@ -137,6 +137,7 @@ namespace backend.DTOs
         public int Id { get; set; }
         public int BookingId { get; set; }
         public string BookingReference { get; set; } = string.Empty;
+        public string CustomerId { get; set; } = string.Empty;
         public string CustomerName { get; set; } = string.Empty;
         public decimal Amount { get; set; }
         public string Currency { get; set; } = "USD";

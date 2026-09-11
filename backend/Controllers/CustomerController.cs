@@ -58,15 +58,23 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Get a specific customer's profile by ID — Staff directory use only.
-        /// Only TravelAgent or Admin can look up other customer profiles.
+        /// Get a specific customer's profile by ID.
+        /// Customers can only view their own profile; TravelAgent and Admin can view any profile.
         /// </summary>
         [HttpGet("{id}")]
-        [Authorize(Roles = "TravelAgent,Admin")]
         [ProducesResponseType(typeof(CustomerDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetById(string id)
         {
+            var currentUserId = GetUserId();
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+
+            if (!isStaff && currentUserId != id)
+            {
+                return Forbid();
+            }
+
             var customer = await _customerService.GetByIdAsync(id);
 
             if (customer == null)
