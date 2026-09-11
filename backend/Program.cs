@@ -173,8 +173,9 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 var app = builder.Build();
 
 // ── Role Seeding on Startup ──
-using (var scope = app.Services.CreateScope())
+try
 {
+    using var scope = app.Services.CreateScope();
     var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
     string[] roles = ["Customer", "TravelAgent", "Admin"];
     foreach (var role in roles)
@@ -184,6 +185,11 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
         }
     }
+}
+catch (Exception ex)
+{
+    // Log database connection warning without crashing application startup
+    app.Logger.LogWarning("Could not seed database roles on startup: {Message}", ex.Message);
 }
 
 // ── Global Exception Handling ──
