@@ -18,16 +18,6 @@ namespace backend.Services
         public async Task<TripRequestDto> CreateAsync(string customerId, TripRequestCreateDto dto)
         {
             // ── Validation ──
-            if (dto.StartDate.Date < DateTime.UtcNow.Date)
-            {
-                throw new ArgumentException("Start date cannot be in the past.");
-            }
-
-            if (dto.EndDate <= dto.StartDate)
-            {
-                throw new ArgumentException("End date must be after start date.");
-            }
-
             if (dto.TravellerCount < 1 || dto.TravellerCount > 100)
             {
                 throw new ArgumentException("Traveller count must be between 1 and 100.");
@@ -36,6 +26,46 @@ namespace backend.Services
             if (dto.BudgetCeiling <= 0)
             {
                 throw new ArgumentException("Budget ceiling must be greater than zero.");
+            }
+
+            // ── Preference Validation (Component A) ──
+            // Cross-validate the incoming TripRequest against the customer's stored
+            // Preference row (if one exists). Failures throw ArgumentException, which
+            // the controller catches and converts to 400 Bad Request — exactly the
+            // same pattern as the checks above.
+            var preference = await _db.Preferences
+                .FirstOrDefaultAsync(p => p.CustomerId == customerId);
+
+            if (preference != null)
+            {
+                // Reject if the trip's budget ceiling is below the customer's minimum budget.
+                // Only enforced when BudgetMin is a meaningful positive value.
+                if (preference.BudgetMin > 0 && dto.BudgetCeiling < preference.BudgetMin)
+                {
+                    throw new ArgumentException(
+                        $"Budget ceiling ({dto.BudgetCeiling:F2} {dto.Currency}) is below your " +
+                        $"preferred minimum budget ({preference.BudgetMin:F2} {preference.Currency}). " +
+                        $"Please raise your budget ceiling or update your preferences (BudgetMin).");
+                }
+            }
+
+            // Date checks run unconditionally for every trip request,
+            // regardless of whether the customer has a Preference row.
+
+            // Reject if StartDate is in the past (UTC date-only comparison).
+            if (dto.StartDate.Date < DateTime.UtcNow.Date)
+            {
+                throw new ArgumentException(
+                    $"Start date ({dto.StartDate:yyyy-MM-dd}) cannot be in the past. " +
+                    $"Today's date (UTC) is {DateTime.UtcNow:yyyy-MM-dd}.");
+            }
+
+            // Reject if StartDate is not strictly before EndDate.
+            if (dto.StartDate.Date >= dto.EndDate.Date)
+            {
+                throw new ArgumentException(
+                    $"Start date ({dto.StartDate:yyyy-MM-dd}) must be strictly before " +
+                    $"end date ({dto.EndDate:yyyy-MM-dd}).");
             }
 
             // If DestinationId is provided, verify it exists

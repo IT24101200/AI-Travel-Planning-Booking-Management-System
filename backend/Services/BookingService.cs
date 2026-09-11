@@ -1,3 +1,4 @@
+using System.Data;
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
@@ -71,24 +72,85 @@ namespace backend.Services
             var totalCost = dto.TotalCost > 0 ? dto.TotalCost : calculatedTotal;
             var bookingRef = await GenerateUniqueBookingReferenceAsync();
 
-            // Rule 1: Always created in AwaitingApproval (or Draft if explicitly specified, never Confirmed)
-            var booking = new Booking
+            // ── Concurrency-safe write (Component C fix) ──
+            // Open a REPEATABLE READ transaction and lock each requested Room row
+            // with SELECT ... FOR UPDATE before re-checking availability.
+            // This ensures only one of two simultaneous requests for the last
+            // available unit can succeed: the second waits for the lock, then
+            // re-counts and finds zero available, and receives a clear 400 error.
+            await using var transaction = await _db.Database
+                .BeginTransactionAsync(IsolationLevel.RepeatableRead);
+            try
             {
-                BookingReference = bookingRef,
-                CustomerId = dto.CustomerId,
-                ItineraryId = dto.ItineraryId,
-                Status = BookingStatus.AwaitingApproval,
-                TotalCost = totalCost,
-                Currency = string.IsNullOrWhiteSpace(dto.Currency) ? "USD" : dto.Currency,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                BookingItems = bookingItems
-            };
+                var activeStatuses = new[]
+                {
+                    BookingStatus.Draft,
+                    BookingStatus.AwaitingApproval,
+                    BookingStatus.Confirmed
+                };
 
-            _db.Bookings.Add(booking);
-            await _db.SaveChangesAsync();
+                foreach (var item in dto.Items.Where(i => i.ItemType == BookingItemType.Room))
+                {
+                    // Acquire a PostgreSQL row-level lock on this Room row.
+                    // Any concurrent transaction attempting the same lock will
+                    // block here until we COMMIT or ROLLBACK.
+                    var lockedRoom = await _db.Rooms
+                        .FromSqlRaw(
+                            "SELECT * FROM \"Rooms\" WHERE \"Id\" = {0} FOR UPDATE",
+                            item.RoomId!.Value)
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync();
 
-            return await MapToDtoAsync(booking);
+                    if (lockedRoom is null)
+                        throw new KeyNotFoundException(
+                            $"Room with ID {item.RoomId} not found.");
+
+                    // Re-count overlapping active bookings under the lock —
+                    // this read is now serialised with any concurrent writer.
+                    var bookedCount = await _db.BookingItems
+                        .Where(bi => bi.RoomId          == item.RoomId
+                                  && bi.ItemType        == BookingItemType.Room
+                                  && bi.CheckInDate.HasValue
+                                  && bi.CheckOutDate.HasValue
+                                  && bi.CheckInDate.Value  < item.CheckOutDate!.Value
+                                  && bi.CheckOutDate.Value > item.CheckInDate!.Value
+                                  && activeStatuses.Contains(bi.Booking.Status))
+                        .SumAsync(bi => bi.Quantity);
+
+                    var available = lockedRoom.TotalRooms - bookedCount;
+                    if (available < item.Quantity)
+                        throw new InvalidOperationException(
+                            $"Room '{lockedRoom.RoomType}' (ID {lockedRoom.Id}) is no longer " +
+                            $"available for the requested dates " +
+                            $"({item.CheckInDate:yyyy-MM-dd} \u2013 {item.CheckOutDate:yyyy-MM-dd}). " +
+                            $"Requested: {item.Quantity}, available: {Math.Max(0, available)}.");
+                }
+
+                // Rule 1: Always created in AwaitingApproval (or Draft if explicitly specified, never Confirmed)
+                var booking = new Booking
+                {
+                    BookingReference = bookingRef,
+                    CustomerId       = dto.CustomerId,
+                    ItineraryId      = dto.ItineraryId,
+                    Status           = BookingStatus.AwaitingApproval,
+                    TotalCost        = totalCost,
+                    Currency         = string.IsNullOrWhiteSpace(dto.Currency) ? "USD" : dto.Currency,
+                    CreatedAt        = DateTime.UtcNow,
+                    UpdatedAt        = DateTime.UtcNow,
+                    BookingItems     = bookingItems
+                };
+
+                _db.Bookings.Add(booking);
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return await MapToDtoAsync(booking);
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw; // Re-throw so the controller's existing catch blocks produce the correct 400/404
+            }
         }
 
         public async Task<BookingDto?> GetBookingByIdAsync(int id, string? userId = null, bool isStaff = false)
