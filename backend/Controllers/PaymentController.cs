@@ -51,9 +51,11 @@ namespace backend.Controllers
 
         /// <summary>
         /// Get payment details by ID.
+        /// Verified for ownership: customers can only view their own payment.
         /// </summary>
         [HttpGet("{id}")]
         [ProducesResponseType(typeof(PaymentDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetPaymentById(int id)
         {
@@ -61,17 +63,38 @@ namespace backend.Controllers
             if (payment == null)
                 return NotFound(new { message = $"Payment with ID {id} not found." });
 
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+
+            if (!isStaff && payment.CustomerId != currentUserId)
+            {
+                return Forbid();
+            }
+
             return Ok(payment);
         }
 
         /// <summary>
         /// Get all payments for a specific booking.
+        /// Verified for ownership: customers can only view payments for their own booking.
         /// </summary>
         [HttpGet("booking/{bookingId}")]
         [ProducesResponseType(typeof(IEnumerable<PaymentDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetPaymentsByBooking(int bookingId)
         {
-            var result = await _paymentService.GetPaymentsByBookingIdAsync(bookingId);
+            var result = (await _paymentService.GetPaymentsByBookingIdAsync(bookingId)).ToList();
+            if (result.Any())
+            {
+                var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+
+                if (!isStaff && result.First().CustomerId != currentUserId)
+                {
+                    return Forbid();
+                }
+            }
+
             return Ok(result);
         }
 

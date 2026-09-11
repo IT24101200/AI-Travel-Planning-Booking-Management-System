@@ -23,6 +23,14 @@ namespace backend.Models
         [MaxLength(100)]
         public string StepName { get; set; } = string.Empty;
 
+        [MaxLength(50)]
+        public string? StepType { get; set; }
+
+        [MaxLength(100)]
+        public string? ToolName { get; set; }
+
+        public long? DurationMs { get; set; }
+
         [MaxLength(4000)]
         public string? Input { get; set; }
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.DTOs;
+using backend.Models.Enums;
 
 namespace backend.Services
 {
@@ -47,13 +48,21 @@ namespace backend.Services
             var room = await _context.Rooms.FindAsync(roomId);
             if (room is null) return null;
 
-            // ── Phase 1: No BookingItem table yet, so booked = 0 ──
-            // Phase 2 TODO: Query BookingItem where ItemType = "Room"
-            //   AND RoomId = roomId
-            //   AND CheckInDate < checkOut AND CheckOutDate > checkIn  (overlap logic)
-            //   AND Booking.Status IN (Draft, AwaitingApproval, Confirmed)
-            //   COUNT the overlapping bookings
-            int bookedRooms = 0;
+            // ── Real Availability Calculation ──
+            // Count rooms booked in active bookings (Draft, AwaitingApproval, Confirmed)
+            // where check-in and check-out dates overlap:
+            //   existing.CheckInDate < requested.checkOut AND existing.CheckOutDate > requested.checkIn
+            var activeStatuses = new[] { BookingStatus.Draft, BookingStatus.AwaitingApproval, BookingStatus.Confirmed };
+
+            var bookedRooms = await _context.BookingItems
+                .Where(bi => bi.RoomId == roomId 
+                          && bi.ItemType == BookingItemType.Room
+                          && bi.CheckInDate.HasValue 
+                          && bi.CheckOutDate.HasValue
+                          && bi.CheckInDate.Value < checkOut 
+                          && bi.CheckOutDate.Value > checkIn
+                          && activeStatuses.Contains(bi.Booking.Status))
+                .SumAsync(bi => bi.Quantity);
 
             return new RoomAvailabilityDto
             {
@@ -61,7 +70,7 @@ namespace backend.Services
                 RoomType       = room.RoomType,
                 TotalRooms     = room.TotalRooms,
                 BookedRooms    = bookedRooms,
-                AvailableRooms = room.TotalRooms - bookedRooms,
+                AvailableRooms = Math.Max(0, room.TotalRooms - bookedRooms),
                 PricePerNight  = room.PricePerNight,
                 Currency       = room.Currency
             };
@@ -76,12 +85,15 @@ namespace backend.Services
             var transport = await _context.TransportOptions.FindAsync(transportOptionId);
             if (transport is null) return null;
 
-            // ── Phase 1: No BookingItem table yet, so booked = 0 ──
-            // Phase 2 TODO: Query BookingItem where ItemType = "Transport"
-            //   AND TransportOptionId = transportOptionId
-            //   AND Booking.Status IN (Draft, AwaitingApproval, Confirmed)
-            //   SUM(Quantity) for the booked seats
-            int bookedSeats = 0;
+            // ── Real Transport Availability Calculation ──
+            // Sum seats booked in active bookings (Draft, AwaitingApproval, Confirmed)
+            var activeStatuses = new[] { BookingStatus.Draft, BookingStatus.AwaitingApproval, BookingStatus.Confirmed };
+
+            var bookedSeats = await _context.BookingItems
+                .Where(bi => bi.TransportOptionId == transportOptionId
+                          && bi.ItemType == BookingItemType.Transport
+                          && activeStatuses.Contains(bi.Booking.Status))
+                .SumAsync(bi => bi.Quantity);
 
             return new TransportAvailabilityDto
             {
@@ -91,7 +103,7 @@ namespace backend.Services
                 RouteTo           = transport.RouteTo,
                 TotalCapacity     = transport.Capacity,
                 BookedSeats       = bookedSeats,
-                AvailableSeats    = transport.Capacity - bookedSeats,
+                AvailableSeats    = Math.Max(0, transport.Capacity - bookedSeats),
                 Price             = transport.Price,
                 Currency          = transport.Currency
             };

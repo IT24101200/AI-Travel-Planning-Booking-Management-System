@@ -20,6 +20,8 @@ namespace backend.Services
             decimal? minPrice,
             decimal? maxPrice,
             string? status,
+            string? sortBy,
+            bool descending,
             int page,
             int pageSize)
         {
@@ -42,8 +44,14 @@ namespace backend.Services
             var statusFilter = string.IsNullOrWhiteSpace(status) ? "Active" : status;
             query = query.Where(t => t.Status == statusFilter);
 
+            query = sortBy?.ToLower() switch
+            {
+                "price" => descending ? query.OrderByDescending(t => t.Price) : query.OrderBy(t => t.Price),
+                "duration" => descending ? query.OrderByDescending(t => t.DurationHours) : query.OrderBy(t => t.DurationHours),
+                _ => descending ? query.OrderByDescending(t => t.Name) : query.OrderBy(t => t.Name)
+            };
+
             var tours = await query
-                .OrderBy(t => t.Name)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();

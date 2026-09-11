@@ -9,6 +9,9 @@ namespace backend.DTOs
         public int TripRequestId { get; set; }
         public string AgentName { get; set; } = string.Empty;
         public string StepName { get; set; } = string.Empty;
+        public string? StepType { get; set; }
+        public string? ToolName { get; set; }
+        public long? DurationMs { get; set; }
         public string? Input { get; set; }
         public string? Output { get; set; }
         public string Status { get; set; } = string.Empty;

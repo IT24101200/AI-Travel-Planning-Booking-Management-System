@@ -20,9 +20,14 @@ namespace backend.Controllers
         // GET /api/destinations
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll(
+            [FromQuery] string? search,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 50)
         {
-            var destinations = await _service.GetAllAsync();
+            var destinations = await _service.GetAllAsync(search, sortBy, descending, page, pageSize);
             return Ok(destinations);
         }
 
