@@ -14,11 +14,17 @@ namespace backend.Tests
     {
         private static AppDbContext CreateContext()
         {
+            // Use SQLite (not InMemory) so that BeginTransactionAsync works
+            // correctly. InMemory raises TransactionIgnoredWarning-as-error
+            // when BookingService calls BeginTransactionAsync(RepeatableRead).
+            var dbPath = $"unit_test_{Guid.NewGuid():N}.db";
             var options = new DbContextOptionsBuilder<AppDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .UseSqlite($"Data Source={dbPath}")
                 .Options;
 
-            return new AppDbContext(options);
+            var context = new AppDbContext(options);
+            context.Database.EnsureCreated();
+            return context;
         }
 
         private static async Task SeedDependenciesAsync(AppDbContext context)

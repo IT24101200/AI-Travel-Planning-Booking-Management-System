@@ -65,6 +65,29 @@ namespace backend.Controllers
             }
         }
 
+        /// <summary>
+        /// Search preferences with optional filters and pagination. TravelAgent or Admin only.
+        /// </summary>
+        [HttpGet("search")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(List<PreferenceDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? customerId,
+            [FromQuery] decimal? minBudget,
+            [FromQuery] decimal? maxBudget,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            var prefs = await _preferenceService.SearchAsync(customerId, minBudget, maxBudget, sortBy, descending, page, pageSize);
+            return Ok(prefs);
+        }
+
         private string GetUserId()
         {
             return User.FindFirstValue(ClaimTypes.NameIdentifier)

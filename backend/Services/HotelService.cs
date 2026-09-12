@@ -181,6 +181,37 @@ namespace backend.Services
         //  ROOM CRUD (nested under a hotel)
         // ══════════════════════════════════════════════════════════════════
 
+        public async Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize)
+        {
+            var query = _context.Rooms.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(roomType))
+            {
+                var term = roomType.ToLower();
+                query = query.Where(r => r.RoomType.ToLower().Contains(term));
+            }
+
+            if (minCapacity.HasValue)
+                query = query.Where(r => r.Capacity >= minCapacity.Value);
+
+            if (maxPrice.HasValue)
+                query = query.Where(r => r.PricePerNight <= maxPrice.Value);
+
+            query = sortBy?.ToLower() switch
+            {
+                "price" => descending ? query.OrderByDescending(r => r.PricePerNight) : query.OrderBy(r => r.PricePerNight),
+                "capacity" => descending ? query.OrderByDescending(r => r.Capacity) : query.OrderBy(r => r.Capacity),
+                _ => descending ? query.OrderByDescending(r => r.HotelId).ThenByDescending(r => r.Id) : query.OrderBy(r => r.HotelId).ThenBy(r => r.Id)
+            };
+
+            var rooms = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return rooms.Select(r => ToRoomDto(r)).ToList();
+        }
+
         public async Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId)
         {
             var rooms = await _context.Rooms

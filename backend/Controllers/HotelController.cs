@@ -124,6 +124,29 @@ namespace backend.Controllers
         // ══════════════════════════════════════════════════════════════════
 
         /// <summary>
+        /// Search rooms globally with optional filters and pagination.
+        /// GET /api/hotel/rooms/search
+        /// </summary>
+        [HttpGet("rooms/search")]
+        [AllowAnonymous]
+        public async Task<IActionResult> SearchRooms(
+            [FromQuery] string? roomType,
+            [FromQuery] int? minCapacity,
+            [FromQuery] decimal? maxPrice,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            var rooms = await _hotelService.SearchRoomsAsync(roomType, minCapacity, maxPrice, sortBy, descending, page, pageSize);
+            return Ok(rooms);
+        }
+
+        /// <summary>
         /// List all room types for a hotel.
         /// GET /api/hotel/5/rooms
         /// </summary>

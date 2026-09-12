@@ -195,6 +195,35 @@ namespace backend.Services
                 .ToListAsync();
         }
 
+        public async Task<List<TripRequestDto>> SearchAsync(string? customerId, int? destinationId, string? status, string? sortBy, bool descending, int page, int pageSize)
+        {
+            var query = _db.TripRequests
+                .Include(t => t.Destination)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(customerId))
+                query = query.Where(t => t.CustomerId == customerId);
+            
+            if (destinationId.HasValue)
+                query = query.Where(t => t.DestinationId == destinationId.Value);
+
+            if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<TripRequestStatus>(status, true, out var parsedStatus))
+                query = query.Where(t => t.Status == parsedStatus);
+
+            query = sortBy?.ToLower() switch
+            {
+                "startdate" => descending ? query.OrderByDescending(t => t.StartDate) : query.OrderBy(t => t.StartDate),
+                "budget" => descending ? query.OrderByDescending(t => t.BudgetCeiling) : query.OrderBy(t => t.BudgetCeiling),
+                _ => descending ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt)
+            };
+
+            var trips = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return trips.Select(MapToDto).ToList();
+        }
         private static TripRequestDto MapToDto(TripRequest t)
         {
             return new TripRequestDto

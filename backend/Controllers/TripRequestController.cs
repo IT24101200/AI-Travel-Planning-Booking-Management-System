@@ -156,6 +156,29 @@ namespace backend.Controllers
             return Ok(logs);
         }
 
+        /// <summary>
+        /// Search trip requests globally. TravelAgent or Admin only.
+        /// </summary>
+        [HttpGet("search")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(List<TripRequestDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Search(
+            [FromQuery] string? customerId,
+            [FromQuery] int? destinationId,
+            [FromQuery] string? status,
+            [FromQuery] string? sortBy,
+            [FromQuery] bool descending = false,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            var trips = await _tripRequestService.SearchAsync(customerId, destinationId, status, sortBy, descending, page, pageSize);
+            return Ok(trips);
+        }
+
         private string GetUserId()
         {
             return User.FindFirstValue(ClaimTypes.NameIdentifier)

@@ -68,6 +68,34 @@ namespace backend.Services
             }
         }
 
+        public async Task<List<PreferenceDto>> SearchAsync(string? customerId, decimal? minBudget, decimal? maxBudget, string? sortBy, bool descending, int page, int pageSize)
+        {
+            var query = _db.Preferences.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(customerId))
+                query = query.Where(p => p.CustomerId == customerId);
+            
+            if (minBudget.HasValue)
+                query = query.Where(p => p.BudgetMin >= minBudget.Value);
+
+            if (maxBudget.HasValue)
+                query = query.Where(p => p.BudgetMax <= maxBudget.Value);
+
+            query = sortBy?.ToLower() switch
+            {
+                "budgetmin" => descending ? query.OrderByDescending(p => p.BudgetMin) : query.OrderBy(p => p.BudgetMin),
+                "budgetmax" => descending ? query.OrderByDescending(p => p.BudgetMax) : query.OrderBy(p => p.BudgetMax),
+                _ => descending ? query.OrderByDescending(p => p.CustomerId) : query.OrderBy(p => p.CustomerId)
+            };
+
+            var prefs = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return prefs.Select(MapToDto).ToList();
+        }
+
         private static PreferenceDto MapToDto(Preference pref)
         {
             return new PreferenceDto

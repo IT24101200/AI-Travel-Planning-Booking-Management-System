@@ -75,6 +75,8 @@ namespace backend.Tests
                 minPrice: null,
                 maxPrice: null,
                 status: null,
+                sortBy: null,
+                descending: false,
                 page: 1,
                 pageSize: 10);
 

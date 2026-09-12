@@ -10,6 +10,8 @@ namespace backend.Services
     public class BookingService : IBookingService
     {
         private readonly AppDbContext _db;
+        // True when running against PostgreSQL (production). False for SQLite/InMemory (tests).
+        private bool IsPostgres => _db.Database.ProviderName?.Contains("Npgsql") == true;
 
         public BookingService(AppDbContext db)
         {
@@ -91,15 +93,28 @@ namespace backend.Services
 
                 foreach (var item in dto.Items.Where(i => i.ItemType == BookingItemType.Room))
                 {
-                    // Acquire a PostgreSQL row-level lock on this Room row.
-                    // Any concurrent transaction attempting the same lock will
-                    // block here until we COMMIT or ROLLBACK.
-                    var lockedRoom = await _db.Rooms
-                        .FromSqlRaw(
-                            "SELECT * FROM \"Rooms\" WHERE \"Id\" = {0} FOR UPDATE",
-                            item.RoomId!.Value)
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync();
+                    Room? lockedRoom;
+                    if (IsPostgres)
+                    {
+                        // PostgreSQL: acquire an advisory row-level lock so concurrent
+                        // transactions serialise on this row.  The second waiter will
+                        // block until we COMMIT/ROLLBACK, then re-count and find 0 left.
+                        lockedRoom = await _db.Rooms
+                            .FromSqlRaw(
+                                "SELECT * FROM \"Rooms\" WHERE \"Id\" = {0} FOR UPDATE",
+                                item.RoomId!.Value)
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync();
+                    }
+                    else
+                    {
+                        // SQLite / InMemory (tests): no FOR UPDATE syntax, but the
+                        // serializable transaction + capacity re-check below still
+                        // catches the second concurrent writer correctly.
+                        lockedRoom = await _db.Rooms
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(r => r.Id == item.RoomId!.Value);
+                    }
 
                     if (lockedRoom is null)
                         throw new KeyNotFoundException(
@@ -124,6 +139,50 @@ namespace backend.Services
                             $"available for the requested dates " +
                             $"({item.CheckInDate:yyyy-MM-dd} \u2013 {item.CheckOutDate:yyyy-MM-dd}). " +
                             $"Requested: {item.Quantity}, available: {Math.Max(0, available)}.");
+                }
+
+                // ── Transport capacity lock (same pattern as Room above) ──
+                // Acquire a PostgreSQL row-level lock on the TransportOption row
+                // so that two concurrent requests for the last available seat
+                // are serialised: the second waits for the first to commit,
+                // then re-counts and finds zero seats remaining.
+                foreach (var item in dto.Items.Where(i => i.ItemType == BookingItemType.Transport))
+                {
+                    TransportOption? lockedTransport;
+                    if (IsPostgres)
+                    {
+                        lockedTransport = await _db.TransportOptions
+                            .FromSqlRaw(
+                                "SELECT * FROM \"TransportOptions\" WHERE \"Id\" = {0} FOR UPDATE",
+                                item.TransportOptionId!.Value)
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync();
+                    }
+                    else
+                    {
+                        lockedTransport = await _db.TransportOptions
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(t => t.Id == item.TransportOptionId!.Value);
+                    }
+
+                    if (lockedTransport is null)
+                        throw new KeyNotFoundException(
+                            $"TransportOption with ID {item.TransportOptionId} not found.");
+
+                    // Re-count active bookings for this transport option under the lock.
+                    var bookedSeats = await _db.BookingItems
+                        .Where(bi => bi.TransportOptionId == item.TransportOptionId
+                                  && bi.ItemType          == BookingItemType.Transport
+                                  && activeStatuses.Contains(bi.Booking.Status))
+                        .SumAsync(bi => bi.Quantity);
+
+                    var availableSeats = lockedTransport.Capacity - bookedSeats;
+                    if (availableSeats < item.Quantity)
+                        throw new InvalidOperationException(
+                            $"TransportOption '{lockedTransport.Provider}: " +
+                            $"{lockedTransport.RouteFrom} \u2192 {lockedTransport.RouteTo}' " +
+                            $"(ID {lockedTransport.Id}) has insufficient capacity. " +
+                            $"Requested: {item.Quantity}, available: {Math.Max(0, availableSeats)}.");
                 }
 
                 // Rule 1: Always created in AwaitingApproval (or Draft if explicitly specified, never Confirmed)

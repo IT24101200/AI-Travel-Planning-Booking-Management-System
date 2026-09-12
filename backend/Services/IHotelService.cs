@@ -24,5 +24,8 @@ namespace backend.Services
         Task<RoomDto?> AddRoomAsync(int hotelId, CreateRoomDto dto);
         Task<bool> UpdateRoomAsync(int hotelId, int roomId, CreateRoomDto dto);
         Task<bool> DeleteRoomAsync(int hotelId, int roomId);
+
+        // ── Room Search ──
+        Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize);
     }
 }
