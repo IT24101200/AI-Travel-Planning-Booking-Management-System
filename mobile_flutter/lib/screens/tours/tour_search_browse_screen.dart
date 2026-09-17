@@ -197,7 +197,10 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   /// Build an image-rich tour card
   Widget _buildTourCard(Map<String, dynamic> tour) {
     final tourName = tour['name'] ?? 'Unnamed Tour';
-    final imageUrl = AppDestinations.getImageForDestination(tourName);
+    final uploadedImage = ApiService.resolveMediaUrl(tour['imageUrl']?.toString());
+    final imageUrl = uploadedImage.isNotEmpty
+        ? uploadedImage
+        : AppDestinations.getImageForDestination(tourName);
     final price = (tour['price'] ?? 0).toDouble();
     final currency = tour['currency'] ?? 'USD';
     final duration = tour['durationHours'] ?? 2;

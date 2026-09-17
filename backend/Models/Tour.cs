@@ -25,6 +25,9 @@ namespace backend.Models
         [MaxLength(1000)]
         public string? Description { get; set; }
 
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
         public decimal Price { get; set; }
 
         [Required]

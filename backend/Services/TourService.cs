@@ -81,6 +81,7 @@ namespace backend.Services
                 Name             = dto.Name,
                 Category         = dto.Category,
                 Description      = dto.Description,
+                ImageUrl         = dto.ImageUrl,
                 Price            = dto.Price,
                 Currency         = dto.Currency,
                 DurationHours    = dto.DurationHours,
@@ -113,6 +114,8 @@ namespace backend.Services
             tour.Name             = dto.Name;
             tour.Category         = dto.Category;
             tour.Description      = dto.Description;
+            if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
+                tour.ImageUrl = dto.ImageUrl;
             tour.Price            = dto.Price;
             tour.Currency         = dto.Currency;
             tour.DurationHours    = dto.DurationHours;
@@ -146,6 +149,7 @@ namespace backend.Services
             Name             = t.Name,
             Category         = t.Category,
             Description      = t.Description,
+            ImageUrl         = t.ImageUrl,
             Price            = t.Price,
             Currency         = t.Currency,
             DurationHours    = t.DurationHours,

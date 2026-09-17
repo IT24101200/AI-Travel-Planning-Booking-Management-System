@@ -487,7 +487,10 @@ class _ExploreTabState extends State<_ExploreTab> {
 
   Widget _buildTourCard(BuildContext context, Map<String, dynamic> tour) {
     final tourName = tour['name'] ?? 'Tour';
-    final imageUrl = AppDestinations.getImageForDestination(tourName);
+    final uploadedImage = ApiService.resolveMediaUrl(tour['imageUrl']?.toString());
+    final imageUrl = uploadedImage.isNotEmpty
+        ? uploadedImage
+        : AppDestinations.getImageForDestination(tourName);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

@@ -1,6 +1,7 @@
 # C# backend
 backend/bin/
 backend/obj/
+backend/wwwroot/uploads/
 *.user
 backend/appsettings.Development.json
 backend.Tests/bin/

@@ -73,7 +73,10 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
     }
 
     final tourName = _tour!['name'] ?? 'Scenic Excursion';
-    final imageUrl = AppDestinations.getImageForDestination(tourName);
+    final uploadedImage = ApiService.resolveMediaUrl(_tour!['imageUrl']?.toString());
+    final imageUrl = uploadedImage.isNotEmpty
+        ? uploadedImage
+        : AppDestinations.getImageForDestination(tourName);
     final price = (_tour!['price'] ?? 0).toDouble();
     final currency = _tour!['currency'] ?? 'USD';
     final duration = _tour!['durationHours'] ?? 2;

@@ -21,6 +21,19 @@ class ApiService {
     return _mobileUrl;
   }
 
+  /// Convert backend-relative media paths into URLs reachable by this client.
+  static String resolveMediaUrl(String? path) {
+    if (path == null || path.trim().isEmpty) return '';
+    final value = path.trim();
+    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('assets/')) {
+      return value;
+    }
+    final serverRoot = baseUrl.endsWith('/api')
+        ? baseUrl.substring(0, baseUrl.length - 4)
+        : baseUrl;
+    return '$serverRoot/${value.replaceFirst(RegExp(r'^/+'), '')}';
+  }
+
   static final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   // ── Token management ──

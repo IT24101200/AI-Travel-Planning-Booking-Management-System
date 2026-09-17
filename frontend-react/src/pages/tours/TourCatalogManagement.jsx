@@ -4,6 +4,8 @@ import { createTour, deleteTour, fetchDestinations, fetchTours, updateTour } fro
 import { usePageTitle } from '../../lib/hooks.js'
 
 const PAGE_SIZE = 6
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 /** Student B — tour catalog with real database CRUD + search / filter / sort / pagination. */
 export default function TourCatalogManagement() {
@@ -16,6 +18,9 @@ export default function TourCatalogManagement() {
   const [category, setCategory] = useState('All')
   const [page, setPage] = useState(1)
   const [form, setForm] = useState({ name: '', destinationId: '', price: '', duration: '', category: 'Heritage' })
+  const [image, setImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
+  const [imageInputKey, setImageInputKey] = useState(0)
   // Edit mode state
   const [editId, setEditId] = useState(null)
   const [editForm, setEditForm] = useState({})
@@ -70,6 +75,10 @@ export default function TourCatalogManagement() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+  }, [imagePreview])
+
   const categories = useMemo(() => ['All', ...new Set(rows.map((r) => r.category))], [rows])
 
   const view = useMemo(() => {
@@ -95,6 +104,10 @@ export default function TourCatalogManagement() {
       setNotice('Please provide a valid tour name and price.')
       return
     }
+    if (!image) {
+      setNotice('Please select a JPEG, PNG, or WebP image for the tour.')
+      return
+    }
 
     try {
       const destId = Number(form.destinationId)
@@ -107,13 +120,38 @@ export default function TourCatalogManagement() {
         category: form.category,
         destinationId: destId,
         currency: 'USD',
-      })
+      }, image)
       setNotice(`Tour "${form.name.trim()}" added to database successfully.`)
       setForm({ name: '', destinationId: destinations[0]?.id || '', price: '', duration: '', category: 'Heritage' })
+      setImage(null)
+      setImagePreview('')
+      setImageInputKey((key) => key + 1)
       await loadTours()
     } catch (err) {
       setNotice(`Failed to save tour: ${err.response?.data?.message || err.message}`)
     }
+  }
+
+  function selectImage(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      event.target.value = ''
+      setImage(null)
+      setImagePreview('')
+      setNotice('Only JPEG, PNG, and WebP images are allowed.')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      event.target.value = ''
+      setImage(null)
+      setImagePreview('')
+      setNotice('The image must be 5 MB or smaller.')
+      return
+    }
+    setImage(file)
+    setImagePreview(URL.createObjectURL(file))
+    setNotice('')
   }
 
   // Start editing a row
@@ -233,6 +271,15 @@ export default function TourCatalogManagement() {
             <option>Tea</option>
             <option>Snorkelling</option>
           </select>
+          <input
+            key={imageInputKey}
+            className="input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={selectImage}
+            required
+            aria-label="Tour image"
+          />
           <button
             className="btn btn--sm"
             type="submit"
@@ -243,6 +290,13 @@ export default function TourCatalogManagement() {
             Add
           </button>
         </div>
+        {imagePreview && (
+          <img
+            src={imagePreview}
+            alt="Selected tour preview"
+            style={{ width: '180px', height: '110px', objectFit: 'cover', borderRadius: '12px', marginTop: '1rem' }}
+          />
+        )}
         {destinations.length === 0 && (
           <div className="notice notice--error">
             No destinations exist yet. <Link to="/staff/destinations">Open Destination Management</Link> and add one before creating a tour.
