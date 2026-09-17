@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'services/api_service.dart';
+import 'app_constants.dart';
+import 'screens/landing_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home_screen.dart';
@@ -17,136 +18,118 @@ import 'screens/profile/profile_preferences_screen.dart';
 import 'screens/profile/trip_request_screen.dart';
 import 'screens/profile/trip_history_screen.dart';
 import 'screens/profile/notifications_screen.dart';
+import 'widgets/auth_guard.dart';
 
 void main() {
   runApp(const TravelApp());
 }
 
-/// Root widget for the AI Travel Planning app.
-/// Uses Figma-inspired color palette: Teal (Evergreen) primary, Iris accent.
+/// Root widget for Serendib Trails — AI Travel Planner.
+/// Natural Sri Lankan color palette: Jungle Green, Ocean Teal, Temple Gold, Ivory.
 class TravelApp extends StatelessWidget {
   const TravelApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AI Travel Planner',
+      title: 'Serendib Trails',
       debugShowCheckedModeBanner: false,
-      // Theme inspired by Figma design system colors
       theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: AppColors.ivory,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0D9488), // Evergreen teal
-          primary: const Color(0xFF0D9488),
-          secondary: const Color(0xFF7C5CFC), // Iris purple
-          surface: Colors.white,
-          error: Colors.red.shade600,
+          seedColor: AppColors.jungle600,
+          primary: AppColors.jungle600,
+          secondary: AppColors.sand500,
+          surface: AppColors.paper,
+          surfaceContainerLowest: AppColors.ivory,
+          error: AppColors.coral500,
         ),
-        textTheme: GoogleFonts.poppinsTextTheme(),
+        textTheme: GoogleFonts.poppinsTextTheme().apply(
+          bodyColor: AppColors.ink2,
+          displayColor: AppColors.ink,
+        ),
         appBarTheme: AppBarTheme(
-          backgroundColor: const Color(0xFF0D9488),
+          backgroundColor: AppColors.jungle800,
           foregroundColor: Colors.white,
           elevation: 0,
+          centerTitle: false,
           titleTextStyle: GoogleFonts.poppins(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.w600,
             color: Colors.white,
+            letterSpacing: -0.2,
           ),
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0D9488),
+            backgroundColor: AppColors.jungle600,
             foregroundColor: Colors.white,
+            elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: GoogleFonts.poppins(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.line),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.line),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: AppColors.jungle600, width: 1.8),
+          ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          hintStyle: const TextStyle(color: AppColors.ink3, fontSize: 14),
         ),
         cardTheme: CardThemeData(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          color: Colors.white,
+          elevation: 1.5,
+          shadowColor: Colors.black.withValues(alpha: 0.06),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: const BorderSide(color: AppColors.line, width: 0.8),
+          ),
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         ),
       ),
-      // Auth guard — check for saved token
-      home: const AuthGate(),
+      // 1st page is the dynamic Landing Page
+      home: const LandingScreen(),
       routes: {
+        // Public routes
+        '/landing': (context) => const LandingScreen(),
         '/login': (context) => const LoginScreen(),
         '/register': (context) => const RegisterScreen(),
-        '/home': (context) => const HomeScreen(),
-        '/tour-search': (context) => const TourSearchBrowseScreen(),
-        '/tour-details': (context) => const TourDetailsScreen(),
-        '/itinerary': (context) => const MyItineraryScreen(),
-        '/accommodation': (context) => const AccommodationOptionsScreen(),
-        '/transport': (context) => const TransportOptionsScreen(),
-        '/trip-map': (context) => const TripMapScreen(),
-        '/checkout': (context) => const CheckoutPaymentScreen(),
-        '/booking-status': (context) => const BookingStatusScreen(),
-        '/trip-confirmation': (context) => const TripConfirmationScreen(),
-        '/profile': (context) => const ProfilePreferencesScreen(),
-        '/trip-request': (context) => const TripRequestScreen(),
-        '/trip-history': (context) => const TripHistoryScreen(),
-        '/notifications': (context) => const NotificationsScreen(),
+
+        // Protected routes (Only signed-in travelers can view inside data)
+        '/home': (context) => const AuthGuard(child: HomeScreen()),
+        '/tour-search': (context) => const AuthGuard(child: TourSearchBrowseScreen()),
+        '/tour-details': (context) => const AuthGuard(child: TourDetailsScreen()),
+        '/itinerary': (context) => const AuthGuard(child: MyItineraryScreen()),
+        '/accommodation': (context) => const AuthGuard(child: AccommodationOptionsScreen()),
+        '/transport': (context) => const AuthGuard(child: TransportOptionsScreen()),
+        '/trip-map': (context) => const AuthGuard(child: TripMapScreen()),
+        '/checkout': (context) => const AuthGuard(child: CheckoutPaymentScreen()),
+        '/booking-status': (context) => const AuthGuard(child: BookingStatusScreen()),
+        '/trip-confirmation': (context) => const AuthGuard(child: TripConfirmationScreen()),
+        '/profile': (context) => const AuthGuard(child: ProfilePreferencesScreen()),
+        '/trip-request': (context) => const AuthGuard(child: TripRequestScreen()),
+        '/trip-history': (context) => const AuthGuard(child: TripHistoryScreen()),
+        '/notifications': (context) => const AuthGuard(child: NotificationsScreen()),
       },
-    );
-  }
-}
-
-/// Checks if user is already logged in, redirects accordingly.
-class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
-
-  @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  bool _checking = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkAuth();
-  }
-
-  Future<void> _checkAuth() async {
-    final loggedIn = await ApiService.isLoggedIn();
-    if (!mounted) return;
-    if (loggedIn) {
-      Navigator.pushReplacementNamed(context, '/home');
-    } else {
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Show splash while checking auth
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D9488),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.flight_takeoff, size: 64, color: Colors.white),
-            const SizedBox(height: 16),
-            Text(
-              'AI Travel Planner',
-              style: GoogleFonts.poppins(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 24),
-            const CircularProgressIndicator(color: Colors.white),
-          ],
-        ),
-      ),
     );
   }
 }

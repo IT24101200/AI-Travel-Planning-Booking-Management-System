@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -23,58 +24,68 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   /// Fetch notifications from backend
   Future<void> _loadNotifications() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      _notifications = await ApiService.getMyNotifications();
+      final list = await ApiService.getMyNotifications();
+      if (mounted) {
+        setState(() {
+          _notifications = list;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      _error = 'Failed to load notifications';
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load notifications';
+          _loading = false;
+        });
+      }
     }
-    if (mounted) setState(() { _loading = false; });
   }
 
   /// Mark a single notification as read
   Future<void> _markRead(String id, int index) async {
     try {
       await ApiService.markNotificationRead(id);
-      setState(() {
-        _notifications[index]['readAt'] = DateTime.now().toIso8601String();
-      });
-    } catch (e) {
-      // Silent fail — notification will refresh on next load
-    }
+      if (mounted) {
+        setState(() {
+          _notifications[index]['readAt'] = DateTime.now().toIso8601String();
+        });
+      }
+    } catch (_) {}
   }
 
   /// Mark all notifications as read
   Future<void> _markAllRead() async {
     try {
       await ApiService.markAllNotificationsRead();
-      setState(() {
-        for (var n in _notifications) {
-          n['readAt'] = DateTime.now().toIso8601String();
-        }
-      });
-    } catch (e) {
-      // Silently fail
-    }
+      if (mounted) {
+        setState(() {
+          for (var n in _notifications) {
+            n['readAt'] = DateTime.now().toIso8601String();
+          }
+        });
+      }
+    } catch (_) {}
   }
 
-  /// Get icon for notification type
   IconData _getNotificationIcon(String type) {
     switch (type.toLowerCase()) {
       case 'tripupdate':
-        return Icons.flight;
+        return Icons.auto_awesome;
       case 'bookingconfirmation':
-        return Icons.check_circle;
+        return Icons.verified;
       case 'paymentreceipt':
-        return Icons.receipt;
+        return Icons.receipt_long;
       case 'systemalert':
-        return Icons.warning;
+        return Icons.notifications_active;
       case 'promotion':
         return Icons.local_offer;
-      case 'reminder':
-        return Icons.alarm;
       default:
-        return Icons.notifications;
+        return Icons.mail_outline;
     }
   }
 
@@ -84,28 +95,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notifications ${unreadCount > 0 ? '($unreadCount)' : ''}'),
+        title: Text(unreadCount > 0 ? 'Notifications ($unreadCount)' : 'Notifications'),
         actions: [
           if (unreadCount > 0)
-            TextButton(
+            TextButton.icon(
               onPressed: _markAllRead,
-              child: const Text('Mark All Read', style: TextStyle(color: Colors.white)),
+              icon: const Icon(Icons.done_all, color: Colors.white, size: 16),
+              label: const Text(
+                'Read All',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+              ),
             ),
         ],
       ),
       body: _loading
-          ? const LoadingIndicator(message: 'Loading notifications...')
+          ? const LoadingIndicator(message: 'Checking for updates...')
           : _error != null
               ? ErrorMessage(message: _error!, onRetry: _loadNotifications)
               : _notifications.isEmpty
                   ? const EmptyState(
-                      icon: Icons.notifications_off,
-                      message: 'No notifications yet',
+                      icon: Icons.notifications_none,
+                      message: 'No notifications at this time.\nUpdates regarding trip planning & bookings will appear here.',
                     )
                   : RefreshIndicator(
+                      color: AppColors.jungle600,
                       onRefresh: _loadNotifications,
                       child: ListView.builder(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         itemCount: _notifications.length,
                         itemBuilder: (context, index) {
                           final n = _notifications[index];
@@ -116,16 +132,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  /// Build a notification card
   Widget _buildNotificationCard(Map<String, dynamic> n, int index) {
     final isRead = n['readAt'] != null;
     final type = n['messageType'] ?? 'SystemAlert';
     final channel = n['channel'] ?? 'InApp';
+    final content = n['content'] ?? '';
+    final sentAt = n['sentAt']?.toString() ?? '';
 
-    return Card(
-      color: isRead ? null : const Color(0xFF0D9488).withOpacity(0.05),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isRead ? Colors.white : AppColors.leaf50.withOpacity(0.6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isRead ? AppColors.line : AppColors.leaf400.withOpacity(0.5),
+          width: isRead ? 0.8 : 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         onTap: () {
           if (!isRead) {
             _markRead(n['id']?.toString() ?? '', index);
@@ -136,40 +168,45 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icon
+              // Notification Icon
               Container(
-                width: 40,
-                height: 40,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: isRead
-                      ? Colors.grey.shade100
-                      : const Color(0xFF0D9488).withOpacity(0.15),
+                      ? AppColors.mist
+                      : AppColors.jungle600.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
                   _getNotificationIcon(type),
-                  color: isRead ? Colors.grey : const Color(0xFF0D9488),
-                  size: 20,
+                  color: isRead ? AppColors.ink3 : AppColors.jungle600,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
-              // Content
+              const SizedBox(width: 14),
+
+              // Content Details
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        // Channel badge
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(4),
+                            color: AppColors.line,
+                            borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
-                            channel,
-                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
+                            channel.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink2,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -177,40 +214,40 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           type,
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                            color: Colors.grey.shade600,
+                            fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                            color: isRead ? AppColors.ink3 : AppColors.jungle700,
                           ),
                         ),
+                        const Spacer(),
+                        if (!isRead)
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: AppColors.jungle600,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      n['content'] ?? '',
+                      content,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: isRead ? FontWeight.normal : FontWeight.w600,
+                        color: AppColors.ink,
+                        height: 1.4,
                       ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      n['sentAt']?.toString().substring(0, 16) ?? '',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      sentAt.length >= 16 ? sentAt.substring(0, 16) : sentAt,
+                      style: const TextStyle(fontSize: 11, color: AppColors.ink3),
                     ),
                   ],
                 ),
               ),
-              // Unread dot
-              if (!isRead)
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0D9488),
-                    shape: BoxShape.circle,
-                  ),
-                ),
             ],
           ),
         ),

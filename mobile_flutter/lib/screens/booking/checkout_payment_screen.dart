@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// Checkout and payment screen with booking summary and pay button.
+/// Checkout and payment screen with booking summary, Stripe sandbox, and secure confirmation.
 class CheckoutPaymentScreen extends StatefulWidget {
   const CheckoutPaymentScreen({super.key});
 
@@ -24,32 +25,47 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     if (args is int && _booking == null) {
       _loadBooking(args);
     } else if (args is Map<String, dynamic> && _booking == null) {
-      // Itinerary passed directly from itinerary screen
       setState(() {
         _booking = args;
         _loading = false;
       });
     } else if (_booking == null) {
-      setState(() { _loading = false; _error = 'No booking data provided'; });
+      setState(() {
+        _loading = false;
+        _error = 'No booking data provided for checkout';
+      });
     }
   }
 
   /// Load booking details by ID
   Future<void> _loadBooking(int id) async {
-    setState(() { _loading = true; });
+    setState(() => _loading = true);
     try {
-      _booking = await ApiService.getBooking(id);
-      if (_booking == null) _error = 'Booking not found';
+      final data = await ApiService.getBooking(id);
+      if (mounted) {
+        setState(() {
+          _booking = data;
+          if (_booking == null) _error = 'Booking not found';
+          _loading = false;
+        });
+      }
     } catch (e) {
-      _error = 'Failed to load booking';
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load booking details';
+          _loading = false;
+        });
+      }
     }
-    if (mounted) setState(() { _loading = false; });
   }
 
   /// Process payment using Stripe sandbox
   Future<void> _pay() async {
     if (_booking == null) return;
-    setState(() { _paying = true; _paymentMessage = null; });
+    setState(() {
+      _paying = true;
+      _paymentMessage = null;
+    });
 
     try {
       final result = await ApiService.createPayment({
@@ -62,178 +78,391 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       if (!mounted) return;
 
       if (result['statusCode'] == 200 || result['statusCode'] == 201) {
-        setState(() { _paymentMessage = 'Payment successful!'; });
-        // Navigate to confirmation after a short delay
-        Future.delayed(const Duration(seconds: 2), () {
+        setState(() {
+          _paymentMessage = 'Payment authorized! Your travel pass is ready.';
+        });
+        Future.delayed(const Duration(milliseconds: 1200), () {
           if (mounted) {
-            Navigator.pushReplacementNamed(context, '/trip-confirmation', arguments: _booking);
+            Navigator.pushReplacementNamed(
+              context,
+              '/trip-confirmation',
+              arguments: _booking,
+            );
           }
         });
       } else {
-        setState(() { _paymentMessage = result['message'] ?? 'Payment failed'; });
+        setState(() {
+          _paymentMessage = result['message'] ?? 'Payment authorization declined. Try again.';
+        });
       }
     } catch (e) {
-      setState(() { _paymentMessage = 'Payment error. Please try again.'; });
+      setState(() {
+        _paymentMessage = 'Network error processing payment with Stripe.';
+      });
     }
-    if (mounted) setState(() { _paying = false; });
+    if (mounted) setState(() => _paying = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Commercial Checkout')),
+        body: const LoadingIndicator(message: 'Preparing checkout invoice...'),
+      );
+    }
+
+    if (_error != null || _booking == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Commercial Checkout')),
+        body: ErrorMessage(message: _error ?? 'No checkout data found'),
+      );
+    }
+
+    final total = (_booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0).toDouble();
+    final currency = _booking!['currency'] ?? 'USD';
+    final bookingRef = _booking!['bookingReference'] ?? 'ITIN-#${_booking!['id']}';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Checkout')),
-      body: _loading
-          ? const LoadingIndicator(message: 'Loading booking...')
-          : _error != null
-              ? ErrorMessage(message: _error!)
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
+      appBar: AppBar(
+        title: const Text('Complete Booking & Pay'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Order Reference Banner
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.leaf50,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.leaf100),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.jungle600,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.verified_user_outlined, color: Colors.white, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Serendib Verified Itinerary',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.jungle900,
+                          ),
+                        ),
+                        Text(
+                          'Reference: $bookingRef',
+                          style: const TextStyle(fontSize: 12, color: AppColors.ink2),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Itemized Breakdown
+            const Text(
+              'Trip Inclusions Breakdown',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink),
+            ),
+            const SizedBox(height: 10),
+
+            if (_booking!['bookingItems'] != null) ...[
+              ...((_booking!['bookingItems'] as List).map<Widget>((item) => _buildItemTile(item))),
+            ] else if (_booking!['items'] != null) ...[
+              ...((_booking!['items'] as List).map<Widget>((item) {
+                return _buildItineraryItemTile(item);
+              })),
+            ] else ...[
+              // Fallback inclusive card
+              _buildStandardInclusionTile(total, currency),
+            ],
+
+            const SizedBox(height: 16),
+
+            // Total Cost Highlight Card
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.line),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.04),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Booking summary header
-                      const Text(
-                        'Booking Summary',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      Text(
+                        'Total Payable',
+                        style: TextStyle(fontSize: 13, color: AppColors.ink3, fontWeight: FontWeight.w500),
                       ),
-                      const SizedBox(height: 16),
-
-                      // Booking items
-                      if (_booking!['bookingItems'] != null) ...[
-                        ...((_booking!['bookingItems'] as List).map<Widget>((item) {
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: Icon(
-                                _getItemIcon(item['itemType']?.toString() ?? ''),
-                                color: const Color(0xFF0D9488),
-                              ),
-                              title: Text(item['tourName'] ?? 'Item'),
-                              subtitle: Text('Qty: ${item['quantity'] ?? 1}'),
-                              trailing: Text(
-                                '\$${(item['subtotal'] ?? 0).toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          );
-                        })),
-                      ] else if (_booking!['items'] != null) ...[
-                        // Itinerary items fallback
-                        ...((_booking!['items'] as List).map<Widget>((item) {
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              leading: const Icon(Icons.tour, color: Color(0xFF0D9488)),
-                              title: Text(item['tourName'] ?? 'Tour'),
-                              subtitle: Text('Day ${item['dayNumber'] ?? 1}'),
-                              trailing: Text(
-                                '\$${(item['priceAtSelection'] ?? 0).toStringAsFixed(2)}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          );
-                        })),
-                      ],
-
-                      const Divider(height: 32),
-
-                      // Total cost
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Total',
-                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '\$${(_booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0).toStringAsFixed(2)} ${_booking!['currency'] ?? 'USD'}',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0D9488),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Payment method card
-                      Card(
-                        color: Colors.grey.shade50,
-                        child: const ListTile(
-                          leading: Icon(Icons.credit_card, color: Color(0xFF7C5CFC)),
-                          title: Text('Stripe Test Card'),
-                          subtitle: Text('•••• •••• •••• 4242'),
-                          trailing: Icon(Icons.check_circle, color: Colors.green),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Payment status message
-                      if (_paymentMessage != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: _paymentMessage!.contains('successful')
-                                ? Colors.green.shade50
-                                : Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _paymentMessage!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: _paymentMessage!.contains('successful')
-                                  ? Colors.green.shade700
-                                  : Colors.red.shade700,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 16),
-
-                      // Pay button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _paying ? null : _pay,
-                          icon: _paying
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Icon(Icons.payment),
-                          label: Text(
-                            _paying ? 'Processing...' : 'Pay Now',
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                          ),
-                        ),
+                      Text(
+                        'Includes taxes & agent approval fees',
+                        style: TextStyle(fontSize: 10, color: AppColors.ink3),
                       ),
                     ],
                   ),
+                  Text(
+                    '\$${total.toStringAsFixed(2)} $currency',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.jungle600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Stripe Sandbox Payment Card
+            const Text(
+              'Payment Method',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink),
+            ),
+            const SizedBox(height: 10),
+
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.line),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF635BFF), // Stripe purple
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'stripe',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Test Visa • Sandbox Gateway',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                            ),
+                            Text(
+                              '•••• •••• •••• 4242',
+                              style: TextStyle(fontSize: 12, color: AppColors.ink3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.check_circle, color: AppColors.jungle600, size: 20),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Row(
+                    children: [
+                      Icon(Icons.lock_outline, size: 14, color: AppColors.ink3),
+                      SizedBox(width: 6),
+                      Text(
+                        'Encrypted sandbox transaction for SE3090 evaluation',
+                        style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Error or Success Banner
+            if (_paymentMessage != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: _paymentMessage!.contains('authorized')
+                      ? AppColors.leaf50
+                      : AppColors.coral500.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _paymentMessage!.contains('authorized')
+                        ? AppColors.jungle600.withOpacity(0.3)
+                        : AppColors.coral500.withOpacity(0.3),
+                  ),
                 ),
+                child: Text(
+                  _paymentMessage!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: _paymentMessage!.contains('authorized')
+                        ? AppColors.jungle700
+                        : AppColors.coral500,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 24),
+
+            // Pay Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _paying ? null : _pay,
+                icon: _paying
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock, size: 18),
+                label: Text(
+                  _paying ? 'Processing Authorization...' : 'Authorize Payment (\$${total.toStringAsFixed(0)})',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.jungle600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  /// Get icon for booking item type
-  IconData _getItemIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'tour':
-      case '0':
-        return Icons.landscape;
-      case 'room':
-      case '1':
-        return Icons.hotel;
-      case 'transport':
-      case '2':
-        return Icons.commute;
-      default:
-        return Icons.receipt;
-    }
+  Widget _buildItemTile(Map<String, dynamic> item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.tour_outlined, color: AppColors.jungle600, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              item['tourName'] ?? 'Experience Package',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+            ),
+          ),
+          Text(
+            '\$${(item['subtotal'] ?? 0).toStringAsFixed(0)}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.jungle600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItineraryItemTile(Map<String, dynamic> item) {
+    final tourName = item['tourName'] ?? 'Guided Tour Activity';
+    final price = (item['priceAtSelection'] ?? 0).toDouble();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.explore_outlined, color: AppColors.ocean500, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tourName,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+                ),
+                Text(
+                  'Day ${item['dayNumber'] ?? 1}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '\$${price.toStringAsFixed(0)}',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.jungle600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStandardInclusionTile(double total, String currency) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.luggage_outlined, color: AppColors.jungle600, size: 22),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Coordinated Tours, Boutique Rooms & Scheduled Transit',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+            ),
+          ),
+          Text(
+            '\$${total.toStringAsFixed(0)} $currency',
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.jungle600),
+          ),
+        ],
+      ),
+    );
   }
 }

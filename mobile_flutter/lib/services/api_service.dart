@@ -1,24 +1,24 @@
-import 'dart:io' show Platform;
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Single HTTP client for all backend API calls.
 /// Stores JWT token via flutter_secure_storage and attaches it to every request.
 class ApiService {
-  // ── Backend URL ──
-  // Emulator uses 10.0.2.2 (maps to host PC's localhost)
-  // Physical phone uses your PC's Wi-Fi IP (both must be on same network)
-  static const String _emulatorUrl = 'http://10.0.2.2:5138/api';
-  static const String _physicalUrl = 'http://192.168.1.3:5138/api';
+  // ── Backend URLs ──
+  // Web (Chrome): runs on localhost
+  static const String _webUrl = 'http://localhost:5138/api';
+  // Mobile (Physical phone / Emulator): PC's local Wi-Fi IP or emulator 10.0.2.2
+  static const String _mobileUrl = 'http://192.168.1.3:5138/api';
 
-  // Auto-detect: emulator runs on x86/x64, physical phones run on ARM
   static String get baseUrl {
-    final arch = Platform.version.toLowerCase();
-    // On a real device Platform.isAndroid is true but architecture differs
-    // Simple approach: switch between emulator and physical phone
-    // return _emulatorUrl;  // Uncomment this for emulator testing
-    return _physicalUrl;     // Active: for physical phone testing
+    // When running in Chrome (Flutter Web):
+    if (kIsWeb) {
+      return _webUrl;
+    }
+    // When running on a physical Android phone (or change to 10.0.2.2 for emulator):
+    return _mobileUrl;
   }
 
   static final FlutterSecureStorage _storage = const FlutterSecureStorage();
