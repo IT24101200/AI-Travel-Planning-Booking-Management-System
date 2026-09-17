@@ -19,7 +19,14 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => {
     try {
       const raw = localStorage.getItem('st_session')
-      return raw ? JSON.parse(raw) : null
+      const parsed = raw ? JSON.parse(raw) : null
+      // Clear out obsolete demo-tokens so they do not trigger 401s on backend calls
+      if (parsed?.token === 'demo-token') {
+        localStorage.removeItem('st_session')
+        localStorage.removeItem('accessToken')
+        return null
+      }
+      return parsed
     } catch {
       return null
     }
@@ -27,7 +34,6 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
-    // Try the real API first; fall back to demo session on network failure.
     try {
       const res = await fetch(`${base}/Auth/login`, {
         method: 'POST',
@@ -52,15 +58,9 @@ export function AuthProvider({ children }) {
         setSession(next)
         return next
       }
-      // If server responded with 401/400 (bad credentials)
       return null
     } catch {
-      // Server is offline — allow demo session
-      const next = { email, token: 'demo-token', role: roleFromEmail(email) }
-      localStorage.setItem('st_session', JSON.stringify(next))
-      localStorage.setItem('accessToken', next.token)
-      setSession(next)
-      return next
+      return null
     }
   }, [])
 

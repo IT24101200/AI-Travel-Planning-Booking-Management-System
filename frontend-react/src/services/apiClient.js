@@ -22,6 +22,23 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Auto-handle expired or invalid JWT tokens gracefully
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Clear expired credentials
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('st_session')
+      // If inside staff portal, redirect to login with expiry notice
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/staff')) {
+        window.location.href = '/login?expired=1'
+      }
+    }
+    return Promise.reject(error)
+  }
+)
+
 /** Shapes the form state into the backend's TripRequestCreateDto. */
 export function toTripRequestDto(form) {
   // The site's destination ids are slugs, not database keys, so only send a real
