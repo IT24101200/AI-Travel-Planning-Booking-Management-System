@@ -67,6 +67,12 @@ namespace backend.Services
 
         public async Task<TourDto> CreateAsync(CreateTourDto dto)
         {
+            if (!await _context.Destinations.AnyAsync(d => d.Id == dto.DestinationId))
+            {
+                throw new ArgumentException(
+                    $"Destination with ID {dto.DestinationId} does not exist. Create a destination before adding a tour.");
+            }
+
             var now = DateTime.UtcNow;
 
             var tour = new Tour
@@ -96,6 +102,12 @@ namespace backend.Services
         {
             var tour = await _context.Tours.FindAsync(id);
             if (tour is null) return false;
+
+            if (!await _context.Destinations.AnyAsync(d => d.Id == dto.DestinationId))
+            {
+                throw new ArgumentException(
+                    $"Destination with ID {dto.DestinationId} does not exist. Create a destination before updating the tour.");
+            }
 
             tour.DestinationId    = dto.DestinationId;
             tour.Name             = dto.Name;

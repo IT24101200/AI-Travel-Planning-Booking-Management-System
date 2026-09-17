@@ -133,6 +133,12 @@ namespace backend.Data
             });
 
             // ── Itinerary ──
+            builder.Entity<Tour>(entity =>
+            {
+                // Tour IDs are assigned exclusively by PostgreSQL's identity sequence.
+                entity.Property(t => t.Id).ValueGeneratedOnAdd();
+            });
+
             builder.Entity<Itinerary>(entity =>
             {
                 entity.Property(i => i.Status)
