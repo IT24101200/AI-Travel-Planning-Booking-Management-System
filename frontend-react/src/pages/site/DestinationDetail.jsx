@@ -43,7 +43,7 @@ export default function DestinationDetail() {
         crumbs={[{ label: 'Destinations', to: '/destinations' }, { label: destination.name }]}
       />
 
-      <section className="section" style={{ paddingTop: 0 }}>
+      <section className="section section--overlap">
         <div className="shell detail">
           <div>
             <Reveal className="detail__figure">
@@ -57,6 +57,29 @@ export default function DestinationDetail() {
                 decoding="async"
                 style={{ objectPosition: destination.imagePosition || 'center' }}
               />
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '1.25rem',
+                  left: '1.25rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  padding: '0.4rem 0.9rem',
+                  borderRadius: 'var(--r-pill)',
+                  background: 'rgba(6, 35, 27, 0.65)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  backdropFilter: 'blur(10px)',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  zIndex: 2,
+                }}
+              >
+                <span>📍 {destination.region}</span>
+                <span>•</span>
+                <span>⏱ {destination.idealDays} {destination.idealDays === 1 ? 'Day' : 'Days'} Recommended</span>
+              </div>
             </Reveal>
 
             <div className="detail__prose">
@@ -75,7 +98,7 @@ export default function DestinationDetail() {
             </div>
           </div>
 
-          <aside className="panel panel--solid aside">
+          <aside className="panel aside">
             <div className="aside__price">
               <b>${destination.priceFrom}</b>
               <span>per person, from</span>

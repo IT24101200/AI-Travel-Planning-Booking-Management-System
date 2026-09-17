@@ -45,5 +45,10 @@ namespace backend.Services
         /// Returns a result tuple: (Success, ErrorMessage).
         /// </summary>
         Task<(bool Success, string? ErrorMessage)> UpdateItineraryStatusAsync(int itineraryId, ItineraryStatus newStatus);
+
+        /// <summary>
+        /// Returns all Itineraries for staff review queue.
+        /// </summary>
+        Task<List<ItineraryDto>> GetAllItinerariesAsync();
     }
 }

@@ -173,6 +173,11 @@ namespace backend.Controllers
                 await _db.SaveChangesAsync();
             }
 
+            var roles = await _userManager.GetRolesAsync(user);
+            var userRole = roles.FirstOrDefault() ?? customer?.Role ?? "Customer";
+            if (roles.Contains("Admin")) userRole = "Admin";
+            else if (roles.Contains("TravelAgent")) userRole = "TravelAgent";
+
             var token = await GenerateJwtTokenAsync(user);
 
             return Ok(new
@@ -181,6 +186,7 @@ namespace backend.Controllers
                 token,
                 userId = user.Id,
                 email = user.Email,
+                role = userRole,
                 fullName = customer?.FullName
             });
         }
@@ -199,9 +205,15 @@ namespace backend.Controllers
                     Guid.NewGuid().ToString())
             };
 
-            // Fetch the role from the Customer table and add it to the token claims
+            // Add identity roles and customer table role to claims
+            var roles = await _userManager.GetRolesAsync(user);
+            foreach (var r in roles)
+            {
+                claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, r));
+            }
+
             var customer = await _db.Customers.FindAsync(user.Id);
-            if (customer != null && !string.IsNullOrWhiteSpace(customer.Role))
+            if (customer != null && !string.IsNullOrWhiteSpace(customer.Role) && !roles.Contains(customer.Role))
             {
                 claims.Add(new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, customer.Role));
             }

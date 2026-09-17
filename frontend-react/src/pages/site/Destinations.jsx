@@ -30,28 +30,29 @@ export default function Destinations() {
         crumbs={[{ label: 'Destinations' }]}
       />
 
-      <section className="section">
+      <section className="section section--overlap">
         <div className="shell">
-          <div style={{ maxWidth: '65ch', marginBottom: '3rem' }}>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Discover Your Next Adventure</h2>
-            <p className="lede" style={{ fontSize: '1.05rem', color: 'var(--text-muted)' }}>
-              From the ancient rock fortresses of the Cultural Triangle to the mist-shrouded tea estates of the central highlands, Sri Lanka offers a lifetime of experiences condensed into a single island. Use the filters below to find destinations that match your travel style, whether you're seeking wildlife safaris, heritage trails, or simply a quiet stretch of coast.
+          {/* Floating glassmorphic intro banner seamlessly blends with top scenic imagery */}
+          <div className="intro-banner">
+            <h2>Discover Your Next Adventure</h2>
+            <p>
+              From the ancient rock fortresses of the Cultural Triangle to the mist-shrouded tea estates of the central highlands, Sri Lanka offers a lifetime of experiences condensed into a single island. Use the filters below to find destinations that match your travel style.
             </p>
-          </div>
 
-          <div className="filters">
-            <span className="filters__label">Filter</span>
-            {['All', ...allTags].map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="seg__btn"
-                aria-pressed={tag === option}
-                onClick={() => setTag(option)}
-              >
-                {option}
-              </button>
-            ))}
+            <div className="filters" style={{ margin: 0 }}>
+              <span className="filters__label">Filter</span>
+              {['All', ...allTags].map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="seg__btn"
+                  aria-pressed={tag === option}
+                  onClick={() => setTag(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
           </div>
 
           {filtered.length ? (

@@ -167,15 +167,19 @@ namespace backend.Services
             return MapToDto(trip);
         }
 
-        public async Task<List<AgentLogDto>> GetAgentLogsAsync(int tripRequestId, string customerId)
+        public async Task<List<AgentLogDto>> GetAgentLogsAsync(int tripRequestId, string? customerId)
         {
-            // Verify ownership
-            var ownsTrip = await _db.TripRequests
-                .AnyAsync(t => t.Id == tripRequestId && t.CustomerId == customerId);
-
-            if (!ownsTrip)
+            // If customerId is provided (regular customer), verify ownership.
+            // If customerId is null/empty (staff/agent), allow access to logs.
+            if (!string.IsNullOrEmpty(customerId))
             {
-                return new List<AgentLogDto>();
+                var ownsTrip = await _db.TripRequests
+                    .AnyAsync(t => t.Id == tripRequestId && t.CustomerId == customerId);
+
+                if (!ownsTrip)
+                {
+                    return new List<AgentLogDto>();
+                }
             }
 
             return await _db.AgentLogs

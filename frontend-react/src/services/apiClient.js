@@ -45,9 +45,27 @@ export async function submitTripRequest(form) {
   return data
 }
 
-/** GET /api/Destination - requires a signed-in agent. */
+/** GET /api/Destination - fetch destinations */
 export async function fetchDestinations() {
   const { data } = await api.get('/Destination')
+  return data
+}
+
+/** POST /api/Destination - create destination */
+export async function createDestination(dest) {
+  const { data } = await api.post('/Destination', dest)
+  return data
+}
+
+/** PUT /api/Destination/{id} - update destination */
+export async function updateDestination(id, dest) {
+  const { data } = await api.put(`/Destination/${id}`, dest)
+  return data
+}
+
+/** DELETE /api/Destination/{id} - delete destination */
+export async function deleteDestination(id) {
+  const { data } = await api.delete(`/Destination/${id}`)
   return data
 }
 
@@ -138,9 +156,10 @@ export async function fetchPendingApprovals() {
 }
 
 export async function decideApproval(bookingId, decision, comment) {
-  const { data } = await api.post(`/Approval/${bookingId}/decide`, {
+  const { data } = await api.post('/Approval', {
+    bookingId: Number(bookingId),
     decision,
-    comment,
+    comment: comment || '',
   })
   return data
 }
@@ -156,7 +175,41 @@ export async function fetchPayments(status) {
 }
 
 export async function fetchRevenueSummary() {
-  const { data } = await api.get('/Payment/revenue-summary')
+  const { data } = await api.get('/Payment/revenue-report')
   return data
 }
 
+// ─────────────────────────────────────────────────────────────
+// Update endpoints — needed for Edit functionality (spec §5)
+// ─────────────────────────────────────────────────────────────
+
+export async function updateTour(id, tour) {
+  const { data } = await api.put(`/Tour/${id}`, tour)
+  return data
+}
+
+export async function deleteTour(id) {
+  const { data } = await api.delete(`/Tour/${id}`)
+  return data
+}
+
+export async function updateHotel(id, hotel) {
+  const { data } = await api.put(`/Hotel/${id}`, hotel)
+  return data
+}
+
+export async function updateTransport(id, transport) {
+  const { data } = await api.put(`/Transport/${id}`, transport)
+  return data
+}
+
+// Agent log trail — shown alongside bookings in the approval dashboard
+export async function fetchAgentLogs(tripRequestId) {
+  try {
+    const { data } = await api.get(`/TripRequest/${tripRequestId}/logs`)
+    return data
+  } catch {
+    const { data } = await api.get(`/AgentLog/${tripRequestId}`)
+    return data
+  }
+}

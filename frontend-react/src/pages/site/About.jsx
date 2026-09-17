@@ -45,10 +45,10 @@ export default function About() {
         crumbs={[{ label: 'About' }]}
       />
 
-      <section className="section" style={{ paddingTop: 0 }}>
+      <section className="section section--overlap">
         <div className="shell detail">
           <div>
-            {/* Real tea plantation photo (local) */}
+            {/* Real tea plantation photo (local) with scenic blend */}
             <Reveal className="detail__figure">
               <img
                 src={tea.image}
@@ -59,6 +59,29 @@ export default function About() {
                 loading="lazy"
                 decoding="async"
               />
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '1.25rem',
+                  left: '1.25rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  padding: '0.4rem 0.9rem',
+                  borderRadius: 'var(--r-pill)',
+                  background: 'rgba(6, 35, 27, 0.65)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  backdropFilter: 'blur(10px)',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  zIndex: 2,
+                }}
+              >
+                <span>🌱 Nuwara Eliya Highlands</span>
+                <span>•</span>
+                <span>Est. 2016</span>
+              </div>
             </Reveal>
 
             <div className="detail__prose">
@@ -100,7 +123,7 @@ export default function About() {
             </div>
           </div>
 
-          <aside className="panel panel--solid aside">
+          <aside className="panel aside">
             <h3 style={{ fontSize: '1.15rem' }}>The team on your request</h3>
             <div className="agent-list">
               {agents.map((agent) => (

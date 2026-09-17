@@ -275,7 +275,7 @@ namespace backend.Data
                 entity.HasKey(ta => ta.Id);
                 entity.Property(ta => ta.FullName).IsRequired().HasMaxLength(150);
                 entity.Property(ta => ta.Department).HasMaxLength(100);
-                entity.Property(ta => ta.HireDate).HasDefaultValueSql("NOW()");
+                entity.Ignore(ta => ta.HireDate);
             });
 
             // ════════════════════════════════════════════════════════════

@@ -30,21 +30,29 @@ export default function Experiences() {
         crumbs={[{ label: 'Experiences' }]}
       />
 
-      <section className="section">
+      <section className="section section--overlap">
         <div className="shell">
-          <div className="filters">
-            <span className="filters__label">Filter</span>
-            {['All', ...experienceCategories].map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="seg__btn"
-                aria-pressed={category === option}
-                onClick={() => setCategory(option)}
-              >
-                {option}
-              </button>
-            ))}
+          {/* Floating glassmorphic filter banner smoothly blends with top masthead */}
+          <div className="intro-banner" style={{ marginBottom: '2rem' }}>
+            <h2>Curated Island Experiences</h2>
+            <p>
+              Hand-picked activities operated by vetted local specialists across Sri Lanka. Filter by activity style to uncover whale watching, rainforest treks, cooking masters, and surf sessions.
+            </p>
+
+            <div className="filters" style={{ margin: 0 }}>
+              <span className="filters__label">Filter</span>
+              {['All', ...experienceCategories].map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className="seg__btn"
+                  aria-pressed={category === option}
+                  onClick={() => setCategory(option)}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
           </div>
 
           {filtered.length ? (

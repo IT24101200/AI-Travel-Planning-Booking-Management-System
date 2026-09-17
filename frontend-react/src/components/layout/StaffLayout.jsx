@@ -7,6 +7,7 @@ const links = [
   { to: '/staff/customers', label: 'Customers' },
   { to: '/staff/notifications', label: 'Notifications' },
   { to: '/staff/tours', label: 'Tours' },
+  { to: '/staff/destinations', label: 'Destinations' },
   { to: '/staff/itineraries', label: 'Itineraries' },
   { to: '/staff/hotels', label: 'Hotels' },
   { to: '/staff/transport', label: 'Transport' },

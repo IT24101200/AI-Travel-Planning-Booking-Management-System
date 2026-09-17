@@ -13,8 +13,16 @@ Env.Load();
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
-// Load environment variables from 'env' file if present
-var envFilePath = Path.Combine(builder.Environment.ContentRootPath, "env");
+// Load environment variables from '.env' or 'env' file if present
+var envFilePath = Path.Combine(builder.Environment.ContentRootPath, ".env");
+if (!File.Exists(envFilePath))
+{
+    envFilePath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+}
+if (!File.Exists(envFilePath))
+{
+    envFilePath = Path.Combine(builder.Environment.ContentRootPath, "env");
+}
 if (!File.Exists(envFilePath))
 {
     envFilePath = Path.Combine(Directory.GetCurrentDirectory(), "env");
@@ -167,24 +175,15 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
 var app = builder.Build();
 
-// ── Role Seeding on Startup ──
+// ── Database Seeding on Startup ──
 try
 {
-    using var scope = app.Services.CreateScope();
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    string[] roles = ["Customer", "TravelAgent", "Admin"];
-    foreach (var role in roles)
-    {
-        if (!await roleManager.RoleExistsAsync(role))
-        {
-            await roleManager.CreateAsync(new IdentityRole(role));
-        }
-    }
+    await backend.Data.DbInitializer.SeedAsync(app.Services);
 }
 catch (Exception ex)
 {
     // Log database connection warning without crashing application startup
-    app.Logger.LogWarning("Could not seed database roles on startup: {Message}", ex.Message);
+    app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
 }
 
 // ── Global Exception Handling ──
@@ -225,15 +224,31 @@ app.MapGet("/dbhealth", async (AppDbContext db) =>
     try
     {
         var connected = await db.Database.CanConnectAsync();
+        var conn = db.Database.GetDbConnection();
         return Results.Ok(new
         {
             connected,
-            message = connected ? "Database connection is OK." : "Database connection failed."
+            message = connected ? "Database connection is OK." : "Database connection failed.",
+            server = conn.DataSource,
+            database = conn.Database
         });
     }
     catch (Exception ex)
     {
         return Results.Problem(title: "Database connection error", detail: ex.Message);
+    }
+});
+
+app.MapPost("/seed-db", async (IServiceProvider services) =>
+{
+    try
+    {
+        await backend.Data.DbInitializer.SeedAsync(services);
+        return Results.Ok(new { success = true, message = "Database seeded successfully." });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(title: "Seeding error", detail: ex.ToString());
     }
 });
 

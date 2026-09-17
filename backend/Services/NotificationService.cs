@@ -16,11 +16,14 @@ namespace backend.Services
         }
 
         public async Task<List<NotificationDto>> GetByCustomerIdAsync(
-            string customerId, string? status, DateTime? from, DateTime? to, int page, int pageSize)
+            string? customerId, string? status, DateTime? from, DateTime? to, int page, int pageSize)
         {
-            var query = _db.Notifications
-                .Where(n => n.CustomerId == customerId)
-                .AsQueryable();
+            var query = _db.Notifications.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(customerId))
+            {
+                query = query.Where(n => n.CustomerId == customerId);
+            }
 
             // Filter by status
             if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<NotificationStatus>(status, true, out var parsed))
@@ -46,11 +49,14 @@ namespace backend.Services
                 .ToListAsync();
         }
 
-        public async Task<int> GetCountAsync(string customerId, string? status, DateTime? from, DateTime? to)
+        public async Task<int> GetCountAsync(string? customerId, string? status, DateTime? from, DateTime? to)
         {
-            var query = _db.Notifications
-                .Where(n => n.CustomerId == customerId)
-                .AsQueryable();
+            var query = _db.Notifications.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(customerId))
+            {
+                query = query.Where(n => n.CustomerId == customerId);
+            }
 
             if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<NotificationStatus>(status, true, out var parsed))
             {

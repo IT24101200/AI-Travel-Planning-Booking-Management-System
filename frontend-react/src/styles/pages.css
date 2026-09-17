@@ -2,60 +2,224 @@
    Page-level compositions.
    ========================================================================== */
 
-/* Inner-page masthead (sits over the calm backdrop) */
+/* Inner-page masthead (sits over the calm backdrop with rich colorful atmospheric dissolution) */
 .masthead {
   position: relative;
-  padding-block: 8.5rem 3.5rem;
+  padding-top: 8.5rem;
+  padding-bottom: 6.5rem;
   color: #fff;
-  background: linear-gradient(
-    180deg,
-    rgba(2, 14, 11, 0.72) 0%,
-    rgba(2, 14, 11, 0.58) 60%,
-    rgba(2, 14, 11, 0.2) 85%,
-    transparent 100%
-  );
+  background:
+    radial-gradient(ellipse 800px 450px at 75% 20%, rgba(224, 166, 63, 0.32) 0%, transparent 70%),
+    radial-gradient(ellipse 650px 400px at 15% 40%, rgba(53, 177, 131, 0.28) 0%, transparent 70%),
+    radial-gradient(ellipse 800px 500px at 50% 90%, rgba(41, 174, 189, 0.22) 0%, transparent 75%),
+    linear-gradient(
+      180deg,
+      rgba(3, 18, 14, 0.78) 0%,
+      rgba(4, 26, 20, 0.58) 40%,
+      rgba(6, 38, 29, 0.84) 75%,
+      rgba(8, 48, 37, 0.96) 100%
+    );
+  overflow: hidden;
 }
 
-.masthead h1 {
-  color: #fff;
-  max-width: 22ch;
-  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.75);
+/* Ambient colorful light glow across the masthead */
+.masthead__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(circle 500px at 80% 25%, rgba(224, 166, 63, 0.26), transparent 70%),
+    radial-gradient(circle 450px at 15% 45%, rgba(53, 177, 131, 0.22), transparent 70%),
+    radial-gradient(circle 600px at 50% 95%, rgba(41, 174, 189, 0.18), transparent 75%);
 }
 
-.masthead .lede {
+.masthead__content {
+  position: relative;
+  z-index: 3;
+}
+
+.masthead h1,
+.masthead__title {
+  color: #fff;
+  max-width: 24ch;
+  margin-top: 0.85rem;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.85), 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.masthead .lede,
+.masthead__lede {
   margin-top: 1.1rem;
-  color: rgba(255, 255, 255, 0.95);
+  max-width: 60ch;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: clamp(1.02rem, 1.5vw, 1.2rem);
+  line-height: 1.6;
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
 }
 
-.masthead .eyebrow {
-  color: var(--sand-400);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+.masthead .eyebrow,
+.masthead__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.85rem;
+  border-radius: var(--r-pill);
+  background: rgba(240, 196, 105, 0.22);
+  border: 1px solid rgba(240, 196, 105, 0.5);
+  color: var(--sand-300, #f8e2b4);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 12px rgba(240, 196, 105, 0.25);
 }
 
 .crumbs {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1.4rem;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+  padding: 0.32rem 0.95rem;
+  border-radius: var(--r-pill);
+  background: rgba(6, 35, 27, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.75);
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  color: rgba(255, 255, 255, 0.88);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.crumbs a {
+  color: rgba(255, 255, 255, 0.92);
+  transition: color 0.2s ease;
 }
 
 .crumbs a:hover {
-  color: #fff;
+  color: var(--sand-300, #f8e2b4);
 }
 
-/* Inner-page content sections following masthead sit on clean surface */
+.crumbs__sep {
+  opacity: 0.5;
+}
+
+/* Atmospheric dissolving blend between top scenic image and page content */
+.masthead__blend {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 9rem;
+  pointer-events: none;
+  z-index: 2;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(6, 35, 27, 0.25) 25%,
+    rgba(10, 52, 40, 0.65) 55%,
+    rgba(12, 60, 46, 0.9) 85%,
+    rgba(14, 68, 52, 0.98) 100%
+  );
+}
+
+/* Luminous colorful gradient beam accent line at the blend junction */
+.masthead__beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--sand-400, #f0c469) 15%,
+    var(--leaf-400, #35b183) 38%,
+    var(--ocean-400, #29aebd) 62%,
+    var(--coral-400, #ef8a6d) 85%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 18px rgba(224, 166, 63, 0.8),
+    0 0 34px rgba(53, 177, 131, 0.6),
+    0 -2px 14px rgba(41, 174, 189, 0.45);
+}
+
+/* Inner-page content sections following masthead sit on a warm, luxurious tinted surface */
 .masthead ~ .section {
   position: relative;
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse 70% 45% at 20% 0%, rgba(53, 177, 131, 0.1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 5%, rgba(224, 166, 63, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 60% at 50% 60%, rgba(41, 174, 189, 0.08) 0%, transparent 70%),
+    linear-gradient(180deg, #f7f6f0 0%, #f0f4f1 45%, #eaf1ec 100%);
 }
 
 .masthead + .section {
-  box-shadow: 0 -16px 36px rgba(0, 0, 0, 0.18);
+  padding-top: 0;
+  box-shadow: none;
+  position: relative;
 }
+
+/* Elevated card overlap to seamlessly float content over the scenic backdrop */
+.section--overlap {
+  margin-top: -5rem;
+  position: relative;
+  z-index: 5;
+}
+
+/* Lead banner container for inner pages with colorful top accent and glowing elevation */
+.intro-banner {
+  position: relative;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--r-xl);
+  padding: clamp(1.75rem, 3.5vw, 2.5rem);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    0 0 0 1px rgba(53, 177, 131, 0.18),
+    0 24px 56px -16px rgba(8, 32, 26, 0.18),
+    0 8px 24px -6px rgba(224, 166, 63, 0.15);
+  margin-bottom: 2.5rem;
+  overflow: hidden;
+}
+
+/* Top colorful accent stripe on the intro card */
+.intro-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--sand-500, #e0a63f) 0%,
+    var(--leaf-400, #35b183) 35%,
+    var(--ocean-400, #29aebd) 70%,
+    var(--coral-500, #e4694a) 100%
+  );
+}
+
+.intro-banner h2 {
+  font-size: 1.55rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-strong);
+}
+
+.intro-banner p {
+  font-size: 1.02rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-bottom: 1.35rem;
+}
+
 
 /* --- Call-to-action band ----------------------------------------------- */
 
@@ -178,7 +342,7 @@
   line-height: 1.55;
 }
 
-/* --- Filter bar --------------------------------------------------------- */
+/* --- Filter bar with glassmorphic styling -------------------------------- */
 
 .filters {
   display: flex;
@@ -186,16 +350,24 @@
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 2rem;
+  padding: 0.75rem 1.15rem;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 24px -6px rgba(8, 32, 26, 0.08);
 }
 
 .filters__label {
   margin-right: 0.35rem;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--brand-strong);
 }
+
 
 .empty {
   padding: 3rem 1.5rem;

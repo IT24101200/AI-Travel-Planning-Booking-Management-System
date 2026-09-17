@@ -34,7 +34,8 @@ namespace backend.Controllers
             if (pageSize < 1) pageSize = 20;
             if (pageSize > 100) pageSize = 100;
 
-            var userId = GetUserId();
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+            var userId = isStaff ? null : GetUserId();
             var notifications = await _notificationService.GetByCustomerIdAsync(userId, status, from, to, page, pageSize);
             var totalCount = await _notificationService.GetCountAsync(userId, status, from, to);
 

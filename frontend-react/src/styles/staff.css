@@ -375,3 +375,11 @@
     position: static;
   }
 }
+
+/* Inline edit inputs inside table cells */
+.input--sm {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+  min-width: 0;
+  width: 100%;
+}

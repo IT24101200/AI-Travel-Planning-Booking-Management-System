@@ -146,11 +146,13 @@ namespace backend.Controllers
         /// Get agent execution logs for a trip request.
         /// </summary>
         [HttpGet("{id}/logs")]
+        [HttpGet("/api/AgentLog/{id}")]
         [ProducesResponseType(typeof(List<AgentLogDto>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetAgentLogs(int id)
         {
-            var userId = GetUserId();
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+            var userId = isStaff ? null : GetUserId();
             var logs = await _tripRequestService.GetAgentLogsAsync(id, userId);
 
             return Ok(logs);

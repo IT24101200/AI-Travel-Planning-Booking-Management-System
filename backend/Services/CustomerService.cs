@@ -34,6 +34,7 @@ namespace backend.Services
         {
             var query = _db.Customers
                 .Include(c => c.Preference)
+                .Include(c => c.TripRequests)
                 .AsQueryable();
 
             // Search by name or phone
@@ -59,11 +60,14 @@ namespace backend.Services
                 .Take(pageSize)
                 .ToListAsync();
 
+            var agents = await _db.TravelAgents.ToDictionaryAsync(ta => ta.Id);
+
             var dtos = new List<CustomerDto>();
             foreach (var c in customers)
             {
                 var user = await _userManager.FindByIdAsync(c.Id);
-                dtos.Add(MapToDto(c, user?.Email));
+                agents.TryGetValue(c.Id, out var agent);
+                dtos.Add(MapToDto(c, user?.Email, agent?.Department));
             }
 
             return dtos;
@@ -117,7 +121,7 @@ namespace backend.Services
             }
         }
 
-        private static CustomerDto MapToDto(Customer customer, string? email)
+        private static CustomerDto MapToDto(Customer customer, string? email, string? department = null)
         {
             return new CustomerDto
             {
@@ -125,6 +129,9 @@ namespace backend.Services
                 FullName = customer.FullName,
                 Phone = customer.Phone,
                 Email = email ?? string.Empty,
+                Role = string.IsNullOrWhiteSpace(customer.Role) ? "Customer" : customer.Role,
+                Department = department,
+                TripCount = customer.TripRequests?.Count ?? 0,
                 JoinedAt = customer.JoinedAt,
                 LastActiveAt = customer.LastActiveAt,
                 HasPreference = customer.Preference != null

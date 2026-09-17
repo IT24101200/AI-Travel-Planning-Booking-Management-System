@@ -22,6 +22,7 @@ import Login from './pages/auth/Login.jsx'
 import CustomerDirectory from './pages/customers/CustomerDirectory.jsx'
 import NotificationLogs from './pages/customers/NotificationLogs.jsx'
 import TourCatalogManagement from './pages/tours/TourCatalogManagement.jsx'
+import DestinationManagement from './pages/tours/DestinationManagement.jsx'
 import ItineraryReview from './pages/tours/ItineraryReview.jsx'
 import HotelVendorManagement from './pages/hotels/HotelVendorManagement.jsx'
 import TransportFleetManagement from './pages/hotels/TransportFleetManagement.jsx'
@@ -95,6 +96,7 @@ export default function App() {
               <Route path="customers" element={<CustomerDirectory />} />
               <Route path="notifications" element={<NotificationLogs />} />
               <Route path="tours" element={<TourCatalogManagement />} />
+              <Route path="destinations" element={<DestinationManagement />} />
               <Route path="itineraries" element={<ItineraryReview />} />
               <Route path="hotels" element={<HotelVendorManagement />} />
               <Route path="transport" element={<TransportFleetManagement />} />

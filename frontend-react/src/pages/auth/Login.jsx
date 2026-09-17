@@ -6,14 +6,14 @@ import { usePageTitle } from '../../lib/hooks.js'
 
 /** Staff + customer sign-in. Demo-ready: works offline, tries the API first. */
 export default function Login() {
-  const { login } = useAuth()
+  const { login, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [email, setEmail] = useState('agent@serendibtrails.lk')
-  const [password, setPassword] = useState('agent123')
-  const [error, setError] = useState('')
+  const [email, setEmail] = useState('agent@colombo.lk')
+  const [password, setPassword] = useState('Staff@123')
+  const [error, setError] = useState(location.state?.error || '')
   const [busy, setBusy] = useState(false)
-  usePageTitle('Sign in')
+  usePageTitle('Staff Sign in')
 
   async function onSubmit(e) {
     e.preventDefault()
@@ -29,11 +29,21 @@ export default function Login() {
     setBusy(true)
     try {
       const session = await login(email.trim(), password)
+      if (!session || session.token === 'demo-token') {
+        setError('Invalid email or password. Please check your staff credentials.')
+        return
+      }
+
+      // Customers CANNOT log into the staff portal
+      if (session.role === 'customer') {
+        logout()
+        setError('Access denied: Customer accounts cannot log in to the staff portal. Please use staff credentials.')
+        return
+      }
+
       const from = location.state?.from
       if (from && from.startsWith('/staff')) {
         navigate(from, { replace: true })
-      } else if (session.role === 'customer') {
-        navigate('/planner', { replace: true })
       } else {
         navigate('/staff', { replace: true })
       }
@@ -49,12 +59,39 @@ export default function Login() {
       <Masthead
         eyebrow="Staff sign in"
         title="Welcome back."
-        lede="Agents and admins sign in here. Tip: agent@serendibtrails.lk opens the approval console."
+        lede="Agents and admins sign in here. Use your staff credentials to access the console."
         crumbs={[{ label: 'Sign in' }]}
       />
-      <section className="section" style={{ paddingTop: 0 }}>
+      <section className="section section--overlap">
         <div className="shell" style={{ maxWidth: '34rem' }}>
-          <form className="panel panel--solid form" style={{ padding: '1.75rem' }} onSubmit={onSubmit}>
+          {/* Frosted-glass login card floats over scenic backdrop */}
+          <form
+            className="panel form"
+            style={{
+              position: 'relative',
+              overflow: 'hidden',
+              padding: '2.25rem',
+              background: 'rgba(255, 255, 255, 0.94)',
+              border: '1px solid rgba(255, 255, 255, 0.85)',
+              borderRadius: 'var(--r-xl)',
+              backdropFilter: 'blur(20px) saturate(140%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+              boxShadow: '0 0 0 1px rgba(53, 177, 131, 0.18), 0 24px 54px -16px rgba(8, 32, 26, 0.16), 0 8px 24px -6px rgba(224, 166, 63, 0.12)',
+            }}
+            onSubmit={onSubmit}
+          >
+            {/* Top colorful accent stripe */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: 'linear-gradient(90deg, var(--sand-500, #e0a63f) 0%, var(--leaf-400, #35b183) 35%, var(--ocean-400, #29aebd) 70%, var(--coral-500, #e4694a) 100%)',
+              }}
+              aria-hidden="true"
+            />
             <div className="field">
               <label className="field__label" htmlFor="email">
                 Email
@@ -80,7 +117,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <span className="field__hint">Demo: anything 4+ chars works offline.</span>
+              <span className="field__hint">Staff login: agent@colombo.lk / Staff@123</span>
             </div>
             {error ? <div className="notice notice--error">{error}</div> : null}
             <button className="btn btn--block" type="submit" disabled={busy}>
