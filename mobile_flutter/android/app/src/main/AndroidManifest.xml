@@ -1,8 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Allow HTTP calls to the backend API -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="mobile_flutter"
+        android:label="Travel Planner"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

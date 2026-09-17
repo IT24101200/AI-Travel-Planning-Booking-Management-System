@@ -151,14 +151,9 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:3000")
+        policy.AllowAnyOrigin()
               .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+              .AllowAnyHeader();
     });
 });
 
@@ -215,7 +210,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Disabled for mobile HTTP testing
 app.UseCors("AllowAll");
 
 app.UseAuthentication();
@@ -280,7 +275,3 @@ app.MapGet("/supabasehealth", async () =>
 });
 
 app.Run();
-
-// Make the implicit Program class visible to WebApplicationFactory<Program> in integration tests.
-// This is the standard pattern for .NET 8 minimal API projects.
-public partial class Program { }
