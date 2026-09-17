@@ -19,6 +19,7 @@ namespace backend.Models
         [MaxLength(100)]
         public string Department { get; set; } = string.Empty;
 
+        [NotMapped]
         public DateTime HireDate { get; set; } = DateTime.UtcNow;
 
         // ── Navigation Properties ──

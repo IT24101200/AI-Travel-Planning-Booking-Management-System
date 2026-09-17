@@ -1,58 +1,81 @@
 import { useEffect, useMemo, useState } from 'react'
-import { loadStore, mockHotels, saveStore } from '../../services/staffData.js'
-import { createHotel, deleteHotel, fetchHotels } from '../../services/apiClient.js'
+import { createHotel, deleteHotel, fetchHotels, updateHotel } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 
-/** Student C — hotel & vendor management with search + CRUD. */
+const PAGE_SIZE = 6
+
+/** Student C — hotel & vendor management with real database CRUD (add/edit/delete), room stats & pagination. */
 export default function HotelVendorManagement() {
-  const [rows, setRows] = useState(() => loadStore('hotels', mockHotels))
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
-  const [form, setForm] = useState({ name: '', location: '', stars: '3', priceNight: '', rooms: '' })
+  const [page, setPage] = useState(1)
+  const [form, setForm] = useState({ name: '', location: '', stars: '3' })
+  // Edit mode state
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({})
   usePageTitle('Hotels · Staff')
 
-  useEffect(() => {
-    let cancelled = false
-    async function loadHotels() {
-      try {
-        const live = await fetchHotels()
-        if (!cancelled && Array.isArray(live) && live.length > 0) {
-          const mapped = live.map((h) => ({
+  async function loadHotels(cancelled = false) {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetchHotels()
+      const live = Array.isArray(res) ? res : (res?.data || [])
+      if (!cancelled) {
+        const mapped = live.map((h) => {
+          const rooms = Array.isArray(h.rooms) ? h.rooms : []
+          const roomCount = rooms.reduce((acc, r) => acc + (r.totalRooms || 1), 0)
+          const validPrices = rooms.map((r) => Number(r.pricePerNight) || 0).filter((p) => p > 0)
+          const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null
+
+          return {
             id: h.id,
             name: h.name,
             location: h.destinationName || h.address || 'Sri Lanka',
+            address: h.address || '',
+            destinationId: h.destinationId || 1,
             stars: h.starRating || 3,
-            priceNight: Number(h.priceNight) || 120,
-            rooms: Number(h.roomCount) || 20,
-            status: h.status || 'Active',
-          }))
-          setRows((prev) => {
-            const merged = [...mapped, ...prev.filter((p) => !mapped.some((m) => m.name === p.name))]
-            return merged
-          })
-        }
-      } catch {
-        // offline fallback
+            roomCount: roomCount || (rooms.length > 0 ? rooms.length : 0),
+            minPrice,
+            status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Active'),
+          }
+        })
+        setRows(mapped)
       }
+    } catch (err) {
+      if (!cancelled) {
+        setError(err.response?.data?.message || err.message || 'Failed to load hotels from database.')
+      }
+    } finally {
+      if (!cancelled) setLoading(false)
     }
-    loadHotels()
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    loadHotels(cancelled)
     return () => { cancelled = true }
   }, [])
-
-  function persist(next) {
-    setRows(next)
-    saveStore('hotels', next)
-  }
 
   const view = useMemo(() => {
     const q = query.trim().toLowerCase()
     return rows.filter((r) => !q || r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q))
   }, [rows, query])
 
+  const pages = Math.max(1, Math.ceil(view.length / PAGE_SIZE))
+  const pageRows = view.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Add a new hotel to the database
   async function add(e) {
     e.preventDefault()
-    if (!form.name.trim() || !form.location.trim()) return
+    if (!form.name.trim() || !form.location.trim()) {
+      setNotice('Please provide a name and address.')
+      return
+    }
 
-    // Attempt live API
     try {
       await createHotel({
         name: form.name.trim(),
@@ -60,26 +83,60 @@ export default function HotelVendorManagement() {
         address: form.location.trim(),
         starRating: Number(form.stars) || 3,
       })
-    } catch {
-      // offline fallback
+      setNotice(`Hotel "${form.name.trim()}" added to database.`)
+      setForm({ name: '', location: '', stars: '3' })
+      await loadHotels()
+    } catch (err) {
+      setNotice(`Failed to add hotel: ${err.response?.data?.message || err.message}`)
     }
-
-    const next = [
-      ...rows,
-      {
-        id: Math.max(...rows.map((r) => r.id), 0) + 1,
-        name: form.name.trim(),
-        location: form.location.trim(),
-        stars: Number(form.stars) || 3,
-        priceNight: Number(form.priceNight) || 100,
-        rooms: Number(form.rooms) || 10,
-        status: 'Active',
-      },
-    ]
-    persist(next)
-    setForm({ name: '', location: '', stars: '3', priceNight: '', rooms: '' })
   }
 
+  // Start editing a hotel row
+  function startEdit(row) {
+    setEditId(row.id)
+    setEditForm({
+      name: row.name,
+      location: row.address || row.location,
+      destinationId: row.destinationId || 1,
+      stars: row.stars,
+    })
+  }
+
+  // Save the edit to the database
+  async function saveEdit(id) {
+    if (!editForm.name.trim()) return
+
+    try {
+      await updateHotel(id, {
+        name: editForm.name.trim(),
+        address: editForm.location.trim(),
+        destinationId: editForm.destinationId || 1,
+        starRating: Number(editForm.stars) || 3,
+      })
+      setNotice(`Hotel #${id} updated in database.`)
+      setEditId(null)
+      await loadHotels()
+    } catch (err) {
+      setNotice(`Failed to update hotel: ${err.response?.data?.message || err.message}`)
+    }
+  }
+
+  // Delete a hotel from database
+  async function remove(id) {
+    if (!window.confirm(`Delete hotel #${id}?`)) return
+    try {
+      await deleteHotel(id)
+      setNotice(`Hotel #${id} deleted from database.`)
+      await loadHotels()
+    } catch (err) {
+      setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
+    }
+  }
+
+  function onSearchChange(val) {
+    setQuery(val)
+    setPage(1)
+  }
 
   return (
     <div className="staff-page">
@@ -89,19 +146,32 @@ export default function HotelVendorManagement() {
           <h1>Hotels & vendors</h1>
         </div>
         <div className="staff-toolbar">
-          <input className="input" placeholder="Search hotels…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input" placeholder="Search hotels…" value={query} onChange={(e) => onSearchChange(e.target.value)} />
+          <button type="button" className="btn btn--sm" onClick={() => loadHotels(false)} disabled={loading}>
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
         </div>
       </header>
 
+      {error && (
+        <div className="notice notice--error" style={{ color: '#ff6b6b' }}>
+          {error}
+        </div>
+      )}
+
+      {notice && <div className="notice">{notice}</div>}
+
       <form className="panel panel--solid staff-form" onSubmit={add}>
-        <b>Add hotel</b>
+        <b>Add hotel to database</b>
         <div className="staff-form__grid">
-          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          <input className="input" placeholder="Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
-          <input className="input" type="number" min="1" max="5" placeholder="Stars" value={form.stars} onChange={(e) => setForm({ ...form, stars: e.target.value })} />
-          <input className="input" type="number" min="1" placeholder="$/night" value={form.priceNight} onChange={(e) => setForm({ ...form, priceNight: e.target.value })} />
-          <input className="input" type="number" min="1" placeholder="Rooms" value={form.rooms} onChange={(e) => setForm({ ...form, rooms: e.target.value })} />
-          <button className="btn btn--sm" type="submit">Add</button>
+          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <input className="input" placeholder="Location / Address" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required />
+          <select className="select" value={form.stars} onChange={(e) => setForm({ ...form, stars: e.target.value })}>
+            <option value="3">3 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="5">5 Stars</option>
+          </select>
+          <button className="btn btn--sm" type="submit" disabled={loading}>Add</button>
         </div>
       </form>
 
@@ -109,40 +179,69 @@ export default function HotelVendorManagement() {
         <table className="staff-table">
           <thead>
             <tr>
-              <th>Hotel</th>
+              <th>Name</th>
               <th>Location</th>
-              <th>Stars</th>
-              <th>$/night</th>
+              <th>Rating</th>
               <th>Rooms</th>
+              <th>From / Night</th>
               <th>Status</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {view.map((r) => (
-              <tr key={r.id}>
-                <td><b>{r.name}</b></td>
-                <td>{r.location}</td>
-                <td>{'★'.repeat(r.stars)}</td>
-                <td>${r.priceNight}</td>
-                <td>{r.rooms}</td>
-                <td><span className={`staff-pill staff-pill--${r.status.toLowerCase()}`}>{r.status}</span></td>
-                <td>
-                  <button
-                    type="button"
-                    className="staff-mini staff-mini--danger"
-                    onClick={() => persist(rows.filter((x) => x.id !== r.id))}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!view.length && (
-              <tr><td colSpan={7} className="staff-empty">No hotels match.</td></tr>
+            {loading ? (
+              <tr><td colSpan={7} className="staff-empty">Loading hotels from database…</td></tr>
+            ) : pageRows.length > 0 ? (
+              pageRows.map((h) => (
+                <tr key={h.id}>
+                  {editId === h.id ? (
+                    <>
+                      <td><input className="input input--sm" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
+                      <td><input className="input input--sm" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} /></td>
+                      <td>
+                        <select className="select" value={editForm.stars} onChange={(e) => setEditForm({ ...editForm, stars: e.target.value })}>
+                          <option value="3">3 Stars</option>
+                          <option value="4">4 Stars</option>
+                          <option value="5">5 Stars</option>
+                        </select>
+                      </td>
+                      <td>{h.roomCount > 0 ? `${h.roomCount} rooms` : '—'}</td>
+                      <td>{h.minPrice ? `$${h.minPrice}` : '—'}</td>
+                      <td><span className={`staff-pill staff-pill--${h.status.toLowerCase()}`}>{h.status}</span></td>
+                      <td className="staff-row-actions">
+                        <button type="button" className="btn btn--sm" onClick={() => saveEdit(h.id)}>Save</button>
+                        <button type="button" className="staff-mini" onClick={() => setEditId(null)}>Cancel</button>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td><b>{h.name}</b></td>
+                      <td>{h.location}</td>
+                      <td>{'★'.repeat(h.stars)}</td>
+                      <td>{h.roomCount > 0 ? `${h.roomCount} rooms` : '—'}</td>
+                      <td>{h.minPrice ? `$${h.minPrice}` : '—'}</td>
+                      <td><span className={`staff-pill staff-pill--${h.status.toLowerCase()}`}>{h.status}</span></td>
+                      <td className="staff-row-actions">
+                        <button type="button" className="staff-mini" onClick={() => startEdit(h)}>Edit</button>
+                        <button type="button" className="staff-mini staff-mini--danger" onClick={() => remove(h.id)}>
+                          Delete
+                        </button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan={7} className="staff-empty">No hotels found in database.</td></tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="staff-pager">
+        <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
+        <span>Page {page} of {pages} · {view.length} hotels</span>
+        <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next →</button>
       </div>
     </div>
   )

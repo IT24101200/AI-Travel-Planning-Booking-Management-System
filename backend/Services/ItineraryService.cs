@@ -207,6 +207,20 @@ namespace backend.Services
             return (true, null);
         }
 
+        /// <summary>
+        /// Returns all itineraries ordered by CreatedAt descending for review queue.
+        /// </summary>
+        public async Task<List<ItineraryDto>> GetAllItinerariesAsync()
+        {
+            var itineraries = await _context.Itineraries
+                .Include(i => i.ItineraryItems)
+                    .ThenInclude(item => item.Tour)
+                .OrderByDescending(i => i.CreatedAt)
+                .ToListAsync();
+
+            return itineraries.Select(i => ToDto(i)).ToList();
+        }
+
         // ── Mapping helpers ──────────────────────────────────────────────────
 
         private static ItineraryDto ToDto(Itinerary i) => new ItineraryDto

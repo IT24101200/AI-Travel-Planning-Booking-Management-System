@@ -89,6 +89,19 @@ namespace backend.Controllers
         }
 
         /// <summary>
+        /// Retrieves all itineraries for travel agent / admin review queue.
+        /// </summary>
+        [HttpGet("review")]
+        [HttpGet]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(typeof(List<ItineraryDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetForReview()
+        {
+            var itineraries = await _service.GetAllItinerariesAsync();
+            return Ok(itineraries);
+        }
+
+        /// <summary>
         /// Adds a tour as a scheduled item to an Itinerary.
         /// Validates tour existence, active status, and time-overlap conflicts.
         /// Returns 400 Bad Request for any validation failure.
@@ -173,12 +186,12 @@ namespace backend.Controllers
             if (!isStaff && itinerary.CustomerId != userId)
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = "You do not have access to this itinerary." });
 
-            var (success, errorMessage) = await _service.UpdateItineraryStatusAsync(id, request.NewStatus);
+            var (success, errorMessage) = await _service.UpdateItineraryStatusAsync(id, request.ResolvedStatus);
 
             if (!success)
                 return NotFound(new { message = errorMessage });
 
-            return Ok(new { message = $"Itinerary status updated to {request.NewStatus}." });
+            return Ok(new { message = $"Itinerary status updated to {request.ResolvedStatus}." });
         }
     }
 
@@ -201,6 +214,19 @@ namespace backend.Controllers
     /// </summary>
     public class UpdateItineraryStatusRequest
     {
-        public ItineraryStatus NewStatus { get; set; }
+        public ItineraryStatus? NewStatus { get; set; }
+        public string? Status { get; set; }
+        public string? Notes { get; set; }
+
+        public ItineraryStatus ResolvedStatus
+        {
+            get
+            {
+                if (NewStatus.HasValue) return NewStatus.Value;
+                if (!string.IsNullOrWhiteSpace(Status) && Enum.TryParse<ItineraryStatus>(Status, true, out var parsed))
+                    return parsed;
+                return ItineraryStatus.Proposed;
+            }
+        }
     }
 }

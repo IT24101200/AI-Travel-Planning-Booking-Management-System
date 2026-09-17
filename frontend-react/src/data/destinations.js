@@ -8,8 +8,9 @@
  */
 import sigiriyaImg from '../assets/photos/sigiriya-1280.jpg'
 import sigiriyaThumb from '../assets/photos/sigiriya-500.jpg'
-import ellaImg from '../assets/photos/ella-nine-arch.webp'
-import ellaThumb from '../assets/photos/ella-nine-arch.webp'
+const ellaImg =
+  'https://images.unsplash.com/photo-1566296314736-6eaac1ca0cb9?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8ZWxsYXxlbnwwfHwwfHx8MA%3D%3D'
+const ellaThumb = ellaImg
 import nuwaraEliyaImg from '../assets/photos/nuwara-eliya-1280.jpg'
 import nuwaraEliyaThumb from '../assets/photos/nuwara-eliya-500.jpg'
 import mirissaImg from '../assets/photos/mirissa-1280.jpg'

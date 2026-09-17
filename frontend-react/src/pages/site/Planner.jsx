@@ -112,9 +112,9 @@ export default function Planner() {
         crumbs={[{ label: 'AI Planner' }]}
       />
 
-      <section className="section" style={{ paddingTop: 0 }}>
+      <section className="section section--overlap">
         <div className="shell planner">
-          <Reveal className="panel panel--solid planner__card">
+          <Reveal className="panel planner__card">
             <form className="form" onSubmit={onSubmit} noValidate>
               <div className="field">
                 <label className="field__label" htmlFor="destinationId">

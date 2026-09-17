@@ -23,12 +23,15 @@ namespace backend.Models
         [MaxLength(100)]
         public string StepName { get; set; } = string.Empty;
 
+        [NotMapped]
         [MaxLength(50)]
         public string? StepType { get; set; }
 
+        [NotMapped]
         [MaxLength(100)]
         public string? ToolName { get; set; }
 
+        [NotMapped]
         public long? DurationMs { get; set; }
 
         [MaxLength(4000)]

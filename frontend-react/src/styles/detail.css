@@ -29,10 +29,25 @@
   position: relative;
   aspect-ratio: 16 / 9;
   margin-bottom: 2rem;
-  border-radius: var(--r-lg);
+  border-radius: var(--r-xl);
   overflow: hidden;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 20px 48px -14px rgba(8, 32, 26, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   background: var(--jungle-800);
+}
+
+.detail__figure::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    transparent 60%,
+    rgba(6, 35, 27, 0.15) 80%,
+    rgba(6, 35, 27, 0.45) 100%
+  );
 }
 
 .detail__figure > svg,
@@ -42,6 +57,11 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.detail__figure:hover .detail__img {
+  transform: scale(1.02);
 }
 
 .aside {
@@ -49,7 +69,13 @@
   top: 5.75rem;
   display: grid;
   gap: 1.15rem;
-  padding: 1.5rem;
+  padding: 1.75rem;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-line);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 36px -12px rgba(8, 32, 26, 0.14);
 }
 
 .aside__price {
@@ -111,13 +137,47 @@
 }
 
 .planner__card {
+  position: relative;
   padding: clamp(1.5rem, 3vw, 2.25rem);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    0 0 0 1px rgba(53, 177, 131, 0.18),
+    0 24px 54px -16px rgba(8, 32, 26, 0.16),
+    0 8px 24px -6px rgba(224, 166, 63, 0.12);
+  overflow: hidden;
+}
+
+.planner__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--sand-500, #e0a63f) 0%,
+    var(--leaf-400, #35b183) 35%,
+    var(--ocean-400, #29aebd) 70%,
+    var(--coral-500, #e4694a) 100%
+  );
 }
 
 .planner__side {
+  position: relative;
   display: grid;
   gap: 1.15rem;
-  padding: 1.6rem;
+  padding: 1.75rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 36px -12px rgba(8, 32, 26, 0.1);
 }
 
 .planner__side h3 {
@@ -170,6 +230,37 @@
   .contact {
     grid-template-columns: 1fr;
   }
+}
+
+.contact__card {
+  position: relative;
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--r-xl);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow:
+    0 0 0 1px rgba(53, 177, 131, 0.18),
+    0 24px 54px -16px rgba(8, 32, 26, 0.16),
+    0 8px 24px -6px rgba(224, 166, 63, 0.12);
+  overflow: hidden;
+}
+
+.contact__card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--sand-500, #e0a63f) 0%,
+    var(--leaf-400, #35b183) 35%,
+    var(--ocean-400, #29aebd) 70%,
+    var(--coral-500, #e4694a) 100%
+  );
 }
 
 .contact__item {

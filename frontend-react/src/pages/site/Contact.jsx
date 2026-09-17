@@ -65,9 +65,9 @@ export default function Contact() {
         crumbs={[{ label: 'Contact' }]}
       />
 
-      <section className="section" style={{ paddingTop: 0 }}>
+      <section className="section section--overlap">
         <div className="shell contact">
-          <Reveal>
+          <Reveal className="panel contact__card">
             <dl style={{ margin: 0 }}>
               <div className="contact__item">
                 <dt>
@@ -98,7 +98,7 @@ export default function Contact() {
             </dl>
           </Reveal>
 
-          <Reveal className="panel panel--solid planner__card" delay={110}>
+          <Reveal className="panel planner__card" delay={110}>
             <form className="form" onSubmit={onSubmit} noValidate>
               <div className="form__row">
                 <div className="field">

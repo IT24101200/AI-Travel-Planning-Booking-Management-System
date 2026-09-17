@@ -9,6 +9,9 @@ namespace backend.DTOs
         public string FullName { get; set; } = string.Empty;
         public string? Phone { get; set; }
         public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = "Customer";
+        public string? Department { get; set; }
+        public int TripCount { get; set; }
         public DateTime JoinedAt { get; set; }
         public DateTime LastActiveAt { get; set; }
         public bool HasPreference { get; set; }

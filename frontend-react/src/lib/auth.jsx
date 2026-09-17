@@ -36,24 +36,32 @@ export function AuthProvider({ children }) {
       })
       if (res.ok) {
         const data = await res.json()
+        const rawRole = (data.role || roleFromEmail(email)).toLowerCase()
+        const normalizedRole = (rawRole === 'travelagent' || rawRole === 'agent' || rawRole === 'staff')
+          ? 'agent'
+          : rawRole === 'admin'
+          ? 'admin'
+          : 'customer'
         const next = {
           email,
-          token: data.token || data.accessToken || 'api-token',
-          role: (data.role || roleFromEmail(email)).toLowerCase(),
+          token: data.token || data.accessToken,
+          role: normalizedRole,
         }
         localStorage.setItem('st_session', JSON.stringify(next))
         localStorage.setItem('accessToken', next.token)
         setSession(next)
         return next
       }
+      // If server responded with 401/400 (bad credentials)
+      return null
     } catch {
-      // offline — fall through to demo login
+      // Server is offline — allow demo session
+      const next = { email, token: 'demo-token', role: roleFromEmail(email) }
+      localStorage.setItem('st_session', JSON.stringify(next))
+      localStorage.setItem('accessToken', next.token)
+      setSession(next)
+      return next
     }
-    const next = { email, token: 'demo-token', role: roleFromEmail(email) }
-    localStorage.setItem('st_session', JSON.stringify(next))
-    localStorage.setItem('accessToken', next.token)
-    setSession(next)
-    return next
   }, [])
 
   const logout = useCallback(() => {
