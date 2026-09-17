@@ -12,7 +12,13 @@ export default function Login() {
   const [email, setEmail] = useState('agent@colombo.lk')
   const [password, setPassword] = useState('Staff@123')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState(location.state?.error || '')
+  const [error, setError] = useState(() => {
+    if (location.state?.error) return location.state.error
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired')) {
+      return 'Your staff session has expired. Please sign in again with your credentials.'
+    }
+    return ''
+  })
   const [busy, setBusy] = useState(false)
   usePageTitle('Staff Sign in')
 
@@ -152,7 +158,7 @@ export default function Login() {
                   )}
                 </button>
               </div>
-              <span className="field__hint">Staff login: agent@colombo.lk / Staff@123</span>
+              <span className="field__hint">Staff login: agent@colombo.lk or agent@serendibtrails.lk / Staff@123</span>
             </div>
             {error ? <div className="notice notice--error">{error}</div> : null}
             <button className="btn btn--block" type="submit" disabled={busy}>

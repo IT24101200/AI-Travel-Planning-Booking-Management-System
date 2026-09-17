@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// Tour details screen showing full tour information.
+/// Tour details screen with immersive photography, key highlights, and direct booking actions.
 class TourDetailsScreen extends StatefulWidget {
   const TourDetailsScreen({super.key});
 
@@ -26,135 +27,354 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
 
   /// Fetch tour details from backend
   Future<void> _loadTour(int id) async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      _tour = await ApiService.getTour(id);
-      if (_tour == null) _error = 'Tour not found';
+      final data = await ApiService.getTour(id);
+      if (mounted) {
+        setState(() {
+          _tour = data;
+          if (_tour == null) _error = 'Tour details not found';
+          _loading = false;
+        });
+      }
     } catch (e) {
-      _error = 'Failed to load tour details';
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load tour details';
+          _loading = false;
+        });
+      }
     }
-    if (mounted) setState(() { _loading = false; });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Tour Details')),
+        body: const LoadingIndicator(message: 'Loading experience...'),
+      );
+    }
+
+    if (_error != null || _tour == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Tour Details')),
+        body: ErrorMessage(
+          message: _error ?? 'Tour not found',
+          onRetry: () {
+            final tourId = ModalRoute.of(context)?.settings.arguments as int?;
+            if (tourId != null) _loadTour(tourId);
+          },
+        ),
+      );
+    }
+
+    final tourName = _tour!['name'] ?? 'Scenic Excursion';
+    final imageUrl = AppDestinations.getImageForDestination(tourName);
+    final price = (_tour!['price'] ?? 0).toDouble();
+    final currency = _tour!['currency'] ?? 'USD';
+    final duration = _tour!['durationHours'] ?? 2;
+    final startTime = _tour!['defaultStartTime'] ?? '08:00 AM';
+    final category = _tour!['category'] ?? 'Excursion';
+    final status = _tour!['status'] ?? 'Active';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Tour Details')),
-      body: _loading
-          ? const LoadingIndicator(message: 'Loading tour...')
-          : _error != null
-              ? ErrorMessage(message: _error!)
-              : _tour == null
-                  ? const EmptyState(message: 'Tour not found')
-                  : SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Tour image placeholder
-                          Container(
-                            width: double.infinity,
-                            height: 200,
-                            color: const Color(0xFF0D9488).withOpacity(0.15),
-                            child: const Center(
-                              child: Icon(Icons.landscape, size: 80, color: Color(0xFF0D9488)),
+      body: CustomScrollView(
+        slivers: [
+          // ── Hero Image with SliverAppBar ──
+          SliverAppBar(
+            expandedHeight: 280,
+            pinned: true,
+            backgroundColor: AppColors.jungle800,
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  AppNetworkImage(
+                    imageUrl: imageUrl,
+                    fit: BoxFit.cover,
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.4),
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.8),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 16,
+                    left: 20,
+                    right: 20,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.sand500,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            category.toUpperCase(),
+                            style: const TextStyle(
+                              color: AppColors.jungle900,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11,
+                              letterSpacing: 0.8,
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          tourName,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
-                          Padding(
-                            padding: const EdgeInsets.all(20),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Tour name
-                                Text(
-                                  _tour!['name'] ?? 'Unnamed Tour',
-                                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                                ),
-                                const SizedBox(height: 8),
+          // ── Content Body ──
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Key Stats Bar
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.line),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildStatItem(Icons.attach_money, 'Price', '\$${price.toStringAsFixed(0)} $currency'),
+                        _buildDivider(),
+                        _buildStatItem(Icons.timer_outlined, 'Duration', '${duration}h'),
+                        _buildDivider(),
+                        _buildStatItem(Icons.schedule, 'Start', startTime),
+                        _buildDivider(),
+                        _buildStatItem(Icons.check_circle_outline, 'Status', status),
+                      ],
+                    ),
+                  ),
 
-                                // Category + status
-                                Row(
-                                  children: [
-                                    StatusBadge(status: _tour!['category'] ?? ''),
-                                    const SizedBox(width: 8),
-                                    StatusBadge(status: _tour!['status'] ?? 'Active'),
-                                  ],
-                                ),
-                                const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                                // Description
-                                if (_tour!['description'] != null) ...[
-                                  const Text(
-                                    'Description',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _tour!['description'],
-                                    style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.5),
-                                  ),
-                                  const SizedBox(height: 20),
-                                ],
+                  // Overview / Story
+                  const Text(
+                    'Experience Overview',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _tour!['description'] ??
+                        'Immerse yourself in authentic Sri Lankan sights, sounds, and traditions with dedicated local travel experts.',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.ink2,
+                      height: 1.6,
+                    ),
+                  ),
 
-                                // Price breakdown card
-                                Card(
-                                  color: Colors.teal.shade50,
-                                  margin: EdgeInsets.zero,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      children: [
-                                        _infoRow(Icons.attach_money, 'Price',
-                                            '\$${(_tour!['price'] ?? 0).toStringAsFixed(2)} ${_tour!['currency'] ?? 'USD'}'),
-                                        const Divider(),
-                                        _infoRow(Icons.access_time, 'Duration',
-                                            '${_tour!['durationHours'] ?? 0} hours'),
-                                        const Divider(),
-                                        _infoRow(Icons.schedule, 'Start Time',
-                                            _tour!['defaultStartTime'] ?? 'N/A'),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
+                  const SizedBox(height: 24),
 
-                                // Coordinates
-                                if (_tour!['latitude'] != null && _tour!['longitude'] != null) ...[
-                                  const Text(
-                                    'Location',
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Card(
-                                    margin: EdgeInsets.zero,
-                                    child: ListTile(
-                                      leading: const Icon(Icons.location_on, color: Color(0xFF0D9488)),
-                                      title: Text('Lat: ${_tour!['latitude']}, Lng: ${_tour!['longitude']}'),
-                                    ),
-                                  ),
-                                ],
-                              ],
+                  // Location Card
+                  if (_tour!['latitude'] != null && _tour!['longitude'] != null) ...[
+                    const Text(
+                      'Geographic Coordinates',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.leaf50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.line),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on, color: AppColors.jungle600, size: 22),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Lat: ${_tour!['latitude']} • Lng: ${_tour!['longitude']}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.jungle700,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // AI Integration Box
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.jungle700.withOpacity(0.08), AppColors.ocean700.withOpacity(0.08)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.leaf100),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.auto_awesome, color: AppColors.jungle600, size: 28),
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Multi-Agent Trip Integration',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                  color: AppColors.jungle800,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'This tour can be directly incorporated into your AI trip itinerary with hotel & transit recommendations.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.ink3,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: AppColors.line)),
+        ),
+        child: Row(
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Total From',
+                  style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                ),
+                Text(
+                  '\$${price.toStringAsFixed(0)} $currency',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.jungle600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(
+                    context,
+                    '/trip-request',
+                    arguments: _tour,
+                  );
+                },
+                icon: const Icon(Icons.auto_awesome, size: 18, color: AppColors.sand400),
+                label: const Text('Add to AI Trip Plan'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.jungle600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  /// Helper widget for info rows
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFF0D9488)),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
-          const Spacer(),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
-      ),
+  Widget _buildStatItem(IconData icon, String label, String value) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: AppColors.jungle600),
+        const SizedBox(height: 4),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 10, color: AppColors.ink3),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: AppColors.ink,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDivider() {
+    return Container(
+      height: 30,
+      width: 1,
+      color: AppColors.line,
     );
   }
 }

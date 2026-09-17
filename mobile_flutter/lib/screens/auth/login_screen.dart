@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../app_constants.dart';
 import '../../services/api_service.dart';
 
-/// Login screen with email/password form.
+/// Serendib Trails login screen with scenic backdrop and modern authentication card.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -20,7 +21,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
     try {
       final result = await ApiService.login(
@@ -33,12 +37,16 @@ class _LoginScreenState extends State<LoginScreen> {
       if (result['statusCode'] == 200) {
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        setState(() { _error = result['message'] ?? 'Login failed.'; });
+        setState(() {
+          _error = result['message'] ?? 'Login failed. Please check your credentials.';
+        });
       }
     } catch (e) {
-      setState(() { _error = 'Connection error. Check if backend is running.'; });
+      setState(() {
+        _error = 'Connection error. Check backend server on port 5138.';
+      });
     } finally {
-      if (mounted) setState(() { _loading = false; });
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -52,128 +60,219 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // App logo area
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0D9488).withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.flight_takeoff,
-                      size: 48,
-                      color: Color(0xFF0D9488),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Welcome Back',
-                    style: GoogleFonts.poppins(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF1A1A2E),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign in to plan your next adventure',
-                    style: TextStyle(color: Colors.grey.shade600),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Error message
-                  if (_error != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.error, color: Colors.red.shade600, size: 20),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(_error!, style: TextStyle(color: Colors.red.shade700))),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Email field
-                  TextFormField(
-                    controller: _emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      prefixIcon: Icon(Icons.email_outlined),
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Email is required';
-                      if (!v.contains('@')) return 'Enter a valid email';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Password field
-                  TextFormField(
-                    controller: _passwordCtrl,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      suffixIcon: IconButton(
-                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
-                        onPressed: () => setState(() { _obscurePassword = !_obscurePassword; }),
-                      ),
-                    ),
-                    validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Login button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _loading ? null : _login,
-                      child: _loading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Text('Login', style: TextStyle(fontSize: 16)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Register link
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text("Don't have an account? "),
-                      TextButton(
-                        onPressed: () => Navigator.pushReplacementNamed(context, '/register'),
-                        child: const Text('Register'),
-                      ),
-                    ],
-                  ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ── Scenic Background Image ──
+          Image.asset(
+            AppDestinations.heroSigiriya,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(color: AppColors.jungle900),
+          ),
+          // Gradient Filter
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.jungle900.withOpacity(0.55),
+                  AppColors.jungle900.withOpacity(0.9),
                 ],
               ),
             ),
           ),
-        ),
+
+          // ── Login Form Card ──
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Brand Logo
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                      ),
+                      child: const Icon(Icons.travel_explore, size: 44, color: AppColors.sand400),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'SERENDIB TRAILS',
+                      style: GoogleFonts.poppins(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        letterSpacing: 2.0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'AI Travel Planning & Booking Platform',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: AppColors.sand200,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // White Card Container
+                    Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Sign In',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.ink,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Access your itineraries, bookings and tickets',
+                              style: TextStyle(fontSize: 12, color: AppColors.ink3),
+                            ),
+                            const SizedBox(height: 18),
+
+                            // Error banner
+                            if (_error != null) ...[
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.coral500.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: AppColors.coral500.withOpacity(0.3)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.error_outline, color: AppColors.coral500, size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _error!,
+                                        style: const TextStyle(color: AppColors.coral500, fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+
+                            // Email
+                            TextFormField(
+                              controller: _emailCtrl,
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(
+                                labelText: 'Email Address',
+                                prefixIcon: Icon(Icons.email_outlined, color: AppColors.jungle600),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.isEmpty) return 'Email is required';
+                                if (!v.contains('@')) return 'Enter a valid email';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Password
+                            TextFormField(
+                              controller: _passwordCtrl,
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: const Icon(Icons.lock_outline, color: AppColors.jungle600),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                    color: AppColors.ink3,
+                                  ),
+                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                ),
+                              ),
+                              validator: (v) => (v == null || v.isEmpty) ? 'Password is required' : null,
+                            ),
+                            const SizedBox(height: 22),
+
+                            // Login Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _loading ? null : _login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.jungle600,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 15),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: _loading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                      )
+                                    : const Text(
+                                        'Sign In to Serendib',
+                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Register redirect
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text(
+                                  "New traveler? ",
+                                  style: TextStyle(fontSize: 13, color: AppColors.ink2),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pushReplacementNamed(context, '/register'),
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    foregroundColor: AppColors.jungle600,
+                                  ),
+                                  child: const Text(
+                                    'Create an Account',
+                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

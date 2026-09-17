@@ -27,60 +27,69 @@ namespace backend.Data
                 }
             }
 
-            // 2. Default Staff User (TravelAgent)
-            const string staffEmail = "agent@colombo.lk";
-            var staffUser = await userManager.FindByEmailAsync(staffEmail);
-            if (staffUser == null)
+            // 2. Default Staff Users (TravelAgent & Admin)
+            var staffAccounts = new[]
             {
-                staffUser = new IdentityUser { UserName = staffEmail, Email = staffEmail, EmailConfirmed = true };
-                var res = await userManager.CreateAsync(staffUser, "Staff@123");
-                if (res.Succeeded)
+                (Email: "agent@colombo.lk", Name: "Colombo Travel Agent", Role: "TravelAgent", Phone: "+94 11 234 5678", Dept: "Operations"),
+                (Email: "agent@serendibtrails.lk", Name: "Serendib Operations Agent", Role: "TravelAgent", Phone: "+94 11 765 4321", Dept: "Tour Operations"),
+                (Email: "admin@serendibtrails.lk", Name: "System Administrator", Role: "Admin", Phone: "+94 11 999 8888", Dept: "Management")
+            };
+
+            foreach (var staff in staffAccounts)
+            {
+                var staffUser = await userManager.FindByEmailAsync(staff.Email);
+                if (staffUser == null)
                 {
-                    await userManager.AddToRoleAsync(staffUser, "TravelAgent");
+                    staffUser = new IdentityUser { UserName = staff.Email, Email = staff.Email, EmailConfirmed = true };
+                    var res = await userManager.CreateAsync(staffUser, "Staff@123");
+                    if (res.Succeeded)
+                    {
+                        await userManager.AddToRoleAsync(staffUser, staff.Role);
+                    }
+                }
+
+                if (staffUser != null)
+                {
+                    // Ensure appropriate role in Identity
+                    if (!await userManager.IsInRoleAsync(staffUser, staff.Role))
+                    {
+                        await userManager.AddToRoleAsync(staffUser, staff.Role);
+                    }
+
+                    // Ensure Customer table entry reflects Role
+                    var cust = await context.Customers.FindAsync(staffUser.Id);
+                    if (cust == null)
+                    {
+                        context.Customers.Add(new Customer
+                        {
+                            Id = staffUser.Id,
+                            FullName = staff.Name,
+                            Phone = staff.Phone,
+                            Role = staff.Role,
+                            JoinedAt = DateTime.UtcNow,
+                            LastActiveAt = DateTime.UtcNow
+                        });
+                    }
+                    else
+                    {
+                        cust.Role = staff.Role;
+                        cust.FullName = staff.Name;
+                    }
+
+                    // Ensure TravelAgents table entry
+                    if (!await context.TravelAgents.AnyAsync(ta => ta.Id == staffUser.Id))
+                    {
+                        context.TravelAgents.Add(new TravelAgent
+                        {
+                            Id = staffUser.Id,
+                            FullName = staff.Name,
+                            Department = staff.Dept
+                        });
+                    }
                 }
             }
 
-            if (staffUser != null)
-            {
-                // Ensure TravelAgent role in Identity
-                if (!await userManager.IsInRoleAsync(staffUser, "TravelAgent"))
-                {
-                    await userManager.AddToRoleAsync(staffUser, "TravelAgent");
-                }
-
-                // Ensure Customer table entry reflects Role = "TravelAgent"
-                var cust = await context.Customers.FindAsync(staffUser.Id);
-                if (cust == null)
-                {
-                    context.Customers.Add(new Customer
-                    {
-                        Id = staffUser.Id,
-                        FullName = "Colombo Travel Agent",
-                        Phone = "+94 11 234 5678",
-                        Role = "TravelAgent",
-                        JoinedAt = DateTime.UtcNow,
-                        LastActiveAt = DateTime.UtcNow
-                    });
-                }
-                else
-                {
-                    cust.Role = "TravelAgent";
-                    cust.FullName = "Colombo Travel Agent";
-                }
-
-                // Ensure TravelAgents table entry
-                if (!await context.TravelAgents.AnyAsync(ta => ta.Id == staffUser.Id))
-                {
-                    context.TravelAgents.Add(new TravelAgent
-                    {
-                        Id = staffUser.Id,
-                        FullName = "Colombo Travel Agent",
-                        Department = "Operations"
-                    });
-                }
-
-                await context.SaveChangesAsync();
-            }
+            await context.SaveChangesAsync();
         }
     }
 }
