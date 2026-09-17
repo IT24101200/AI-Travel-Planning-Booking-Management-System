@@ -6,6 +6,7 @@ namespace backend.Models
     public class Tour
     {
         [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
 
         [ForeignKey(nameof(Destination))]

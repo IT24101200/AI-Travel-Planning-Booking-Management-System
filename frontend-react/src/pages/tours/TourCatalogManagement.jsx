@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { createTour, deleteTour, fetchDestinations, fetchTours, updateTour } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 
@@ -86,13 +87,17 @@ export default function TourCatalogManagement() {
   // Add a new tour to the database
   async function addTour(e) {
     e.preventDefault()
+    if (destinations.length === 0) {
+      setNotice('Create a destination first, then return here to add a tour.')
+      return
+    }
     if (!form.name.trim() || Number(form.price) <= 0) {
       setNotice('Please provide a valid tour name and price.')
       return
     }
 
     try {
-      const destId = Number(form.destinationId) || (destinations.length > 0 ? destinations[0].id : 1)
+      const destId = Number(form.destinationId)
       const selectedDest = destinations.find((d) => d.id === destId)
       await createTour({
         name: form.name.trim(),
@@ -216,7 +221,7 @@ export default function TourCatalogManagement() {
               ))}
             </select>
           ) : (
-            <input className="input" placeholder="Destination ID (e.g. 1)" value={form.destinationId} onChange={(e) => setForm({ ...form, destinationId: e.target.value })} />
+            <input className="input" value="No destinations available" disabled aria-label="No destinations available" />
           )}
           <input className="input" type="number" min="1" placeholder="Price USD" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
           <input className="input" placeholder="Duration (e.g. 4 hrs)" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
@@ -228,8 +233,21 @@ export default function TourCatalogManagement() {
             <option>Tea</option>
             <option>Snorkelling</option>
           </select>
-          <button className="btn btn--sm" type="submit" disabled={loading}>Add</button>
+          <button
+            className="btn btn--sm"
+            type="submit"
+            disabled={loading || destinations.length === 0}
+            title={destinations.length === 0 ? 'Create a destination first' : 'Add tour'}
+            style={destinations.length === 0 ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+          >
+            Add
+          </button>
         </div>
+        {destinations.length === 0 && (
+          <div className="notice notice--error">
+            No destinations exist yet. <Link to="/staff/destinations">Open Destination Management</Link> and add one before creating a tour.
+          </div>
+        )}
       </form>
 
       <div className="panel panel--solid staff-table-wrap">
