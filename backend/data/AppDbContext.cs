@@ -137,6 +137,7 @@ namespace backend.Data
             {
                 // Tour IDs are assigned exclusively by PostgreSQL's identity sequence.
                 entity.Property(t => t.Id).ValueGeneratedOnAdd();
+                entity.Property(t => t.ImageUrl).HasMaxLength(500);
             });
 
             builder.Entity<Itinerary>(entity =>

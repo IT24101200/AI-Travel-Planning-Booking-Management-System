@@ -9,6 +9,7 @@ namespace backend.DTOs
         public string Name { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public string? ImageUrl { get; set; }
         public decimal Price { get; set; }
         public string Currency { get; set; } = string.Empty;
         public double DurationHours { get; set; }
@@ -35,6 +36,9 @@ namespace backend.DTOs
 
         [MaxLength(2000, ErrorMessage = "Description cannot exceed 2000 characters.")]
         public string? Description { get; set; }
+
+        [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
+        public string? ImageUrl { get; set; }
 
         [Range(0, 1000000, ErrorMessage = "Price must be greater than or equal to 0.")]
         public decimal Price { get; set; }

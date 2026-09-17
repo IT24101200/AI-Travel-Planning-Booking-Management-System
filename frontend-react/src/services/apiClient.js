@@ -12,7 +12,6 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
 export const api = axios.create({
   baseURL,
   timeout: 12000,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 api.interceptors.request.use((config) => {
@@ -114,8 +113,15 @@ export async function fetchTours() {
   return data
 }
 
-export async function createTour(tour) {
-  const { data } = await api.post('/Tour', tour)
+export async function createTour(tour, image) {
+  const formData = new FormData()
+  Object.entries(tour).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) formData.append(key, value)
+  })
+  formData.append('image', image)
+  // Do not set Content-Type manually. The browser must add the multipart
+  // boundary that ASP.NET Core uses to parse the form and uploaded file.
+  const { data } = await api.post('/Tour', formData)
   return data
 }
 
