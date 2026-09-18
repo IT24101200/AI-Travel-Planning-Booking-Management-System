@@ -107,6 +107,16 @@ class ApiService {
     );
   }
 
+  /// Generic PATCH request
+  static Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
+    final headers = await _headers();
+    return await http.patch(
+      Uri.parse('$baseUrl/$endpoint'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+  }
+
   // ── Auth endpoints ──
 
   /// Register a new customer account
@@ -231,6 +241,16 @@ class ApiService {
       return jsonDecode(response.body);
     }
     return null;
+  }
+
+  /// Requests changes to an itinerary by marking it as Discarded, so a travel
+  /// agent / the planning workflow knows the customer was not satisfied with
+  /// the AI-proposed schedule.
+  static Future<bool> requestItineraryChanges(int itineraryId) async {
+    final response = await patch('itinerary/$itineraryId/status', {
+      'status': 'Discarded',
+    });
+    return response.statusCode == 200;
   }
 
   // ── Hotels ──

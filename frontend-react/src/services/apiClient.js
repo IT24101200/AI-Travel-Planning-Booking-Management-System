@@ -135,6 +135,11 @@ export async function updateItineraryStatus(id, status, notes) {
   return data
 }
 
+export async function removeItineraryItem(itineraryId, itemId) {
+  const { data } = await api.delete(`/Itinerary/${itineraryId}/items/${itemId}`)
+  return data
+}
+
 // ─────────────────────────────────────────────────────────────
 // Student C — Hotels & Transport API endpoints
 // ─────────────────────────────────────────────────────────────

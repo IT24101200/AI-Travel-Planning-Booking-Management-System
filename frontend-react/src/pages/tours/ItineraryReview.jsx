@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchItinerariesForReview, updateItineraryStatus } from '../../services/apiClient.js'
+import { fetchItinerariesForReview, updateItineraryStatus, removeItineraryItem } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 
 const STATUS_NAMES = ['Draft', 'Proposed', 'Accepted', 'Discarded']
@@ -68,7 +68,20 @@ export default function ItineraryReview() {
     }
   }
 
+  async function handleRemoveItem(itineraryNumericId, itemId, tourName) {
+    if (!itineraryNumericId || !itemId) return
+    if (!window.confirm(`Remove "${tourName || 'this excursion'}" from itinerary?`)) return
+    try {
+      await removeItineraryItem(itineraryNumericId, itemId)
+      setNote(`Removed "${tourName || 'excursion'}" from itinerary IT-${itineraryNumericId}.`)
+      await loadReviewQueue()
+    } catch (err) {
+      setNote(`Failed to remove item: ${err.response?.data?.message || err.message}`)
+    }
+  }
+
   const selected = rows.find((r) => r.id === open) ?? rows[0]
+  const canEdit = selected && selected.status !== 'Accepted' && selected.status !== 'Discarded'
 
   return (
     <div className="staff-page">
@@ -134,8 +147,23 @@ export default function ItineraryReview() {
               <ol className="staff-timeline">
                 {selected.items.map((it, idx) => (
                   <li key={it.id || idx}>
-                    <span>Day {it.dayNumber} · {it.startTime?.substring(0, 5) || '08:00'} - {it.endTime?.substring(0, 5) || '11:00'}</span>
-                    <p><b>{it.tourName || `Tour #${it.tourId}`}</b> · ${it.priceAtSelection}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <div>
+                        <span>Day {it.dayNumber} · {it.startTime?.substring(0, 5) || '08:00'} - {it.endTime?.substring(0, 5) || '11:00'}</span>
+                        <p style={{ margin: 0 }}><b>{it.tourName || `Tour #${it.tourId}`}</b> · ${it.priceAtSelection}</p>
+                      </div>
+                      {canEdit && it.id && (
+                        <button
+                          type="button"
+                          className="staff-mini staff-mini--danger"
+                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', alignSelf: 'center' }}
+                          onClick={() => handleRemoveItem(selected.numericId, it.id, it.tourName)}
+                          title="Remove excursion from itinerary"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ol>

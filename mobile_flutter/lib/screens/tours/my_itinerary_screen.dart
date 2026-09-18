@@ -47,6 +47,51 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
   }
 
+  /// Prompts the customer for confirmation, then marks the itinerary as
+  /// Discarded via the backend so it can be re-planned or reviewed by staff.
+  Future<void> _requestChanges() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Request Changes?'),
+        content: const Text(
+          'This will mark the current itinerary as needing revision. '
+          'Our team will review your trip request again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.jungle600),
+            child: const Text('Yes, Request Changes'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || _selectedItinerary == null) return;
+
+    final itineraryId = _selectedItinerary!['id'];
+    final success = await ApiService.requestItineraryChanges(itineraryId);
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Change request submitted.')),
+      );
+      setState(() => _selectedItinerary = null);
+      _loadItineraries();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to submit change request. Please try again.')),
+      );
+    }
+  }
+
   /// Load a single itinerary with items
   Future<void> _loadItineraryDetail(int id) async {
     setState(() => _loading = true);
@@ -286,6 +331,17 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 ],
               ),
               const Spacer(),
+              OutlinedButton.icon(
+                onPressed: _requestChanges,
+                icon: const Icon(Icons.edit_note, size: 18),
+                label: const Text('Request Changes'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.jungle600,
+                  side: const BorderSide(color: AppColors.jungle600),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+              ),
+              const SizedBox(width: 10),
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pushNamed(context, '/checkout', arguments: _selectedItinerary);
