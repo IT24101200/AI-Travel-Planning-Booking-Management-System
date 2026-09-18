@@ -217,7 +217,8 @@ class ApiService {
   // ── Itineraries ──
 
   static Future<List<dynamic>> getMyItineraries() async {
-    final response = await get('itinerary/my');
+    final userId = await getUserId();
+    final response = await get('itinerary/customer/$userId');
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List<dynamic>;
     }

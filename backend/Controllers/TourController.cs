@@ -27,6 +27,7 @@ namespace backend.Controllers
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> Search(
+            [FromQuery] string? search,
             [FromQuery] int? destinationId,
             [FromQuery] string? category,
             [FromQuery] decimal? minPrice,
@@ -38,7 +39,7 @@ namespace backend.Controllers
             [FromQuery] int pageSize = 10)
         {
             var results = await _service.SearchAsync(
-                destinationId, category, minPrice, maxPrice, status, sortBy, descending, page, pageSize);
+                search, destinationId, category, minPrice, maxPrice, status, sortBy, descending, page, pageSize);
             return Ok(results);
         }
 

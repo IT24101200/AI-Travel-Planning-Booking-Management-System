@@ -15,6 +15,7 @@ namespace backend.Services
         }
 
         public async Task<List<TourDto>> SearchAsync(
+            string? search,
             int? destinationId,
             string? category,
             decimal? minPrice,
@@ -26,6 +27,15 @@ namespace backend.Services
             int pageSize)
         {
             var query = _context.Tours.AsQueryable();
+
+            // Free-text search on Name or Description (case-insensitive)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var term = search.Trim().ToLower();
+                query = query.Where(t =>
+                    t.Name.ToLower().Contains(term) ||
+                    (t.Description != null && t.Description.ToLower().Contains(term)));
+            }
 
             // Apply filters only when a value is provided
             if (destinationId.HasValue)

@@ -70,6 +70,7 @@ namespace backend.Tests
 
             // Act — status is null, so SearchAsync defaults to "Active"
             var results = await service.SearchAsync(
+                search: null,
                 destinationId: null,
                 category: "Sightseeing",
                 minPrice: null,
