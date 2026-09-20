@@ -119,10 +119,7 @@ class SectionHeader extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     subtitle!,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.ink3,
-                    ),
+                    style: const TextStyle(fontSize: 13, color: AppColors.ink3),
                   ),
                 ],
               ],
@@ -178,7 +175,7 @@ class DestinationCardWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -194,10 +191,7 @@ class DestinationCardWidget extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 // Destination Photo
-                AppNetworkImage(
-                  imageUrl: imageUrl,
-                  fit: BoxFit.cover,
-                ),
+                AppNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover),
                 // Gradient for readability
                 Container(
                   decoration: BoxDecoration(
@@ -205,9 +199,9 @@ class DestinationCardWidget extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.1),
+                        Colors.black.withValues(alpha: 0.1),
                         Colors.transparent,
-                        Colors.black.withOpacity(0.85),
+                        Colors.black.withValues(alpha: 0.85),
                       ],
                       stops: const [0.0, 0.4, 1.0],
                     ),
@@ -218,15 +212,22 @@ class DestinationCardWidget extends StatelessWidget {
                   top: 12,
                   right: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.45),
+                      color: Colors.black.withValues(alpha: 0.45),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.star_rounded, color: AppColors.sand400, size: 14),
+                        const Icon(
+                          Icons.star_rounded,
+                          color: AppColors.sand400,
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           rating.toStringAsFixed(1),
@@ -275,7 +276,7 @@ class DestinationCardWidget extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 11,
                           ),
                         ),
@@ -303,17 +304,12 @@ class LoadingIndicator extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(
-            color: AppColors.jungle600,
-          ),
+          const CircularProgressIndicator(color: AppColors.jungle600),
           if (message != null) ...[
             const SizedBox(height: 16),
             Text(
               message!,
-              style: const TextStyle(
-                color: AppColors.ink2,
-                fontSize: 14,
-              ),
+              style: const TextStyle(color: AppColors.ink2, fontSize: 14),
             ),
           ],
         ],
@@ -339,10 +335,14 @@ class ErrorMessage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.coral500.withOpacity(0.1),
+                color: AppColors.coral500.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.error_outline, size: 36, color: AppColors.coral500),
+              child: const Icon(
+                Icons.error_outline,
+                size: 36,
+                color: AppColors.coral500,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -421,7 +421,9 @@ class EmptyState extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.jungle600,
                   side: const BorderSide(color: AppColors.jungle600),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: Text(actionLabel!),
               ),
@@ -469,9 +471,9 @@ class StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         status,

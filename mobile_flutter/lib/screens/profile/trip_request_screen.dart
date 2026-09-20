@@ -42,7 +42,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is Map<String, dynamic>) {
       final name = args['name']?.toString() ?? '';
-      _requestTextCtrl.text = 'I want to experience $name with guided tours, quality hotel and comfortable transit.';
+      _requestTextCtrl.text =
+          'I want to experience $name with guided tours, quality hotel and comfortable transit.';
       _selectedDestinationName = name;
     }
   }
@@ -57,7 +58,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           _loadingDestinations = false;
           if (_destinations.isNotEmpty && _selectedDestinationId == null) {
             _selectedDestinationId = _destinations.first['id'];
-            _selectedDestinationName = _destinations.first['name'] ?? 'Sigiriya';
+            _selectedDestinationName =
+                _destinations.first['name'] ?? 'Sigiriya';
           }
         });
       }
@@ -137,15 +139,20 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
       if (result['statusCode'] == 200 || result['statusCode'] == 201) {
         setState(() {
-          _success = 'Trip request submitted! 4 AI Agents are now coordinating your itinerary, hotel & transport options.';
+          _success =
+              'Trip request submitted! 4 AI Agents are now coordinating your itinerary, hotel & transport options.';
         });
       } else {
         setState(() {
-          _error = result['message'] ?? 'Failed to submit trip request. Please try again.';
+          _error =
+              result['message'] ??
+              'Failed to submit trip request. Please try again.';
         });
       }
     } catch (_) {
-      setState(() => _error = 'Unable to reach backend API. Check network connection.');
+      setState(
+        () => _error = 'Unable to reach backend API. Check network connection.',
+      );
     }
     if (mounted) setState(() => _loading = false);
   }
@@ -166,12 +173,12 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final previewImage = AppDestinations.getImageForDestination(_selectedDestinationName);
+    final previewImage = AppDestinations.getImageForDestination(
+      _selectedDestinationName,
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI Trip Planner'),
-      ),
+      appBar: AppBar(title: const Text('AI Trip Planner')),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,8 +199,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withOpacity(0.3),
-                        AppColors.jungle900.withOpacity(0.85),
+                        Colors.black.withValues(alpha: 0.3),
+                        AppColors.jungle900.withValues(alpha: 0.85),
                       ],
                     ),
                   ),
@@ -210,7 +217,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           color: AppColors.sand500,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.auto_awesome, color: AppColors.jungle900, size: 24),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: AppColors.jungle900,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       const Expanded(
@@ -257,18 +268,27 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: AppColors.coral500.withOpacity(0.1),
+                          color: AppColors.coral500.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.coral500.withOpacity(0.3)),
+                          border: Border.all(
+                            color: AppColors.coral500.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error_outline, color: AppColors.coral500, size: 20),
+                            const Icon(
+                              Icons.error_outline,
+                              color: AppColors.coral500,
+                              size: 20,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 _error!,
-                                style: const TextStyle(color: AppColors.coral500, fontSize: 13),
+                                style: const TextStyle(
+                                  color: AppColors.coral500,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ],
@@ -284,14 +304,20 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.leaf50,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: AppColors.jungle600.withOpacity(0.3)),
+                          border: Border.all(
+                            color: AppColors.jungle600.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Row(
                               children: [
-                                Icon(Icons.check_circle, color: AppColors.jungle600, size: 22),
+                                Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.jungle600,
+                                  size: 22,
+                                ),
                                 SizedBox(width: 8),
                                 Text(
                                   'Trip Planning Initiated!',
@@ -306,21 +332,29 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             const SizedBox(height: 6),
                             Text(
                               _success!,
-                              style: const TextStyle(color: AppColors.ink2, fontSize: 13),
+                              style: const TextStyle(
+                                color: AppColors.ink2,
+                                fontSize: 13,
+                              ),
                             ),
                             const SizedBox(height: 14),
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton.icon(
                                 onPressed: () {
-                                  Navigator.pushReplacementNamed(context, '/trip-history');
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/trip-history',
+                                  );
                                 },
                                 icon: const Icon(Icons.arrow_forward, size: 16),
                                 label: const Text('View in My Trips'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.jungle600,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 10,
+                                  ),
                                 ),
                               ),
                             ),
@@ -341,17 +375,26 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                     ),
                     const SizedBox(height: 8),
                     _loadingDestinations
-                        ? const LinearProgressIndicator(color: AppColors.jungle600)
+                        ? const LinearProgressIndicator(
+                            color: AppColors.jungle600,
+                          )
                         : DropdownButtonFormField<int>(
-                            value: _selectedDestinationId,
+                            initialValue: _selectedDestinationId,
                             decoration: const InputDecoration(
                               hintText: 'Select destination',
-                              prefixIcon: Icon(Icons.place_outlined, color: AppColors.jungle600),
+                              prefixIcon: Icon(
+                                Icons.place_outlined,
+                                color: AppColors.jungle600,
+                              ),
                             ),
-                            items: _destinations.map<DropdownMenuItem<int>>((d) {
+                            items: _destinations.map<DropdownMenuItem<int>>((
+                              d,
+                            ) {
                               return DropdownMenuItem<int>(
                                 value: d['id'],
-                                child: Text('${d['name']} — ${d['country'] ?? 'Sri Lanka'}'),
+                                child: Text(
+                                  '${d['name']} — ${d['country'] ?? 'Sri Lanka'}',
+                                ),
                               );
                             }).toList(),
                             onChanged: (v) {
@@ -362,7 +405,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                   orElse: () => null,
                                 );
                                 if (match != null) {
-                                  _selectedDestinationName = match['name'] ?? '';
+                                  _selectedDestinationName =
+                                      match['name'] ?? '';
                                 }
                               });
                             },
@@ -389,13 +433,20 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             child: InputDecorator(
                               decoration: const InputDecoration(
                                 labelText: 'Departure',
-                                prefixIcon: Icon(Icons.calendar_month, color: AppColors.jungle600, size: 20),
+                                prefixIcon: Icon(
+                                  Icons.calendar_month,
+                                  color: AppColors.jungle600,
+                                  size: 20,
+                                ),
                               ),
                               child: Text(
                                 _startDate != null
                                     ? '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}'
                                     : 'Select',
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
@@ -408,13 +459,20 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             child: InputDecorator(
                               decoration: const InputDecoration(
                                 labelText: 'Return',
-                                prefixIcon: Icon(Icons.calendar_month, color: AppColors.jungle600, size: 20),
+                                prefixIcon: Icon(
+                                  Icons.calendar_month,
+                                  color: AppColors.jungle600,
+                                  size: 20,
+                                ),
                               ),
                               child: Text(
                                 _endDate != null
                                     ? '${_endDate!.year}-${_endDate!.month.toString().padLeft(2, '0')}-${_endDate!.day.toString().padLeft(2, '0')}'
                                     : 'Select',
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
@@ -444,7 +502,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                 controller: _travellerCtrl,
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration(
-                                  prefixIcon: Icon(Icons.group_outlined, color: AppColors.jungle600, size: 20),
+                                  prefixIcon: Icon(
+                                    Icons.group_outlined,
+                                    color: AppColors.jungle600,
+                                    size: 20,
+                                  ),
                                 ),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) return 'Required';
@@ -475,7 +537,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration(
                                   prefixText: '\$ ',
-                                  prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: AppColors.jungle600, size: 20),
+                                  prefixIcon: Icon(
+                                    Icons.account_balance_wallet_outlined,
+                                    color: AppColors.jungle600,
+                                    size: 20,
+                                  ),
                                 ),
                                 validator: (v) {
                                   if (v == null || v.isEmpty) return 'Required';
@@ -518,14 +584,20 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                       controller: _requestTextCtrl,
                       maxLines: 4,
                       decoration: const InputDecoration(
-                        hintText: 'e.g., A 5-day nature and heritage vacation visiting Sigiriya and Ella with boutique stays and scenic train rides...',
+                        hintText:
+                            'e.g., A 5-day nature and heritage vacation visiting Sigiriya and Ella with boutique stays and scenic train rides...',
                         alignLabelWithHint: true,
                         prefixIcon: Padding(
                           padding: EdgeInsets.only(bottom: 60),
-                          child: Icon(Icons.edit_note, color: AppColors.jungle600),
+                          child: Icon(
+                            Icons.edit_note,
+                            color: AppColors.jungle600,
+                          ),
                         ),
                       ),
-                      validator: (v) => (v == null || v.isEmpty) ? 'Please describe your trip preferences' : null,
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Please describe your trip preferences'
+                          : null,
                     ),
 
                     const SizedBox(height: 28),
@@ -539,18 +611,31 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               )
-                            : const Icon(Icons.auto_awesome, color: AppColors.sand400),
+                            : const Icon(
+                                Icons.auto_awesome,
+                                color: AppColors.sand400,
+                              ),
                         label: Text(
-                          _loading ? 'Orchestrating 4 AI Agents...' : 'Plan My Trip with AI',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          _loading
+                              ? 'Orchestrating 4 AI Agents...'
+                              : 'Plan My Trip with AI',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.jungle600,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                           elevation: 2,
                         ),
                       ),
@@ -571,7 +656,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       padding: const EdgeInsets.only(right: 8),
       child: ActionChip(
         label: Text(label),
-        labelStyle: const TextStyle(fontSize: 11, color: AppColors.jungle700, fontWeight: FontWeight.w600),
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          color: AppColors.jungle700,
+          fontWeight: FontWeight.w600,
+        ),
         backgroundColor: AppColors.leaf50,
         side: const BorderSide(color: AppColors.leaf100),
         onPressed: () => _applyQuickPrompt(label),

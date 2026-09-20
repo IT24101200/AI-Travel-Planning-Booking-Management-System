@@ -8,10 +8,12 @@ class AccommodationOptionsScreen extends StatefulWidget {
   const AccommodationOptionsScreen({super.key});
 
   @override
-  State<AccommodationOptionsScreen> createState() => _AccommodationOptionsScreenState();
+  State<AccommodationOptionsScreen> createState() =>
+      _AccommodationOptionsScreenState();
 }
 
-class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen> {
+class _AccommodationOptionsScreenState
+    extends State<AccommodationOptionsScreen> {
   List<dynamic> _hotels = [];
   bool _loading = true;
   String? _error;
@@ -56,24 +58,28 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Hotels & Boutique Stays'),
-      ),
+      appBar: AppBar(title: const Text('Hotels & Boutique Stays')),
       body: _loading
-          ? const LoadingIndicator(message: 'Finding luxury & heritage hotels...')
+          ? const LoadingIndicator(
+              message: 'Finding luxury & heritage hotels...',
+            )
           : _error != null
-              ? ErrorMessage(message: _error!, onRetry: _loadHotels)
-              : _hotels.isEmpty
-                  ? _buildSampleHotelsView()
-                  : RefreshIndicator(
-                      color: AppColors.jungle600,
-                      onRefresh: _loadHotels,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        itemCount: _hotels.length,
-                        itemBuilder: (context, index) => _buildHotelCard(_hotels[index], index),
-                      ),
-                    ),
+          ? ErrorMessage(message: _error!, onRetry: _loadHotels)
+          : _hotels.isEmpty
+          ? _buildSampleHotelsView()
+          : RefreshIndicator(
+              color: AppColors.jungle600,
+              onRefresh: _loadHotels,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                itemCount: _hotels.length,
+                itemBuilder: (context, index) =>
+                    _buildHotelCard(_hotels[index], index),
+              ),
+            ),
     );
   }
 
@@ -92,7 +98,7 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
         border: Border.all(color: AppColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -128,18 +134,29 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
               Row(
                 children: List.generate(
                   stars,
-                  (_) => const Icon(Icons.star_rounded, size: 16, color: AppColors.sand500),
+                  (_) => const Icon(
+                    Icons.star_rounded,
+                    size: 16,
+                    color: AppColors.sand500,
+                  ),
                 ),
               ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  const Icon(Icons.location_on_outlined, size: 14, color: AppColors.ink3),
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: AppColors.ink3,
+                  ),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       address,
-                      style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.ink3,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -153,7 +170,11 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.meeting_room_outlined, size: 16, color: AppColors.jungle600),
+                const Icon(
+                  Icons.meeting_room_outlined,
+                  size: 16,
+                  color: AppColors.jungle600,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   'Available Room Types (${rooms.length})',
@@ -198,7 +219,7 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.leaf50.withOpacity(0.5),
+        color: AppColors.leaf50.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.leaf100),
       ),
@@ -210,7 +231,11 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
               color: Colors.white,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.bed_outlined, color: AppColors.jungle600, size: 20),
+            child: const Icon(
+              Icons.bed_outlined,
+              color: AppColors.jungle600,
+              size: 20,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -261,27 +286,57 @@ class _AccommodationOptionsScreenState extends State<AccommodationOptionsScreen>
         'address': 'Dambulla / Sigiriya, Cultural Triangle',
         'starRating': 5,
         'rooms': [
-          {'roomType': 'Superior Panoramic Room', 'capacity': 2, 'pricePerNight': 195, 'currency': 'USD'},
-          {'roomType': 'Luxury Suite with Jacuzzi', 'capacity': 3, 'pricePerNight': 285, 'currency': 'USD'},
-        ]
+          {
+            'roomType': 'Superior Panoramic Room',
+            'capacity': 2,
+            'pricePerNight': 195,
+            'currency': 'USD',
+          },
+          {
+            'roomType': 'Luxury Suite with Jacuzzi',
+            'capacity': 3,
+            'pricePerNight': 285,
+            'currency': 'USD',
+          },
+        ],
       },
       {
         'name': '98 Acres Resort & Spa',
         'address': 'Greenland Estate, Ella',
         'starRating': 5,
         'rooms': [
-          {'roomType': 'Standard Chalet', 'capacity': 2, 'pricePerNight': 210, 'currency': 'USD'},
-          {'roomType': 'Greenland Executive Suite', 'capacity': 4, 'pricePerNight': 340, 'currency': 'USD'},
-        ]
+          {
+            'roomType': 'Standard Chalet',
+            'capacity': 2,
+            'pricePerNight': 210,
+            'currency': 'USD',
+          },
+          {
+            'roomType': 'Greenland Executive Suite',
+            'capacity': 4,
+            'pricePerNight': 340,
+            'currency': 'USD',
+          },
+        ],
       },
       {
         'name': 'Cinnamon Wild Yala',
         'address': 'Kirinda, Deep South Wildlife Reserve',
         'starRating': 4,
         'rooms': [
-          {'roomType': 'Jungle Chalet', 'capacity': 2, 'pricePerNight': 175, 'currency': 'USD'},
-          {'roomType': 'Beach Chalet', 'capacity': 2, 'pricePerNight': 225, 'currency': 'USD'},
-        ]
+          {
+            'roomType': 'Jungle Chalet',
+            'capacity': 2,
+            'pricePerNight': 175,
+            'currency': 'USD',
+          },
+          {
+            'roomType': 'Beach Chalet',
+            'capacity': 2,
+            'pricePerNight': 225,
+            'currency': 'USD',
+          },
+        ],
       },
     ];
 

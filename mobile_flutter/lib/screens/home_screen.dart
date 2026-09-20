@@ -62,7 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: const Icon(Icons.auto_awesome, color: AppColors.sand400),
               label: const Text(
                 'AI Plan Trip',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             )
           : null,
@@ -170,8 +173,8 @@ class _ExploreTabState extends State<_ExploreTab> {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      AppColors.jungle900.withOpacity(0.4),
-                      AppColors.jungle900.withOpacity(0.85),
+                      AppColors.jungle900.withValues(alpha: 0.4),
+                      AppColors.jungle900.withValues(alpha: 0.85),
                     ],
                   ),
                 ),
@@ -179,7 +182,10 @@ class _ExploreTabState extends State<_ExploreTab> {
               // Header Content
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -213,12 +219,16 @@ class _ExploreTabState extends State<_ExploreTab> {
                           ),
                           Container(
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               shape: BoxShape.circle,
                             ),
                             child: IconButton(
-                              icon: const Icon(Icons.search, color: Colors.white),
-                              onPressed: () => Navigator.pushNamed(context, '/tour-search'),
+                              icon: const Icon(
+                                Icons.search,
+                                color: Colors.white,
+                              ),
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/tour-search'),
                             ),
                           ),
                         ],
@@ -226,16 +236,20 @@ class _ExploreTabState extends State<_ExploreTab> {
                       const SizedBox(height: 18),
                       // Search Trigger Bar
                       InkWell(
-                        onTap: () => Navigator.pushNamed(context, '/tour-search'),
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/tour-search'),
                         borderRadius: BorderRadius.circular(14),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
+                                color: Colors.black.withValues(alpha: 0.15),
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
@@ -243,7 +257,11 @@ class _ExploreTabState extends State<_ExploreTab> {
                           ),
                           child: const Row(
                             children: [
-                              Icon(Icons.search, color: AppColors.jungle600, size: 20),
+                              Icon(
+                                Icons.search,
+                                color: AppColors.jungle600,
+                                size: 20,
+                              ),
                               SizedBox(width: 12),
                               Expanded(
                                 child: Text(
@@ -354,7 +372,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.jungle900.withOpacity(0.15),
+                    color: AppColors.jungle900.withValues(alpha: 0.15),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -365,10 +383,14 @@ class _ExploreTabState extends State<_ExploreTab> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(Icons.psychology, color: AppColors.sand400, size: 36),
+                    child: const Icon(
+                      Icons.psychology,
+                      color: AppColors.sand400,
+                      size: 36,
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -387,7 +409,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                         Text(
                           'Let 4 autonomous agents build, schedule & validate your dream vacation.',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.85),
+                            color: Colors.white.withValues(alpha: 0.85),
                             fontSize: 12,
                           ),
                         ),
@@ -396,14 +418,23 @@ class _ExploreTabState extends State<_ExploreTab> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: () => Navigator.pushNamed(context, '/trip-request'),
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/trip-request'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.sand500,
                       foregroundColor: AppColors.jungle900,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    child: const Text('Start', style: TextStyle(fontWeight: FontWeight.w700)),
+                    child: const Text(
+                      'Start',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
                   ),
                 ],
               ),
@@ -464,7 +495,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 width: 50,
                 height: 50,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(icon, color: color, size: 24),
@@ -487,7 +518,9 @@ class _ExploreTabState extends State<_ExploreTab> {
 
   Widget _buildTourCard(BuildContext context, Map<String, dynamic> tour) {
     final tourName = tour['name'] ?? 'Tour';
-    final uploadedImage = ApiService.resolveMediaUrl(tour['imageUrl']?.toString());
+    final uploadedImage = ApiService.resolveMediaUrl(
+      tour['imageUrl']?.toString(),
+    );
     final imageUrl = uploadedImage.isNotEmpty
         ? uploadedImage
         : AppDestinations.getImageForDestination(tourName);
@@ -499,7 +532,7 @@ class _ExploreTabState extends State<_ExploreTab> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -507,7 +540,11 @@ class _ExploreTabState extends State<_ExploreTab> {
         border: Border.all(color: AppColors.line),
       ),
       child: InkWell(
-        onTap: () => Navigator.pushNamed(context, '/tour-details', arguments: tour['id']),
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/tour-details',
+          arguments: tour['id'],
+        ),
         borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -516,7 +553,9 @@ class _ExploreTabState extends State<_ExploreTab> {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                   child: AppNetworkImage(
                     imageUrl: imageUrl,
                     height: 140,
@@ -528,9 +567,12 @@ class _ExploreTabState extends State<_ExploreTab> {
                   top: 10,
                   right: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.jungle800.withOpacity(0.9),
+                      color: AppColors.jungle800.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -547,19 +589,29 @@ class _ExploreTabState extends State<_ExploreTab> {
                   bottom: 10,
                   left: 10,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
+                      color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.schedule, size: 12, color: Colors.white),
+                        const Icon(
+                          Icons.schedule,
+                          size: 12,
+                          color: Colors.white,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${tour['durationHours'] ?? 2} Hours',
-                          style: const TextStyle(color: Colors.white, fontSize: 11),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
@@ -601,9 +653,24 @@ class _ExploreTabState extends State<_ExploreTab> {
 
   Widget _buildSampleTourList(BuildContext context) {
     final sampleTours = [
-      {'name': 'Sigiriya Lion Rock Sunrise Climb', 'price': 185, 'category': 'UNESCO Heritage', 'durationHours': 4},
-      {'name': 'Ella Nine Arches Bridge & Tea Walk', 'price': 145, 'category': 'Hiking & Train', 'durationHours': 3},
-      {'name': 'Mirissa Whale Watching Cruise', 'price': 168, 'category': 'Marine Wildlife', 'durationHours': 5},
+      {
+        'name': 'Sigiriya Lion Rock Sunrise Climb',
+        'price': 185,
+        'category': 'UNESCO Heritage',
+        'durationHours': 4,
+      },
+      {
+        'name': 'Ella Nine Arches Bridge & Tea Walk',
+        'price': 145,
+        'category': 'Hiking & Train',
+        'durationHours': 3,
+      },
+      {
+        'name': 'Mirissa Whale Watching Cruise',
+        'price': 168,
+        'category': 'Marine Wildlife',
+        'durationHours': 5,
+      },
     ];
 
     return ListView.builder(

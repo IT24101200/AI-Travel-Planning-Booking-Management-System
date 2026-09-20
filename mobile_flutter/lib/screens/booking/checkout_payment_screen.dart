@@ -70,7 +70,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     try {
       final result = await ApiService.createPayment({
         'bookingId': _booking!['id'],
-        'amount': _booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0,
+        'amount':
+            _booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0,
         'currency': _booking!['currency'] ?? 'USD',
         'stripeToken': 'tok_visa', // Stripe sandbox test token
       });
@@ -92,7 +93,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         });
       } else {
         setState(() {
-          _paymentMessage = result['message'] ?? 'Payment authorization declined. Try again.';
+          _paymentMessage =
+              result['message'] ?? 'Payment authorization declined. Try again.';
         });
       }
     } catch (e) {
@@ -119,14 +121,15 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       );
     }
 
-    final total = (_booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0).toDouble();
+    final total =
+        (_booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0)
+            .toDouble();
     final currency = _booking!['currency'] ?? 'USD';
-    final bookingRef = _booking!['bookingReference'] ?? 'ITIN-#${_booking!['id']}';
+    final bookingRef =
+        _booking!['bookingReference'] ?? 'ITIN-#${_booking!['id']}';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Complete Booking & Pay'),
-      ),
+      appBar: AppBar(title: const Text('Complete Booking & Pay')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -148,7 +151,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       color: AppColors.jungle600,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.verified_user_outlined, color: Colors.white, size: 22),
+                    child: const Icon(
+                      Icons.verified_user_outlined,
+                      color: Colors.white,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -165,7 +172,10 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         ),
                         Text(
                           'Reference: $bookingRef',
-                          style: const TextStyle(fontSize: 12, color: AppColors.ink2),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.ink2,
+                          ),
                         ),
                       ],
                     ),
@@ -179,12 +189,18 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
             // Itemized Breakdown
             const Text(
               'Trip Inclusions Breakdown',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink,
+              ),
             ),
             const SizedBox(height: 10),
 
             if (_booking!['bookingItems'] != null) ...[
-              ...((_booking!['bookingItems'] as List).map<Widget>((item) => _buildItemTile(item))),
+              ...((_booking!['bookingItems'] as List).map<Widget>(
+                (item) => _buildItemTile(item),
+              )),
             ] else if (_booking!['items'] != null) ...[
               ...((_booking!['items'] as List).map<Widget>((item) {
                 return _buildItineraryItemTile(item);
@@ -205,7 +221,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                 border: Border.all(color: AppColors.line),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
+                    color: Colors.black.withValues(alpha: 0.04),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
@@ -219,7 +235,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     children: [
                       Text(
                         'Total Payable',
-                        style: TextStyle(fontSize: 13, color: AppColors.ink3, fontWeight: FontWeight.w500),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.ink3,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       Text(
                         'Includes taxes & agent approval fees',
@@ -244,7 +264,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
             // Stripe Sandbox Payment Card
             const Text(
               'Payment Method',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.ink),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: AppColors.ink,
+              ),
             ),
             const SizedBox(height: 10),
 
@@ -260,7 +284,10 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFF635BFF), // Stripe purple
                           borderRadius: BorderRadius.circular(8),
@@ -281,16 +308,27 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           children: [
                             Text(
                               'Test Visa • Sandbox Gateway',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                                color: AppColors.ink,
+                              ),
                             ),
                             Text(
                               '•••• •••• •••• 4242',
-                              style: TextStyle(fontSize: 12, color: AppColors.ink3),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.ink3,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.check_circle, color: AppColors.jungle600, size: 20),
+                      const Icon(
+                        Icons.check_circle,
+                        color: AppColors.jungle600,
+                        size: 20,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -318,12 +356,12 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                 decoration: BoxDecoration(
                   color: _paymentMessage!.contains('authorized')
                       ? AppColors.leaf50
-                      : AppColors.coral500.withOpacity(0.1),
+                      : AppColors.coral500.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _paymentMessage!.contains('authorized')
-                        ? AppColors.jungle600.withOpacity(0.3)
-                        : AppColors.coral500.withOpacity(0.3),
+                        ? AppColors.jungle600.withValues(alpha: 0.3)
+                        : AppColors.coral500.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Text(
@@ -350,18 +388,28 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
                       )
                     : const Icon(Icons.lock, size: 18),
                 label: Text(
-                  _paying ? 'Processing Authorization...' : 'Authorize Payment (\$${total.toStringAsFixed(0)})',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  _paying
+                      ? 'Processing Authorization...'
+                      : 'Authorize Payment (\$${total.toStringAsFixed(0)})',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.jungle600,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
@@ -387,12 +435,20 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           Expanded(
             child: Text(
               item['tourName'] ?? 'Experience Package',
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.ink,
+              ),
             ),
           ),
           Text(
             '\$${(item['subtotal'] ?? 0).toStringAsFixed(0)}',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.jungle600),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.jungle600,
+            ),
           ),
         ],
       ),
@@ -413,7 +469,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.explore_outlined, color: AppColors.ocean500, size: 20),
+          const Icon(
+            Icons.explore_outlined,
+            color: AppColors.ocean500,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -421,7 +481,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
               children: [
                 Text(
                   tourName,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.ink,
+                  ),
                 ),
                 Text(
                   'Day ${item['dayNumber'] ?? 1}',
@@ -432,7 +496,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           ),
           Text(
             '\$${price.toStringAsFixed(0)}',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.jungle600),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.jungle600,
+            ),
           ),
         ],
       ),
@@ -449,17 +517,29 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.luggage_outlined, color: AppColors.jungle600, size: 22),
+          const Icon(
+            Icons.luggage_outlined,
+            color: AppColors.jungle600,
+            size: 22,
+          ),
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
               'Coordinated Tours, Boutique Rooms & Scheduled Transit',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.ink,
+              ),
             ),
           ),
           Text(
             '\$${total.toStringAsFixed(0)} $currency',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.jungle600),
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: AppColors.jungle600,
+            ),
           ),
         ],
       ),

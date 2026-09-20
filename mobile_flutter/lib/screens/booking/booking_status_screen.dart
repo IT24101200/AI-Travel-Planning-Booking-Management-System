@@ -84,8 +84,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     }
 
     final statusStr = _getStatusString();
-    final isConfirmed = statusStr.toLowerCase() == 'confirmed' || statusStr.toLowerCase() == 'completed';
-    final bookingRef = _booking!['bookingReference'] ?? 'SERENDIB-#${_booking!['id']}';
+    final isConfirmed =
+        statusStr.toLowerCase() == 'confirmed' ||
+        statusStr.toLowerCase() == 'completed';
+    final bookingRef =
+        _booking!['bookingReference'] ?? 'SERENDIB-#${_booking!['id']}';
     final total = (_booking!['totalCost'] ?? 0).toDouble();
     final currency = _booking!['currency'] ?? 'USD';
 
@@ -119,7 +122,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   Icon(
                     isConfirmed ? Icons.check_circle : Icons.hourglass_top,
                     size: 16,
-                    color: isConfirmed ? AppColors.jungle600 : AppColors.sand600,
+                    color: isConfirmed
+                        ? AppColors.jungle600
+                        : AppColors.sand600,
                   ),
                   const SizedBox(width: 6),
                   Text(
@@ -127,7 +132,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       fontSize: 12,
-                      color: isConfirmed ? AppColors.jungle700 : AppColors.sand700,
+                      color: isConfirmed
+                          ? AppColors.jungle700
+                          : AppColors.sand700,
                       letterSpacing: 0.8,
                     ),
                   ),
@@ -160,10 +167,12 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.leaf400.withOpacity(0.5)),
+                  border: Border.all(
+                    color: AppColors.leaf400.withValues(alpha: 0.5),
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.jungle900.withOpacity(0.08),
+                      color: AppColors.jungle900.withValues(alpha: 0.08),
                       blurRadius: 16,
                       offset: const Offset(0, 4),
                     ),
@@ -176,7 +185,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.travel_explore, color: AppColors.jungle600, size: 22),
+                            Icon(
+                              Icons.travel_explore,
+                              color: AppColors.jungle600,
+                              size: 22,
+                            ),
                             SizedBox(width: 8),
                             Text(
                               'SERENDIB TRAILS PASS',
@@ -190,14 +203,21 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                           ],
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.leaf100,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text(
                             'CONFIRMED',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.jungle700),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.jungle700,
+                            ),
                           ),
                         ),
                       ],
@@ -250,11 +270,22 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 children: [
                   const Text(
                     'Commercial Summary',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink),
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
                   ),
                   const Divider(height: 20, color: AppColors.line),
-                  _detailRow('Total Invoiced', '\$${total.toStringAsFixed(2)} $currency'),
-                  _detailRow('Created Date', _booking!['createdAt']?.toString().substring(0, 10) ?? 'N/A'),
+                  _detailRow(
+                    'Total Invoiced',
+                    '\$${total.toStringAsFixed(2)} $currency',
+                  ),
+                  _detailRow(
+                    'Created Date',
+                    _booking!['createdAt']?.toString().substring(0, 10) ??
+                        'N/A',
+                  ),
                   _detailRow('Status Phase', statusStr),
                 ],
               ),
@@ -277,29 +308,55 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.shield_outlined, size: 18, color: AppColors.jungle600),
+                        Icon(
+                          Icons.shield_outlined,
+                          size: 18,
+                          color: AppColors.jungle600,
+                        ),
                         SizedBox(width: 8),
                         Text(
                           'Staff Review & Audit Trail',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink),
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
                         ),
                       ],
                     ),
                     const Divider(height: 20, color: AppColors.line),
-                    ...(_booking!['bookingApprovals'] as List).map<Widget>((approval) {
-                      final decision = approval['decision']?.toString() ?? 'Approved';
+                    ...(_booking!['bookingApprovals'] as List).map<Widget>((
+                      approval,
+                    ) {
+                      final decision =
+                          approval['decision']?.toString() ?? 'Approved';
                       final isApproved = decision.toLowerCase() == 'approved';
                       return ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: Icon(
                           isApproved ? Icons.verified_user : Icons.rate_review,
-                          color: isApproved ? AppColors.jungle600 : AppColors.sand500,
+                          color: isApproved
+                              ? AppColors.jungle600
+                              : AppColors.sand500,
                         ),
-                        title: Text(decision, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                        subtitle: Text(approval['comment'] ?? 'No comments provided', style: const TextStyle(fontSize: 12)),
+                        title: Text(
+                          decision,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          approval['comment'] ?? 'No comments provided',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         trailing: Text(
-                          approval['decidedAt']?.toString().substring(0, 10) ?? '',
-                          style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                          approval['decidedAt']?.toString().substring(0, 10) ??
+                              '',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.ink3,
+                          ),
                         ),
                       );
                     }),
@@ -313,12 +370,15 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
+                onPressed: () =>
+                    Navigator.pushReplacementNamed(context, '/home'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.jungle600,
                   side: const BorderSide(color: AppColors.jungle600),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 child: const Text('Back to Home Dashboard'),
               ),
@@ -335,7 +395,8 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     final steps = ['Draft', 'Staff Review', 'Confirmed'];
 
     int currentStep = 0;
-    if (currentStatus == 'awaitingapproval' || currentStatus == 'awaiting approval') {
+    if (currentStatus == 'awaitingapproval' ||
+        currentStatus == 'awaiting approval') {
       currentStep = 1;
     } else if (currentStatus == 'confirmed' || currentStatus == 'completed') {
       currentStep = 2;
@@ -348,7 +409,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
           return Expanded(
             child: Container(
               height: 3,
-              color: stepIndex < currentStep ? AppColors.jungle600 : AppColors.lineStrong,
+              color: stepIndex < currentStep
+                  ? AppColors.jungle600
+                  : AppColors.lineStrong,
             ),
           );
         }
@@ -365,7 +428,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 shape: BoxShape.circle,
                 color: isCompleted ? AppColors.jungle600 : Colors.white,
                 border: Border.all(
-                  color: isCompleted ? AppColors.jungle600 : AppColors.lineStrong,
+                  color: isCompleted
+                      ? AppColors.jungle600
+                      : AppColors.lineStrong,
                   width: isCurrent ? 3 : 1.5,
                 ),
               ),
@@ -396,8 +461,18 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.ink3, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink)),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.ink3, fontSize: 13),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: AppColors.ink,
+            ),
+          ),
         ],
       ),
     );

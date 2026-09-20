@@ -95,7 +95,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(unreadCount > 0 ? 'Notifications ($unreadCount)' : 'Notifications'),
+        title: Text(
+          unreadCount > 0 ? 'Notifications ($unreadCount)' : 'Notifications',
+        ),
         actions: [
           if (unreadCount > 0)
             TextButton.icon(
@@ -103,7 +105,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               icon: const Icon(Icons.done_all, color: Colors.white, size: 16),
               label: const Text(
                 'Read All',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
             ),
         ],
@@ -111,24 +117,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: _loading
           ? const LoadingIndicator(message: 'Checking for updates...')
           : _error != null
-              ? ErrorMessage(message: _error!, onRetry: _loadNotifications)
-              : _notifications.isEmpty
-                  ? const EmptyState(
-                      icon: Icons.notifications_none,
-                      message: 'No notifications at this time.\nUpdates regarding trip planning & bookings will appear here.',
-                    )
-                  : RefreshIndicator(
-                      color: AppColors.jungle600,
-                      onRefresh: _loadNotifications,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        itemCount: _notifications.length,
-                        itemBuilder: (context, index) {
-                          final n = _notifications[index];
-                          return _buildNotificationCard(n, index);
-                        },
-                      ),
-                    ),
+          ? ErrorMessage(message: _error!, onRetry: _loadNotifications)
+          : _notifications.isEmpty
+          ? const EmptyState(
+              icon: Icons.notifications_none,
+              message:
+                  'No notifications at this time.\nUpdates regarding trip planning & bookings will appear here.',
+            )
+          : RefreshIndicator(
+              color: AppColors.jungle600,
+              onRefresh: _loadNotifications,
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                itemCount: _notifications.length,
+                itemBuilder: (context, index) {
+                  final n = _notifications[index];
+                  return _buildNotificationCard(n, index);
+                },
+              ),
+            ),
     );
   }
 
@@ -142,15 +152,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isRead ? Colors.white : AppColors.leaf50.withOpacity(0.6),
+        color: isRead ? Colors.white : AppColors.leaf50.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isRead ? AppColors.line : AppColors.leaf400.withOpacity(0.5),
+          color: isRead
+              ? AppColors.line
+              : AppColors.leaf400.withValues(alpha: 0.5),
           width: isRead ? 0.8 : 1.2,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -175,7 +187,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 decoration: BoxDecoration(
                   color: isRead
                       ? AppColors.mist
-                      : AppColors.jungle600.withOpacity(0.12),
+                      : AppColors.jungle600.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -194,7 +206,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.line,
                             borderRadius: BorderRadius.circular(6),
@@ -214,8 +229,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           type,
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
-                            color: isRead ? AppColors.ink3 : AppColors.jungle700,
+                            fontWeight: isRead
+                                ? FontWeight.w500
+                                : FontWeight.w700,
+                            color: isRead
+                                ? AppColors.ink3
+                                : AppColors.jungle700,
                           ),
                         ),
                         const Spacer(),
@@ -235,7 +254,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       content,
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: isRead ? FontWeight.normal : FontWeight.w600,
+                        fontWeight: isRead
+                            ? FontWeight.normal
+                            : FontWeight.w600,
                         color: AppColors.ink,
                         height: 1.4,
                       ),
@@ -243,7 +264,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     const SizedBox(height: 6),
                     Text(
                       sentAt.length >= 16 ? sentAt.substring(0, 16) : sentAt,
-                      style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.ink3,
+                      ),
                     ),
                   ],
                 ),

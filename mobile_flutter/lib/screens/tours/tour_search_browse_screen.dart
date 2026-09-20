@@ -89,9 +89,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     final displayList = _filteredTours;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Explore Tours & Experiences'),
-      ),
+      appBar: AppBar(title: const Text('Explore Tours & Experiences')),
       body: Column(
         children: [
           // ── Search & Filter Controls ──
@@ -104,7 +102,10 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   controller: _searchCtrl,
                   decoration: InputDecoration(
                     hintText: 'Search tours, locations, activities...',
-                    prefixIcon: const Icon(Icons.search, color: AppColors.jungle600),
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.jungle600,
+                    ),
                     suffixIcon: _searchCtrl.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
@@ -138,13 +139,17 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           backgroundColor: AppColors.mist,
                           labelStyle: TextStyle(
                             color: isSelected ? Colors.white : AppColors.ink2,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                             fontSize: 13,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                             side: BorderSide(
-                              color: isSelected ? AppColors.jungle600 : AppColors.line,
+                              color: isSelected
+                                  ? AppColors.jungle600
+                                  : AppColors.line,
                             ),
                           ),
                           showCheckmark: false,
@@ -162,32 +167,35 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             child: _loading
                 ? const LoadingIndicator(message: 'Discovering experiences...')
                 : _error != null
-                    ? ErrorMessage(message: _error!, onRetry: () => _loadTours())
-                    : displayList.isEmpty
-                        ? EmptyState(
-                            icon: Icons.tour_outlined,
-                            message: _searchCtrl.text.isNotEmpty
-                                ? 'No tours matching "${_searchCtrl.text}"'
-                                : 'No tours available for category $_selectedCategory',
-                            actionLabel: 'Reset Filters',
-                            onAction: () {
-                              _searchCtrl.clear();
-                              setState(() => _selectedCategory = 'All');
-                              _loadTours();
-                            },
-                          )
-                        : RefreshIndicator(
-                            color: AppColors.jungle600,
-                            onRefresh: () => _loadTours(search: _searchCtrl.text),
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              itemCount: displayList.length,
-                              itemBuilder: (context, index) {
-                                final tour = displayList[index];
-                                return _buildTourCard(tour);
-                              },
-                            ),
-                          ),
+                ? ErrorMessage(message: _error!, onRetry: () => _loadTours())
+                : displayList.isEmpty
+                ? EmptyState(
+                    icon: Icons.tour_outlined,
+                    message: _searchCtrl.text.isNotEmpty
+                        ? 'No tours matching "${_searchCtrl.text}"'
+                        : 'No tours available for category $_selectedCategory',
+                    actionLabel: 'Reset Filters',
+                    onAction: () {
+                      _searchCtrl.clear();
+                      setState(() => _selectedCategory = 'All');
+                      _loadTours();
+                    },
+                  )
+                : RefreshIndicator(
+                    color: AppColors.jungle600,
+                    onRefresh: () => _loadTours(search: _searchCtrl.text),
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      itemCount: displayList.length,
+                      itemBuilder: (context, index) {
+                        final tour = displayList[index];
+                        return _buildTourCard(tour);
+                      },
+                    ),
+                  ),
           ),
         ],
       ),
@@ -197,7 +205,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   /// Build an image-rich tour card
   Widget _buildTourCard(Map<String, dynamic> tour) {
     final tourName = tour['name'] ?? 'Unnamed Tour';
-    final uploadedImage = ApiService.resolveMediaUrl(tour['imageUrl']?.toString());
+    final uploadedImage = ApiService.resolveMediaUrl(
+      tour['imageUrl']?.toString(),
+    );
     final imageUrl = uploadedImage.isNotEmpty
         ? uploadedImage
         : AppDestinations.getImageForDestination(tourName);
@@ -213,7 +223,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -232,7 +242,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                   child: AppNetworkImage(
                     imageUrl: imageUrl,
                     height: 160,
@@ -245,9 +257,12 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   top: 12,
                   left: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: AppColors.jungle900.withOpacity(0.75),
+                      color: AppColors.jungle900.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -265,13 +280,16 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   bottom: 12,
                   right: 12,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.jungle800,
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -319,7 +337,8 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       letterSpacing: -0.3,
                     ),
                   ),
-                  if (tour['description'] != null && tour['description'].toString().isNotEmpty) ...[
+                  if (tour['description'] != null &&
+                      tour['description'].toString().isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(
                       tour['description'],
@@ -335,7 +354,10 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      _buildDetailBadge(Icons.timer_outlined, '${duration}h Duration'),
+                      _buildDetailBadge(
+                        Icons.timer_outlined,
+                        '${duration}h Duration',
+                      ),
                       const SizedBox(width: 12),
                       _buildDetailBadge(
                         Icons.schedule_outlined,

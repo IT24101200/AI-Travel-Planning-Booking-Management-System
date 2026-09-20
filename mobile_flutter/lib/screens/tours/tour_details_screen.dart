@@ -73,7 +73,9 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
     }
 
     final tourName = _tour!['name'] ?? 'Scenic Excursion';
-    final uploadedImage = ApiService.resolveMediaUrl(_tour!['imageUrl']?.toString());
+    final uploadedImage = ApiService.resolveMediaUrl(
+      _tour!['imageUrl']?.toString(),
+    );
     final imageUrl = uploadedImage.isNotEmpty
         ? uploadedImage
         : AppDestinations.getImageForDestination(tourName);
@@ -96,19 +98,16 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  AppNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                  ),
+                  AppNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover),
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Colors.black.withOpacity(0.4),
+                          Colors.black.withValues(alpha: 0.4),
                           Colors.transparent,
-                          Colors.black.withOpacity(0.8),
+                          Colors.black.withValues(alpha: 0.8),
                         ],
                       ),
                     ),
@@ -121,7 +120,10 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.sand500,
                             borderRadius: BorderRadius.circular(8),
@@ -170,7 +172,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                       border: Border.all(color: AppColors.line),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.04),
+                          color: Colors.black.withValues(alpha: 0.04),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -179,13 +181,25 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildStatItem(Icons.attach_money, 'Price', '\$${price.toStringAsFixed(0)} $currency'),
+                        _buildStatItem(
+                          Icons.attach_money,
+                          'Price',
+                          '\$${price.toStringAsFixed(0)} $currency',
+                        ),
                         _buildDivider(),
-                        _buildStatItem(Icons.timer_outlined, 'Duration', '${duration}h'),
+                        _buildStatItem(
+                          Icons.timer_outlined,
+                          'Duration',
+                          '${duration}h',
+                        ),
                         _buildDivider(),
                         _buildStatItem(Icons.schedule, 'Start', startTime),
                         _buildDivider(),
-                        _buildStatItem(Icons.check_circle_outline, 'Status', status),
+                        _buildStatItem(
+                          Icons.check_circle_outline,
+                          'Status',
+                          status,
+                        ),
                       ],
                     ),
                   ),
@@ -216,7 +230,8 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                   const SizedBox(height: 24),
 
                   // Location Card
-                  if (_tour!['latitude'] != null && _tour!['longitude'] != null) ...[
+                  if (_tour!['latitude'] != null &&
+                      _tour!['longitude'] != null) ...[
                     const Text(
                       'Geographic Coordinates',
                       style: TextStyle(
@@ -235,7 +250,11 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.location_on, color: AppColors.jungle600, size: 22),
+                          const Icon(
+                            Icons.location_on,
+                            color: AppColors.jungle600,
+                            size: 22,
+                          ),
                           const SizedBox(width: 12),
                           Text(
                             'Lat: ${_tour!['latitude']} • Lng: ${_tour!['longitude']}',
@@ -256,14 +275,21 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [AppColors.jungle700.withOpacity(0.08), AppColors.ocean700.withOpacity(0.08)],
+                        colors: [
+                          AppColors.jungle700.withValues(alpha: 0.08),
+                          AppColors.ocean700.withValues(alpha: 0.08),
+                        ],
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: AppColors.leaf100),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.auto_awesome, color: AppColors.jungle600, size: 28),
+                        const Icon(
+                          Icons.auto_awesome,
+                          color: AppColors.jungle600,
+                          size: 28,
+                        ),
                         const SizedBox(width: 14),
                         const Expanded(
                           child: Column(
@@ -335,7 +361,11 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                     arguments: _tour,
                   );
                 },
-                icon: const Icon(Icons.auto_awesome, size: 18, color: AppColors.sand400),
+                icon: const Icon(
+                  Icons.auto_awesome,
+                  size: 18,
+                  color: AppColors.sand400,
+                ),
                 label: const Text('Add to AI Trip Plan'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.jungle600,
@@ -374,10 +404,6 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
   }
 
   Widget _buildDivider() {
-    return Container(
-      height: 30,
-      width: 1,
-      color: AppColors.line,
-    );
+    return Container(height: 30, width: 1, color: AppColors.line);
   }
 }

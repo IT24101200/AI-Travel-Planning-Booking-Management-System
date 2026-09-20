@@ -81,7 +81,11 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   List<dynamic> get _filteredOptions {
     if (_selectedFilter == 'All') return _options;
     return _options
-        .where((o) => (o['type'] ?? '').toString().toLowerCase() == _selectedFilter.toLowerCase())
+        .where(
+          (o) =>
+              (o['type'] ?? '').toString().toLowerCase() ==
+              _selectedFilter.toLowerCase(),
+        )
         .toList();
   }
 
@@ -90,9 +94,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
     final displayList = _filteredOptions;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transit & Transfers'),
-      ),
+      appBar: AppBar(title: const Text('Transit & Transfers')),
       body: Column(
         children: [
           // Filter Chips
@@ -116,12 +118,18 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                       backgroundColor: AppColors.mist,
                       labelStyle: TextStyle(
                         color: isSelected ? Colors.white : AppColors.ink2,
-                        fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontWeight: isSelected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
                         fontSize: 13,
                       ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: isSelected ? AppColors.jungle600 : AppColors.line),
+                        side: BorderSide(
+                          color: isSelected
+                              ? AppColors.jungle600
+                              : AppColors.line,
+                        ),
                       ),
                       showCheckmark: false,
                     ),
@@ -134,20 +142,26 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
           // Content List
           Expanded(
             child: _loading
-                ? const LoadingIndicator(message: 'Checking transport fleet & train schedules...')
+                ? const LoadingIndicator(
+                    message: 'Checking transport fleet & train schedules...',
+                  )
                 : _error != null
-                    ? ErrorMessage(message: _error!, onRetry: _loadTransport)
-                    : displayList.isEmpty
-                        ? _buildSampleTransitList()
-                        : RefreshIndicator(
-                            color: AppColors.jungle600,
-                            onRefresh: _loadTransport,
-                            child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              itemCount: displayList.length,
-                              itemBuilder: (context, index) => _buildTransportCard(displayList[index]),
-                            ),
-                          ),
+                ? ErrorMessage(message: _error!, onRetry: _loadTransport)
+                : displayList.isEmpty
+                ? _buildSampleTransitList()
+                : RefreshIndicator(
+                    color: AppColors.jungle600,
+                    onRefresh: _loadTransport,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      itemCount: displayList.length,
+                      itemBuilder: (context, index) =>
+                          _buildTransportCard(displayList[index]),
+                    ),
+                  ),
           ),
         ],
       ),
@@ -165,8 +179,10 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
     final color = _getTransportColor(type);
     final icon = _getTransportIcon(type);
 
-    final departure = option['departureTime']?.toString().substring(0, 16) ?? '08:00 AM';
-    final arrival = option['arrivalTime']?.toString().substring(0, 16) ?? '11:30 AM';
+    final departure =
+        option['departureTime']?.toString().substring(0, 16) ?? '08:00 AM';
+    final arrival =
+        option['arrivalTime']?.toString().substring(0, 16) ?? '11:30 AM';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -176,7 +192,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
         border: Border.all(color: AppColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -193,7 +209,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.12),
+                    color: color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(icon, color: color, size: 24),
@@ -236,7 +252,10 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                     ),
                     Text(
                       currency,
-                      style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.ink3,
+                      ),
                     ),
                   ],
                 ),
@@ -258,29 +277,59 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Departure', style: TextStyle(fontSize: 10, color: AppColors.ink3)),
+                        const Text(
+                          'Departure',
+                          style: TextStyle(fontSize: 10, color: AppColors.ink3),
+                        ),
                         Text(
                           routeFrom,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.ink,
+                          ),
                         ),
-                        Text(departure, style: const TextStyle(fontSize: 11, color: AppColors.ink2)),
+                        Text(
+                          departure,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.ink2,
+                          ),
+                        ),
                       ],
                     ),
                   ),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Icon(Icons.arrow_forward, color: AppColors.jungle600, size: 18),
+                    child: Icon(
+                      Icons.arrow_forward,
+                      color: AppColors.jungle600,
+                      size: 18,
+                    ),
                   ),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('Arrival', style: TextStyle(fontSize: 10, color: AppColors.ink3)),
+                        const Text(
+                          'Arrival',
+                          style: TextStyle(fontSize: 10, color: AppColors.ink3),
+                        ),
                         Text(
                           routeTo,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppColors.ink,
+                          ),
                         ),
-                        Text(arrival, style: const TextStyle(fontSize: 11, color: AppColors.ink2)),
+                        Text(
+                          arrival,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.ink2,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -293,7 +342,11 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
             // Capacity & Availability
             Row(
               children: [
-                const Icon(Icons.airline_seat_recline_normal, size: 16, color: AppColors.ink3),
+                const Icon(
+                  Icons.airline_seat_recline_normal,
+                  size: 16,
+                  color: AppColors.ink3,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'Capacity: $capacity Seats',

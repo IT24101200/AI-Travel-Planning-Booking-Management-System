@@ -65,7 +65,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.jungle600),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.jungle600,
+            ),
             child: const Text('Yes, Request Changes'),
           ),
         ],
@@ -87,7 +89,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       _loadItineraries();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to submit change request. Please try again.')),
+        const SnackBar(
+          content: Text('Failed to submit change request. Please try again.'),
+        ),
       );
     }
   }
@@ -117,7 +121,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selectedItinerary != null ? 'Day-by-Day Schedule' : 'My Travel Itineraries'),
+        title: Text(
+          _selectedItinerary != null
+              ? 'Day-by-Day Schedule'
+              : 'My Travel Itineraries',
+        ),
         leading: _selectedItinerary != null
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
@@ -129,17 +137,21 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             IconButton(
               icon: const Icon(Icons.map_outlined),
               tooltip: 'View Trip Map',
-              onPressed: () => Navigator.pushNamed(context, '/trip-map', arguments: _selectedItinerary),
+              onPressed: () => Navigator.pushNamed(
+                context,
+                '/trip-map',
+                arguments: _selectedItinerary,
+              ),
             ),
         ],
       ),
       body: _loading
           ? const LoadingIndicator(message: 'Loading itinerary schedule...')
           : _error != null
-              ? ErrorMessage(message: _error!, onRetry: _loadItineraries)
-              : _selectedItinerary != null
-                  ? _buildItineraryDetail()
-                  : _buildItineraryList(),
+          ? ErrorMessage(message: _error!, onRetry: _loadItineraries)
+          : _selectedItinerary != null
+          ? _buildItineraryDetail()
+          : _buildItineraryList(),
     );
   }
 
@@ -148,7 +160,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     if (_itineraries.isEmpty) {
       return EmptyState(
         icon: Icons.calendar_today_outlined,
-        message: 'No active itineraries yet.\nSubmit a trip prompt and our AI Coordinator will build one for you.',
+        message:
+            'No active itineraries yet.\nSubmit a trip prompt and our AI Coordinator will build one for you.',
         actionLabel: 'Plan Trip Now',
         onAction: () => Navigator.pushNamed(context, '/trip-request'),
       );
@@ -176,7 +189,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               border: Border.all(color: AppColors.line),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
+                  color: Colors.black.withValues(alpha: 0.04),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -198,7 +211,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                             color: AppColors.leaf50,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.alt_route, color: AppColors.jungle600, size: 22),
+                          child: const Icon(
+                            Icons.alt_route,
+                            color: AppColors.jungle600,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -215,7 +232,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                               ),
                               Text(
                                 dates,
-                                style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.ink3,
+                                ),
                               ),
                             ],
                           ),
@@ -230,7 +250,13 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Estimated Budget', style: TextStyle(fontSize: 11, color: AppColors.ink3)),
+                            const Text(
+                              'Estimated Budget',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.ink3,
+                              ),
+                            ),
                             Text(
                               '\$${total.toStringAsFixed(0)} $currency',
                               style: const TextStyle(
@@ -252,7 +278,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                               ),
                             ),
                             SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_ios, size: 12, color: AppColors.jungle600),
+                            Icon(
+                              Icons.arrow_forward_ios,
+                              size: 12,
+                              color: AppColors.jungle600,
+                            ),
                           ],
                         ),
                       ],
@@ -270,7 +300,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   /// Detail view with day-by-day timeline
   Widget _buildItineraryDetail() {
     final items = _selectedItinerary!['items'] as List<dynamic>? ?? [];
-    final totalCost = (_selectedItinerary!['totalEstimatedCost'] ?? 0).toDouble();
+    final totalCost = (_selectedItinerary!['totalEstimatedCost'] ?? 0)
+        .toDouble();
     final currency = _selectedItinerary!['currency'] ?? 'USD';
 
     // Group items by day number
@@ -282,7 +313,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
 
     dayGroups.forEach((day, dayItems) {
-      dayItems.sort((a, b) => (a['sequenceOrder'] ?? 0).compareTo(b['sequenceOrder'] ?? 0));
+      dayItems.sort(
+        (a, b) => (a['sequenceOrder'] ?? 0).compareTo(b['sequenceOrder'] ?? 0),
+      );
     });
 
     final sortedDays = dayGroups.keys.toList()..sort();
@@ -296,7 +329,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                   message: 'No activities scheduled for this itinerary yet.',
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   itemCount: sortedDays.length,
                   itemBuilder: (context, index) {
                     final day = sortedDays[index];
@@ -319,7 +355,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Estimated Total', style: TextStyle(fontSize: 11, color: AppColors.ink3)),
+                  const Text(
+                    'Estimated Total',
+                    style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                  ),
                   Text(
                     '\$${totalCost.toStringAsFixed(0)} $currency',
                     style: const TextStyle(
@@ -338,20 +377,30 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.jungle600,
                   side: const BorderSide(color: AppColors.jungle600),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
               ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamed(context, '/checkout', arguments: _selectedItinerary);
+                  Navigator.pushNamed(
+                    context,
+                    '/checkout',
+                    arguments: _selectedItinerary,
+                  );
                 },
                 icon: const Icon(Icons.payment, size: 18),
                 label: const Text('Proceed to Checkout'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.jungle600,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 12,
+                  ),
                 ),
               ),
             ],
@@ -401,7 +450,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               border: Border.all(color: AppColors.line),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.02),
+                  color: Colors.black.withValues(alpha: 0.02),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -434,11 +483,18 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       const SizedBox(height: 4),
                       Row(
                         children: [
-                          const Icon(Icons.schedule, size: 13, color: AppColors.ink3),
+                          const Icon(
+                            Icons.schedule,
+                            size: 13,
+                            color: AppColors.ink3,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             '$startTime – $endTime',
-                            style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.ink3,
+                            ),
                           ),
                         ],
                       ),

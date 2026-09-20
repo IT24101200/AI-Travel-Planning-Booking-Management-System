@@ -8,9 +8,11 @@ class TripConfirmationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final booking = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final booking =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     final bookingRef = booking?['bookingReference'] ?? 'SERENDIB-CONFIRMED';
-    final total = (booking?['totalCost'] ?? booking?['totalEstimatedCost'] ?? 0).toDouble();
+    final total = (booking?['totalCost'] ?? booking?['totalEstimatedCost'] ?? 0)
+        .toDouble();
     final currency = booking?['currency'] ?? 'USD';
 
     return Scaffold(
@@ -33,7 +35,11 @@ class TripConfirmationScreen extends StatelessWidget {
                 shape: BoxShape.circle,
                 border: Border.all(color: AppColors.leaf200, width: 2),
               ),
-              child: const Icon(Icons.check_circle, size: 54, color: AppColors.jungle600),
+              child: const Icon(
+                Icons.check_circle,
+                size: 54,
+                color: AppColors.jungle600,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -61,10 +67,12 @@ class TripConfirmationScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.leaf400.withOpacity(0.4)),
+                border: Border.all(
+                  color: AppColors.leaf400.withValues(alpha: 0.4),
+                ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 16,
                     offset: const Offset(0, 4),
                   ),
@@ -77,7 +85,11 @@ class TripConfirmationScreen extends StatelessWidget {
                     children: [
                       const Row(
                         children: [
-                          Icon(Icons.travel_explore, color: AppColors.jungle600, size: 22),
+                          Icon(
+                            Icons.travel_explore,
+                            color: AppColors.jungle600,
+                            size: 22,
+                          ),
                           SizedBox(width: 8),
                           Text(
                             'SERENDIB PASS',
@@ -91,7 +103,10 @@ class TripConfirmationScreen extends StatelessWidget {
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.leaf100,
                           borderRadius: BorderRadius.circular(8),
@@ -166,7 +181,11 @@ class TripConfirmationScreen extends StatelessWidget {
                 children: [
                   _row('Total Paid', '\$${total.toStringAsFixed(2)} $currency'),
                   _row('Gateway', 'Stripe Sandbox (tok_visa)'),
-                  _row('Confirmation Date', booking?['createdAt']?.toString().substring(0, 10) ?? 'Today'),
+                  _row(
+                    'Confirmation Date',
+                    booking?['createdAt']?.toString().substring(0, 10) ??
+                        'Today',
+                  ),
                 ],
               ),
             ),
@@ -178,7 +197,11 @@ class TripConfirmationScreen extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/home',
+                    (route) => false,
+                  );
                 },
                 icon: const Icon(Icons.explore),
                 label: const Text('Return to Home'),
@@ -197,11 +220,19 @@ class TripConfirmationScreen extends StatelessWidget {
                   Navigator.pushReplacementNamed(context, '/trip-history');
                 },
                 icon: const Icon(Icons.card_travel, color: AppColors.jungle600),
-                label: const Text('View All Bookings', style: TextStyle(color: AppColors.jungle600, fontWeight: FontWeight.w700)),
+                label: const Text(
+                  'View All Bookings',
+                  style: TextStyle(
+                    color: AppColors.jungle600,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppColors.jungle600),
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
                 ),
               ),
             ),
@@ -217,8 +248,18 @@ class TripConfirmationScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.ink3, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.ink)),
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.ink3, fontSize: 13),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: AppColors.ink,
+            ),
+          ),
         ],
       ),
     );

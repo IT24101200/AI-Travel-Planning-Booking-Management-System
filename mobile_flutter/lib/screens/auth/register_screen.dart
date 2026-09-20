@@ -45,11 +45,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (errors != null && errors is List) {
           setState(() => _error = errors.join('\n'));
         } else {
-          setState(() => _error = result['message'] ?? 'Registration failed. Please try again.');
+          setState(
+            () => _error =
+                result['message'] ?? 'Registration failed. Please try again.',
+          );
         }
       }
     } catch (e) {
-      setState(() => _error = 'Connection error. Check backend server on port 5138.');
+      setState(
+        () => _error = 'Connection error. Check backend server on port 5138.',
+      );
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -74,7 +79,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           Image.asset(
             AppDestinations.featured[1].imageUrl, // Ella mountain viaduct
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(color: AppColors.jungle900),
+            errorBuilder: (_, _, _) => Container(color: AppColors.jungle900),
           ),
           Container(
             decoration: BoxDecoration(
@@ -82,8 +87,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  AppColors.jungle900.withOpacity(0.55),
-                  AppColors.jungle900.withOpacity(0.92),
+                  AppColors.jungle900.withValues(alpha: 0.55),
+                  AppColors.jungle900.withValues(alpha: 0.92),
                 ],
               ),
             ),
@@ -93,18 +98,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
                       ),
-                      child: const Icon(Icons.person_add_alt_1, size: 36, color: AppColors.sand400),
+                      child: const Icon(
+                        Icons.person_add_alt_1,
+                        size: 36,
+                        color: AppColors.sand400,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Text(
@@ -133,7 +148,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
+                            color: Colors.black.withValues(alpha: 0.15),
                             blurRadius: 20,
                             offset: const Offset(0, 8),
                           ),
@@ -155,7 +170,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             const SizedBox(height: 4),
                             const Text(
                               'Plan, customize and book trips with AI assistance',
-                              style: TextStyle(fontSize: 12, color: AppColors.ink3),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.ink3,
+                              ),
                             ),
                             const SizedBox(height: 16),
 
@@ -164,18 +182,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: AppColors.coral500.withOpacity(0.1),
+                                  color: AppColors.coral500.withValues(
+                                    alpha: 0.1,
+                                  ),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.coral500.withOpacity(0.3)),
+                                  border: Border.all(
+                                    color: AppColors.coral500.withValues(
+                                      alpha: 0.3,
+                                    ),
+                                  ),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.error_outline, color: AppColors.coral500, size: 18),
+                                    const Icon(
+                                      Icons.error_outline,
+                                      color: AppColors.coral500,
+                                      size: 18,
+                                    ),
                                     const SizedBox(width: 8),
                                     Expanded(
                                       child: Text(
                                         _error!,
-                                        style: const TextStyle(color: AppColors.coral500, fontSize: 12),
+                                        style: const TextStyle(
+                                          color: AppColors.coral500,
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -189,9 +220,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               controller: _nameCtrl,
                               decoration: const InputDecoration(
                                 labelText: 'Full Name',
-                                prefixIcon: Icon(Icons.badge_outlined, color: AppColors.jungle600),
+                                prefixIcon: Icon(
+                                  Icons.badge_outlined,
+                                  color: AppColors.jungle600,
+                                ),
                               ),
-                              validator: (v) => (v == null || v.isEmpty) ? 'Full name is required' : null,
+                              validator: (v) => (v == null || v.isEmpty)
+                                  ? 'Full name is required'
+                                  : null,
                             ),
                             const SizedBox(height: 12),
 
@@ -201,11 +237,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
                                 labelText: 'Email Address',
-                                prefixIcon: Icon(Icons.email_outlined, color: AppColors.jungle600),
+                                prefixIcon: Icon(
+                                  Icons.email_outlined,
+                                  color: AppColors.jungle600,
+                                ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty) return 'Email is required';
-                                if (!v.contains('@')) return 'Enter a valid email';
+                                if (v == null || v.isEmpty)
+                                  return 'Email is required';
+                                if (!v.contains('@'))
+                                  return 'Enter a valid email';
                                 return null;
                               },
                             ),
@@ -218,14 +259,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               maxLength: 10,
                               decoration: const InputDecoration(
                                 labelText: 'Phone Number (10 digits)',
-                                prefixIcon: Icon(Icons.phone_outlined, color: AppColors.jungle600),
+                                prefixIcon: Icon(
+                                  Icons.phone_outlined,
+                                  color: AppColors.jungle600,
+                                ),
                                 hintText: '0771234567',
                                 counterText: '',
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty) return 'Phone number is required';
-                                if (v.length != 10) return 'Must be exactly 10 digits';
-                                if (!RegExp(r'^\d{10}$').hasMatch(v)) return 'Only digits allowed';
+                                if (v == null || v.isEmpty)
+                                  return 'Phone number is required';
+                                if (v.length != 10)
+                                  return 'Must be exactly 10 digits';
+                                if (!RegExp(r'^\d{10}$').hasMatch(v))
+                                  return 'Only digits allowed';
                                 return null;
                               },
                             ),
@@ -237,18 +284,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               obscureText: _obscurePassword,
                               decoration: InputDecoration(
                                 labelText: 'Password',
-                                prefixIcon: const Icon(Icons.lock_outline, color: AppColors.jungle600),
+                                prefixIcon: const Icon(
+                                  Icons.lock_outline,
+                                  color: AppColors.jungle600,
+                                ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
-                                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                    _obscurePassword
+                                        ? Icons.visibility_off
+                                        : Icons.visibility,
                                     color: AppColors.ink3,
                                   ),
-                                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                  onPressed: () => setState(
+                                    () => _obscurePassword = !_obscurePassword,
+                                  ),
                                 ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty) return 'Password is required';
-                                if (v.length < 6) return 'At least 6 characters';
+                                if (v == null || v.isEmpty)
+                                  return 'Password is required';
+                                if (v.length < 6)
+                                  return 'At least 6 characters';
                                 return null;
                               },
                             ),
@@ -262,7 +318,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.jungle600,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(vertical: 15),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 15,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -271,11 +329,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ? const SizedBox(
                                         height: 20,
                                         width: 20,
-                                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
                                       )
                                     : const Text(
                                         'Create Serendib Account',
-                                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                               ),
                             ),
@@ -287,17 +351,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               children: [
                                 const Text(
                                   "Already registered? ",
-                                  style: TextStyle(fontSize: 13, color: AppColors.ink2),
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.ink2,
+                                  ),
                                 ),
                                 TextButton(
-                                  onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                                  onPressed: () =>
+                                      Navigator.pushReplacementNamed(
+                                        context,
+                                        '/login',
+                                      ),
                                   style: TextButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     foregroundColor: AppColors.jungle600,
                                   ),
                                   child: const Text(
                                     'Sign In',
-                                    style: TextStyle(fontWeight: FontWeight.w700),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ],

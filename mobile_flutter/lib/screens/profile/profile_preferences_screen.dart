@@ -9,7 +9,8 @@ class ProfilePreferencesScreen extends StatefulWidget {
   const ProfilePreferencesScreen({super.key});
 
   @override
-  State<ProfilePreferencesScreen> createState() => _ProfilePreferencesScreenState();
+  State<ProfilePreferencesScreen> createState() =>
+      _ProfilePreferencesScreenState();
 }
 
 class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
@@ -57,7 +58,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
         final pref = jsonDecode(prefResponse.body);
         _budgetMinCtrl.text = (pref['budgetMin'] ?? 200).toString();
         _budgetMaxCtrl.text = (pref['budgetMax'] ?? 2000).toString();
-        _activitiesCtrl.text = pref['preferredActivities'] ?? 'Hiking, Wildlife, UNESCO Heritage';
+        _activitiesCtrl.text =
+            pref['preferredActivities'] ?? 'Hiking, Wildlife, UNESCO Heritage';
         _dietaryCtrl.text = pref['dietaryNotes'] ?? '';
         _accessibilityCtrl.text = pref['accessibilityNotes'] ?? '';
       }
@@ -113,12 +115,19 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm Logout'),
-        content: const Text('Are you sure you want to log out of Serendib Trails?'),
+        content: const Text(
+          'Are you sure you want to log out of Serendib Trails?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.coral500),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.coral500,
+            ),
             child: const Text('Logout', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -128,7 +137,11 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
     if (confirm == true) {
       await ApiService.logout();
       if (mounted) {
-        Navigator.pushNamedAndRemoveUntil(context, '/landing', (route) => false);
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/landing',
+          (route) => false,
+        );
       }
     }
   }
@@ -149,7 +162,13 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
   @override
   Widget build(BuildContext context) {
     final initials = _nameCtrl.text.isNotEmpty
-        ? _nameCtrl.text.trim().split(' ').map((w) => w[0]).take(2).join().toUpperCase()
+        ? _nameCtrl.text
+              .trim()
+              .split(' ')
+              .map((w) => w[0])
+              .take(2)
+              .join()
+              .toUpperCase()
         : 'ST';
 
     return Scaffold(
@@ -166,266 +185,324 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
       body: _loading
           ? const LoadingIndicator(message: 'Loading your preferences...')
           : _error != null
-              ? ErrorMessage(message: _error!, onRetry: _loadData)
-              : SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // ── Profile Header Card ──
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: AppColors.jungle800,
-                          image: DecorationImage(
-                            image: const AssetImage(AppDestinations.heroSigiriya),
-                            fit: BoxFit.cover,
-                            colorFilter: ColorFilter.mode(
-                              AppColors.jungle900.withOpacity(0.85),
-                              BlendMode.srcOver,
+          ? ErrorMessage(message: _error!, onRetry: _loadData)
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  // ── Profile Header Card ──
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.jungle800,
+                      image: DecorationImage(
+                        image: const AssetImage(AppDestinations.heroSigiriya),
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(
+                          AppColors.jungle900.withValues(alpha: 0.85),
+                          BlendMode.srcOver,
+                        ),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: AppColors.sand500,
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.jungle900,
                             ),
                           ),
                         ),
-                        child: Column(
+                        const SizedBox(height: 12),
+                        Text(
+                          _nameCtrl.text.isNotEmpty
+                              ? _nameCtrl.text
+                              : 'Travel Enthusiast',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _emailCtrl.text,
+                          style: const TextStyle(
+                            color: AppColors.sand200,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Serendib Customer • Verified',
+                            style: TextStyle(color: Colors.white, fontSize: 11),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Success message
+                  if (_successMsg != null)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.leaf50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.jungle600.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            color: AppColors.jungle600,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              _successMsg!,
+                              style: const TextStyle(
+                                color: AppColors.jungle700,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── Personal Info Card ──
+                        _buildSectionCard(
+                          title: 'Personal Information',
+                          icon: Icons.person_outline,
                           children: [
-                            CircleAvatar(
-                              radius: 36,
-                              backgroundColor: AppColors.sand500,
-                              child: Text(
-                                initials,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.jungle900,
+                            TextFormField(
+                              controller: _nameCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Full Name',
+                                prefixIcon: Icon(
+                                  Icons.badge_outlined,
+                                  color: AppColors.jungle600,
                                 ),
                               ),
                             ),
                             const SizedBox(height: 12),
-                            Text(
-                              _nameCtrl.text.isNotEmpty ? _nameCtrl.text : 'Travel Enthusiast',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                            TextFormField(
+                              controller: _emailCtrl,
+                              enabled: false,
+                              decoration: const InputDecoration(
+                                labelText: 'Email Address (Identity)',
+                                prefixIcon: Icon(
+                                  Icons.mail_outline,
+                                  color: AppColors.ink3,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _emailCtrl.text,
-                              style: const TextStyle(
-                                color: AppColors.sand200,
-                                fontSize: 13,
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _phoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 15,
+                              decoration: const InputDecoration(
+                                labelText: 'Phone Number',
+                                prefixIcon: Icon(
+                                  Icons.phone_outlined,
+                                  color: AppColors.jungle600,
+                                ),
+                                counterText: '',
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _saveProfile,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.jungle600,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Save Profile Details'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // ── Travel Preferences Card ──
+                        _buildSectionCard(
+                          title: 'AI Travel Preferences',
+                          icon: Icons.tune,
+                          children: [
+                            const Text(
+                              'Budget Range Per Trip (USD)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink2,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _budgetMinCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Min Budget',
+                                      prefixText: '\$ ',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _budgetMaxCtrl,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Max Budget',
+                                      prefixText: '\$ ',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            TextFormField(
+                              controller: _activitiesCtrl,
+                              maxLines: 2,
+                              decoration: const InputDecoration(
+                                labelText: 'Preferred Activity Types',
+                                hintText:
+                                    'Hiking, Wildlife, Beach, Scenic Rail',
+                                prefixIcon: Icon(
+                                  Icons.sports_handball_outlined,
+                                  color: AppColors.jungle600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _dietaryCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Dietary Preferences',
+                                hintText:
+                                    'e.g., Vegetarian, Halal, Gluten-Free',
+                                prefixIcon: Icon(
+                                  Icons.restaurant_outlined,
+                                  color: AppColors.jungle600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _accessibilityCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Accessibility Notes',
+                                hintText:
+                                    'e.g., Ground-floor rooms, easy stairs',
+                                prefixIcon: Icon(
+                                  Icons.accessible_outlined,
+                                  color: AppColors.jungle600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _savePreferences,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.ocean500,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: const Text('Save Travel Preferences'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        // ── View Landing Page ──
+                        SizedBox(
+                          width: double.infinity,
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                Navigator.pushNamed(context, '/landing'),
+                            icon: const Icon(
+                              Icons.travel_explore,
+                              color: AppColors.jungle600,
+                              size: 20,
+                            ),
+                            label: const Text(
+                              'Explore Welcome Landing Page',
+                              style: TextStyle(
+                                color: AppColors.jungle600,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // ── Logout Action ──
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _logout,
+                            icon: const Icon(
+                              Icons.logout,
+                              color: AppColors.coral500,
+                            ),
+                            label: const Text(
+                              'Sign Out',
+                              style: TextStyle(
+                                color: AppColors.coral500,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.coral500),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
-                              child: const Text(
-                                'Serendib Customer • Verified',
-                                style: TextStyle(color: Colors.white, fontSize: 11),
-                              ),
                             ),
-                          ],
-                        ),
-                      ),
-
-                      // Success message
-                      if (_successMsg != null)
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.all(16),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.leaf50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.jungle600.withOpacity(0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.check_circle, color: AppColors.jungle600, size: 20),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _successMsg!,
-                                  style: const TextStyle(color: AppColors.jungle700, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ],
                           ),
                         ),
-
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // ── Personal Info Card ──
-                            _buildSectionCard(
-                              title: 'Personal Information',
-                              icon: Icons.person_outline,
-                              children: [
-                                TextFormField(
-                                  controller: _nameCtrl,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Full Name',
-                                    prefixIcon: Icon(Icons.badge_outlined, color: AppColors.jungle600),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _emailCtrl,
-                                  enabled: false,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Email Address (Identity)',
-                                    prefixIcon: Icon(Icons.mail_outline, color: AppColors.ink3),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _phoneCtrl,
-                                  keyboardType: TextInputType.phone,
-                                  maxLength: 15,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Phone Number',
-                                    prefixIcon: Icon(Icons.phone_outlined, color: AppColors.jungle600),
-                                    counterText: '',
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: _saveProfile,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.jungle600,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('Save Profile Details'),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            // ── Travel Preferences Card ──
-                            _buildSectionCard(
-                              title: 'AI Travel Preferences',
-                              icon: Icons.tune,
-                              children: [
-                                const Text(
-                                  'Budget Range Per Trip (USD)',
-                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.ink2),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _budgetMinCtrl,
-                                        keyboardType: TextInputType.number,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Min Budget',
-                                          prefixText: '\$ ',
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: TextFormField(
-                                        controller: _budgetMaxCtrl,
-                                        keyboardType: TextInputType.number,
-                                        decoration: const InputDecoration(
-                                          labelText: 'Max Budget',
-                                          prefixText: '\$ ',
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 14),
-                                TextFormField(
-                                  controller: _activitiesCtrl,
-                                  maxLines: 2,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Preferred Activity Types',
-                                    hintText: 'Hiking, Wildlife, Beach, Scenic Rail',
-                                    prefixIcon: Icon(Icons.sports_handball_outlined, color: AppColors.jungle600),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _dietaryCtrl,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Dietary Preferences',
-                                    hintText: 'e.g., Vegetarian, Halal, Gluten-Free',
-                                    prefixIcon: Icon(Icons.restaurant_outlined, color: AppColors.jungle600),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _accessibilityCtrl,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Accessibility Notes',
-                                    hintText: 'e.g., Ground-floor rooms, easy stairs',
-                                    prefixIcon: Icon(Icons.accessible_outlined, color: AppColors.jungle600),
-                                  ),
-                                ),
-                                const SizedBox(height: 14),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton(
-                                    onPressed: _savePreferences,
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.ocean500,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    child: const Text('Save Travel Preferences'),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 20),
-
-                            // ── View Landing Page ──
-                            SizedBox(
-                              width: double.infinity,
-                              child: TextButton.icon(
-                                onPressed: () => Navigator.pushNamed(context, '/landing'),
-                                icon: const Icon(Icons.travel_explore, color: AppColors.jungle600, size: 20),
-                                label: const Text(
-                                  'Explore Welcome Landing Page',
-                                  style: TextStyle(color: AppColors.jungle600, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-
-                            // ── Logout Action ──
-                            SizedBox(
-                              width: double.infinity,
-                              child: OutlinedButton.icon(
-                                onPressed: _logout,
-                                icon: const Icon(Icons.logout, color: AppColors.coral500),
-                                label: const Text('Sign Out', style: TextStyle(color: AppColors.coral500, fontWeight: FontWeight.w700)),
-                                style: OutlinedButton.styleFrom(
-                                  side: const BorderSide(color: AppColors.coral500),
-                                  padding: const EdgeInsets.symmetric(vertical: 14),
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 30),
-                          ],
-                        ),
-                      ),
-                    ],
+                        const SizedBox(height: 30),
+                      ],
+                    ),
                   ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -443,7 +520,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
         border: Border.all(color: AppColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
