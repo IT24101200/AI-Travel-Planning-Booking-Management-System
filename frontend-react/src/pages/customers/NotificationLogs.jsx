@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchNotifications, resendNotification } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
+import { LoadingState } from '../../components/ui/LoadingState.jsx'
 
 const CHANNELS = ['Email', 'SMS', 'Push', 'InApp']
 const TYPES = ['TripUpdate', 'BookingConfirmation', 'PaymentReceipt', 'SystemAlert', 'Promotion', 'Reminder']
@@ -89,12 +91,21 @@ export default function NotificationLogs() {
       </header>
 
       {error && (
-        <div className="notice notice--error" style={{ color: '#ff6b6b' }}>
-          {error}
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onRetry={() => loadNotifications(false)}
+          onDismiss={() => setError(null)}
+        />
       )}
 
-      {note ? <div className="notice">{note}</div> : null}
+      {note && (
+        <AlertBanner
+          type={note.startsWith('Failed') ? 'error' : 'success'}
+          message={note}
+          onDismiss={() => setNote('')}
+        />
+      )}
 
       <div className="panel panel--solid staff-table-wrap">
         <table className="staff-table">

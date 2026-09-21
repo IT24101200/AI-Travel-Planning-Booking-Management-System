@@ -12,7 +12,7 @@ const socials = [
 export function Footer() {
   return (
     <footer className="footer">
-      <div className="shell">
+      <div className="shell shell--wide">
         <div className="footer__grid">
           <div className="footer__brand">
             <span className="brand">

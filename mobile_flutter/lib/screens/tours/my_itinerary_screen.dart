@@ -178,8 +178,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           final total = (it['totalEstimatedCost'] ?? 0).toDouble();
           final currency = it['currency'] ?? 'USD';
           final status = it['status']?.toString() ?? 'Proposed';
-          final dates =
-              '${it['startDate']?.toString().substring(0, 10) ?? ''}  →  ${it['endDate']?.toString().substring(0, 10) ?? ''}';
+          final sDate = it['startDate']?.toString();
+          final eDate = it['endDate']?.toString();
+          final sStr = sDate != null && sDate.length >= 10 ? sDate.substring(0, 10) : (sDate ?? '');
+          final eStr = eDate != null && eDate.length >= 10 ? eDate.substring(0, 10) : (eDate ?? '');
+          final dates = '$sStr  →  $eStr';
 
           return Container(
             margin: const EdgeInsets.only(bottom: 14),
@@ -370,20 +373,33 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 ],
               ),
               const Spacer(),
-              OutlinedButton.icon(
-                onPressed: _requestChanges,
-                icon: const Icon(Icons.edit_note, size: 18),
-                label: const Text('Request Changes'),
+              OutlinedButton(
+                onPressed: () => Navigator.pushNamed(context, '/accommodation'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.jungle600,
                   side: const BorderSide(color: AppColors.jungle600),
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
+                    horizontal: 10,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text('Stays'),
+              ),
+              const SizedBox(width: 6),
+              OutlinedButton.icon(
+                onPressed: _requestChanges,
+                icon: const Icon(Icons.edit_note, size: 16),
+                label: const Text('Revise'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.jungle600,
+                  side: const BorderSide(color: AppColors.jungle600),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
                     vertical: 12,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 6),
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pushNamed(
@@ -392,13 +408,13 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                     arguments: _selectedItinerary,
                   );
                 },
-                icon: const Icon(Icons.payment, size: 18),
-                label: const Text('Proceed to Checkout'),
+                icon: const Icon(Icons.payment, size: 16),
+                label: const Text('Checkout'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.jungle600,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
+                    horizontal: 14,
                     vertical: 12,
                   ),
                 ),

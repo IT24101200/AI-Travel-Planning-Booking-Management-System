@@ -183,8 +183,11 @@ class TripConfirmationScreen extends StatelessWidget {
                   _row('Gateway', 'Stripe Sandbox (tok_visa)'),
                   _row(
                     'Confirmation Date',
-                    booking?['createdAt']?.toString().substring(0, 10) ??
-                        'Today',
+                    (() {
+                      final c = booking?['createdAt']?.toString();
+                      if (c == null || c.isEmpty) return 'Today';
+                      return c.length >= 10 ? c.substring(0, 10) : c;
+                    })(),
                   ),
                 ],
               ),

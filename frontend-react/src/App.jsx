@@ -8,6 +8,7 @@ import { SceneContext } from './lib/sceneContext.js'
 import { AuthProvider } from './lib/auth.jsx'
 import { RequireAuth } from './components/auth/RequireAuth.jsx'
 import { StaffLayout } from './components/layout/StaffLayout.jsx'
+import { ErrorBoundary } from './components/ui/ErrorBoundary.jsx'
 import { featuredIds } from './data/destinations.js'
 import { useWeatherTheme } from './lib/useWeatherTheme.js'
 import Home from './pages/site/Home.jsx'
@@ -72,38 +73,40 @@ export default function App() {
         <Navbar />
 
         <main id="main">
-          <Routes>
-            <Route path="/" element={<Home weatherTheme={weatherTheme} />} />
-            <Route path="/destinations" element={<Destinations />} />
-            <Route path="/destinations/:id" element={<DestinationDetail />} />
-            <Route path="/experiences" element={<Experiences />} />
-            <Route path="/planner" element={<Planner />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/contact" element={<Contact />} />
-            <Route path="/login" element={<Login />} />
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<Home weatherTheme={weatherTheme} />} />
+              <Route path="/destinations" element={<Destinations />} />
+              <Route path="/destinations/:id" element={<DestinationDetail />} />
+              <Route path="/experiences" element={<Experiences />} />
+              <Route path="/planner" element={<Planner />} />
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/login" element={<Login />} />
 
-            <Route
-              path="/staff"
-              element={
-                <RequireAuth roles={['staff', 'admin', 'agent']}>
-                  <StaffLayout />
-                </RequireAuth>
-              }
-            >
-              <Route index element={<BookingApprovalDashboard />} />
-              <Route path="bookings" element={<BookingApprovalDashboard />} />
-              <Route path="payments" element={<PaymentsRevenueReport />} />
-              <Route path="customers" element={<CustomerDirectory />} />
-              <Route path="notifications" element={<NotificationLogs />} />
-              <Route path="tours" element={<TourCatalogManagement />} />
-              <Route path="destinations" element={<DestinationManagement />} />
-              <Route path="itineraries" element={<ItineraryReview />} />
-              <Route path="hotels" element={<HotelVendorManagement />} />
-              <Route path="transport" element={<TransportFleetManagement />} />
-            </Route>
+              <Route
+                path="/staff"
+                element={
+                  <RequireAuth roles={['staff', 'admin', 'agent']}>
+                    <StaffLayout />
+                  </RequireAuth>
+                }
+              >
+                <Route index element={<BookingApprovalDashboard />} />
+                <Route path="bookings" element={<BookingApprovalDashboard />} />
+                <Route path="payments" element={<PaymentsRevenueReport />} />
+                <Route path="customers" element={<CustomerDirectory />} />
+                <Route path="notifications" element={<NotificationLogs />} />
+                <Route path="tours" element={<TourCatalogManagement />} />
+                <Route path="destinations" element={<DestinationManagement />} />
+                <Route path="itineraries" element={<ItineraryReview />} />
+                <Route path="hotels" element={<HotelVendorManagement />} />
+                <Route path="transport" element={<TransportFleetManagement />} />
+              </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ErrorBoundary>
         </main>
 
         {!isStaffRoute && <Footer />}

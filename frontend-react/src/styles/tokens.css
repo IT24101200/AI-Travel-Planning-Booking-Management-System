@@ -88,9 +88,9 @@
   --font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
 
   /* Rhythm */
-  --shell: 1200px;
-  --shell-wide: 1400px;
-  --gutter: clamp(1.25rem, 4vw, 3rem);
+  --shell: min(1440px, 92vw);
+  --shell-wide: min(1820px, 95vw);
+  --gutter: clamp(1.25rem, 3.5vw, 3.5rem);
   --section-y: clamp(4.5rem, 9vw, 8rem);
 
   /* Motion */
@@ -108,3 +108,21 @@
   --z-header: 40;
   --z-overlay: 60;
 }
+
+/* Wide desktop expansion: eliminate excessive side gutters while preserving comfortable margins */
+@media (min-width: 1440px) {
+  :root {
+    --shell: min(1520px, 92vw);
+    --shell-wide: min(1860px, 95vw);
+    --gutter: clamp(2rem, 3.5vw, 4rem);
+  }
+}
+
+@media (min-width: 1800px) {
+  :root {
+    --shell: min(1640px, 90vw);
+    --shell-wide: min(1960px, 95vw);
+    --gutter: clamp(2.5rem, 4vw, 5rem);
+  }
+}
+

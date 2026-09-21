@@ -3,6 +3,7 @@ import { Link, NavLink } from 'react-router-dom'
 import { navLinks, brand } from '../../data/site.js'
 import { useAuth } from '../../lib/auth.jsx'
 import { useScrollLock, useScrolled } from '../../lib/hooks.js'
+import { useResponsive } from '../../lib/useResponsive.js'
 import { LeafIcon, SparkleIcon } from '../ui/Icons.jsx'
 
 function Brand({ onClick }) {
@@ -22,10 +23,18 @@ function Brand({ onClick }) {
 export function Navbar() {
   const scrolled = useScrolled(28)
   const [open, setOpen] = useState(false)
+  const { isDesktop } = useResponsive()
   const { user, logout } = useAuth() ?? {}
   const close = () => setOpen(false)
 
   useScrollLock(open)
+
+  // Auto-close drawer if viewport becomes desktop width
+  useEffect(() => {
+    if (isDesktop && open) {
+      setOpen(false)
+    }
+  }, [isDesktop, open])
 
   useEffect(() => {
     if (!open) return
@@ -38,7 +47,7 @@ export function Navbar() {
 
   return (
     <header className={`header${scrolled || open ? ' header--pinned' : ''}`}>
-      <div className="shell header__inner">
+      <div className="shell shell--wide header__inner">
         <Brand onClick={close} />
 
         <nav className="nav" aria-label="Primary">
