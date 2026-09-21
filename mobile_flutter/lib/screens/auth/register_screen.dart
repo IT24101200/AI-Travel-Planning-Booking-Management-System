@@ -243,10 +243,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Email is required';
-                                if (!v.contains('@'))
+                                }
+                                if (!v.contains('@')) {
                                   return 'Enter a valid email';
+                                }
                                 return null;
                               },
                             ),
@@ -267,12 +269,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 counterText: '',
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Phone number is required';
-                                if (v.length != 10)
+                                }
+                                if (v.length != 10) {
                                   return 'Must be exactly 10 digits';
-                                if (!RegExp(r'^\d{10}$').hasMatch(v))
+                                }
+                                if (!RegExp(r'^\d{10}$').hasMatch(v)) {
                                   return 'Only digits allowed';
+                                }
                                 return null;
                               },
                             ),
@@ -301,10 +306,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               ),
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Password is required';
-                                if (v.length < 6)
+                                }
+                                if (v.length < 6) {
                                   return 'At least 6 characters';
+                                }
                                 return null;
                               },
                             ),
