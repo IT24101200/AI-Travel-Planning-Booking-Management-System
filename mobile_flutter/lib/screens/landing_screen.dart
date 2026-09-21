@@ -334,7 +334,9 @@ class _LandingScreenState extends State<LandingScreen> {
                               ),
                               const SizedBox(width: 5),
                               Text(
-                                _isLoggedIn ? 'Dashboard' : 'Sign In',
+                                _isLoggedIn
+                                    ? (_userName.isNotEmpty ? _userName.split(' ').first : 'Dashboard')
+                                    : 'Sign In',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700,

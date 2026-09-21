@@ -228,8 +228,11 @@ class _TripHistoryScreenState extends State<TripHistoryScreen>
                           ),
                         ),
                         Text(
-                          booking['createdAt']?.toString().substring(0, 10) ??
-                              'Recent',
+                          (() {
+                            final c = booking['createdAt']?.toString();
+                            if (c == null || c.isEmpty) return 'Recent';
+                            return c.length >= 10 ? c.substring(0, 10) : c;
+                          })(),
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.ink3,
@@ -392,7 +395,13 @@ class _TripHistoryScreenState extends State<TripHistoryScreen>
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '${trip['startDate']?.toString().substring(0, 10) ?? ''}  →  ${trip['endDate']?.toString().substring(0, 10) ?? ''}',
+                        (() {
+                          final s = trip['startDate']?.toString();
+                          final e = trip['endDate']?.toString();
+                          final sStr = s != null && s.length >= 10 ? s.substring(0, 10) : (s ?? '');
+                          final eStr = e != null && e.length >= 10 ? e.substring(0, 10) : (e ?? '');
+                          return '$sStr  →  $eStr';
+                        })(),
                         style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.ink2,

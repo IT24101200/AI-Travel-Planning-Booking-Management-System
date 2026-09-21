@@ -96,7 +96,8 @@
 .staff-page {
   display: grid;
   gap: 1.25rem;
-  max-width: 72rem;
+  width: 100%;
+  max-width: 100%;
 }
 
 .staff-page__head {
@@ -274,6 +275,12 @@
   gap: 1.25rem;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
   align-items: start;
+  width: 100%;
+}
+
+.staff-split:has(> :only-child),
+.staff-split--single {
+  grid-template-columns: 1fr !important;
 }
 
 .staff-detail {
@@ -282,6 +289,7 @@
   padding: 1.25rem;
   position: sticky;
   top: 6rem;
+  width: 100%;
 }
 
 .staff-timeline {
@@ -383,3 +391,49 @@
   min-width: 0;
   width: 100%;
 }
+
+/* Wide desktop expansion: eliminate dead space and allow staff tables/details to utilize width */
+@media (min-width: 1440px) {
+  .staff {
+    grid-template-columns: 16.5rem minmax(0, 1fr);
+  }
+
+  .staff__main {
+    padding: 2rem clamp(2rem, 3.5vw, 4rem);
+  }
+
+  .staff-page {
+    gap: 1.5rem;
+  }
+
+  .staff-split {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
+    gap: 2rem;
+  }
+
+  .staff-split:has(> :only-child),
+  .staff-split--single {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 1800px) {
+  .staff {
+    grid-template-columns: 18rem minmax(0, 1fr);
+  }
+
+  .staff__main {
+    padding: 2.5rem clamp(2.5rem, 4vw, 5rem);
+  }
+
+  .staff-split {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.85fr);
+    gap: 2.5rem;
+  }
+
+  .staff-split:has(> :only-child),
+  .staff-split--single {
+    grid-template-columns: 1fr !important;
+  }
+}
+

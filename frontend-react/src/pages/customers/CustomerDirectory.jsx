@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchCustomers } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
-
-const PAGE_SIZE = 6
+import { LoadingState } from '../../components/ui/LoadingState.jsx'
+import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
+import { useResponsive } from '../../lib/useResponsive.js'
 
 /** Student A — staff user directory dividing customers and staff members with separate filters, role badges & pagination. */
 export default function CustomerDirectory() {
+  const { isMobile } = useResponsive()
   const [dataList, setDataList] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -91,8 +93,9 @@ export default function CustomerDirectory() {
     return sorted
   }, [dataList, query, sort, category])
 
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
-  const view = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const pageSize = isMobile ? 4 : 6
+  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const view = rows.slice((page - 1) * pageSize, page * pageSize)
 
   function onCategoryChange(cat) {
     setCategory(cat)
@@ -128,9 +131,12 @@ export default function CustomerDirectory() {
       </header>
 
       {error && (
-        <div className="notice notice--error" style={{ color: '#ff6b6b' }}>
-          {error}
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onRetry={() => loadCustomers(false)}
+          onDismiss={() => setError(null)}
+        />
       )}
 
       {/* Directory division tabs: All Users vs Customers vs Staff Members */}

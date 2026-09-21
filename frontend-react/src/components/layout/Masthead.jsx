@@ -7,7 +7,7 @@ export function Masthead({ eyebrow, title, lede, crumbs = [] }) {
       {/* Ambient colorful light glow across the masthead */}
       <div className="masthead__glow" aria-hidden="true" />
 
-      <div className="shell masthead__content">
+      <div className="shell shell--wide masthead__content">
         {crumbs.length ? (
           <nav className="crumbs" aria-label="Breadcrumb">
             <Link to="/">Home</Link>

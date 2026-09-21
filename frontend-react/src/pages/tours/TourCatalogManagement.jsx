@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { createTour, deleteTour, fetchDestinations, fetchTours, updateTour } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 
 const PAGE_SIZE = 6
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -241,12 +242,21 @@ export default function TourCatalogManagement() {
       </header>
 
       {error && (
-        <div className="notice notice--error" style={{ color: '#ff6b6b' }}>
-          {error}
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onRetry={() => loadTours(false)}
+          onDismiss={() => setError(null)}
+        />
       )}
 
-      {notice && <div className="notice">{notice}</div>}
+      {notice && (
+        <AlertBanner
+          type={notice.includes('failed') || notice.includes('Failed') ? 'error' : 'success'}
+          message={notice}
+          onDismiss={() => setNotice('')}
+        />
+      )}
 
       <form className="panel panel--solid staff-form" onSubmit={addTour}>
         <b>Add tour to database</b>

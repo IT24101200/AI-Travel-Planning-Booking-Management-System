@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchPayments, fetchRevenueSummary } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 
 const PAYMENT_STATUSES = ['Pending', 'Paid', 'Failed', 'Refunded']
 const PAGE_SIZE = 6
@@ -105,9 +106,12 @@ export default function PaymentsRevenueReport() {
       </header>
 
       {error && (
-        <div className="notice notice--error" style={{ color: '#ff6b6b' }}>
-          {error}
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onRetry={() => loadPayments(false)}
+          onDismiss={() => setError(null)}
+        />
       )}
 
       <div className="grid grid--3">

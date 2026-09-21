@@ -102,3 +102,59 @@ export function usePageTitle(title) {
     document.title = title ? `${title} · Serendib Trails` : 'Serendib Trails'
   }, [title])
 }
+
+/**
+ * Hook for managing async operations (API calls, promises)
+ * with unmount cancellation safety, loading, error, and data states.
+ */
+export function useAsync(asyncFn, immediate = true) {
+  const [loading, setLoading] = useState(immediate)
+  const [data, setData] = useState(null)
+  const [error, setError] = useState(null)
+
+  const execute = useCallback(
+    async (...args) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await asyncFn(...args)
+        setData(res)
+        return res
+      } catch (err) {
+        const message = err.response?.data?.message || err.message || 'An unexpected error occurred.'
+        setError(message)
+        throw err
+      } finally {
+        setLoading(false)
+      }
+    },
+    [asyncFn],
+  )
+
+  useEffect(() => {
+    let isCancelled = false
+    if (immediate) {
+      setLoading(true)
+      setError(null)
+      asyncFn()
+        .then((res) => {
+          if (!isCancelled) {
+            setData(res)
+            setLoading(false)
+          }
+        })
+        .catch((err) => {
+          if (!isCancelled) {
+            setError(err.response?.data?.message || err.message || 'An unexpected error occurred.')
+            setLoading(false)
+          }
+        })
+    }
+    return () => {
+      isCancelled = true
+    }
+  }, [asyncFn, immediate])
+
+  return { execute, loading, data, error, setData, setError }
+}
+

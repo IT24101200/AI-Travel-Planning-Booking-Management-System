@@ -28,9 +28,16 @@
 
 .hero__inner {
   display: grid;
-  gap: clamp(2rem, 4vw, 3.5rem);
+  gap: clamp(2rem, 4vw, 4rem);
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
   align-items: end;
+}
+
+@media (min-width: 1400px) {
+  .hero__inner {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: clamp(3rem, 5vw, 6rem);
+  }
 }
 
 @media (max-width: 980px) {
@@ -76,7 +83,7 @@
 .hero__facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 1.75rem;
+  gap: clamp(1.75rem, 2.5vw, 3.5rem);
   margin-top: 2.6rem;
   padding-top: 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.18);
@@ -101,6 +108,7 @@
 .switcher {
   display: grid;
   gap: 0.85rem;
+  width: 100%;
 }
 
 .switcher__head {
@@ -130,6 +138,20 @@
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
   scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+}
+
+@media (min-width: 981px) {
+  .switcher__rail {
+    display: flex;
+    gap: clamp(0.6rem, 1vw, 1.2rem);
+    padding-bottom: 0;
+    overflow: visible;
+  }
+
+  .switcher__rail > .switcher__item {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 .switcher__rail::-webkit-scrollbar {

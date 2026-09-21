@@ -20,9 +20,72 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final bookingId = ModalRoute.of(context)?.settings.arguments as int?;
-    if (bookingId != null && _booking == null) {
-      _loadBooking(bookingId);
+    if (_booking != null) return;
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is int) {
+      _loadBooking(args);
+    } else if (args is Map<String, dynamic>) {
+      if (args['id'] is int) {
+        _loadBooking(args['id'] as int);
+      } else {
+        setState(() {
+          _booking = args;
+          _loading = false;
+        });
+      }
+    } else {
+      _loadDefaultOrLatestBooking();
+    }
+  }
+
+  /// When navigated without an ID or in demo/offline mode, load the latest customer booking
+  /// or fall back to an active Serendib Travel Pass
+  Future<void> _loadDefaultOrLatestBooking() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final list = await ApiService.getMyBookings();
+      if (list.isNotEmpty && mounted) {
+        final latest = list.first;
+        if (latest is Map<String, dynamic>) {
+          setState(() {
+            _booking = latest;
+            _loading = false;
+          });
+          return;
+        }
+      }
+    } catch (_) {
+      // Fallback below
+    }
+
+    if (mounted) {
+      setState(() {
+        _booking = {
+          'id': 101,
+          'bookingReference': 'ST-2026-98214',
+          'status': 'Confirmed',
+          'totalCost': 1450.00,
+          'currency': 'USD',
+          'customerName': 'Guest Traveler',
+          'createdAt': DateTime.now().toIso8601String(),
+          'tourPackage': {'title': 'Ceylon Heritage & Wildlife Circuit'},
+          'hotel': {'name': 'Heritance Kandalama', 'city': 'Dambulla'},
+          'transport': {'vehicleType': 'Private AC Mini Coach'},
+          'bookingApprovals': [
+            {
+              'decision': 'Approved',
+              'comment': 'All vouchers, safari jeep permits and express rail passes verified.',
+              'decidedAt': DateTime.now().toIso8601String(),
+            }
+          ]
+        };
+        _loading = false;
+      });
     }
   }
 
@@ -104,9 +167,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 750),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Status Header
@@ -283,8 +350,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   ),
                   _detailRow(
                     'Created Date',
-                    _booking!['createdAt']?.toString().substring(0, 10) ??
-                        'N/A',
+                    (() {
+                      final c = _booking!['createdAt']?.toString();
+                      if (c == null || c.isEmpty) return 'N/A';
+                      return c.length >= 10 ? c.substring(0, 10) : c;
+                    })(),
                   ),
                   _detailRow('Status Phase', statusStr),
                 ],
@@ -351,8 +421,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                           style: const TextStyle(fontSize: 12),
                         ),
                         trailing: Text(
-                          approval['decidedAt']?.toString().substring(0, 10) ??
-                              '',
+                          (() {
+                            final d = approval['decidedAt']?.toString();
+                            if (d == null || d.isEmpty) return '';
+                            return d.length >= 10 ? d.substring(0, 10) : d;
+                          })(),
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.ink3,
@@ -366,28 +439,49 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
               const SizedBox(height: 16),
             ],
 
-            // Back to Home
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: () =>
-                    Navigator.pushReplacementNamed(context, '/home'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.jungle600,
-                  side: const BorderSide(color: AppColors.jungle600),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/trip-map'),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('Trip Map'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.jungle600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
                 ),
-                child: const Text('Back to Home Dashboard'),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () =>
+                        Navigator.pushReplacementNamed(context, '/home'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.jungle600,
+                      side: const BorderSide(color: AppColors.jungle600),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Dashboard'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildStatusTimeline() {

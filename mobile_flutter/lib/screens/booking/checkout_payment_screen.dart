@@ -31,8 +31,22 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       });
     } else if (_booking == null) {
       setState(() {
+        _booking = {
+          'id': 101,
+          'bookingReference': 'ST-2026-98214',
+          'destination': 'Sigiriya & Ella Highlights',
+          'dates': 'Oct 12 – Oct 16, 2026',
+          'travellerCount': 2,
+          'totalCost': 485.0,
+          'currency': 'USD',
+          'items': [
+            {'name': 'Sigiriya Rock Fortress Excursion', 'type': 'Tour', 'price': 185.0},
+            {'name': 'Heritance Kandalama (Superior Room)', 'type': 'Room', 'price': 210.0},
+            {'name': 'Scenic Odyssey Train Transfer', 'type': 'Transport', 'price': 90.0},
+          ],
+        };
         _loading = false;
-        _error = 'No booking data provided for checkout';
+        _error = null;
       });
     }
   }
@@ -130,9 +144,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Complete Booking & Pay')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 750),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Order Reference Banner
@@ -416,7 +434,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           ],
         ),
       ),
-    );
+    ),
+  ),
+);
   }
 
   Widget _buildItemTile(Map<String, dynamic> item) {

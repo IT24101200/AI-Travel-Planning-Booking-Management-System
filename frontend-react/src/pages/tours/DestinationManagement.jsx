@@ -6,6 +6,7 @@ import {
   updateDestination,
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 
 const PAGE_SIZE = 6
 
@@ -165,12 +166,21 @@ export default function DestinationManagement() {
       </header>
 
       {error && (
-        <div className="notice notice--error" style={{ color: '#ff6b6b' }}>
-          {error}
-        </div>
+        <AlertBanner
+          type="error"
+          message={error}
+          onRetry={() => loadDestinations(false)}
+          onDismiss={() => setError(null)}
+        />
       )}
 
-      {notice && <div className="notice">{notice}</div>}
+      {notice && (
+        <AlertBanner
+          type={notice.includes('failed') || notice.includes('Failed') ? 'error' : 'success'}
+          message={notice}
+          onDismiss={() => setNotice('')}
+        />
+      )}
 
       <form className="panel panel--solid staff-form" onSubmit={add}>
         <b>Add destination to database</b>
