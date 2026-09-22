@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { fetchItinerariesForReview, updateItineraryStatus, removeItineraryItem } from '../../services/apiClient.js'
-import { mockItineraries } from '../../services/staffData.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 
@@ -22,31 +21,21 @@ export default function ItineraryReview() {
       const res = await fetchItinerariesForReview()
       const live = Array.isArray(res) ? res : (res?.data || [])
       if (!cancelled) {
-        let mapped = []
-        if (live.length > 0) {
-          mapped = live.map((it) => {
-            const statusStr = typeof it.status === 'number' ? (STATUS_NAMES[it.status] || 'Proposed') : (it.status || 'Proposed')
-            return {
-              id: `IT-${it.id}`,
-              numericId: it.id,
-              customer: it.customerId ? `Customer ${it.customerId.substring(0, 8)}…` : 'Customer',
-              title: `${it.items?.length || 0} tour(s) · $${it.totalEstimatedCost || 0} ${it.currency || 'USD'}`,
-              status: statusStr,
-              cost: it.totalEstimatedCost,
-              currency: it.currency || 'USD',
-              startDate: it.startDate ? it.startDate.split('T')[0] : 'N/A',
-              endDate: it.endDate ? it.endDate.split('T')[0] : 'N/A',
-              items: it.items || [],
-            }
-          })
-        } else {
-          // Realistic fallback sample itineraries
-          mapped = mockItineraries.map((it) => ({
-            ...it,
-            numericId: parseInt(it.id.replace(/\D/g, '') || '1', 10),
-            items: it.days ? it.days.flatMap((d) => d.activities.map((a) => ({ ...a, dayNumber: d.day, tourName: a.title, priceAtSelection: 45 }))) : [],
-          }))
-        }
+        const mapped = live.map((it) => {
+          const statusStr = typeof it.status === 'number' ? (STATUS_NAMES[it.status] || 'Proposed') : (it.status || 'Proposed')
+          return {
+            id: `IT-${it.id}`,
+            numericId: it.id,
+            customer: it.customerId ? `Customer ${it.customerId.substring(0, 8)}…` : 'Customer',
+            title: `${it.items?.length || 0} tour(s) · $${it.totalEstimatedCost || 0} ${it.currency || 'USD'}`,
+            status: statusStr,
+            cost: it.totalEstimatedCost,
+            currency: it.currency || 'USD',
+            startDate: it.startDate ? it.startDate.split('T')[0] : 'N/A',
+            endDate: it.endDate ? it.endDate.split('T')[0] : 'N/A',
+            items: it.items || [],
+          }
+        })
         setRows(mapped)
         if (mapped.length > 0) {
           setOpen((prev) => (mapped.some((m) => m.id === prev) ? prev : mapped[0].id))

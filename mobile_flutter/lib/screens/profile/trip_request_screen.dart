@@ -27,6 +27,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   bool _loadingDestinations = true;
   String? _error;
   String? _success;
+  int? _createdTripId;
 
   @override
   void initState() {
@@ -139,6 +140,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
       if (result['statusCode'] == 200 || result['statusCode'] == 201) {
         setState(() {
+          _createdTripId = result['id'] is int ? result['id'] : int.tryParse(result['id']?.toString() ?? '');
           _success =
               'Trip request submitted! 4 AI Agents are now coordinating your itinerary, hotel & transport options.';
         });
@@ -345,15 +347,19 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                   Navigator.pushReplacementNamed(
                                     context,
                                     '/trip-history',
+                                    arguments: {
+                                      'initialTab': 1,
+                                      'openTripId': _createdTripId,
+                                    },
                                   );
                                 },
-                                icon: const Icon(Icons.arrow_forward, size: 16),
-                                label: const Text('View in My Trips'),
+                                icon: const Icon(Icons.auto_awesome, size: 18),
+                                label: const Text('🚀 Track AI Agent Progress Live'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.jungle600,
                                   foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(
-                                    vertical: 10,
+                                    vertical: 12,
                                   ),
                                 ),
                               ),

@@ -49,23 +49,32 @@ namespace backend.Services
                 }
             }
 
+            // Ensure dates are parsed as UTC for PostgreSQL timestamptz compatibility
+            var startUtc = dto.StartDate.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dto.StartDate, DateTimeKind.Utc)
+                : dto.StartDate.ToUniversalTime();
+
+            var endUtc = dto.EndDate.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(dto.EndDate, DateTimeKind.Utc)
+                : dto.EndDate.ToUniversalTime();
+
             // Date checks run unconditionally for every trip request,
             // regardless of whether the customer has a Preference row.
 
             // Reject if StartDate is in the past (UTC date-only comparison).
-            if (dto.StartDate.Date < DateTime.UtcNow.Date)
+            if (startUtc.Date < DateTime.UtcNow.Date)
             {
                 throw new ArgumentException(
-                    $"Start date ({dto.StartDate:yyyy-MM-dd}) cannot be in the past. " +
+                    $"Start date ({startUtc:yyyy-MM-dd}) cannot be in the past. " +
                     $"Today's date (UTC) is {DateTime.UtcNow:yyyy-MM-dd}.");
             }
 
             // Reject if StartDate is not strictly before EndDate.
-            if (dto.StartDate.Date >= dto.EndDate.Date)
+            if (startUtc.Date >= endUtc.Date)
             {
                 throw new ArgumentException(
-                    $"Start date ({dto.StartDate:yyyy-MM-dd}) must be strictly before " +
-                    $"end date ({dto.EndDate:yyyy-MM-dd}).");
+                    $"Start date ({startUtc:yyyy-MM-dd}) must be strictly before " +
+                    $"end date ({endUtc:yyyy-MM-dd}).");
             }
 
             // If DestinationId is provided, verify it exists
@@ -83,8 +92,8 @@ namespace backend.Services
                 CustomerId = customerId,
                 DestinationId = dto.DestinationId,
                 RawRequestText = dto.RawRequestText,
-                StartDate = dto.StartDate,
-                EndDate = dto.EndDate,
+                StartDate = startUtc,
+                EndDate = endUtc,
                 TravellerCount = dto.TravellerCount,
                 BudgetCeiling = dto.BudgetCeiling,
                 Currency = dto.Currency,
@@ -228,6 +237,68 @@ namespace backend.Services
 
             return trips.Select(MapToDto).ToList();
         }
+
+        public async Task<AgentLogDto> AddAgentLogAsync(AgentLogCreateDto dto)
+        {
+            var log = new AgentLog
+            {
+                TripRequestId = dto.TripRequestId,
+                AgentName = dto.AgentName,
+                StepName = dto.StepName,
+                Input = dto.Input,
+                Output = dto.Output,
+                Status = string.IsNullOrWhiteSpace(dto.Status) ? "Success" : dto.Status,
+                Timestamp = dto.Timestamp ?? DateTime.UtcNow
+            };
+
+            _db.AgentLogs.Add(log);
+            await _db.SaveChangesAsync();
+
+            return new AgentLogDto
+            {
+                Id = log.Id,
+                TripRequestId = log.TripRequestId,
+                AgentName = log.AgentName,
+                StepName = log.StepName,
+                Input = log.Input,
+                Output = log.Output,
+                Status = log.Status,
+                Timestamp = log.Timestamp
+            };
+        }
+
+        public async Task<TripRequestDto?> UpdateAgentPlanAsync(int tripRequestId, TripRequestAgentUpdateDto dto)
+        {
+            var trip = await _db.TripRequests
+                .Include(t => t.Destination)
+                .FirstOrDefaultAsync(t => t.Id == tripRequestId);
+
+            if (trip == null) return null;
+
+            if (!string.IsNullOrWhiteSpace(dto.Status) && Enum.TryParse<TripRequestStatus>(dto.Status, true, out var parsedStatus))
+            {
+                trip.Status = parsedStatus;
+            }
+
+            if (dto.PlanJson.HasValue)
+            {
+                trip.PlanJson = dto.PlanJson.Value.GetRawText();
+            }
+
+            if (dto.RetryCount.HasValue)
+            {
+                trip.RetryCount = dto.RetryCount.Value;
+            }
+
+            if (dto.FailureReason != null)
+            {
+                trip.FailureReason = dto.FailureReason;
+            }
+
+            await _db.SaveChangesAsync();
+            return MapToDto(trip);
+        }
+
         private static TripRequestDto MapToDto(TripRequest t)
         {
             return new TripRequestDto

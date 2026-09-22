@@ -281,28 +281,70 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getMyTripRequests() async {
-    final response = await get('triprequest/my');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
+    try {
+      final response = await get('triprequest/my');
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          return decoded['data'] as List<dynamic>;
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<Map<String, dynamic>?> getTripRequest(int id) async {
+    try {
+      final response = await get('triprequest/$id');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Get AI agent execution audit logs for a trip request
+  static Future<List<dynamic>> getAgentLogs(int tripRequestId) async {
+    try {
+      final response = await get('triprequest/$tripRequestId/logs');
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          return decoded['data'] as List<dynamic>;
+        }
+      }
+    } catch (_) {}
     return [];
   }
 
   // ── Bookings ──
 
   static Future<List<dynamic>> getMyBookings() async {
-    final response = await get('booking/my');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
+    try {
+      final response = await get('booking/my');
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          return decoded['data'] as List<dynamic>;
+        }
+      }
+    } catch (_) {}
     return [];
   }
 
   static Future<Map<String, dynamic>?> getBooking(int id) async {
-    final response = await get('booking/$id');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    }
+    try {
+      final response = await get('booking/$id');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (_) {}
     return null;
   }
 
@@ -316,10 +358,17 @@ class ApiService {
   // ── Notifications ──
 
   static Future<List<dynamic>> getMyNotifications() async {
-    final response = await get('notification/my');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
+    try {
+      final response = await get('notification/my');
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) {
+          return decoded;
+        } else if (decoded is Map && decoded['data'] is List) {
+          return decoded['data'] as List<dynamic>;
+        }
+      }
+    } catch (_) {}
     return [];
   }
 
