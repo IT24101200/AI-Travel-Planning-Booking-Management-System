@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { decideApproval, fetchAgentLogs, fetchBookings } from '../../services/apiClient.js'
-import { mockBookings } from '../../services/staffData.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
@@ -33,34 +32,29 @@ export default function BookingApprovalDashboard() {
       const res = await fetchBookings()
       const live = Array.isArray(res) ? res : (res?.data || [])
       if (!cancelled) {
-        let mapped = []
-        if (live.length > 0) {
-          mapped = live.map((b) => {
-            const statusStr = typeof b.status === 'number' ? (STATUS_NAMES[b.status] || 'AwaitingApproval') : (b.status || 'AwaitingApproval')
-            return {
-              id: b.id,
-              reference: b.bookingReference || `BK-${b.id}`,
-              tripRequestId: b.tripRequestId,
-              customer: b.customerName || (b.customerId ? `Customer ${b.customerId.substring(0, 8)}…` : 'Customer'),
-              total: b.totalCost || 0,
-              currency: b.currency || 'USD',
-              requested: b.createdAt ? b.createdAt.split('T')[0] : 'N/A',
-              status: statusStr,
-              trail: (b.bookingApprovals && b.bookingApprovals.length > 0)
-                ? b.bookingApprovals.map((a) => {
-                    const dec = typeof a.decision === 'number' ? (DECISION_NAMES[a.decision] || 'Reviewed') : (a.decision || 'Reviewed')
-                    return {
-                      agent: a.travelAgentName || 'Agent',
-                      text: `${dec}: ${a.comment || 'No comment'} (${a.decidedAt ? a.decidedAt.replace('T', ' ').substring(0, 16) : ''})`,
-                    }
-                  })
-                : [{ agent: 'System', text: 'Booking submitted and awaiting travel agent approval.' }],
-            }
-          })
-        } else {
-          // Realistic fallback sample data if database has no active bookings
-          mapped = mockBookings
-        }
+        const mapped = live.map((b) => {
+          const statusStr = typeof b.status === 'number' ? (STATUS_NAMES[b.status] || 'AwaitingApproval') : (b.status || 'AwaitingApproval')
+          return {
+            id: b.id,
+            reference: b.bookingReference || `BK-${b.id}`,
+            tripRequestId: b.tripRequestId,
+            customer: b.customerName || (b.customerId ? `Customer ${b.customerId.substring(0, 8)}…` : 'Customer'),
+            total: b.totalCost || 0,
+            currency: b.currency || 'USD',
+            requested: b.createdAt ? b.createdAt.split('T')[0] : 'N/A',
+            status: statusStr,
+            agentLogs: b.agentLogs || [],
+            trail: (b.bookingApprovals && b.bookingApprovals.length > 0)
+              ? b.bookingApprovals.map((a) => {
+                  const dec = typeof a.decision === 'number' ? (DECISION_NAMES[a.decision] || 'Reviewed') : (a.decision || 'Reviewed')
+                  return {
+                    agent: a.travelAgentName || 'Agent',
+                    text: `${dec}: ${a.comment || 'No comment'} (${a.decidedAt ? a.decidedAt.replace('T', ' ').substring(0, 16) : ''})`,
+                  }
+                })
+              : [{ agent: 'System', text: 'Booking submitted and awaiting travel agent approval.' }],
+          }
+        })
         setRows(mapped)
         if (mapped.length > 0) {
           setOpen((prev) => (mapped.some((m) => m.id === prev) ? prev : mapped[0].id))
@@ -93,6 +87,11 @@ export default function BookingApprovalDashboard() {
 
   // Load autonomous AI agent execution logs for the selected booking's trip request
   useEffect(() => {
+    if (active?.agentLogs && active.agentLogs.length > 0) {
+      setAgentLogs(active.agentLogs)
+      return
+    }
+
     if (!active?.tripRequestId) {
       setAgentLogs([])
       return
@@ -115,7 +114,7 @@ export default function BookingApprovalDashboard() {
       })
 
     return () => { cancelled = true }
-  }, [active?.tripRequestId])
+  }, [active?.id, active?.tripRequestId, active?.agentLogs])
 
   async function decide(decision) {
     if (!active) return

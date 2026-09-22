@@ -9,6 +9,7 @@ using Microsoft.OpenApi.Models;
 using DotNetEnv;
 
 Env.Load();
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
@@ -103,6 +104,7 @@ builder.Services.AddAuthorization();
 
 // ── Controllers ──
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 
 // ── DI: Student A Services ──
 builder.Services.AddScoped<ICustomerService, CustomerService>();
@@ -191,12 +193,17 @@ app.UseExceptionHandler(errorApp =>
 {
     errorApp.Run(async context =>
     {
+        var exFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        var ex = exFeature?.Error;
+        app.Logger.LogError(ex, "Unhandled exception at {Path}: {Message}", context.Request.Path, ex?.Message);
+
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         context.Response.ContentType = "application/json";
         var response = new
         {
             statusCode = 500,
-            message = "An unexpected internal server error occurred. Please try again later."
+            message = ex?.Message ?? "An unexpected internal server error occurred. Please try again later.",
+            detail = ex?.ToString()
         };
         await context.Response.WriteAsJsonAsync(response);
     });
@@ -291,3 +298,5 @@ app.MapGet("/supabasehealth", async () =>
 });
 
 app.Run();
+
+public partial class Program { }

@@ -12,5 +12,7 @@ namespace backend.Services
         Task<TripRequestDto?> CancelAsync(int tripRequestId, string customerId);
         Task<List<AgentLogDto>> GetAgentLogsAsync(int tripRequestId, string? customerId);
         Task<List<TripRequestDto>> SearchAsync(string? customerId, int? destinationId, string? status, string? sortBy, bool descending, int page, int pageSize);
+        Task<AgentLogDto> AddAgentLogAsync(AgentLogCreateDto dto);
+        Task<TripRequestDto?> UpdateAgentPlanAsync(int tripRequestId, TripRequestAgentUpdateDto dto);
     }
 }

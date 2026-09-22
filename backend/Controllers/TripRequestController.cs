@@ -13,15 +13,26 @@ namespace backend.Controllers
     {
         private readonly ITripRequestService _tripRequestService;
         private readonly ICustomerService _customerService;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<TripRequestController> _logger;
 
-        public TripRequestController(ITripRequestService tripRequestService, ICustomerService customerService)
+        public TripRequestController(
+            ITripRequestService tripRequestService,
+            ICustomerService customerService,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
+            ILogger<TripRequestController> logger)
         {
             _tripRequestService = tripRequestService;
             _customerService = customerService;
+            _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
+            _logger = logger;
         }
 
         /// <summary>
-        /// Create a new trip request.
+        /// Create a new trip request. Automatically kicks off the agent planning pipeline (Option A).
         /// </summary>
         [HttpPost]
         [ProducesResponseType(typeof(TripRequestDto), StatusCodes.Status201Created)]
@@ -40,11 +51,20 @@ namespace backend.Controllers
             try
             {
                 var result = await _tripRequestService.CreateAsync(userId, dto);
-                return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+
+                // Option A: Automatically trigger the multi-agent pipeline in the background
+                TriggerAgentPipelineAsync(result);
+
+                return StatusCode(StatusCodes.Status201Created, result);
             }
             catch (ArgumentException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error creating trip request for customer {UserId}", userId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = ex.Message });
             }
         }
 
@@ -52,6 +72,7 @@ namespace backend.Controllers
         /// List trip requests for the current customer.
         /// </summary>
         [HttpGet]
+        [HttpGet("my")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyTripRequests(
             [FromQuery] int page = 1,
@@ -179,6 +200,84 @@ namespace backend.Controllers
 
             var trips = await _tripRequestService.SearchAsync(customerId, destinationId, status, sortBy, descending, page, pageSize);
             return Ok(trips);
+        }
+
+        /// <summary>
+        /// Record an agent audit log entry.
+        /// </summary>
+        [HttpPost("agent-log")]
+        [HttpPost("/api/AgentLog")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(AgentLogDto), StatusCodes.Status200OK)]
+        public async Task<IActionResult> AddAgentLog([FromBody] AgentLogCreateDto dto)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var log = await _tripRequestService.AddAgentLogAsync(dto);
+            return Ok(log);
+        }
+
+        /// <summary>
+        /// Update TripRequest status and generated PlanJson from the agent pipeline.
+        /// </summary>
+        [HttpPatch("{id}/agent-update")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(TripRequestDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AgentUpdate(int id, [FromBody] TripRequestAgentUpdateDto dto)
+        {
+            var updated = await _tripRequestService.UpdateAgentPlanAsync(id, dto);
+            if (updated == null)
+                return NotFound(new { message = "Trip request not found." });
+
+            return Ok(updated);
+        }
+
+        private void TriggerAgentPipelineAsync(TripRequestDto trip)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
+                    var client = _httpClientFactory.CreateClient();
+                    client.Timeout = TimeSpan.FromSeconds(5);
+
+                    var payload = new
+                    {
+                        trip_request_id = trip.Id,
+                        customer_id = trip.CustomerId,
+                        destination_name = trip.DestinationName ?? "Destination",
+                        raw_request_text = trip.RawRequestText,
+                        start_date = trip.StartDate.ToString("o"),
+                        end_date = trip.EndDate.ToString("o"),
+                        traveller_count = trip.TravellerCount,
+                        budget_ceiling = (double)trip.BudgetCeiling,
+                        currency = trip.Currency,
+                        retry_count = trip.RetryCount
+                    };
+
+                    var content = new StringContent(
+                        System.Text.Json.JsonSerializer.Serialize(payload),
+                        System.Text.Encoding.UTF8,
+                        "application/json");
+
+                    var response = await client.PostAsync($"{agentBaseUrl}/run-pipeline-async", content);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        _logger.LogInformation("Dispatched TripRequest #{Id} to multi-agent pipeline.", trip.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Agent service returned HTTP {Status} for TripRequest #{Id}.", response.StatusCode, trip.Id);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("Could not trigger agent pipeline for TripRequest #{Id}: {Message}", trip.Id, ex.Message);
+                }
+            });
         }
 
         private string GetUserId()

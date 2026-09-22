@@ -22,6 +22,7 @@ namespace backend.Controllers
         /// List notifications for the current customer with optional filters.
         /// </summary>
         [HttpGet]
+        [HttpGet("my")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyNotifications(
             [FromQuery] string? status,

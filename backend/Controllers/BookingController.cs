@@ -58,6 +58,7 @@ namespace backend.Controllers
         /// Get all bookings (Supports filtering by CustomerId and BookingStatus).
         /// </summary>
         [HttpGet]
+        [HttpGet("my")]
         [ProducesResponseType(typeof(IEnumerable<BookingDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetBookings([FromQuery] string? customerId, [FromQuery] BookingStatus? status)
         {
