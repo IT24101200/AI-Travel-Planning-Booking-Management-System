@@ -33,7 +33,7 @@ export function AuthProvider({ children }) {
   })
 
   const login = useCallback(async (email, password) => {
-    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
+    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5138/api'
     try {
       const res = await fetch(`${base}/Auth/login`, {
         method: 'POST',

@@ -13,21 +13,44 @@ Env.Load();
 var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables();
 
-// Load environment variables from '.env' or 'env' file if present
-var envFilePath = Path.Combine(builder.Environment.ContentRootPath, ".env");
-if (!File.Exists(envFilePath))
+string? ResolveEnvFilePath()
 {
-    envFilePath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+    var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    void AddCandidate(string path)
+    {
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            candidates.Add(Path.GetFullPath(path));
+        }
+    }
+
+    AddCandidate(Path.Combine(builder.Environment.ContentRootPath, ".env"));
+    AddCandidate(Path.Combine(builder.Environment.ContentRootPath, "env"));
+    AddCandidate(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
+    AddCandidate(Path.Combine(Directory.GetCurrentDirectory(), "env"));
+
+    var currentDir = new DirectoryInfo(builder.Environment.ContentRootPath);
+    while (currentDir != null)
+    {
+        AddCandidate(Path.Combine(currentDir.FullName, ".env"));
+        AddCandidate(Path.Combine(currentDir.FullName, "env"));
+        currentDir = currentDir.Parent;
+    }
+
+    foreach (var candidate in candidates)
+    {
+        if (File.Exists(candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return null;
 }
-if (!File.Exists(envFilePath))
-{
-    envFilePath = Path.Combine(builder.Environment.ContentRootPath, "env");
-}
-if (!File.Exists(envFilePath))
-{
-    envFilePath = Path.Combine(Directory.GetCurrentDirectory(), "env");
-}
-if (File.Exists(envFilePath))
+
+var envFilePath = ResolveEnvFilePath();
+if (!string.IsNullOrWhiteSpace(envFilePath))
 {
     foreach (var line in File.ReadAllLines(envFilePath))
     {

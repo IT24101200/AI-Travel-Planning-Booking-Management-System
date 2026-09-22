@@ -7,7 +7,7 @@ import axios from 'axios'
  * marketing site renders from src/data/*. Only the planner talks to the API,
  * and it degrades gracefully when the backend is not running.
  */
-const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5000/api'
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5138/api'
 
 export const api = axios.create({
   baseURL,
