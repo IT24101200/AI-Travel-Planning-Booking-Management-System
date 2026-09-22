@@ -18,7 +18,7 @@ export default function TourCatalogManagement() {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
   const [page, setPage] = useState(1)
-  const [form, setForm] = useState({ name: '', destinationId: '', price: '', duration: '', category: 'Heritage' })
+  const [form, setForm] = useState({ name: '', destinationId: '', price: '', duration: '', category: 'Heritage', defaultStartTime: '09:00' })
   const [image, setImage] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
   const [imageInputKey, setImageInputKey] = useState(0)
@@ -32,7 +32,10 @@ export default function TourCatalogManagement() {
     setError(null)
     try {
       const [tourRes, destRes] = await Promise.allSettled([
-        fetchTours(),
+        Promise.all([
+          fetchTours({ status: 'Active', pageSize: 1000 }),
+          fetchTours({ status: 'Inactive', pageSize: 1000 }),
+        ]).then(([activeTours, inactiveTours]) => [...activeTours, ...inactiveTours]),
         fetchDestinations(),
       ])
 
@@ -56,6 +59,7 @@ export default function TourCatalogManagement() {
             duration: `${t.durationHours || 3} hrs`,
             durationHours: t.durationHours || 3,
             category: t.category || 'Heritage',
+            defaultStartTime: t.defaultStartTime?.slice(0, 5) || '09:00',
             status: t.status || 'Active',
           }))
           setRows(mapped)
@@ -119,11 +123,12 @@ export default function TourCatalogManagement() {
         price: Number(form.price),
         durationHours: Number.parseInt(form.duration) || 3,
         category: form.category,
+        defaultStartTime: form.defaultStartTime,
         destinationId: destId,
         currency: 'USD',
       }, image)
       setNotice(`Tour "${form.name.trim()}" added to database successfully.`)
-      setForm({ name: '', destinationId: destinations[0]?.id || '', price: '', duration: '', category: 'Heritage' })
+      setForm({ name: '', destinationId: destinations[0]?.id || '', price: '', duration: '', category: 'Heritage', defaultStartTime: '09:00' })
       setImage(null)
       setImagePreview('')
       setImageInputKey((key) => key + 1)
@@ -164,6 +169,7 @@ export default function TourCatalogManagement() {
       price: row.price,
       duration: row.durationHours || 3,
       category: row.category,
+      defaultStartTime: row.defaultStartTime || '09:00',
     })
   }
 
@@ -180,6 +186,7 @@ export default function TourCatalogManagement() {
         price: Number(editForm.price) || 50,
         durationHours: Number(editForm.duration) || 3,
         category: editForm.category,
+        defaultStartTime: editForm.defaultStartTime,
         destinationId: destId,
       })
       setNotice(`Tour #${id} updated in database.`)
@@ -199,6 +206,7 @@ export default function TourCatalogManagement() {
         price: row.price,
         durationHours: row.durationHours,
         category: row.category,
+        defaultStartTime: row.defaultStartTime,
         destinationId: row.destinationId || 1,
         status: nextStatus,
       })
@@ -281,6 +289,10 @@ export default function TourCatalogManagement() {
             <option>Tea</option>
             <option>Snorkelling</option>
           </select>
+          <label>
+            Start Time
+            <input className="input" type="time" value={form.defaultStartTime} onChange={(e) => setForm({ ...form, defaultStartTime: e.target.value })} />
+          </label>
           <input
             key={imageInputKey}
             className="input"
@@ -323,13 +335,14 @@ export default function TourCatalogManagement() {
               <th>Price</th>
               <th>Duration</th>
               <th>Category</th>
+              <th>Start Time</th>
               <th>Status</th>
               <th />
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="staff-empty">Loading tours from database…</td></tr>
+              <tr><td colSpan={8} className="staff-empty">Loading tours from database…</td></tr>
             ) : pageRows.length > 0 ? (
               pageRows.map((r) => (
                 <tr key={r.id}>
@@ -359,6 +372,7 @@ export default function TourCatalogManagement() {
                           <option>Snorkelling</option>
                         </select>
                       </td>
+                      <td><input className="input input--sm" type="time" value={editForm.defaultStartTime} onChange={(e) => setEditForm({ ...editForm, defaultStartTime: e.target.value })} aria-label="Start Time" /></td>
                       <td><span className={`staff-pill staff-pill--${r.status.toLowerCase()}`}>{r.status}</span></td>
                       <td className="staff-row-actions">
                         <button type="button" className="btn btn--sm" onClick={() => saveEdit(r.id)}>Save</button>
@@ -372,6 +386,7 @@ export default function TourCatalogManagement() {
                       <td>${r.price}</td>
                       <td>{r.duration}</td>
                       <td><span className="chip">{r.category}</span></td>
+                      <td>{r.defaultStartTime}</td>
                       <td><span className={`staff-pill staff-pill--${r.status.toLowerCase()}`}>{r.status}</span></td>
                       <td className="staff-row-actions">
                         <button type="button" className="staff-mini" onClick={() => startEdit(r)}>Edit</button>
@@ -387,7 +402,7 @@ export default function TourCatalogManagement() {
                 </tr>
               ))
             ) : (
-              <tr><td colSpan={7} className="staff-empty">No tours found in database.</td></tr>
+              <tr><td colSpan={8} className="staff-empty">No tours found in database.</td></tr>
             )}
           </tbody>
         </table>

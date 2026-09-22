@@ -108,8 +108,8 @@ export async function resendNotification(id) {
 // Student B — Tours & Itineraries API endpoints
 // ─────────────────────────────────────────────────────────────
 
-export async function fetchTours() {
-  const { data } = await api.get('/Tour')
+export async function fetchTours(params) {
+  const { data } = await api.get('/Tour', { params })
   return data
 }
 
@@ -212,7 +212,10 @@ export async function fetchRevenueSummary() {
 // ─────────────────────────────────────────────────────────────
 
 export async function updateTour(id, tour) {
-  const { data } = await api.put(`/Tour/${id}`, tour)
+  const payload = tour.defaultStartTime?.length === 5
+    ? { ...tour, defaultStartTime: `${tour.defaultStartTime}:00` }
+    : tour
+  const { data } = await api.put(`/Tour/${id}`, payload)
   return data
 }
 
