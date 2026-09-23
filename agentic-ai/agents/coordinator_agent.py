@@ -43,14 +43,14 @@ def call_gemini_for_planning(prompt: str) -> str:
         return None
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        
-        # Use gemini-1.5-flash for fast and cost-effective planning
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        if response and response.text:
-            return response.text.strip()
+        from google import genai
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        interaction = client.interactions.create(
+            model="gemini-3.5-flash",
+            input=prompt
+        )
+        if interaction and getattr(interaction, "output_text", None):
+            return interaction.output_text.strip()
     except Exception as e:
         logger.warning(f"Gemini API call failed, using rule-based planning fallback: {e}")
 
