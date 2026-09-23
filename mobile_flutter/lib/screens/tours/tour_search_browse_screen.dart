@@ -21,11 +21,11 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   final List<String> _categories = [
     'All',
     'Heritage',
-    'Hiking',
-    'Wildlife',
-    'Beach',
+    'Rail journey',
+    'Safari',
+    'Marine',
     'Tea',
-    'Rail',
+    'Snorkelling',
   ];
 
   @override

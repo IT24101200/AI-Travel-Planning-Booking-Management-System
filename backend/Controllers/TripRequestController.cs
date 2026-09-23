@@ -12,6 +12,7 @@ namespace backend.Controllers
     public class TripRequestController : ControllerBase
     {
         private readonly ITripRequestService _tripRequestService;
+        private readonly IPreferenceService _preferenceService;
         private readonly ICustomerService _customerService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
@@ -19,12 +20,14 @@ namespace backend.Controllers
 
         public TripRequestController(
             ITripRequestService tripRequestService,
+            IPreferenceService preferenceService,
             ICustomerService customerService,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             ILogger<TripRequestController> logger)
         {
             _tripRequestService = tripRequestService;
+            _preferenceService = preferenceService;
             _customerService = customerService;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
@@ -244,10 +247,17 @@ namespace backend.Controllers
                     var client = _httpClientFactory.CreateClient();
                     client.Timeout = TimeSpan.FromSeconds(5);
 
+                    var preference = await _preferenceService.GetByCustomerIdAsync(trip.CustomerId);
+                    var preferredActivities = string.IsNullOrWhiteSpace(preference?.PreferredActivities)
+                        ? Array.Empty<string>()
+                        : preference.PreferredActivities
+                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
                     var payload = new
                     {
                         trip_request_id = trip.Id,
                         customer_id = trip.CustomerId,
+                        destination_id = trip.DestinationId,
                         destination_name = trip.DestinationName ?? "Destination",
                         raw_request_text = trip.RawRequestText,
                         start_date = trip.StartDate.ToString("o"),
@@ -255,7 +265,8 @@ namespace backend.Controllers
                         traveller_count = trip.TravellerCount,
                         budget_ceiling = (double)trip.BudgetCeiling,
                         currency = trip.Currency,
-                        retry_count = trip.RetryCount
+                        retry_count = trip.RetryCount,
+                        preferred_activities = preferredActivities
                     };
 
                     var content = new StringContent(

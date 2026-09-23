@@ -47,8 +47,10 @@ import httpx
 class TripPlanningState(TypedDict, total=False):
     trip_request_id: int
     customer_id: str
+    destination_id: Optional[int]
     destination_name: str
     raw_request_text: str
+    preferred_activities: Optional[list[str]]
     start_date: str
     end_date: str
     traveller_count: int

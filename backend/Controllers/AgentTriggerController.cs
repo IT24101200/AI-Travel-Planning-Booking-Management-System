@@ -9,17 +9,20 @@ namespace backend.Controllers
     public class AgentTriggerController : ControllerBase
     {
         private readonly ITripRequestService _tripRequestService;
+        private readonly IPreferenceService _preferenceService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         private readonly ILogger<AgentTriggerController> _logger;
 
         public AgentTriggerController(
             ITripRequestService tripRequestService,
+            IPreferenceService preferenceService,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             ILogger<AgentTriggerController> logger)
         {
             _tripRequestService = tripRequestService;
+            _preferenceService = preferenceService;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
             _logger = logger;
@@ -68,10 +71,17 @@ namespace backend.Controllers
             var client = _httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(runAsync ? 5 : 60);
 
+            var preference = await _preferenceService.GetByCustomerIdAsync(trip.CustomerId);
+            var preferredActivities = string.IsNullOrWhiteSpace(preference?.PreferredActivities)
+                ? Array.Empty<string>()
+                : preference.PreferredActivities
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
             var payload = new
             {
                 trip_request_id = trip.Id,
                 customer_id = trip.CustomerId,
+                destination_id = trip.DestinationId,
                 destination_name = trip.DestinationName ?? "Destination",
                 raw_request_text = trip.RawRequestText,
                 start_date = trip.StartDate.ToString("o"),
@@ -79,7 +89,8 @@ namespace backend.Controllers
                 traveller_count = trip.TravellerCount,
                 budget_ceiling = (double)trip.BudgetCeiling,
                 currency = trip.Currency,
-                retry_count = trip.RetryCount
+                retry_count = trip.RetryCount,
+                preferred_activities = preferredActivities
             };
 
             var endpoint = runAsync ? $"{agentBaseUrl}/run-pipeline-async" : $"{agentBaseUrl}/run-pipeline";

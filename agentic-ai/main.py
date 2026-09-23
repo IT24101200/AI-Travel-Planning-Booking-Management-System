@@ -31,6 +31,7 @@ app.add_middleware(
 class TripPipelineRequest(BaseModel):
     trip_request_id: int = Field(..., description="Unique ID of the TripRequest from backend")
     customer_id: Optional[str] = Field("Customer", description="Customer ID")
+    destination_id: Optional[int] = None
     destination_name: Optional[str] = Field("Destination", description="Destination name")
     raw_request_text: Optional[str] = Field("", description="Raw customer request notes")
     start_date: str = Field(..., description="Start date in ISO format")
@@ -39,6 +40,7 @@ class TripPipelineRequest(BaseModel):
     budget_ceiling: float = Field(..., description="Budget ceiling")
     currency: str = Field("USD", description="Currency code")
     retry_count: Optional[int] = Field(0, description="Initial retry count")
+    preferred_activities: Optional[list[str]] = []
 
 
 @app.get("/")

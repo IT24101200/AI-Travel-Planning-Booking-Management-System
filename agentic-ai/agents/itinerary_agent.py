@@ -318,6 +318,34 @@ Rules:
     return parsed_result
 
 
+def itinerary_node(state: dict) -> dict:
+    """
+    LangGraph adapter: maps the shared pipeline state into the input shape
+    build_itinerary() expects, calls it, and merges the result back into state.
+    """
+    trip_request = {
+        "trip_request_id": state.get("trip_request_id"),
+        "destination_id": state.get("destination_id"),
+        "destination_name": state.get("destination_name"),
+        "start_date": state.get("start_date"),
+        "end_date": state.get("end_date"),
+        "traveller_count": state.get("traveller_count"),
+        "budget_ceiling": state.get("target_budgets", {}).get("tours_budget")
+        or state.get("budget_ceiling"),
+        "preferred_activities": state.get("preferred_activities", []),
+    }
+
+    if not trip_request["destination_id"]:
+        error_result = {
+            "error": "Missing destination_id in pipeline state — "
+            "the backend payload must include it for tour search to work."
+        }
+        return {**state, "itinerary": error_result}
+
+    result = build_itinerary(trip_request)
+    return {**state, "itinerary": result}
+
+
 # Packages that may require manual installation:
 # - google-generativeai
 # - python-dotenv
