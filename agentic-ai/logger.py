@@ -21,7 +21,7 @@ logging.basicConfig(
 )
 console = logging.getLogger("AgentLogger")
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5085")
+BACKEND_URL = os.getenv("BACKEND_API_URL", "http://localhost:5138")
 
 
 def format_payload(data):
@@ -40,6 +40,8 @@ def log_agent_step(
     trip_request_id: int,
     agent_name: str,
     step_name: str,
+    step_type: str = "Reasoning",
+    tool_name: str = None,
     input_data=None,
     output_data=None,
     status: str = "Success",
@@ -60,8 +62,8 @@ def log_agent_step(
         "tripRequestId": trip_request_id,
         "agentName": agent_name,
         "stepName": step_name,
-        "stepType": "Reasoning",
-        "toolName": None,
+        "stepType": step_type,
+        "toolName": tool_name,
         "durationMs": duration_ms,
         "input": formatted_input[:4000] if formatted_input else None,
         "output": formatted_output[:4000] if formatted_output else None,

@@ -7,7 +7,7 @@ from agents.itinerary_agent import build_itinerary
 
 # Sample trip request matching the itinerary agent's expected input contract.
 trip_request = {
-    "trip_request_id": 101,
+    "trip_request_id": 1,
     "destination_id": 2,
     "destination_name": "Kandy",
     "start_date": "2026-10-01",

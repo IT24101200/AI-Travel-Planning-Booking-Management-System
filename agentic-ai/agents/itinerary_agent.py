@@ -5,6 +5,7 @@ function automatically, so importing the file will not create an itinerary.
 """
 
 import json
+from logger import log_agent_step
 import os
 
 from google import genai
@@ -165,6 +166,19 @@ def build_itinerary(trip_request):
     except Exception as error:
         return {"error": f"Unable to search for tours: {error}"}
 
+    try:
+        log_agent_step(
+            trip_request_id=trip_request["trip_request_id"],
+            agent_name="ItineraryAgent",
+            step_name="Searched tour catalog",
+            step_type="ToolCall",
+            tool_name="search_tours",
+            input_data={"destination_id": trip_request["destination_id"]},
+            output_data={"tours_found": len(candidate_tours)},
+        )
+    except Exception as error:
+        print(f"Warning: Failed to log 'Searched tour catalog': {error}")
+
     # Stop early with a useful result when the destination has no tours.
     if not candidate_tours:
         return {"error": "No tours available for this destination"}
@@ -268,12 +282,36 @@ Rules:
     except (json.JSONDecodeError, TypeError, AttributeError) as error:
         return {"error": f"Gemini returned invalid JSON: {error}"}
 
+    try:
+        log_agent_step(
+            trip_request_id=trip_request["trip_request_id"],
+            agent_name="ItineraryAgent",
+            step_name="Generated draft itinerary via Gemini",
+            step_type="Plan",
+            output_data=parsed_result,
+        )
+    except Exception as error:
+        print(f"Warning: Failed to log 'Generated draft itinerary via Gemini': {error}")
+
     # Check Gemini's proposed schedule with plain Python before returning it.
     is_valid, validation_errors = validate_itinerary(
         parsed_result,
         trip_request,
         available_tours,
     )
+
+    try:
+        log_agent_step(
+            trip_request_id=trip_request["trip_request_id"],
+            agent_name="ItineraryAgent",
+            step_name="Validated itinerary against business rules",
+            step_type="Validation",
+            output_data={"passed": is_valid, "errors": validation_errors},
+        )
+    except Exception as error:
+        print(
+            f"Warning: Failed to log 'Validated itinerary against business rules': {error}"
+        )
     if not is_valid:
         return {"error": "Validation failed", "details": validation_errors}
 

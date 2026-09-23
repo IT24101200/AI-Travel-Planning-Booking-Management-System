@@ -3,6 +3,23 @@ import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
+const List<String> kItineraryStatusLabels = [
+  'Draft',
+  'Proposed',
+  'Accepted',
+  'Discarded',
+];
+
+String normalizeItineraryStatus(dynamic status) {
+  if (status is int) {
+    return (status >= 0 && status < kItineraryStatusLabels.length)
+        ? kItineraryStatusLabels[status]
+        : 'Unknown';
+  }
+  if (status is String && status.isNotEmpty) return status;
+  return 'Unknown';
+}
+
 /// My Itinerary screen showing day-by-day timeline of scheduled tours and activities.
 class MyItineraryScreen extends StatefulWidget {
   const MyItineraryScreen({super.key});
@@ -177,7 +194,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           final it = _itineraries[index];
           final total = (it['totalEstimatedCost'] ?? 0).toDouble();
           final currency = it['currency'] ?? 'USD';
-          final status = it['status']?.toString() ?? 'Proposed';
+          final status = normalizeItineraryStatus(it['status']);
           final sDate = it['startDate']?.toString();
           final eDate = it['endDate']?.toString();
           final sStr = sDate != null && sDate.length >= 10 ? sDate.substring(0, 10) : (sDate ?? '');
