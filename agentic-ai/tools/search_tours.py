@@ -18,8 +18,8 @@ def search_tours(destination_id, category=None, max_price=None):
     Returns a list containing only tours whose status is "Active".
     """
     # Read the backend URL from the environment so it can be changed without
-    # editing this file. Use a localhost address for local development.
-    backend_base_url = os.getenv("BACKEND_API_URL", "http://localhost:5000")
+    # editing this file. Use BACKEND_API_URL or BACKEND_URL as configured.
+    backend_base_url = os.getenv("BACKEND_API_URL") or os.getenv("BACKEND_URL", "http://127.0.0.1:5138")
     endpoint_url = f"{backend_base_url.rstrip('/')}/api/tour"
 
     # Build the query string one value at a time. Optional values are included
