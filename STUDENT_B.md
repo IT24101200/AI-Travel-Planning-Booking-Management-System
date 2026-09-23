@@ -30,11 +30,11 @@ Student B owns **Component B: Tours & Itineraries**, which serves as the experie
 | **Database & Models** | 4 Tables (`Destination`, `Tour`, `Itinerary`, `ItineraryItem`) + EF Core Mappings | ✅ Completed | 100% |
 | **Backend API** | `TourController`, `ItineraryController`, `DestinationController` + DTOs | ✅ Completed | 100% |
 | **Business Logic** | Overlap Conflict Engine, Total Cost Recalculation, Image Magic Bytes | ✅ Completed | 100% |
-| **Testing Suite** | `TourServiceTests.cs`, `ItineraryServiceTests.cs` (XUnit + InMemory) | ✅ Completed | 100% |
+| **Testing Suite** | Backend XUnit tests plus itinerary-agent golden/security scripts | ⚠️ Implemented, execution evidence pending | Not runtime-verified in this review |
 | **React Staff UI** | Tour Catalog, Destination Management, Itinerary Review | ✅ Completed | 100% |
 | **Flutter Mobile UI** | Tour Search & Browse, Tour Details, My Itinerary, API Services | ✅ Completed | 100% |
-| **Agentic AI** | Python Itinerary Agent (`agentic-ai/agents/itinerary_agent.py`) | ⏳ Pending | 15% (Architecture Ready) |
-| **Overall Readiness** | **Component B Overall Readiness Score** | 🟢 **Near Complete** | **~90%** (All Backend, React, Flutter & Tests 100% Complete) |
+| **Agentic AI** | Python itinerary builder, tour-search tool, deterministic validation, audit logging, and LangGraph adapter | ✅ Implemented and wired | Live-service verification pending |
+| **Overall Readiness** | **Component B Overall Readiness** | 🟡 **Implementation substantially complete** | End-to-end verification and persistence remain |
 
 ---
 
@@ -87,32 +87,51 @@ Student B owns **Component B: Tours & Itineraries**, which serves as the experie
    - [x] React `ItineraryReview.jsx`: Added a "Remove" button on each itinerary item in the day-by-day timeline, visible when the itinerary is not yet `Accepted`/`Discarded`. Calls the existing backend endpoint `DELETE /api/itinerary/{itineraryId}/items/{itemId}` via a new `removeItineraryItem()` helper in `apiClient.js`. Satisfies the spec's "edit-before-release" requirement.
    - [x] Flutter `my_itinerary_screen.dart`: Added a "Request Changes" button in the itinerary detail view, with a confirmation dialog. Calls a new `requestItineraryChanges()` method in `api_service.dart`, which PATCHes the existing `/api/itinerary/{id}/status` endpoint to set status to `Discarded`. Required adding a generic `patch()` HTTP helper to `api_service.dart` (previously only `get`/`post`/`put` existed).
 
+8. **Python Itinerary Agent (`agentic-ai/`):**
+   - [x] Implemented `build_itinerary(trip_request)` in `agents/itinerary_agent.py`.
+   - [x] Implemented the read-only `tools/search_tours.py` backend tool and Active-tour filtering.
+   - [x] Added the Gemini prompt with the documented trip input and itinerary output contracts.
+   - [x] Added deterministic post-generation validation for Active tour IDs, total cost, same-day time overlaps, and the maximum of two tours per day.
+   - [x] Added `ItineraryAgent` audit steps for tour search, draft generation, and deterministic validation through the shared `logger.py`.
+
+9. **Coordinator/Pipeline Integration:**
+   - [x] Added `itinerary_node(state)` as the LangGraph adapter around `build_itinerary()`.
+   - [x] Added `destination_id` and `preferred_activities` to the FastAPI request model and `TripPlanningState`.
+   - [x] Updated both ASP.NET pipeline-trigger payloads to send `destination_id` and the customer's parsed preferred-activity list.
+   - [x] `graph.py` now imports the real `itinerary_node` and routes its output to the Booking Agent node.
+
+10. **Agent Evaluation Scripts:**
+   - [x] Retained the manual Kandy smoke-test script in `test_itinerary_agent.py`.
+   - [x] Added four golden cases in `test_itinerary_agent_golden.py`: normal itinerary, low budget, nonexistent destination, and output-contract shape.
+   - [x] Added `test_prompt_injection.py` to verify that injected instructions cannot bypass budget, daily-count, or overlap rules.
+   - [x] Added clear PASS/FAIL output, summaries, and non-zero failure exit codes for later CI integration.
+
 ---
 
 ### 2.3 What STILL NEEDS TO BE DONE (Pending Tasks)
 
-1. **Python AI Agent Implementation (`agentic-ai/agents/itinerary_agent.py`):**
-   - [ ] Currently, `itinerary_agent.py` is an empty file (0 bytes).
-   - [ ] Implement the LangGraph node for the Itinerary Agent.
-   - [ ] Define the `search_tours` tool (under `agentic-ai/tools/tour_tools.py`) to query the ASP.NET Core API (`GET /api/tour`).
-   - [ ] Implement the prompt template that accepts:
-     - Destination, Date range, Budget ceiling, Traveller count, Preferred activity tags.
-   - [ ] Write the scheduling logic that arranges selected tours into a conflict-free day-by-day JSON schedule without time overlaps.
-   - [ ] Hook into `logger.py` to persist duration, tool calls, and step descriptions into the `AgentLog` table.
+1. **Execute and Record Agent Evaluation Evidence:**
+   - [ ] Start the backend and configure the itinerary Gemini key, then run `test_itinerary_agent.py`, `test_itinerary_agent_golden.py`, and `test_prompt_injection.py`.
+   - [ ] Record the PASS/FAIL output for the report. The scripts exist, but they were not executed during this documentation review.
+   - [ ] Confirm the low-budget case returns a validation error rather than an empty but technically valid schedule.
 
-2. **Cross-Agent Graph Integration (`agentic-ai/graph.py`):**
-   - [ ] Connect the output of the Coordinator Agent (Student A) to the Itinerary Agent (Student B).
-   - [ ] Route the output of the Itinerary Agent to the Booking Agent (Student C) to check hotel/transport availability.
+2. **Persist the Generated Itinerary:**
+   - [ ] The current agent returns the generated itinerary in LangGraph state but does not create an `Itinerary` row or its `ItineraryItem` rows through the backend API.
+   - [ ] Add or agree the persistence owner/handoff before claiming the database-backed workflow is complete.
 
-3. **End-to-End Workflow Verification:**
+3. **Full Four-Agent End-to-End Verification:**
    - [ ] Perform a full cross-platform test:
      1. Customer submits a Trip Request in Flutter.
      2. Python multi-agent system runs (`Coordinator` → `Itinerary` → `Booking` → `Validation`).
      3. Itinerary row & items are persisted in PostgreSQL.
      4. Travel Agent reviews and approves in React.
      5. Customer views the confirmed day-by-day schedule in Flutter.
+   - [ ] This cannot yet be claimed from the current checkout because the Booking and Validation agent files are still empty and `graph.py` therefore uses their fallback nodes.
 
-4. **Rich Seed Data Enhancement (Optional Viva Polish):**
+4. **Local Service Configuration Check:**
+   - [ ] Align the Python service port with the backend's default `AGENT_SERVICE_URL` (`8005`); `agentic-ai/main.py` currently defaults to port `8000` unless `PORT` is set.
+
+5. **Rich Seed Data Enhancement (Optional Viva Polish):**
    - [ ] Ensure `DatabaseSeeder.cs` has 10+ realistic Sri Lankan tours across multiple categories (Sigiriya, Kandy, Galle, Ella, Yala) with high-quality images and coordinates so the demo looks visually stunning.
 
 ---
@@ -289,7 +308,7 @@ if (conflicting is not null)
 
 ## 6. Summary of Bug Fixes & Code Improvements Completed
 
-During quality assurance and static code tracing, 4 critical issues were identified and resolved:
+During quality assurance and static code tracing, the following issues and integration gaps were addressed:
 
 1. **Flutter Route Mismatch Fixed (`mobile_flutter/lib/services/api_service.dart`):**
    - *Issue:* `getMyItineraries()` was calling `GET itinerary/my`, which returned `404 Not Found` because the backend route was `GET itinerary/customer/{customerId}`.
@@ -326,13 +345,25 @@ During quality assurance and static code tracing, 4 critical issues were identif
    - *Gap:* Customers had no way to signal dissatisfaction with an AI-proposed itinerary from the Flutter app.
    - *Fix:* Added a generic `patch()` helper and a `requestItineraryChanges(itineraryId)` method calling the existing `PATCH /api/itinerary/{id}/status` endpoint with `{"status": "Discarded"}`, wired to a new confirmation-gated "Request Changes" button.
 
+7. **Real Itinerary Agent Replaced the Graph Placeholder:**
+   - *Issue:* `graph.py` expected `itinerary_node`, while the agent originally exposed only `build_itinerary()`, so LangGraph used a pass-through fallback.
+   - *Fix:* Added `itinerary_node(state)` to map shared state into the agent input contract, call `build_itinerary()`, and return the generated result as `state["itinerary"]`.
+
+8. **Missing Pipeline Input Fields Added:**
+   - *Issue:* The ASP.NET trigger payload and Python state schema omitted `destination_id` and `preferred_activities`, preventing the agent from performing destination-specific tour search and preference matching.
+   - *Fix:* Added both fields to the two controller payloads, the FastAPI `TripPipelineRequest`, and the LangGraph `TripPlanningState`. Preferred activities are read from `Preference`, split on commas, trimmed, and sent as a string array.
+
+9. **Agent Evaluation Coverage Added:**
+   - Added rule-based golden tests for budget enforcement, time conflicts, daily limits, Active-tour references, graceful destination failures, and output shape.
+   - Added a prompt-injection security case proving that a returned schedule must still pass deterministic budget, daily-count, and overlap checks.
+
 ---
 
 ## 7. AI Agent Design: Itinerary / Domain Analysis Agent
 
 > **File:** `agentic-ai/agents/itinerary_agent.py`  
-> **Framework:** Python 3.11 + LangGraph + LangChain  
-> **Status:** Architecture Designed (Ready for implementation)
+> **Framework:** Python + LangGraph + Google Gen AI client  
+> **Status:** Implemented and connected to the shared graph; live end-to-end verification pending
 
 ### 7.1 Role in Multi-Agent Pipeline
 The Itinerary Agent is **Agent 2** in the 4-agent sequential workflow:
@@ -391,7 +422,28 @@ The Itinerary Agent is **Agent 2** in the 4-agent sequential workflow:
     ]
   }
   ```
-* **Audit Trail:** Writes execution details to the `AgentLog` table (Duration, Step Description, Input JSON, Output JSON).
+* **Audit Trail:** Uses the shared logger to write tour-search, draft-generation, and deterministic-validation steps with input/output data and status. The logger supports duration values, but this agent does not currently populate `duration_ms`.
+
+### 7.3 Implemented Pipeline Handoff
+
+The backend pipeline payload now supplies the agent's two previously missing inputs:
+
+```json
+{
+  "destination_id": 2,
+  "preferred_activities": ["Heritage", "Safari"]
+}
+```
+
+`agentic-ai/main.py` keeps these values when it calls `payload.model_dump()`. `TripPlanningState` declares both fields, and `itinerary_node(state)` maps them into the dictionary consumed by `build_itinerary()`.
+
+The node uses the Coordinator's `target_budgets.tours_budget` when available and falls back to the original `budget_ceiling`. If `destination_id` is absent, it returns a clear error in `state["itinerary"]` instead of attempting a tour search.
+
+### 7.4 Verification Status
+
+- **Statically verified in the repository:** agent implementation, tour tool, deterministic validator, audit calls, graph adapter, payload fields, state fields, and evaluation scripts.
+- **Not executed during this documentation update:** backend XUnit tests, live Gemini calls, golden cases, prompt-injection test, or the full multi-agent pipeline.
+- **Still required for completion evidence:** a successful live run, persisted `Itinerary`/`ItineraryItem` records, and the downstream Booking/Validation agents operating without fallbacks.
 
 ---
 
@@ -408,6 +460,6 @@ When defending your component in the viva examination, focus on these key highli
 4. **How do your security and file uploads work?**
    - *Answer:* In `TourController.Create()`, image files are checked for 5MB limits and binary magic bytes (JPEG/PNG/WebP headers), preventing extension-spoofing attacks.
 5. **How does your component integrate with other students?**
-   - *With Student A:* Consumes `TripRequest` and `Customer` IDs to generate the `Itinerary`.
-   - *With Student C:* The Itinerary created by Student B is passed to Student C to attach Hotel and Transport choices for the same dates.
-   - *With Student D:* The final Itinerary and its items are converted into `Booking` and `BookingItem` records, which pass through Student D's human approval gate.
+   - *With Student A:* Consumes the Coordinator's shared trip state, including destination, dates, traveller count, allocated tours budget, and preferred activities.
+   - *With Student C:* Returns the generated draft under `state["itinerary"]` for the Booking Agent to attach Hotel and Transport choices. Student C's current agent implementation is still pending in this checkout.
+   - *With Student D:* The final priced package is intended to pass through deterministic validation and the human approval gate. Student D's current agent implementation is still pending in this checkout.
