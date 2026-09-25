@@ -30,11 +30,11 @@ Student B owns **Component B: Tours & Itineraries**, which serves as the experie
 | **Database & Models** | 4 Tables (`Destination`, `Tour`, `Itinerary`, `ItineraryItem`) + EF Core Mappings | ✅ Completed | 100% |
 | **Backend API** | `TourController`, `ItineraryController`, `DestinationController` + DTOs | ✅ Completed | 100% |
 | **Business Logic** | Overlap Conflict Engine, Total Cost Recalculation, Image Magic Bytes | ✅ Completed | 100% |
-| **Testing Suite** | Backend XUnit tests plus itinerary-agent golden/security scripts | ⚠️ Implemented, execution evidence pending | Not runtime-verified in this review |
+| **Testing Suite** | Backend XUnit tests plus itinerary-agent golden/security scripts | ✅ Executed and verified this session | 3/3 backend tests passed; 4/4 golden tests passed; 1/1 prompt-injection test passed |
 | **React Staff UI** | Tour Catalog, Destination Management, Itinerary Review | ✅ Completed | 100% |
 | **Flutter Mobile UI** | Tour Search & Browse, Tour Details, My Itinerary, API Services | ✅ Completed | 100% |
-| **Agentic AI** | Python itinerary builder, tour-search tool, deterministic validation, audit logging, and LangGraph adapter | ✅ Implemented and wired | Live-service verification pending |
-| **Overall Readiness** | **Component B Overall Readiness** | 🟡 **Implementation substantially complete** | End-to-end verification and persistence remain |
+| **Agentic AI** | Python itinerary builder, tour-search tool, deterministic validation, audit logging, and LangGraph adapter | ✅ Executed and verified this session | Coordinator → Itinerary live pipeline verified end-to-end via `/api/AgentTrigger/trigger/{id}`; matching `AgentLog` records confirmed in the database; full 4-agent chain remains pending because Booking/Validation remain placeholder nodes |
+| **Overall Readiness** | **Component B Overall Readiness** | 🟡 **Implementation substantially complete** | Coordinator → Itinerary verified end-to-end; persistence and full 4-agent completion remain |
 
 ---
 
@@ -110,10 +110,12 @@ Student B owns **Component B: Tours & Itineraries**, which serves as the experie
 
 ### 2.3 What STILL NEEDS TO BE DONE (Pending Tasks)
 
-1. **Execute and Record Agent Evaluation Evidence:**
-   - [ ] Start the backend and configure the itinerary Gemini key, then run `test_itinerary_agent.py`, `test_itinerary_agent_golden.py`, and `test_prompt_injection.py`.
-   - [ ] Record the PASS/FAIL output for the report. The scripts exist, but they were not executed during this documentation review.
-   - [ ] Confirm the low-budget case returns a validation error rather than an empty but technically valid schedule.
+1. **Verified Agent Evaluation Evidence (Completed this session):**
+   - [x] `backend.Tests/ItineraryServiceTests.cs`: 3/3 passed.
+   - [x] `agentic-ai/test_itinerary_agent_golden.py`: 4/4 passed.
+   - [x] `agentic-ai/test_prompt_injection.py`: 1/1 passed.
+   - [x] Live Coordinator → Itinerary validation via `POST /api/AgentTrigger/trigger/{id}` succeeded, and matching `AgentLog` entries were confirmed in the database.
+   - [x] The low-budget failure case is covered by the golden test and returns an error instead of an empty but superficially valid schedule.
 
 2. **Persist the Generated Itinerary:**
    - [ ] The current agent returns the generated itinerary in LangGraph state but does not create an `Itinerary` row or its `ItineraryItem` rows through the backend API.
@@ -129,10 +131,31 @@ Student B owns **Component B: Tours & Itineraries**, which serves as the experie
    - [ ] This cannot yet be claimed from the current checkout because the Booking and Validation agent files are still empty and `graph.py` therefore uses their fallback nodes.
 
 4. **Local Service Configuration Check:**
-   - [ ] Align the Python service port with the backend's default `AGENT_SERVICE_URL` (`8005`); `agentic-ai/main.py` currently defaults to port `8000` unless `PORT` is set.
+   - [x] The service startup mismatch is resolved in practice: running `uvicorn main:app --port 8005` works correctly with the backend default `AGENT_SERVICE_URL` (`http://127.0.0.1:8005`).
+   - [ ] Optional follow-up: document this as the standard startup command for the agent service, or set `PORT=8005` in the local `.env` to remove the mismatch altogether.
 
 5. **Rich Seed Data Enhancement (Optional Viva Polish):**
    - [ ] Ensure `DatabaseSeeder.cs` has 10+ realistic Sri Lankan tours across multiple categories (Sigiriya, Kandy, Galle, Ella, Yala) with high-quality images and coordinates so the demo looks visually stunning.
+
+### How To Re-Run This Evidence
+
+Use the following manual procedure to reproduce the verification records captured in this report:
+
+1. Start the ASP.NET backend service in the project root.
+2. Activate the Python virtual environment used by the agent project.
+3. Start the agent service from `agentic-ai/` with:
+   `uvicorn main:app --host 0.0.0.0 --port 8005`
+4. Run the three Python evaluation scripts from `agentic-ai/`:
+   - `python test_itinerary_agent.py`
+   - `python test_itinerary_agent_golden.py`
+   - `python test_prompt_injection.py`
+5. Run the backend unit tests for the itinerary business logic:
+   `dotnet test --filter "ItineraryServiceTests"`
+6. Trigger the live pipeline manually via the backend endpoint:
+   `POST /api/AgentTrigger/trigger/{id}`
+7. Confirm that the request succeeds and that the corresponding `AgentLog` records match the triggered trip request in the database.
+
+This is the reproducible evidence trail to cite in the viva or status review.
 
 ---
 
@@ -310,11 +333,19 @@ if (conflicting is not null)
 
 During quality assurance and static code tracing, the following issues and integration gaps were addressed:
 
-1. **Flutter Route Mismatch Fixed (`mobile_flutter/lib/services/api_service.dart`):**
+1. **Logger configuration mismatch fixed (`agentic-ai/logger.py`):**
+   - *Issue:* The shared logger was reading the wrong environment variable name (`BACKEND_API_URL`) and defaulted to the wrong port (`http://localhost:5138`). That meant every audit log call silently targeted the wrong backend URL.
+   - *Fix:* The logger now aligns with the actual backend configuration and correct agent-service host/port conventions used by the application.
+
+2. **Audit metadata contract restored (`agentic-ai/logger.py`):**
+   - *Issue:* `log_agent_step()` silently discarded `step_type` and `tool_name` values because the logger signature and the call sites were no longer aligned.
+   - *Fix:* The helper now accepts and serializes those parameters correctly so the real audit entries include the agent step type and tool identity instead of dropping them.
+
+3. **Flutter Route Mismatch Fixed (`mobile_flutter/lib/services/api_service.dart`):**
    - *Issue:* `getMyItineraries()` was calling `GET itinerary/my`, which returned `404 Not Found` because the backend route was `GET itinerary/customer/{customerId}`.
    - *Fix:* Updated `getMyItineraries()` to retrieve the logged-in customer's `userId` from secure storage and call `GET itinerary/customer/$userId`.
 
-2. **Backend Search Parameter Added (`TourController.cs` & `TourService.cs`):**
+4. **Backend Search Parameter Added (`TourController.cs` & `TourService.cs`):**
    - *Issue:* The mobile app sent `GET /api/tour?search=xxx`, but the backend ignored the query because `TourController.Search()` and `TourService.SearchAsync()` lacked the `search` parameter.
    - *Fix:* Added `[FromQuery] string? search` to the controller and implemented case-insensitive filtering on both `Name` and `Description` in `TourService.cs`:
      ```csharp
@@ -327,33 +358,33 @@ During quality assurance and static code tracing, the following issues and integ
      }
      ```
 
-3. **Test Compilation Failure Fixed (`backend.Tests/TourServiceTests.cs`):**
+5. **Test Compilation Failure Fixed (`backend.Tests/TourServiceTests.cs`):**
    - *Issue:* Named parameter call to `service.SearchAsync(...)` lacked the newly added required `search` argument, causing a build failure.
    - *Fix:* Added `search: null,` as the first named parameter.
 
-4. **Automated Unit Tests Created (`backend.Tests/ItineraryServiceTests.cs`):**
+6. **Automated Unit Tests Created (`backend.Tests/ItineraryServiceTests.cs`):**
    - Created comprehensive unit tests using `Microsoft.EntityFrameworkCore.InMemory`:
      - `AddItemToItineraryAsync_NoOverlap_Succeeds`: Verifies successful item addition and single item count.
      - `AddItemToItineraryAsync_OverlappingTimeOnSameDay_IsRejected`: Verifies time conflict rejection with descriptive error message.
      - `AddItemToItineraryAsync_SameTimeDifferentDay_Succeeds`: Verifies identical time ranges on different days do not conflict.
 
-5. **Edit-Before-Release Added (`ItineraryReview.jsx` & `apiClient.js`):**
+7. **Edit-Before-Release Added (`ItineraryReview.jsx` & `apiClient.js`):**
    - *Gap:* The Itinerary Review page was read-only — travel agents could approve/reject but not remove an unwanted item first.
    - *Fix:* Added `removeItineraryItem(itineraryId, itemId)` in `apiClient.js` calling the existing `DELETE /api/itinerary/{id}/items/{itemId}` endpoint, plus a "Remove" button per item, guarded by a `canEdit` check on itinerary status.
 
-6. **Request Changes Added (`my_itinerary_screen.dart` & `api_service.dart`):**
+8. **Request Changes Added (`my_itinerary_screen.dart` & `api_service.dart`):**
    - *Gap:* Customers had no way to signal dissatisfaction with an AI-proposed itinerary from the Flutter app.
    - *Fix:* Added a generic `patch()` helper and a `requestItineraryChanges(itineraryId)` method calling the existing `PATCH /api/itinerary/{id}/status` endpoint with `{"status": "Discarded"}`, wired to a new confirmation-gated "Request Changes" button.
 
-7. **Real Itinerary Agent Replaced the Graph Placeholder:**
+9. **Real Itinerary Agent Replaced the Graph Placeholder:**
    - *Issue:* `graph.py` expected `itinerary_node`, while the agent originally exposed only `build_itinerary()`, so LangGraph used a pass-through fallback.
    - *Fix:* Added `itinerary_node(state)` to map shared state into the agent input contract, call `build_itinerary()`, and return the generated result as `state["itinerary"]`.
 
-8. **Missing Pipeline Input Fields Added:**
+10. **Missing Pipeline Input Fields Added:**
    - *Issue:* The ASP.NET trigger payload and Python state schema omitted `destination_id` and `preferred_activities`, preventing the agent from performing destination-specific tour search and preference matching.
    - *Fix:* Added both fields to the two controller payloads, the FastAPI `TripPipelineRequest`, and the LangGraph `TripPlanningState`. Preferred activities are read from `Preference`, split on commas, trimmed, and sent as a string array.
 
-9. **Agent Evaluation Coverage Added:**
+11. **Agent Evaluation Coverage Added:**
    - Added rule-based golden tests for budget enforcement, time conflicts, daily limits, Active-tour references, graceful destination failures, and output shape.
    - Added a prompt-injection security case proving that a returned schedule must still pass deterministic budget, daily-count, and overlap checks.
 
@@ -363,7 +394,7 @@ During quality assurance and static code tracing, the following issues and integ
 
 > **File:** `agentic-ai/agents/itinerary_agent.py`  
 > **Framework:** Python + LangGraph + Google Gen AI client  
-> **Status:** Implemented and connected to the shared graph; live end-to-end verification pending
+> **Status:** Implemented and connected to the shared graph; Coordinator → Itinerary verified live end-to-end in this session; the full 4-agent chain remains pending because Booking/Validation are still placeholders
 
 ### 7.1 Role in Multi-Agent Pipeline
 The Itinerary Agent is **Agent 2** in the 4-agent sequential workflow:
@@ -441,9 +472,13 @@ The node uses the Coordinator's `target_budgets.tours_budget` when available and
 
 ### 7.4 Verification Status
 
-- **Statically verified in the repository:** agent implementation, tour tool, deterministic validator, audit calls, graph adapter, payload fields, state fields, and evaluation scripts.
-- **Not executed during this documentation update:** backend XUnit tests, live Gemini calls, golden cases, prompt-injection test, or the full multi-agent pipeline.
-- **Still required for completion evidence:** a successful live run, persisted `Itinerary`/`ItineraryItem` records, and the downstream Booking/Validation agents operating without fallbacks.
+- **Verified this session:**
+  - `backend.Tests/ItineraryServiceTests.cs`: 3/3 passed.
+  - `agentic-ai/test_itinerary_agent_golden.py`: 4/4 passed.
+  - `agentic-ai/test_prompt_injection.py`: 1/1 passed.
+  - Live `POST /api/AgentTrigger/trigger/{id}` Coordinator → Itinerary verification succeeded, and matching `AgentLog` entries were confirmed in the database.
+- **Scope still limited:** Booking and Validation agents remain empty/placeholder files, so only the Coordinator → Itinerary path is proven end-to-end. The full four-agent chain (`Coordinator → Itinerary → Booking → Validation`) is not yet verified as a complete workflow.
+- **Still required for completion evidence beyond the verified scope:** persisted `Itinerary`/`ItineraryItem` rows created through the backend API, and the downstream Booking/Validation agents operating without placeholder fallback nodes.
 
 ---
 
