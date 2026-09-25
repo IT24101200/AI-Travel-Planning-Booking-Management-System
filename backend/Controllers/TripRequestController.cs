@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using backend.Data;
 using backend.DTOs;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace backend.Controllers
 {
@@ -12,25 +14,25 @@ namespace backend.Controllers
     public class TripRequestController : ControllerBase
     {
         private readonly ITripRequestService _tripRequestService;
-        private readonly IPreferenceService _preferenceService;
         private readonly ICustomerService _customerService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
+        private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<TripRequestController> _logger;
 
         public TripRequestController(
             ITripRequestService tripRequestService,
-            IPreferenceService preferenceService,
             ICustomerService customerService,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
+            IServiceScopeFactory scopeFactory,
             ILogger<TripRequestController> logger)
         {
             _tripRequestService = tripRequestService;
-            _preferenceService = preferenceService;
             _customerService = customerService;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
+            _scopeFactory = scopeFactory;
             _logger = logger;
         }
 
@@ -243,11 +245,16 @@ namespace backend.Controllers
             {
                 try
                 {
+                    using var scope = _scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
                     var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
                     var client = _httpClientFactory.CreateClient();
                     client.Timeout = TimeSpan.FromSeconds(5);
 
-                    var preference = await _preferenceService.GetByCustomerIdAsync(trip.CustomerId);
+                    var preference = await db.Preferences
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(p => p.CustomerId == trip.CustomerId);
                     var preferredActivities = string.IsNullOrWhiteSpace(preference?.PreferredActivities)
                         ? Array.Empty<string>()
                         : preference.PreferredActivities
@@ -286,7 +293,7 @@ namespace backend.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning("Could not trigger agent pipeline for TripRequest #{Id}: {Message}", trip.Id, ex.Message);
+                    _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{Id}.", trip.Id);
                 }
             });
         }
