@@ -282,29 +282,30 @@ class _LandingScreenState extends State<LandingScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Brand Logo & Title
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.2),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                      // Autonomous Multi-Agent AI Travel Pill
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.jungle800.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(9999),
+                          border: Border.all(color: AppColors.sand400.withValues(alpha: 0.4)),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, color: AppColors.sand400, size: 14),
+                            SizedBox(width: 5),
+                            Text(
+                              'AUTONOMOUS AI TRAVEL',
+                              style: TextStyle(
+                                color: AppColors.sand200,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.8,
+                              ),
                             ),
-                            child: const Icon(Icons.travel_explore, color: AppColors.sand400, size: 20),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'SERENDIB TRAILS',
-                            style: GoogleFonts.poppins(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.8,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
 
                       // Sign In / Dashboard Quick Pill
@@ -318,7 +319,7 @@ class _LandingScreenState extends State<LandingScreen> {
                         },
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.22),
                             borderRadius: BorderRadius.circular(20),
@@ -348,6 +349,46 @@ class _LandingScreenState extends State<LandingScreen> {
                         ),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // Brandmark & Title
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppColors.jungle600.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.leaf400.withValues(alpha: 0.5)),
+                        ),
+                        child: const Icon(Icons.eco, color: AppColors.sand400, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Serendib Trails',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Center(
+                    child: Text(
+                      'Discover the pearl of the Indian Ocean through intelligent travel orchestration',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: AppColors.leaf100.withValues(alpha: 0.9),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ),
 
                   const Spacer(flex: 3),
@@ -539,44 +580,66 @@ class _LandingScreenState extends State<LandingScreen> {
                       ),
                     ),
 
-                  // Primary Action Buttons
-                  if (!_isLoggedIn)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/login').then((_) => _checkAuthStatus()),
-                            icon: const Icon(Icons.login, size: 17),
-                            label: const Text('Sign In'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.jungle600,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 4,
+                  // Primary Action Buttons (matching Stitch landing_screen dock)
+                  if (!_isLoggedIn) ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pushNamed(context, '/register').then((_) => _checkAuthStatus()),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.jungle600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          elevation: 3,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Start Your Journey',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                             ),
+                            SizedBox(width: 8),
+                            Icon(Icons.arrow_forward, size: 18),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pushNamed(context, '/login').then((_) => _checkAuthStatus()),
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.12),
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        child: const Text(
+                          'Sign In to Account',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: () => Navigator.pushNamed(context, '/tour-search'),
+                        icon: const Text(
+                          'Browse Tours as Guest',
+                          style: TextStyle(
+                            color: AppColors.leaf100,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/register').then((_) => _checkAuthStatus()),
-                            icon: const Icon(Icons.person_add_outlined, size: 17, color: AppColors.jungle900),
-                            label: const Text(
-                              'Create Account',
-                              style: TextStyle(color: AppColors.jungle900, fontWeight: FontWeight.w800),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.sand400,
-                              foregroundColor: AppColors.jungle900,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    )
+                        label: const Icon(Icons.arrow_forward, color: AppColors.leaf100, size: 14),
+                      ),
+                    ),
+                  ]
                   else
                     Row(
                       children: [

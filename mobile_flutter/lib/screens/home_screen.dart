@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../app_constants.dart';
 import '../services/api_service.dart';
 import '../widgets/common_widgets.dart';
@@ -365,76 +366,113 @@ class _ExploreTabState extends State<_ExploreTab> {
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [AppColors.jungle700, AppColors.jungle800],
+                  colors: [AppColors.jungle700, AppColors.jungle900],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.jungle900.withValues(alpha: 0.15),
-                    blurRadius: 10,
+                    color: AppColors.jungle900.withValues(alpha: 0.22),
+                    blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.psychology,
-                      color: AppColors.sand400,
-                      size: 36,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.jungle800.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.psychology,
+                          color: AppColors.sand400,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Multi-Agent AI Trip Planner',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Custom itineraries curated by specialized Sri Lanka travel agents in seconds.',
+                              style: TextStyle(
+                                color: AppColors.leaf100.withValues(alpha: 0.9),
+                                fontSize: 12,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Multi-Agent Trip Planner',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Agent step pills
+                      Row(
+                        children: [
+                          _buildStepCircle('1', AppColors.leaf400),
+                          const SizedBox(width: 5),
+                          _buildStepCircle('2', AppColors.sand400),
+                          const SizedBox(width: 5),
+                          _buildStepCircle('3', AppColors.ocean300),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '4 Agents Sync',
+                            style: TextStyle(
+                              color: AppColors.sand200,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton(
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/trip-request'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.sand500,
+                          foregroundColor: AppColors.jungle900,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 10,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Let 4 autonomous agents build, schedule & validate your dream vacation.',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.85),
-                            fontSize: 12,
-                          ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Start AI Plan',
+                              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                            ),
+                            SizedBox(width: 4),
+                            Icon(Icons.arrow_forward, size: 14),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () =>
-                        Navigator.pushNamed(context, '/trip-request'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.sand500,
-                      foregroundColor: AppColors.jungle900,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    child: const Text(
-                      'Start',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -475,12 +513,35 @@ class _ExploreTabState extends State<_ExploreTab> {
     );
   }
 
+  Widget _buildStepCircle(String step, Color color) {
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.25),
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Center(
+        child: Text(
+          step,
+          style: TextStyle(
+            color: color,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildQuickAction(
     BuildContext context, {
     required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
+    bool hasStarBadge = false,
   }) {
     return Expanded(
       child: InkWell(
@@ -491,14 +552,49 @@ class _ExploreTabState extends State<_ExploreTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: color, size: 24),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 24),
+                  ),
+                  if (hasStarBadge)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: const BoxDecoration(
+                          color: AppColors.sand400,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Center(
+                          child: Text(
+                            '★',
+                            style: TextStyle(
+                              color: AppColors.jungle900,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 6),
               Text(
@@ -506,7 +602,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.ink2,
+                  color: AppColors.ink,
                 ),
               ),
             ],
@@ -549,7 +645,7 @@ class _ExploreTabState extends State<_ExploreTab> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image with Price Tag Overlay
+            // Image with Badges Overlay
             Stack(
               children: [
                 ClipRRect(
@@ -558,13 +654,54 @@ class _ExploreTabState extends State<_ExploreTab> {
                   ),
                   child: AppNetworkImage(
                     imageUrl: imageUrl,
-                    height: 140,
+                    height: 150,
                     width: double.infinity,
                     fit: BoxFit.cover,
                   ),
                 ),
+                // Gradient Scrim
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.25),
+                          Colors.transparent,
+                          AppColors.jungle900.withValues(alpha: 0.8),
+                        ],
+                        stops: const [0.0, 0.4, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+                // Top Category Badge
                 Positioned(
                   top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(9999),
+                    ),
+                    child: Text(
+                      tour['category'] ?? 'Heritage',
+                      style: const TextStyle(
+                        color: AppColors.jungle700,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ),
+                // Price Tag Pill
+                Positioned(
+                  bottom: 10,
                   right: 10,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -572,19 +709,27 @@ class _ExploreTabState extends State<_ExploreTab> {
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppColors.jungle800.withValues(alpha: 0.9),
+                      color: AppColors.sand500,
                       borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: Text(
-                      '\$${(tour['price'] ?? 0).toStringAsFixed(0)} ${tour['currency'] ?? 'USD'}',
+                      '\$${(tour['price'] ?? 0).toStringAsFixed(0)} /person',
                       style: const TextStyle(
-                        color: AppColors.sand400,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        color: AppColors.jungle900,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12.5,
                       ),
                     ),
                   ),
                 ),
+                // Rating Badge
                 Positioned(
                   bottom: 10,
                   left: 10,
@@ -594,23 +739,24 @@ class _ExploreTabState extends State<_ExploreTab> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
+                      color: AppColors.jungle900.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
-                          Icons.schedule,
-                          size: 12,
-                          color: Colors.white,
+                        Icon(
+                          Icons.star,
+                          size: 13,
+                          color: AppColors.sand400,
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
-                          '${tour['durationHours'] ?? 2} Hours',
-                          style: const TextStyle(
+                          '4.9 (128)',
+                          style: TextStyle(
                             color: Colors.white,
                             fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -625,22 +771,37 @@ class _ExploreTabState extends State<_ExploreTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text(
+                    'SRI LANKA EXPEDITION',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.sand600,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
                   Text(
                     tourName,
-                    style: const TextStyle(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       color: AppColors.ink,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    tour['category'] ?? 'Sightseeing Tour',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.jungle600,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      const Icon(Icons.schedule, size: 14, color: AppColors.ink3),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${tour['durationHours'] ?? 6} Hours • SLTDA Verified',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.ink3,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
