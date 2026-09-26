@@ -90,60 +90,101 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
+                  horizontal: 20,
+                  vertical: 16,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Brand Logo
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1.5,
+                    // Top Bar with Back & Ceylon Pill
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            } else {
+                              Navigator.pushReplacementNamed(context, '/landing');
+                            }
+                          },
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.eco, color: AppColors.sand400, size: 13),
+                              SizedBox(width: 4),
+                              Text(
+                                'CEYLON',
+                                style: TextStyle(
+                                  color: AppColors.sand200,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Ayubowan Welcome Home Pill
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.leaf50.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(9999),
                       ),
-                      child: const Icon(
-                        Icons.travel_explore,
-                        size: 44,
-                        color: AppColors.sand400,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.explore, color: AppColors.sand400, size: 14),
+                          SizedBox(width: 6),
+                          Text(
+                            'Ayubowan • Welcome Home',
+                            style: TextStyle(
+                              color: AppColors.leaf100,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 6),
                     Text(
-                      'SERENDIB TRAILS',
-                      style: GoogleFonts.poppins(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'AI Travel Planning & Booking Platform',
-                      style: GoogleFonts.poppins(
+                      'Your AI companion across the emerald trails and sacred peaks.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
-                        color: AppColors.sand200,
+                        color: AppColors.leaf100.withValues(alpha: 0.9),
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
                     // White Card Container
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      padding: const EdgeInsets.all(22),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),
@@ -152,17 +193,27 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Sign In',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink,
-                              ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Welcome Back, Explorer',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.ink,
+                                  ),
+                                ),
+                                const Icon(
+                                  Icons.nature_people,
+                                  color: AppColors.jungle600,
+                                  size: 22,
+                                ),
+                              ],
                             ),
                             const SizedBox(height: 4),
                             const Text(
-                              'Access your itineraries, bookings and tickets',
+                              'Sign in to access your synchronized itineraries and bookings',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.ink3,
@@ -178,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: AppColors.coral500.withValues(
                                     alpha: 0.1,
                                   ),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
                                     color: AppColors.coral500.withValues(
                                       alpha: 0.3,
@@ -205,25 +256,35 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 16),
                             ],
 
-                            // Email
+                            // Email input
+                            const Text(
+                              'Email Address',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink2,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _emailCtrl,
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
-                                labelText: 'Email Address',
                                 prefixIcon: Icon(
-                                  Icons.email_outlined,
-                                  color: AppColors.jungle600,
+                                  Icons.mail_outline,
+                                  color: AppColors.ink3,
+                                  size: 20,
                                 ),
+                                hintText: 'kasun.perera@example.lk',
                               ),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
+                              validator: (val) {
+                                if (val == null || val.trim().isEmpty) {
                                   return 'Email is required';
                                 }
-                                if (!v.contains('@')) {
+                                if (!val.contains('@') || !val.contains('.')) {
                                   return 'Enter a valid email';
                                 }
                                 return null;
@@ -231,98 +292,153 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 14),
 
-                            // Password
+                            // Password input
+                            const Text(
+                              'Password',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.ink2,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             TextFormField(
                               controller: _passwordCtrl,
                               obscureText: _obscurePassword,
                               decoration: InputDecoration(
-                                labelText: 'Password',
                                 prefixIcon: const Icon(
                                   Icons.lock_outline,
-                                  color: AppColors.jungle600,
+                                  color: AppColors.ink3,
+                                  size: 20,
                                 ),
                                 suffixIcon: IconButton(
                                   icon: Icon(
                                     _obscurePassword
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
                                     color: AppColors.ink3,
+                                    size: 20,
                                   ),
-                                  onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
+                                hintText: '••••••••',
+                              ),
+                              validator: (val) {
+                                if (val == null || val.isEmpty) {
+                                  return 'Password is required';
+                                }
+                                if (val.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 12),
+
+                            // Keep signed in + Sync enabled row
+                            const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Keep me signed in',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.ink2,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
-                              ),
-                              validator: (v) => (v == null || v.isEmpty)
-                                  ? 'Password is required'
-                                  : null,
+                                Row(
+                                  children: [
+                                    Icon(Icons.auto_awesome, color: AppColors.sand500, size: 14),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Sync enabled',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: AppColors.ink3,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 22),
+                            const SizedBox(height: 18),
 
-                            // Login Button
+                            // Submit button
                             SizedBox(
                               width: double.infinity,
+                              height: 48,
                               child: ElevatedButton(
                                 onPressed: _loading ? null : _login,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.jungle600,
                                   foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 15,
-                                  ),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(14),
                                   ),
                                 ),
                                 child: _loading
                                     ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
+                                        width: 22,
+                                        height: 22,
                                         child: CircularProgressIndicator(
+                                          strokeWidth: 2.2,
                                           color: Colors.white,
-                                          strokeWidth: 2,
                                         ),
                                       )
-                                    : const Text(
-                                        'Sign In to Serendib',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                    : const Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Sign In',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          SizedBox(width: 8),
+                                          Icon(Icons.arrow_forward, size: 18),
+                                        ],
                                       ),
                               ),
                             ),
                             const SizedBox(height: 16),
 
                             // Register redirect
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  "New traveler? ",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.ink2,
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pushReplacementNamed(
-                                        context,
-                                        '/register',
-                                      ),
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    foregroundColor: AppColors.jungle600,
-                                  ),
-                                  child: const Text(
-                                    'Create an Account',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
+                            Center(
+                              child: TextButton(
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/register',
+                                  );
+                                },
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      color: AppColors.ink2,
                                     ),
+                                    children: const [
+                                      TextSpan(
+                                        text: "Don't have an explorer account? ",
+                                      ),
+                                      TextSpan(
+                                        text: 'Join Serendib',
+                                        style: TextStyle(
+                                          color: AppColors.jungle600,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              ],
+                              ),
                             ),
                           ],
                         ),

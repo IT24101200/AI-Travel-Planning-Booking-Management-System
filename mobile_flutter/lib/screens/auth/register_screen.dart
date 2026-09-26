@@ -99,83 +99,150 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Center(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
+                  horizontal: 20,
+                  vertical: 16,
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1.5,
+                    // Top Navigation Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          onPressed: () {
+                            if (Navigator.canPop(context)) {
+                              Navigator.pop(context);
+                            } else {
+                              Navigator.pushReplacementNamed(context, '/landing');
+                            }
+                          },
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          ),
                         ),
-                      ),
-                      child: const Icon(
-                        Icons.person_add_alt_1,
-                        size: 36,
-                        color: AppColors.sand400,
-                      ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(9999),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.eco, color: AppColors.sand400, size: 14),
+                              SizedBox(width: 5),
+                              Text(
+                                'SERENDIB TRAILS',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'START YOUR JOURNEY',
-                      style: GoogleFonts.poppins(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 2.0,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Create your Serendib customer account',
-                      style: GoogleFonts.poppins(
-                        fontSize: 12,
-                        color: AppColors.sand200,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
+                    // White Card Container
                     Container(
-                      padding: const EdgeInsets.all(24),
+                      clipBehavior: Clip.antiAlias,
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
+                            color: Colors.black.withValues(alpha: 0.2),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
                           ),
                         ],
                       ),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Sign Up',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.ink,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Top accent gradient line
+                          Container(
+                            height: 4,
+                            width: double.infinity,
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  AppColors.jungle600,
+                                  AppColors.sand500,
+                                  AppColors.leaf400,
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Plan, customize and book trips with AI assistance',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.ink3,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(22),
+                            child: Form(
+                              key: _formKey,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.sand100,
+                                          borderRadius: BorderRadius.circular(9999),
+                                        ),
+                                        child: const Text(
+                                          'TRAVELER GATEWAY',
+                                          style: TextStyle(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: AppColors.sand700,
+                                            letterSpacing: 0.8,
+                                          ),
+                                        ),
+                                      ),
+                                      const Row(
+                                        children: [
+                                          Icon(Icons.verified_user, color: AppColors.leaf400, size: 14),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'M3 Encrypted',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: AppColors.ink3,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Create Traveler Account',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.ink,
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  const Text(
+                                    'Join Serendib Trails for AI-curated Ceylon journeys & autonomous agent itineraries.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.ink3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
 
                             // Error banner
                             if (_error != null) ...[
@@ -389,10 +456,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ],
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
+    ),
+  ],
+),
     );
   }
 }

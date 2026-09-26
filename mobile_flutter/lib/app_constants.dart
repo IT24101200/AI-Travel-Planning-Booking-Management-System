@@ -37,11 +37,25 @@ class AppColors {
   static const Color ivory = Color(0xFFFBFAF5); // Page Background
   static const Color mist = Color(0xFFF1F5F1);
   static const Color paper = Colors.white;
+  static const Color background = ivory;
+  static const Color surface = ivory;
   static const Color ink = Color(0xFF08201A);
   static const Color ink2 = Color(0xFF3A564C);
+  static const Color inkSecondary = Color(0xFF3A564C);
   static const Color ink3 = Color(0xFF6B8578);
+  static const Color inkTertiary = Color(0xFF6B8578);
   static const Color line = Color(0xFFE2E9E3);
   static const Color lineStrong = Color(0xFFCDD9D0);
+
+  // Surface Containers (Material 3 Serendib Verdant)
+  static const Color surfaceContainerLowest = Colors.white;
+  static const Color surfaceContainerLow = Color(0xFFDFFAEF);
+  static const Color surfaceContainer = Color(0xFFD9F4EA);
+  static const Color surfaceContainerHigh = Color(0xFFD3EEE4);
+  static const Color surfaceContainerHighest = Color(0xFFCEE8DE);
+  static const Color surfaceDim = Color(0xFFC5E0D6);
+  static const Color onSurface = Color(0xFF071F1A);
+  static const Color onSurfaceVariant = Color(0xFF3F4943);
 }
 
 /// Curated destination model and data for Sri Lanka.
