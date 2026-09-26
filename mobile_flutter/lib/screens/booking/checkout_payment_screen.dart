@@ -139,430 +139,540 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         (_booking!['totalCost'] ?? _booking!['totalEstimatedCost'] ?? 0)
             .toDouble();
     final currency = _booking!['currency'] ?? 'USD';
-    final bookingRef =
-        _booking!['bookingReference'] ?? 'ITIN-#${_booking!['id']}';
+    final destination = _booking!['destination'] ?? '7-Day Sri Lanka Grand Explorer';
+    final dates = _booking!['dates'] ?? 'Oct 14 – Oct 20';
+    final travelers = _booking!['travellerCount'] ?? 2;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Complete Booking & Pay')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Checkout & Payment'),
+        backgroundColor: Colors.white.withValues(alpha: 0.95),
+        elevation: 0,
+      ),
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 750),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
             child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Order Reference Banner
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.leaf50,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.leaf100),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppColors.jungle600,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.verified_user_outlined,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Step Bar & Progress
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
                       children: [
-                        const Text(
-                          'Serendib Verified Itinerary',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.jungle900,
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: const BoxDecoration(
+                            color: AppColors.jungle600,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '3',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                        Text(
-                          'Reference: $bookingRef',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.ink2,
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Final Step',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.jungle700,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Itemized Breakdown
-            const Text(
-              'Trip Inclusions Breakdown',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.ink,
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            if (_booking!['bookingItems'] != null) ...[
-              ...((_booking!['bookingItems'] as List).map<Widget>(
-                (item) => _buildItemTile(item),
-              )),
-            ] else if (_booking!['items'] != null) ...[
-              ...((_booking!['items'] as List).map<Widget>((item) {
-                return _buildItineraryItemTile(item);
-              })),
-            ] else ...[
-              // Fallback inclusive card
-              _buildStandardInclusionTile(total, currency),
-            ],
-
-            const SizedBox(height: 16),
-
-            // Total Cost Highlight Card
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.line),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Payable',
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.sand100,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Step 3 of 3',
                         style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.ink3,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.sand700,
                         ),
                       ),
-                      Text(
-                        'Includes taxes & agent approval fees',
-                        style: TextStyle(fontSize: 10, color: AppColors.ink3),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: const LinearProgressIndicator(
+                    value: 1.0,
+                    minHeight: 5,
+                    backgroundColor: AppColors.line,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.jungle600),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 2. Order Summary Card with Thumbnail Ribbon
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.line),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
-                  Text(
-                    '\$${total.toStringAsFixed(2)} $currency',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.jungle600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Stripe Sandbox Payment Card
-            const Text(
-              'Payment Method',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: AppColors.ink,
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.line),
-              ),
-              child: Column(
-                children: [
-                  Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'CONFIRMED ITINERARY',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.sand600,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                destination,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: const BoxDecoration(
+                              color: AppColors.leaf50,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.verified, size: 20, color: AppColors.jungle600),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Thumbnail Ribbon
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
+                        height: 90,
+                        width: double.infinity,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF635BFF), // Stripe purple
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text(
-                          'stripe',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 14,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: Stack(
+                            children: [
+                              AppNetworkImage(
+                                imageUrl: AppDestinations.getImageForDestination('Sigiriya'),
+                                width: double.infinity,
+                                height: 90,
+                                fit: BoxFit.cover,
+                              ),
+                              Positioned.fill(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        AppColors.jungle900.withValues(alpha: 0.8),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const Positioned(
+                                bottom: 8,
+                                left: 10,
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.location_on, size: 14, color: AppColors.sand400),
+                                    SizedBox(width: 4),
+                                    Text(
+                                      'Cultural Triangle, Kandy, Ella & Southern Coast',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Test Visa • Sandbox Gateway',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            Text(
-                              '•••• •••• •••• 4242',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.ink3,
-                              ),
-                            ),
-                          ],
-                        ),
+
+                      const SizedBox(height: 12),
+
+                      // Compact Breakdown Chips
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _buildChipPill(Icons.calendar_today, dates),
+                          _buildChipPill(Icons.group, '$travelers Travelers'),
+                          _buildChipPill(Icons.directions_transit, 'Private Driver & Train'),
+                        ],
                       ),
-                      const Icon(
-                        Icons.check_circle,
-                        color: AppColors.jungle600,
-                        size: 20,
+
+                      const SizedBox(height: 14),
+                      const Divider(color: AppColors.line, height: 1),
+                      const SizedBox(height: 10),
+
+                      const Text(
+                        'Package Inclusions',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.inkTertiary),
                       ),
+                      const SizedBox(height: 8),
+
+                      _buildInclusionRow(Icons.tour, 'Sigiriya & Ella Multi-Day Tour Package', 540.0),
+                      _buildInclusionRow(Icons.hotel, '6 Nights Boutique Eco-Villas & Resorts', 420.0),
+                      _buildInclusionRow(Icons.airport_shuttle, 'Private AC Van & Scenic Train Tickets', 160.0),
+                      _buildInclusionRow(Icons.confirmation_number, 'Local Park Permits & Heritage Fees', 60.0),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  const Row(
+                ),
+
+                const SizedBox(height: 16),
+
+                // 3. Fare Summary Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.lock_outline, size: 14, color: AppColors.ink3),
-                      SizedBox(width: 6),
-                      Text(
-                        'Encrypted sandbox transaction for SE3090 evaluation',
-                        style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                      const Text(
+                        'Fare Summary',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink),
+                      ),
+                      const SizedBox(height: 10),
+                      _buildFareRow('Subtotal', '\$${total.toStringAsFixed(2)}'),
+                      const SizedBox(height: 6),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Text('Service & AI Planning Fee', style: TextStyle(fontSize: 13, color: AppColors.inkSecondary)),
+                              SizedBox(width: 4),
+                              Icon(Icons.auto_awesome, size: 14, color: AppColors.sand500),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: AppColors.leaf50, borderRadius: BorderRadius.circular(4)),
+                            child: const Text('Free (\$0.00)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.leaf400)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _buildFareRow('Tourism Development Levy (TDL 1%)', '\$${(total * 0.01).toStringAsFixed(2)}'),
+                      const SizedBox(height: 10),
+                      const Divider(color: AppColors.line, height: 1),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('TOTAL PAYABLE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.inkTertiary)),
+                              Text(
+                                '\$${(total * 1.01).toStringAsFixed(2)} $currency',
+                                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.jungle700),
+                              ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.sand100,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.lock, size: 12, color: AppColors.sand700),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Guaranteed Best Rate',
+                                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.sand700),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Error or Success Banner
-            if (_paymentMessage != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: _paymentMessage!.contains('authorized')
-                      ? AppColors.leaf50
-                      : AppColors.coral500.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: _paymentMessage!.contains('authorized')
-                        ? AppColors.jungle600.withValues(alpha: 0.3)
-                        : AppColors.coral500.withValues(alpha: 0.3),
-                  ),
                 ),
-                child: Text(
-                  _paymentMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _paymentMessage!.contains('authorized')
-                        ? AppColors.jungle700
-                        : AppColors.coral500,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
+
+                const SizedBox(height: 16),
+
+                // 4. Payment Method Selector & Stripe Form
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.line),
                   ),
-                ),
-              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Card Details', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.ink)),
+                          Row(
+                            children: [
+                              Icon(Icons.lock, size: 14, color: AppColors.jungle600),
+                              SizedBox(width: 4),
+                              Text('End-to-End Encrypted', style: TextStyle(fontSize: 11, color: AppColors.jungle600, fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
 
-            const SizedBox(height: 24),
-
-            // Pay Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _paying ? null : _pay,
-                icon: _paying
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
+                      // Cardholder Name
+                      const Text('Cardholder Name', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
+                      const SizedBox(height: 4),
+                      TextFormField(
+                        initialValue: 'Kasun Perera',
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.person, size: 18, color: AppColors.inkTertiary),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.line)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.jungle600)),
                         ),
-                      )
-                    : const Icon(Icons.lock, size: 18),
-                label: Text(
-                  _paying
-                      ? 'Processing Authorization...'
-                      : 'Authorize Payment (\$${total.toStringAsFixed(0)})',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Card Number
+                      const Text('Card Number', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
+                      const SizedBox(height: 4),
+                      TextFormField(
+                        initialValue: '•••• •••• •••• 4242',
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.credit_card, size: 18, color: AppColors.inkTertiary),
+                          suffixIcon: Container(
+                            margin: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: AppColors.leaf50, borderRadius: BorderRadius.circular(4)),
+                            child: const Text('VISA', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.jungle700)),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.line)),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.jungle600)),
+                        ),
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      // Expiry and CVV
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Expiry Date (MM/YY)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
+                                const SizedBox(height: 4),
+                                TextFormField(
+                                  initialValue: '08/28',
+                                  decoration: InputDecoration(
+                                    prefixIcon: const Icon(Icons.calendar_month, size: 18, color: AppColors.inkTertiary),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.line)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.jungle600)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('CVV', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.inkSecondary)),
+                                const SizedBox(height: 4),
+                                TextFormField(
+                                  initialValue: '882',
+                                  obscureText: true,
+                                  decoration: InputDecoration(
+                                    prefixIcon: const Icon(Icons.lock, size: 18, color: AppColors.inkTertiary),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.line)),
+                                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.jungle600)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.jungle600,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+
+                const SizedBox(height: 16),
+
+                // Error or Success Banner
+                if (_paymentMessage != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: _paymentMessage!.contains('authorized')
+                          ? AppColors.leaf50
+                          : AppColors.coral500.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _paymentMessage!.contains('authorized')
+                            ? AppColors.jungle600
+                            : AppColors.coral500,
+                      ),
+                    ),
+                    child: Text(
+                      _paymentMessage!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _paymentMessage!.contains('authorized')
+                            ? AppColors.jungle700
+                            : AppColors.coral500,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  ),
-);
-  }
 
-  Widget _buildItemTile(Map<String, dynamic> item) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.tour_outlined, color: AppColors.jungle600, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              item['tourName'] ?? 'Experience Package',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.ink,
-              ),
-            ),
-          ),
-          Text(
-            '\$${(item['subtotal'] ?? 0).toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.jungle600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItineraryItemTile(Map<String, dynamic> item) {
-    final tourName = item['tourName'] ?? 'Guided Tour Activity';
-    final price = (item['priceAtSelection'] ?? 0).toDouble();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.explore_outlined,
-            color: AppColors.ocean500,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tourName,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.ink,
+                // Pay Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: _paying ? null : _pay,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.jungle600,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: _paying
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.lock, size: 16),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Authorize Payment (\$${(total * 1.01).toStringAsFixed(2)})',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                              ),
+                            ],
+                          ),
                   ),
-                ),
-                Text(
-                  'Day ${item['dayNumber'] ?? 1}',
-                  style: const TextStyle(fontSize: 11, color: AppColors.ink3),
                 ),
               ],
             ),
           ),
-          Text(
-            '\$${price.toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.jungle600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChipPill(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.leaf50,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppColors.jungle600),
+          const SizedBox(width: 4),
+          Text(text, style: const TextStyle(fontSize: 11, color: AppColors.inkSecondary, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInclusionRow(IconData icon, String title, double cost) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: AppColors.jungle600),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(fontSize: 12, color: AppColors.ink, fontWeight: FontWeight.w500),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
+          ),
+          Text(
+            '\$${cost.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.ink),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStandardInclusionTile(double total, String currency) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.luggage_outlined,
-            color: AppColors.jungle600,
-            size: 22,
-          ),
-          const SizedBox(width: 12),
-          const Expanded(
-            child: Text(
-              'Coordinated Tours, Boutique Rooms & Scheduled Transit',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.ink,
-              ),
-            ),
-          ),
-          Text(
-            '\$${total.toStringAsFixed(0)} $currency',
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: AppColors.jungle600,
-            ),
-          ),
-        ],
-      ),
+  Widget _buildFareRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.inkSecondary)),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.ink)),
+      ],
     );
   }
 }
