@@ -21,8 +21,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _error;
   bool _obscurePassword = true;
 
+  final _confirmPasswordCtrl = TextEditingController();
+  bool _obscureConfirmPassword = true;
+  bool _agreeTerms = true;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
+    _phoneCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmPasswordCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _register() async {
+    if (!_agreeTerms) {
+      setState(() => _error = 'Please agree to the Terms and booking policy to continue.');
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
+    if (_passwordCtrl.text != _confirmPasswordCtrl.text) {
+      setState(() => _error = 'Passwords do not match.');
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
@@ -32,7 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       final result = await ApiService.register(
         fullName: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim().isEmpty ? '0771234567' : _phoneCtrl.text.trim(),
         password: _passwordCtrl.text,
       );
 
@@ -61,408 +84,480 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _emailCtrl.dispose();
-    _phoneCtrl.dispose();
-    _passwordCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.figmaDarkGreen,
       body: Stack(
-        fit: StackFit.expand,
         children: [
-          // ── Scenic Background Image ──
-          Image.asset(
-            AppDestinations.featured[1].imageUrl, // Ella mountain viaduct
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(color: AppColors.jungle900),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.jungle900.withValues(alpha: 0.55),
-                  AppColors.jungle900.withValues(alpha: 0.92),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Register Form Card ──
-          SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
+          // ── Hero Background Image & Branding ──
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 270,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  AppDestinations.heroSigiriya,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(color: AppColors.figmaDarkGreen),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Top Navigation Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            if (Navigator.canPop(context)) {
-                              Navigator.pop(context);
-                            } else {
-                              Navigator.pushReplacementNamed(context, '/landing');
-                            }
-                          },
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(alpha: 0.2),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(9999),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.eco, color: AppColors.sand400, size: 14),
-                              SizedBox(width: 5),
-                              Text(
-                                'SERENDIB TRAILS',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.35),
+                        AppColors.figmaDarkGreen.withValues(alpha: 0.8),
                       ],
                     ),
-                    const SizedBox(height: 16),
-
-                    // White Card Container
-                    Container(
-                      clipBehavior: Clip.antiAlias,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 24,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Top accent gradient line
-                          Container(
-                            height: 4,
-                            width: double.infinity,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  AppColors.jungle600,
-                                  AppColors.sand500,
-                                  AppColors.leaf400,
-                                ],
+                  ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: const BoxDecoration(
+                                color: AppColors.figmaGold,
+                                shape: BoxShape.circle,
                               ),
                             ),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(22),
-                            child: Form(
-                              key: _formKey,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.sand100,
-                                          borderRadius: BorderRadius.circular(9999),
-                                        ),
-                                        child: const Text(
-                                          'TRAVELER GATEWAY',
-                                          style: TextStyle(
-                                            fontSize: 9.5,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.sand700,
-                                            letterSpacing: 0.8,
-                                          ),
-                                        ),
-                                      ),
-                                      const Row(
-                                        children: [
-                                          Icon(Icons.verified_user, color: AppColors.leaf400, size: 14),
-                                          SizedBox(width: 4),
-                                          Text(
-                                            'M3 Encrypted',
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: AppColors.ink3,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Create Traveler Account',
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 20,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.ink,
-                                      letterSpacing: -0.3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Join Serendib Trails for AI-curated Ceylon journeys & autonomous agent itineraries.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: AppColors.ink3,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-
-                            // Error banner
-                            if (_error != null) ...[
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: AppColors.coral500.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: AppColors.coral500.withValues(
-                                      alpha: 0.3,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.error_outline,
-                                      color: AppColors.coral500,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        _error!,
-                                        style: const TextStyle(
-                                          color: AppColors.coral500,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                            ],
-
-                            // Full Name
-                            TextFormField(
-                              controller: _nameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: 'Full Name',
-                                prefixIcon: Icon(
-                                  Icons.badge_outlined,
-                                  color: AppColors.jungle600,
-                                ),
-                              ),
-                              validator: (v) => (v == null || v.isEmpty)
-                                  ? 'Full name is required'
-                                  : null,
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Email
-                            TextFormField(
-                              controller: _emailCtrl,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: const InputDecoration(
-                                labelText: 'Email Address',
-                                prefixIcon: Icon(
-                                  Icons.email_outlined,
-                                  color: AppColors.jungle600,
-                                ),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
-                                  return 'Email is required';
-                                }
-                                if (!v.contains('@')) {
-                                  return 'Enter a valid email';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Phone
-                            TextFormField(
-                              controller: _phoneCtrl,
-                              keyboardType: TextInputType.phone,
-                              maxLength: 10,
-                              decoration: const InputDecoration(
-                                labelText: 'Phone Number (10 digits)',
-                                prefixIcon: Icon(
-                                  Icons.phone_outlined,
-                                  color: AppColors.jungle600,
-                                ),
-                                hintText: '0771234567',
-                                counterText: '',
-                              ),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
-                                  return 'Phone number is required';
-                                }
-                                if (v.length != 10) {
-                                  return 'Must be exactly 10 digits';
-                                }
-                                if (!RegExp(r'^\d{10}$').hasMatch(v)) {
-                                  return 'Only digits allowed';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 12),
-
-                            // Password
-                            TextFormField(
-                              controller: _passwordCtrl,
-                              obscureText: _obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                prefixIcon: const Icon(
-                                  Icons.lock_outline,
-                                  color: AppColors.jungle600,
-                                ),
-                                suffixIcon: IconButton(
-                                  icon: Icon(
-                                    _obscurePassword
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                    color: AppColors.ink3,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _obscurePassword = !_obscurePassword,
-                                  ),
-                                ),
-                              ),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
-                                  return 'Password is required';
-                                }
-                                if (v.length < 6) {
-                                  return 'At least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 20),
-
-                            // Submit Button
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                onPressed: _loading ? null : _register,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.jungle600,
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 15,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                                child: _loading
-                                    ? const SizedBox(
-                                        height: 20,
-                                        width: 20,
-                                        child: CircularProgressIndicator(
-                                          color: Colors.white,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'Create Serendib Account',
-                                        style: TextStyle(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Already have account
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  "Already registered? ",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.ink2,
+                                Text(
+                                  'Serendib Trails',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.pushReplacementNamed(
-                                        context,
-                                        '/login',
-                                      ),
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    foregroundColor: AppColors.jungle600,
-                                  ),
-                                  child: const Text(
-                                    'Sign In',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                Text(
+                                  'AI JOURNEYS · SRI LANKA',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white.withValues(alpha: 0.7),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 1.1,
                                   ),
                                 ),
                               ],
                             ),
                           ],
                         ),
-                      ),
+                        const SizedBox(height: 18),
+                        Text(
+                          'YOUR ISLAND AWAITS',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: AppColors.figmaGold,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Create\nyour travel\nprofile',
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white,
+                            fontSize: 27,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Curved White Content Sheet ──
+          Positioned.fill(
+            top: 235,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 26, 24, 30),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Join Serendib Trails',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'One account for planning, booking and live trip updates.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: const Color(0xFF6B7280),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+
+                      // Error banner
+                      if (_error != null) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFFCA5A5)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _error!,
+                                  style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Full name
+                      Text(
+                        'Full name',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _nameCtrl,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF9CA3AF), size: 20),
+                          hintText: 'Maya Fernando',
+                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                          ),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Full name is required' : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Email address
+                      Text(
+                        'Email address',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _emailCtrl,
+                        keyboardType: TextInputType.emailAddress,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.mail_outline, color: Color(0xFF9CA3AF), size: 20),
+                          hintText: 'maya@serendib.com',
+                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Email is required';
+                          if (!v.contains('@') || !v.contains('.')) return 'Enter a valid email';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Phone number
+                      Text(
+                        'Phone number',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _phoneCtrl,
+                        keyboardType: TextInputType.phone,
+                        maxLength: 10,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF9CA3AF), size: 20),
+                          hintText: '0771234567',
+                          counterText: '',
+                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) return 'Phone number is required';
+                          if (v.trim().length != 10) return 'Must be exactly 10 digits';
+                          if (!RegExp(r'^\d{10}$').hasMatch(v.trim())) return 'Only digits allowed';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Password
+                      Text(
+                        'Password',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _passwordCtrl,
+                        obscureText: _obscurePassword,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: const Color(0xFF9CA3AF),
+                              size: 20,
+                            ),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          hintText: '••••••••',
+                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Password is required';
+                          if (v.length < 6) return 'Password must be at least 6 characters';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Confirm Password
+                      Text(
+                        'Confirm password',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF374151),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _confirmPasswordCtrl,
+                        obscureText: _obscureConfirmPassword,
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                              color: const Color(0xFF9CA3AF),
+                              size: 20,
+                            ),
+                            onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                          ),
+                          hintText: '••••••••',
+                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Confirm password is required';
+                          if (v != _passwordCtrl.text) return 'Passwords do not match';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Terms and Sri Lanka partner booking policy Checkbox
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Checkbox(
+                              value: _agreeTerms,
+                              activeColor: AppColors.figmaDarkGreen,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                              onChanged: (val) => setState(() => _agreeTerms = val ?? false),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'I agree to the Terms and Sri Lanka partner booking policy.',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: const Color(0xFF4B5563),
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 22),
+
+                      // Create Account Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _loading ? null : _register,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.figmaDarkGreen,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(26),
+                            ),
+                          ),
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.arrow_forward, size: 18, color: Colors.white),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Create Account',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Sign In link
+                      Center(
+                        child: GestureDetector(
+                          onTap: () {
+                            Navigator.pushReplacementNamed(context, '/login');
+                          },
+                          child: RichText(
+                            text: TextSpan(
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                color: const Color(0xFF4B5563),
+                              ),
+                              children: const [
+                                TextSpan(text: 'Already a member? '),
+                                TextSpan(
+                                  text: 'Sign in',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF111827),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
-    ),
-  ],
-),
     );
   }
 }

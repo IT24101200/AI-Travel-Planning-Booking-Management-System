@@ -580,63 +580,90 @@ class _LandingScreenState extends State<LandingScreen> {
                       ),
                     ),
 
-                  // Primary Action Buttons (matching Stitch landing_screen dock)
+                  // Primary Action Buttons (matching Figma 01 · Landing)
                   if (!_isLoggedIn) ...[
+                    // Primary Gold Button: Start Your Journey
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () => Navigator.pushNamed(context, '/register').then((_) => _checkAuthStatus()),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.jungle600,
+                          backgroundColor: AppColors.figmaGold,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                           elevation: 3,
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            Icon(Icons.arrow_forward, size: 18, color: Colors.white),
+                            SizedBox(width: 8),
                             Text(
                               'Start Your Journey',
-                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, size: 18),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/login').then((_) => _checkAuthStatus()),
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.12),
-                          foregroundColor: Colors.white,
-                          side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: const Text(
-                          'Sign In to Account',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: () => Navigator.pushNamed(context, '/tour-search'),
-                        icon: const Text(
-                          'Browse Tours as Guest',
-                          style: TextStyle(
-                            color: AppColors.leaf100,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                    const SizedBox(height: 10),
+                    // Row with Sign In and How AI Agents Work
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () => Navigator.pushNamed(context, '/login').then((_) => _checkAuthStatus()),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: AppColors.figmaDarkGreen,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                              elevation: 1,
+                            ),
+                            child: const Text(
+                              'Sign In',
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                            ),
                           ),
                         ),
-                        label: const Icon(Icons.arrow_forward, color: AppColors.leaf100, size: 14),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _showAgentWorkflowDialog(context),
+                            icon: const Icon(Icons.auto_awesome, color: AppColors.jungle600, size: 16),
+                            label: const Text(
+                              'How AI Agents Work',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.figmaDarkGreen,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                              elevation: 1,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Center(
+                      child: Text(
+                        'Curated routes · Verified partners · 24/7 trip support',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ]

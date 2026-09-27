@@ -47,7 +47,7 @@ class AppColors {
   static const Color line = Color(0xFFE2E9E3);
   static const Color lineStrong = Color(0xFFCDD9D0);
 
-  // Surface Containers (Material 3 Serendib Verdant)
+  // Surface Containers (Material 3 Serendib Verdant & Figma)
   static const Color surfaceContainerLowest = Colors.white;
   static const Color surfaceContainerLow = Color(0xFFDFFAEF);
   static const Color surfaceContainer = Color(0xFFD9F4EA);
@@ -56,6 +56,12 @@ class AppColors {
   static const Color surfaceDim = Color(0xFFC5E0D6);
   static const Color onSurface = Color(0xFF071F1A);
   static const Color onSurfaceVariant = Color(0xFF3F4943);
+
+  // Figma Exact Tokens
+  static const Color figmaSurface = Color(0xFFF7F5EF); // Warm Cream Canvas
+  static const Color figmaGold = Color(0xFFD5A63D); // Ceylon Temple Gold
+  static const Color figmaDarkGreen = Color(0xFF08271E); // Deep Ceylon Forest
+  static const Color figmaCardBorder = Color(0xFFE4E7E2);
 }
 
 /// Curated destination model and data for Sri Lanka.

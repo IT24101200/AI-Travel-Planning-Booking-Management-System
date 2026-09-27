@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// Serendib Verdant Booking Status & Digital QR Ticket Screen.
-/// Displays booking milestones, live status feedback, traveler pass, and multi-agent audit trail.
+/// Booking status screen matching Figma frame 12 · Booking Status (node 7:11041)
 class BookingStatusScreen extends StatefulWidget {
   const BookingStatusScreen({super.key});
 
@@ -28,7 +27,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     if (args is int) {
       _loadBooking(args);
     } else if (args is Map<String, dynamic>) {
-      if (args['id'] is int) {
+      if (args['id'] is int && args['bookingReference'] == null) {
         _loadBooking(args['id'] as int);
       } else {
         setState(() {
@@ -41,7 +40,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     }
   }
 
-  /// Load the customer's latest booking or fall back to verified demo Ceylon pass
+  /// Load latest booking or sample Ceylon pass
   Future<void> _loadDefaultOrLatestBooking() async {
     setState(() {
       _loading = true;
@@ -68,29 +67,20 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
       setState(() {
         _booking = {
           'id': 101,
-          'bookingReference': 'SRN-LK-2024-8842',
+          'bookingReference': 'ST-284619',
           'status': 'Confirmed',
-          'totalCost': 1191.80,
+          'destination': 'Sri Lanka Discovery',
+          'dates': '12–18 Oct · 2 travelers',
+          'stops': 'Sigiriya · Kandy · Ella · Mirissa',
+          'totalCost': 1712.0,
           'currency': 'USD',
-          'customerName': 'Kasun Perera',
-          'createdAt': DateTime.now().toIso8601String(),
-          'tourPackage': {'title': 'Sri Lanka Grand Explorer'},
-          'hotel': {'name': 'Sigiriya Sanctuary Lodge', 'city': 'Sigiriya'},
-          'transport': {'vehicleType': 'Toyota Hybrid • Driver Sumith Perera'},
-          'bookingApprovals': [
-            {
-              'decision': 'Approved',
-              'comment': 'All vouchers, safari jeep permits and express rail passes verified.',
-              'decidedAt': DateTime.now().toIso8601String(),
-            }
-          ]
+          'customerName': 'Maya Fernando',
         };
         _loading = false;
       });
     }
   }
 
-  /// Fetch booking details from backend API
   Future<void> _loadBooking(int id) async {
     setState(() {
       _loading = true;
@@ -115,943 +105,596 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     }
   }
 
-  String _getStatusString() {
-    final status = _booking!['status'];
-    if (status is int) {
-      const statusMap = {
-        0: 'Draft',
-        1: 'AwaitingApproval',
-        2: 'Confirmed',
-        3: 'Rejected',
-        4: 'Cancelled',
-        5: 'Completed',
-      };
-      return statusMap[status] ?? 'Unknown';
+  Future<void> _cancelBooking() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'Cancel Booking?',
+          style: GoogleFonts.plusJakartaSans(
+            fontWeight: FontWeight.w800,
+            color: AppColors.figmaDarkGreen,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to cancel this booking? Free cancellation is available until 8 October.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: const Color(0xFF4B5563),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Keep Booking',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF6B7280),
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(
+              'Yes, Cancel',
+              style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Booking cancelled. Refund initiated to original payment method.'),
+        ),
+      );
+      Navigator.pop(context);
     }
-    return status?.toString() ?? 'Unknown';
-  }
-
-  void _copyToClipboard(String text) {
-    Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Copied "$text" to clipboard!'),
-        backgroundColor: AppColors.jungle700,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  void _showActionToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.jungle700,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Booking Pass & Status')),
-        body: const LoadingIndicator(message: 'Loading live booking status...'),
-      );
-    }
-
-    if (_error != null || _booking == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Booking Pass & Status')),
-        body: ErrorMessage(
-          message: _error ?? 'Booking not found',
-          onRetry: () => _loadDefaultOrLatestBooking(),
+      return const Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
         ),
       );
     }
 
-    final statusStr = _getStatusString();
-    final isConfirmed = statusStr.toLowerCase() == 'confirmed' ||
-        statusStr.toLowerCase() == 'completed';
-    final bookingRef =
-        _booking!['bookingReference']?.toString() ?? 'SRN-LK-2024-8842';
-    final total = (_booking!['totalCost'] ?? 0).toDouble();
-    final currency = _booking!['currency'] ?? 'USD';
-    final customerName = _booking!['customerName']?.toString() ?? 'Kasun Perera';
-    final tourTitle = _booking!['tourPackage']?['title']?.toString() ??
-        'Sri Lanka Grand Explorer';
-    final vehicleDetails = _booking!['transport']?['vehicleType']?.toString() ??
-        'Toyota Hybrid • Driver Sumith Perera';
+    if (_error != null && _booking == null) {
+      return Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        appBar: AppBar(
+          backgroundColor: AppColors.figmaSurface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Booking status',
+            style: GoogleFonts.plusJakartaSans(
+              color: AppColors.figmaDarkGreen,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        body: ErrorMessage(
+          message: _error!,
+          onRetry: _loadDefaultOrLatestBooking,
+        ),
+      );
+    }
+
+    final reference = _booking!['bookingReference'] ?? 'ST-284619';
+    final total = (_booking!['totalCost'] ??
+            _booking!['totalEstimatedCost'] ??
+            1712)
+        .toDouble();
+    final tripTitle = _booking!['destination'] ?? 'Sri Lanka Discovery';
+    final dates = _booking!['dates'] ?? '12–18 Oct · 2 travelers';
+    final stops =
+        _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: AppBar(
-        title: const Text('Booking Status & QR Ticket'),
-        backgroundColor: AppColors.surface,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              if (_booking!['id'] != null) {
-                _loadBooking(_booking!['id']);
-              } else {
-                _loadDefaultOrLatestBooking();
-              }
-            },
-          ),
-        ],
-      ),
-      body: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 750),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Status Feedback Banner ──
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: isConfirmed ? AppColors.leaf100 : AppColors.sand100,
-                    borderRadius: BorderRadius.circular(16),
+      backgroundColor: AppColors.figmaSurface,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // ── Header Bar ──
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.figmaDarkGreen,
+                        size: 20,
+                      ),
+                    ),
                   ),
-                  child: Row(
+                  Column(
                     children: [
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: isConfirmed
-                              ? AppColors.jungle600.withValues(alpha: 0.15)
-                              : AppColors.sand500.withValues(alpha: 0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          isConfirmed ? Icons.verified : Icons.hourglass_top,
-                          color: isConfirmed ? AppColors.jungle600 : AppColors.sand700,
-                          size: 22,
+                      Text(
+                        'Booking status',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.figmaDarkGreen,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isConfirmed ? 'STATUS CONFIRMED' : 'STATUS PENDING',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                                color: isConfirmed
-                                    ? AppColors.jungle600
-                                    : AppColors.sand700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              isConfirmed
-                                  ? "You're Ceylon Bound!"
-                                  : 'Processing Itinerary Details',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.jungle900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.04),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          isConfirmed ? 'All Set' : 'In Review',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: isConfirmed
-                                ? AppColors.jungle600
-                                : AppColors.sand700,
-                          ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Reference $reference',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── Booking Reference Card ──
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.line),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'BOOKING REFERENCE',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.0,
-                                  color: AppColors.inkTertiary,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                bookingRef,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.ink,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            onPressed: () => _copyToClipboard(bookingRef),
-                            icon: const Icon(Icons.content_copy, size: 18),
-                            color: AppColors.jungle600,
-                            style: IconButton.styleFrom(
-                              backgroundColor: AppColors.surfaceContainer,
-                              padding: const EdgeInsets.all(8),
-                            ),
-                            tooltip: 'Copy booking code',
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(
-                                    Icons.date_range,
-                                    size: 18,
-                                    color: AppColors.jungle600,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Dates',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: AppColors.inkSecondary,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Oct 14 - Oct 20',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.ink,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.group,
-                                    size: 18,
-                                    color: AppColors.jungle600,
-                                  ),
-                                  SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const Text(
-                                        'Guests',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: AppColors.inkSecondary,
-                                        ),
-                                      ),
-                                      Text(
-                                        customerName,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.ink,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── Vertical Trip Milestones Stepper ──
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.line),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Trip Milestones',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceContainer,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Text(
-                              'Real-time sync',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.inkSecondary,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // Stepper items
-                      _buildMilestoneStep(
-                        stepNumber: 1,
-                        title: 'Order Submitted',
-                        subtitle: 'Custom heritage tour request logged',
-                        trailing: 'Oct 12, 10:14 AM',
-                        isCompleted: true,
-                        isLast: false,
-                      ),
-                      _buildMilestoneStep(
-                        stepNumber: 2,
-                        title: 'Payment Verified',
-                        subtitle: 'Settled via Visa Encrypted Gateway',
-                        trailing: '\$${total.toStringAsFixed(2)} $currency',
-                        trailingHighlight: true,
-                        isCompleted: true,
-                        isLast: false,
-                      ),
-                      _buildMilestoneStep(
-                        stepNumber: 3,
-                        title: 'Multi-Agent Booking Sync',
-                        subtitle: 'Hotels & Private AC Van fully locked',
-                        badge: 'Active',
-                        badgeColor: AppColors.leaf100,
-                        badgeTextColor: AppColors.jungle600,
-                        isCompleted: isConfirmed,
-                        isLast: false,
-                      ),
-                      _buildMilestoneStep(
-                        stepNumber: 4,
-                        title: 'E-Tickets & Vouchers Issued',
-                        subtitle:
-                            'Digital pass ready for boarding & hotel check-in',
-                        badge: 'Ready',
-                        badgeColor: AppColors.sand100,
-                        badgeTextColor: AppColors.sand700,
-                        isCompleted: isConfirmed,
-                        isLast: true,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── Digital QR E-Ticket Pass ──
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.line),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.jungle900.withValues(alpha: 0.05),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: Column(
-                    children: [
-                      // Dark Green Ticket Banner
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 16),
-                        color: AppColors.jungle800,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'OFFICIAL SERENDIB PASS',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1.2,
-                                      color: AppColors.sand400,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    tourTitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.12),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.confirmation_number_outlined,
-                                color: AppColors.sand400,
-                                size: 20,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      // QR Code Container
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Column(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: AppColors.line),
-                              ),
-                              child: QrImageView(
-                                data: bookingRef,
-                                version: QrVersions.auto,
-                                size: 160,
-                                eyeStyle: const QrEyeStyle(
-                                  eyeShape: QrEyeShape.square,
-                                  color: AppColors.jungle900,
-                                ),
-                                dataModuleStyle: const QrDataModuleStyle(
-                                  dataModuleShape: QrDataModuleShape.square,
-                                  color: AppColors.jungle800,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.qr_code_scanner,
-                                  size: 14,
-                                  color: AppColors.inkTertiary,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Scan at airport pickup & Sigiriya checkpoint',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: AppColors.inkTertiary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-
-                            // Ticket Metadata Grid
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: AppColors.surfaceContainerLow,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'PRIMARY PASSENGER',
-                                              style: TextStyle(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.inkTertiary,
-                                              ),
-                                            ),
-                                            Text(
-                                              customerName,
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.ink,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: const [
-                                            Text(
-                                              'TRIP DURATION',
-                                              style: TextStyle(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.inkTertiary,
-                                              ),
-                                            ),
-                                            Text(
-                                              '7 Days / 6 Nights',
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.ink,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const Divider(height: 16, color: AppColors.line),
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.directions_car,
-                                        size: 16,
-                                        color: AppColors.jungle600,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const Text(
-                                              'ASSIGNED TRANSIT & GUIDE',
-                                              style: TextStyle(
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.inkTertiary,
-                                              ),
-                                            ),
-                                            Text(
-                                              vehicleDetails,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                color: AppColors.ink,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            // SLTDA Govt verification badge
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Row(
-                                  children: [
-                                    Icon(
-                                      Icons.verified_user,
-                                      size: 16,
-                                      color: AppColors.sand700,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'SLTDA Govt. License #TA/2024/772',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.inkSecondary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.leaf100,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: const Text(
-                                    'Verified',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: AppColors.jungle600,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── Quick Action Pill Buttons ──
-                _buildQuickActionTile(
-                  icon: Icons.picture_as_pdf,
-                  iconBg: AppColors.leaf100,
-                  iconColor: AppColors.jungle600,
-                  title: 'Download PDF Pass',
-                  subtitle: 'Offline access with voucher barcodes',
-                  onTap: () => _showActionToast('Downloading PDF E-Ticket Pass...'),
-                ),
-                const SizedBox(height: 10),
-                _buildQuickActionTile(
-                  icon: Icons.account_balance_wallet,
-                  iconBg: AppColors.sand100,
-                  iconColor: AppColors.sand700,
-                  title: 'Save to Apple / Google Wallet',
-                  subtitle: 'Real-time terminal & hotel updates',
-                  onTap: () => _showActionToast('Adding to Mobile Wallet...'),
-                ),
-                const SizedBox(height: 10),
-                _buildQuickActionTile(
-                  icon: Icons.event_available,
-                  iconBg: AppColors.ocean300.withValues(alpha: 0.3),
-                  iconColor: AppColors.ocean700,
-                  title: 'Add to Calendar',
-                  subtitle: 'Oct 14 - Oct 20 scheduled itinerary',
-                  onTap: () => _showActionToast('Syncing with Calendar...'),
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── Staff Review & Audit Trail ──
-                if (_booking!['bookingApprovals'] != null &&
-                    (_booking!['bookingApprovals'] as List).isNotEmpty) ...[
                   Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
+                    width: 44,
+                    height: 44,
+                    decoration: const BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
+                      shape: BoxShape.circle,
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.shield_outlined,
-                              size: 18,
-                              color: AppColors.jungle600,
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Staff Review & Audit Trail',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 20, color: AppColors.line),
-                        ...(_booking!['bookingApprovals'] as List).map<Widget>((
-                          approval,
-                        ) {
-                          final decision =
-                              approval['decision']?.toString() ?? 'Approved';
-                          final isApproved =
-                              decision.toLowerCase() == 'approved';
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Icon(
-                              isApproved
-                                  ? Icons.verified_user
-                                  : Icons.rate_review,
-                              color: isApproved
-                                  ? AppColors.jungle600
-                                  : AppColors.sand500,
-                            ),
-                            title: Text(
-                              decision,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: Text(
-                              approval['comment'] ?? 'No comments provided',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            trailing: Text(
-                              (() {
-                                final d = approval['decidedAt']?.toString();
-                                if (d == null || d.isEmpty) return '';
-                                return d.length >= 10 ? d.substring(0, 10) : d;
-                              })(),
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.inkTertiary,
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
+                    child: const Icon(
+                      Icons.more_horiz,
+                      color: AppColors.figmaDarkGreen,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 16),
                 ],
+              ),
 
-                // ── Action Buttons ──
-                Row(
+              const SizedBox(height: 24),
+
+              // ── Status Hero Section ──
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE2F4EB),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.check_circle_outline,
+                  color: Color(0xFF059669),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6F5EE),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  'BOOKING CONFIRMED',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF059669),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                reference,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.figmaDarkGreen,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Updated today at 10:42 · Ready in approximately 12 minutes',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: const Color(0xFF6B7280),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── 4-Step Vertical Stepper Card ──
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.figmaCardBorder),
+                ),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.pushNamed(context, '/trip-map'),
-                        icon: const Icon(Icons.map_outlined),
-                        label: const Text('Trip Map'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.jungle600,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                    _buildStepRow(
+                      icon: Icons.check,
+                      isCompleted: true,
+                      isActive: false,
+                      isPending: false,
+                      title: 'Submitted',
+                      subtitle: 'Payment received',
+                      time: '10:31',
+                      showLine: true,
+                      lineColor: const Color(0xFF059669),
+                    ),
+                    _buildStepRow(
+                      icon: Icons.check,
+                      isCompleted: true,
+                      isActive: false,
+                      isPending: false,
+                      title: 'Processing',
+                      subtitle: 'Partners notified',
+                      time: '10:35',
+                      showLine: true,
+                      lineColor: const Color(0xFF059669),
+                    ),
+                    _buildStepRow(
+                      icon: null,
+                      isCompleted: false,
+                      isActive: true,
+                      isPending: false,
+                      title: 'Confirmed',
+                      subtitle: 'All services secured',
+                      time: '10:42',
+                      showLine: true,
+                      lineColor: const Color(0xFFD1D5DB),
+                    ),
+                    _buildStepRow(
+                      icon: null,
+                      isCompleted: false,
+                      isActive: false,
+                      isPending: true,
+                      title: 'Ready',
+                      subtitle: 'Tickets issued',
+                      time: 'Soon',
+                      showLine: false,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // ── Digital Ticket Card (Deep Dark Green) ──
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.figmaDarkGreen,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    // QR Code Box
+                    Container(
+                      width: 72,
+                      height: 72,
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: QrImageView(
+                        data: reference,
+                        version: QrVersions.auto,
+                        size: 60,
+                        eyeStyle: const QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: AppColors.figmaDarkGreen,
+                        ),
+                        dataModuleStyle: const QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: AppColors.figmaDarkGreen,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
+                    // Details
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: () =>
-                            Navigator.pushReplacementNamed(context, '/home'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.jungle600,
-                          side: const BorderSide(color: AppColors.jungle600),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'YOUR DIGITAL TICKET',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.figmaGold,
+                              letterSpacing: 0.5,
+                            ),
                           ),
-                        ),
-                        child: const Text('Dashboard'),
+                          const SizedBox(height: 3),
+                          Text(
+                            tripTitle,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            dates,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: Colors.white.withValues(alpha: 0.75),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            stops,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              color: Colors.white.withValues(alpha: 0.6),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Paid · \$${total.toStringAsFixed(0)}',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.figmaGold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 18),
+
+              // ── Primary Action: View Confirmation ──
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/trip-confirmation',
+                      arguments: _booking,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.figmaDarkGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.confirmation_number_outlined,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'View Confirmation',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // ── Secondary Action: Cancel Booking ──
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton(
+                  onPressed: _cancelBooking,
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: AppColors.figmaDarkGreen,
+                    side: const BorderSide(color: AppColors.figmaCardBorder),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.cancel_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Cancel Booking',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.figmaDarkGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Subtext
+              Text(
+                'Eligible items can be cancelled without charge until 8 October.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  color: const Color(0xFF6B7280),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 24),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildMilestoneStep({
-    required int stepNumber,
+  Widget _buildStepRow({
+    required IconData? icon,
+    required bool isCompleted,
+    required bool isActive,
+    required bool isPending,
     required String title,
     required String subtitle,
-    String? trailing,
-    bool trailingHighlight = false,
-    String? badge,
-    Color? badgeColor,
-    Color? badgeTextColor,
-    required bool isCompleted,
-    required bool isLast,
+    required String time,
+    required bool showLine,
+    Color lineColor = const Color(0xFFD1D5DB),
   }) {
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Step circle and vertical connector line
-          Column(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isCompleted ? AppColors.jungle600 : AppColors.surfaceContainer,
-                  border: Border.all(
-                    color: isCompleted ? AppColors.jungle600 : AppColors.lineStrong,
+          // Step Indicator Column
+          SizedBox(
+            width: 32,
+            child: Column(
+              children: [
+                if (isCompleted)
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF059669),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  )
+                else if (isActive)
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: const BoxDecoration(
+                      color: AppColors.figmaGold,
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Colors.black,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    width: 24,
+                    height: 24,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE5E7EB),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF9CA3AF),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
-                ),
-                child: Icon(
-                  isCompleted ? Icons.check : Icons.circle,
-                  size: 16,
-                  color: isCompleted ? Colors.white : AppColors.inkTertiary,
-                ),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    color: isCompleted ? AppColors.jungle600 : AppColors.lineStrong,
+                if (showLine)
+                  Expanded(
+                    child: Container(
+                      width: 2,
+                      color: lineColor,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(width: 12),
-          // Step info
+          const SizedBox(width: 10),
+          // Step Texts
           Expanded(
             child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
-              child: Column(
+              padding: const EdgeInsets.only(bottom: 22),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         title,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.ink,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.figmaDarkGreen,
                         ),
                       ),
-                      if (trailing != null)
-                        Text(
-                          trailing,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: trailingHighlight
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                            color: trailingHighlight
-                                ? AppColors.jungle600
-                                : AppColors.inkTertiary,
-                          ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: const Color(0xFF6B7280),
                         ),
-                      if (badge != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: badgeColor ?? AppColors.leaf100,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            badge,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: badgeTextColor ?? AppColors.jungle600,
-                            ),
-                          ),
-                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 2),
                   Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.inkSecondary,
+                    time,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF9CA3AF),
                     ),
                   ),
                 ],
@@ -1059,70 +702,6 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionTile({
-    required IconData icon,
-    required Color iconBg,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: iconBg,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.ink,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.inkTertiary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(
-              Icons.chevron_right,
-              color: AppColors.inkTertiary,
-              size: 20,
-            ),
-          ],
-        ),
       ),
     );
   }
