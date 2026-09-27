@@ -1,6 +1,6 @@
 import json
 import os
-import requests
+from google import genai
 from dotenv import load_dotenv
 from logger import log_agent_step
 from tools.availability_tools import (
@@ -9,7 +9,8 @@ from tools.availability_tools import (
 )
 
 load_dotenv()
-aiml_api_key = os.getenv("AIML_API_KEY")
+api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=api_key)
 
 def _remove_markdown_fences(text):
     cleaned = text.strip()
@@ -136,34 +137,14 @@ Rules:
 """
 
     try:
-        if aiml_api_key:
-            response = requests.post(
-                "https://api.aimlapi.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {aiml_api_key}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "gpt-4o-mini",
-                    "messages": [{"role": "user", "content": prompt.strip()}]
-                },
-                timeout=30
-            )
-            response.raise_for_status()
-            response_text = _remove_markdown_fences(response.json()["choices"][0]["message"]["content"])
-        else:
-            from google import genai
-            api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            client = genai.Client(api_key=api_key)
-            interaction = client.interactions.create(
-                model="gemini-1.5-flash",
-                input=prompt.strip(),
-            )
-            response_text = _remove_markdown_fences(interaction.output_text)
-            
+        interaction = client.interactions.create(
+            model="gemini-1.5-flash",
+            input=prompt.strip(),
+        )
+        response_text = _remove_markdown_fences(interaction.output_text)
         parsed_result = json.loads(response_text)
     except Exception as error:
-        return {"error": f"LLM request failed: {error}"}
+        return {"error": f"Gemini request failed: {error}"}
 
     try:
         log_agent_step(
