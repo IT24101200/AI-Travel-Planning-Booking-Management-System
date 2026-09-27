@@ -156,7 +156,7 @@ Rules:
             api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             client = genai.Client(api_key=api_key)
             interaction = client.interactions.create(
-                model="gemini-1.5-flash",
+                model="gemini-3.5-flash",
                 input=prompt.strip(),
             )
             response_text = _remove_markdown_fences(interaction.output_text)
@@ -185,4 +185,6 @@ def booking_node(state: dict) -> dict:
     and returns a concrete, priced booking package.
     """
     result = build_booking_package(state)
+    if isinstance(result, dict) and "total_package_cost" in result and "total_cost" not in result:
+        result["total_cost"] = result["total_package_cost"]
     return {**state, "booking_details": result}
