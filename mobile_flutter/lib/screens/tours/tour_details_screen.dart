@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// Tour details screen with immersive photography, key highlights, and direct booking actions.
+/// Tour details screen matching Figma frame 06 · Tour Details (node 7:10595)
 class TourDetailsScreen extends StatefulWidget {
   const TourDetailsScreen({super.key});
 
@@ -16,7 +17,6 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
   bool _loading = true;
   String? _error;
   bool _isFavorite = false;
-  int _activeTab = 0; // 0: Included, 1: Excluded
 
   @override
   void didChangeDependencies() {
@@ -55,17 +55,32 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(title: const Text('Tour Details & Highlights')),
-        body: const LoadingIndicator(message: 'Loading experience...'),
+      return const Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+        ),
       );
     }
 
     if (_error != null || _tour == null) {
       return Scaffold(
-        backgroundColor: AppColors.background,
-        appBar: AppBar(title: const Text('Tour Details & Highlights')),
+        backgroundColor: AppColors.figmaSurface,
+        appBar: AppBar(
+          backgroundColor: AppColors.figmaSurface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Tour Details',
+            style: GoogleFonts.plusJakartaSans(
+              color: AppColors.figmaDarkGreen,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
         body: ErrorMessage(
           message: _error ?? 'Tour not found',
           onRetry: () {
@@ -76,717 +91,321 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
       );
     }
 
-    final tourName = _tour!['name'] ?? 'Scenic Excursion';
+    final tourName = _tour!['name'] ?? 'Sigiriya Sunrise & Village Life';
     final uploadedImage = ApiService.resolveMediaUrl(
       _tour!['imageUrl']?.toString(),
     );
     final imageUrl = uploadedImage.isNotEmpty
         ? uploadedImage
         : AppDestinations.getImageForDestination(tourName);
-    final price = (_tour!['price'] ?? 85).toDouble();
+    final price = (_tour!['price'] ?? 68).toDouble();
     final duration = _tour!['durationHours'] ?? 8;
-    final location = _tour!['location'] ?? 'Cultural Triangle, Sri Lanka';
+    final location = _tour!['location'] ?? 'Sigiriya, Matale';
+    final category = (_tour!['category'] ?? 'Culture · Adventure').toString();
+    final description = _tour!['description'] ??
+        'Climb the ancient rock fortress before the crowds, then share a garden breakfast and traditional lunch with a nearby village family.';
+
+    final highlights = [
+      'Early-access fortress climb',
+      'Local naturalist guide',
+      'Village cycle & home-cooked lunch',
+    ];
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          // ── Hero Gallery Media Section with Gradient & Badges ──
-          SliverAppBar(
-            expandedHeight: 320,
-            pinned: true,
-            backgroundColor: AppColors.jungle900,
-            elevation: 0,
-            leading: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: CircleAvatar(
-                backgroundColor: Colors.black.withValues(alpha: 0.45),
-                child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                ),
-              ),
-            ),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12.0),
-                child: CircleAvatar(
-                  backgroundColor: Colors.white.withValues(alpha: 0.9),
-                  child: IconButton(
-                    icon: Icon(
-                      _isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: _isFavorite ? AppColors.coral500 : AppColors.jungle800,
-                      size: 20,
+      backgroundColor: AppColors.figmaSurface,
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Hero Image with Back, Wishlist & Category Badge ──
+            Stack(
+              children: [
+                SizedBox(
+                  height: 320,
+                  width: double.infinity,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: const Color(0xFF374151),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.landscape,
+                        color: Colors.white54,
+                        size: 64,
+                      ),
                     ),
-                    onPressed: () {
-                      setState(() => _isFavorite = !_isFavorite);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(_isFavorite ? 'Saved to Wishlist' : 'Removed from Wishlist'),
-                          duration: const Duration(seconds: 1),
-                        ),
-                      );
-                    },
                   ),
                 ),
-              ),
-            ],
-            flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                fit: StackFit.expand,
-                children: [
-                  AppNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover),
-                  // Dark jungle gradient
-                  DecoratedBox(
+                // Top gradient for button visibility
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 100,
+                  child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                         colors: [
-                          AppColors.jungle900.withValues(alpha: 0.95),
-                          AppColors.jungle900.withValues(alpha: 0.35),
+                          Colors.black.withValues(alpha: 0.45),
                           Colors.transparent,
                         ],
                       ),
                     ),
                   ),
-                  // UNESCO Badge top left inside hero
-                  Positioned(
-                    top: 85,
-                    left: 16,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.sand500.withValues(alpha: 0.95),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.workspace_premium, size: 14, color: AppColors.jungle900),
-                          SizedBox(width: 4),
-                          Text(
-                            'UNESCO World Heritage',
-                            style: TextStyle(
-                              color: AppColors.jungle900,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Bottom Hero Content Overlay
-                  Positioned(
-                    bottom: 16,
-                    left: 16,
-                    right: 16,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.star, size: 14, color: AppColors.sand600),
-                                  SizedBox(width: 3),
-                                  Text(
-                                    '4.9',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 11,
-                                      color: AppColors.jungle800,
-                                    ),
-                                  ),
-                                  Text(
-                                    ' (128 reviews)',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: AppColors.inkTertiary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppColors.leaf100,
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: const Text(
-                                'Top Rated',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.jungle600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          tourName,
-                          style: const TextStyle(
+                ),
+                // Top Action Buttons
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  left: 16,
+                  right: 16,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Back Button
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
                             color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.3,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: AppColors.figmaDarkGreen,
+                            size: 20,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.location_on, size: 14, color: AppColors.leaf100),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                location,
-                                style: const TextStyle(
-                                  color: AppColors.leaf100,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
+                      ),
+                      // Wishlist Heart Button
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isFavorite = !_isFavorite;
+                          });
+                        },
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _isFavorite
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: _isFavorite
+                                ? Colors.red
+                                : AppColors.figmaDarkGreen,
+                            size: 20,
+                          ),
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                // Category Pill on Image Bottom
+                Positioned(
+                  left: 16,
+                  bottom: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.figmaGold,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      category.toUpperCase(),
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.black,
+                        letterSpacing: 0.4,
+                      ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
 
-          // ── Detailed Sections Body ──
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+            // ── Main Content Body ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Pricing Value Card
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'STANDARD PRICE',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.inkTertiary,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              '\$${price.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.jungle700,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text(
-                              '/ person',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppColors.inkSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppColors.leaf50,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.check_circle, size: 16, color: AppColors.leaf400),
-                              SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  'All Entrance Tickets & Government Taxes Included',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.jungle600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // 2. Quick Stats Matrix (2x2)
+                  // Title & Rating
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
-                        child: _buildQuickStatCell(
-                          icon: Icons.schedule,
-                          label: 'Duration',
-                          value: 'Full Day (${duration}h)',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildQuickStatCell(
-                          icon: Icons.groups,
-                          label: 'Group Size',
-                          value: 'Small Group (Max 6)',
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildQuickStatCell(
-                          icon: Icons.hiking,
-                          label: 'Difficulty',
-                          value: 'Moderate (1,200 Steps)',
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _buildQuickStatCell(
-                          icon: Icons.translate,
-                          label: 'Languages',
-                          value: 'EN, SI, FR',
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 3. Tour Highlights (5 Key Stops)
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Row(
-                              children: [
-                                Icon(Icons.explore, size: 20, color: AppColors.sand500),
-                                SizedBox(width: 6),
-                                Text(
-                                  'Expedition Highlights',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.ink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppColors.leaf100,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                '5 Key Stops',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.jungle600,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        _buildHighlightStop('01', 'Early Sunrise Sky Fortress Ascent', 'Beat midday tropical heat and summit the 5th-century rock palace with jungle panoramas.'),
-                        const SizedBox(height: 12),
-                        _buildHighlightStop('02', 'Hydraulic Water Gardens & Mirror Wall', 'Walk through ancient landscaped pools and read 8th-century visitor graffiti poetry.'),
-                        const SizedBox(height: 12),
-                        _buildHighlightStop('03', 'Frescoes of Celestial Maidens', 'Admire vibrant 1,500-year-old pigment paintings preserved in sheltered stone crevices.'),
-                        const SizedBox(height: 12),
-                        _buildHighlightStop('04', 'Authentic Village Culinary Feast', 'Savor hand-ground curries simmered in clay pots, served fresh on woven lotus leaves.'),
-                        const SizedBox(height: 12),
-                        _buildHighlightStop('05', 'Dambulla Golden Rock Cave Complex', 'Explore 5 sanctuary caverns containing 153 gilded Buddha statues and murals.'),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 4. Certified Guide Spotlight
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.jungle800, AppColors.jungle900],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.jungle900.withValues(alpha: 0.2),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.verified, size: 16, color: AppColors.sand400),
-                            SizedBox(width: 6),
-                            Text(
-                              'SLTDA LICENSED NATIONAL GUIDE',
-                              style: TextStyle(
-                                color: AppColors.sand200,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Stack(
-                              children: [
-                                CircleAvatar(
-                                  radius: 24,
-                                  backgroundColor: AppColors.sand400,
-                                  child: CircleAvatar(
-                                    radius: 22,
-                                    backgroundColor: AppColors.jungle700,
-                                    child: const Text(
-                                      'KJ',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: Container(
-                                    width: 12,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.leaf400,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: AppColors.jungle900, width: 2),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Kavinda Jayasuriya',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    '12 Yrs Guiding • Ceylon History Scholar',
-                                    style: TextStyle(
-                                      color: AppColors.leaf200,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.star, size: 12, color: AppColors.sand400),
-                                      SizedBox(width: 3),
-                                      Text(
-                                        '4.98',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                      Text(
-                                        ' (410+ tours)',
-                                        style: TextStyle(
-                                          color: AppColors.leaf200,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            ElevatedButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Chat with Kavinda initialized!')),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.leaf100,
-                                foregroundColor: AppColors.jungle900,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.chat, size: 14),
-                                  SizedBox(width: 4),
-                                  Text('Ask', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        const Divider(color: Colors.white12, height: 1),
-                        const SizedBox(height: 8),
-                        const Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Native Sinhala • Fluent French & English',
-                              style: TextStyle(color: AppColors.leaf100, fontSize: 11),
-                            ),
-                            Text(
-                              '100% Response Rate',
-                              style: TextStyle(color: AppColors.sand400, fontWeight: FontWeight.bold, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // 5. Included vs Excluded Toggle
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.line),
-                    ),
-                    child: Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(3),
-                          decoration: BoxDecoration(
-                            color: AppColors.mist,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(8),
-                                  onTap: () => setState(() => _activeTab = 0),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: _activeTab == 0 ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: _activeTab == 0
-                                          ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
-                                          : null,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      "What's Included",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: _activeTab == 0 ? FontWeight.w700 : FontWeight.w500,
-                                        color: _activeTab == 0 ? AppColors.jungle700 : AppColors.inkTertiary,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: InkWell(
-                                  borderRadius: BorderRadius.circular(8),
-                                  onTap: () => setState(() => _activeTab = 1),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8),
-                                    decoration: BoxDecoration(
-                                      color: _activeTab == 1 ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(8),
-                                      boxShadow: _activeTab == 1
-                                          ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)]
-                                          : null,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      'Not Included',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: _activeTab == 1 ? FontWeight.w700 : FontWeight.w500,
-                                        color: _activeTab == 1 ? AppColors.jungle700 : AppColors.inkTertiary,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
+                        child: Text(
+                          tourName,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.figmaDarkGreen,
+                            height: 1.25,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        if (_activeTab == 0) ...[
-                          _buildInclusionItem(Icons.check_circle, 'Sigiriya Rock Fortress admission ticket (\$36 value)', AppColors.leaf400),
-                          _buildInclusionItem(Icons.check_circle, 'Dambulla Royal Cave Temple conservation entry pass', AppColors.leaf400),
-                          _buildInclusionItem(Icons.check_circle, 'Private air-conditioned luxury transport with fuel', AppColors.leaf400),
-                          _buildInclusionItem(Icons.check_circle, 'Habarana village buffet lunch & fresh king coconut', AppColors.leaf400),
-                          _buildInclusionItem(Icons.check_circle, 'Chilled mineral bottled water throughout the trek', AppColors.leaf400),
-                        ] else ...[
-                          _buildInclusionItem(Icons.cancel, 'Personal souvenir shopping & handloom textiles', AppColors.coral500),
-                          _buildInclusionItem(Icons.cancel, 'Alcoholic beverages and imported refreshments', AppColors.coral500),
-                          _buildInclusionItem(Icons.cancel, 'Driver & trekker gratuities (optional but appreciated)', AppColors.coral500),
-                          _buildInclusionItem(Icons.cancel, 'Travel insurance coverage for mountain trekking', AppColors.coral500),
+                      ),
+                      const SizedBox(width: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.star_rounded,
+                            color: AppColors.figmaGold,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 2),
+                          Text(
+                            '4.9',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.figmaDarkGreen,
+                            ),
+                          ),
                         ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '${_tour!['reviewCount'] ?? 326} verified reviews · $location',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: const Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // ── 3-Column Quick Stats Card ──
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.figmaCardBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatColumn(
+                            icon: Icons.access_time,
+                            value: '$duration hours',
+                            label: 'Duration',
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 36,
+                          color: AppColors.figmaCardBorder,
+                        ),
+                        Expanded(
+                          child: _buildStatColumn(
+                            icon: Icons.people_outline,
+                            value: 'Max ${_tour!['maxGroupSize'] ?? 8}',
+                            label: 'Group',
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 36,
+                          color: AppColors.figmaCardBorder,
+                        ),
+                        Expanded(
+                          child: _buildStatColumn(
+                            icon: Icons.terrain_outlined,
+                            value: _tour!['difficulty'] ?? 'Moderate',
+                            label: 'Difficulty',
+                          ),
+                        ),
                       ],
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
 
-                  // 6. Temple Etiquette Reminder Callout
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerHigh.withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.leaf200),
+                  // ── About Section ──
+                  Text(
+                    'About this experience',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.figmaDarkGreen,
                     ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.info, size: 20, color: AppColors.jungle600),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Temple Etiquette Reminder',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                  color: AppColors.ink,
-                                ),
-                              ),
-                              SizedBox(height: 2),
-                              Text(
-                                'Shoulders and knees must be respectfully covered inside Dambulla Cave Temple sanctuaries. Slip-on footwear is recommended.',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.inkSecondary,
-                                  height: 1.4,
-                                ),
-                              ),
-                            ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    description,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: const Color(0xFF6B7280),
+                      height: 1.5,
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Highlights Section ──
+                  Text(
+                    'Highlights',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.figmaDarkGreen,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...highlights.map(
+                    (h) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline,
+                            color: AppColors.figmaDarkGreen,
+                            size: 20,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              h,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.figmaDarkGreen,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
 
       // ── Sticky Bottom Reservation Bar ──
       bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: const Border(top: BorderSide(color: AppColors.line)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          color: AppColors.figmaSurface,
+          border: const Border(top: BorderSide(color: AppColors.figmaCardBorder)),
         ),
         child: Row(
           children: [
@@ -794,44 +413,29 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'TOTAL PER TRAVELER',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.inkTertiary,
-                    letterSpacing: 0.5,
+                Text(
+                  'per traveler',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: const Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      '\$${price.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.jungle700,
-                      ),
-                    ),
-                    const SizedBox(width: 3),
-                    const Text(
-                      'USD',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.inkSecondary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
+                Text(
+                  '\$${price.toStringAsFixed(0)}',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.figmaDarkGreen,
+                  ),
                 ),
               ],
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 18),
+            // Book This Tour Button
             Expanded(
               child: SizedBox(
-                height: 46,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pushNamed(
@@ -841,26 +445,60 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.jungle600,
+                    backgroundColor: AppColors.figmaDarkGreen,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(26),
                     ),
                     elevation: 0,
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Book This Tour',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                      ),
-                      SizedBox(width: 6),
-                      Icon(Icons.arrow_forward, size: 16),
-                    ],
+                  child: Text(
+                    'Book This Tour',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
+            ),
+            const SizedBox(width: 12),
+            // Add to Itinerary Button
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.figmaDarkGreen,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.calendar_month_outlined,
+                      color: AppColors.figmaDarkGreen,
+                      size: 22,
+                    ),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/itinerary');
+                    },
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Add to Itinerary',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 9,
+                    color: const Color(0xFF6B7280),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -868,130 +506,33 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
     );
   }
 
-  Widget _buildQuickStatCell({
+  Widget _buildStatColumn({
     required IconData icon,
-    required String label,
     required String value,
+    required String label,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.leaf100),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: AppColors.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 18, color: AppColors.jungle600),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.inkTertiary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHighlightStop(String number, String title, String description) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
       children: [
-        Container(
-          width: 26,
-          height: 26,
-          decoration: const BoxDecoration(
-            color: AppColors.sand100,
-            shape: BoxShape.circle,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            number,
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: AppColors.sand700,
-            ),
+        Icon(icon, color: AppColors.figmaDarkGreen, size: 22),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: AppColors.figmaDarkGreen,
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                description,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.inkSecondary,
-                  height: 1.35,
-                ),
-              ),
-            ],
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            color: const Color(0xFF6B7280),
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildInclusionItem(IconData icon, String text, Color iconColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 16, color: iconColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.inkSecondary,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
