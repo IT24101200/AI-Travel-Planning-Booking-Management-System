@@ -277,11 +277,11 @@ Rules:
 
     # Create the requested Gemini model and send it the completed prompt.
     try:
-        interaction = client.interactions.create(
+            interaction = client.interactions.create(
             model="gemini-3.5-flash",
-            input=prompt,
-        )
-        response_text_raw = interaction.output_text
+                input=prompt,
+            )
+            response_text_raw = interaction.output_text
     except Exception as error:
         return {"error": f"Gemini request failed: {error}"}
 
