@@ -121,20 +121,19 @@ namespace backend.Services
             return unread.Count;
         }
 
-        public async Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string customerId)
+        public async Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string? customerId = null)
         {
-            var notification = await _db.Notifications
-                .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
-
-            if (notification == null) return null;
-
-            if (notification.Status != NotificationStatus.Failed)
+            var query = _db.Notifications.AsQueryable();
+            if (!string.IsNullOrEmpty(customerId))
             {
-                throw new InvalidOperationException("Only failed notifications can be resent.");
+                query = query.Where(n => n.CustomerId == customerId);
             }
 
-            // Reset to Pending for re-delivery
-            notification.Status = NotificationStatus.Pending;
+            var notification = await query.FirstOrDefaultAsync(n => n.Id == notificationId);
+            if (notification == null) return null;
+
+            // Reset to Sent for re-delivery
+            notification.Status = NotificationStatus.Sent;
             notification.SentAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
