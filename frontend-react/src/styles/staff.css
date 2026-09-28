@@ -106,37 +106,43 @@
 }
 
 .staff__brand-box {
-  background-color: #b7791f;
-  color: #ffffff;
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
+  background: linear-gradient(150deg, #3d7c65 0%, #1f4e3c 100%);
+  color: #c4eedb;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(183, 121, 31, 0.35);
+  box-shadow: 0 4px 14px rgba(18, 48, 38, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .staff__brand-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .staff__brand-name {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: #f7faf9;
-  line-height: 1.2;
+  font-family: var(--font-display, 'Fraunces', 'Playfair Display', Georgia, serif);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .staff__brand-sub {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  color: #aab7bb;
-  letter-spacing: 0.04em;
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: #a7c1b6;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .staff__divider {

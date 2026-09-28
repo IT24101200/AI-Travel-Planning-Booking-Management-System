@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
 import { usePageTitle } from '../../lib/hooks.js'
 import {
-  MountainSnowIcon,
+  LeafIcon,
   ArrowRightIcon,
   CheckIcon
 } from '../../components/ui/Icons.jsx'
@@ -97,14 +97,14 @@ export default function Login() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', zIndex: 2 }}>
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', textDecoration: 'none' }} title="Return to public website">
             <div className="staff__brand-box">
-              <MountainSnowIcon size={24} />
+              <LeafIcon size={24} />
             </div>
-            <div>
-              <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f7faf9', display: 'block', lineHeight: 1.1 }}>
+            <div className="staff__brand-text">
+              <b className="staff__brand-name" style={{ fontSize: '1.25rem' }}>
                 Serendib Trails
-              </span>
-              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aab7bb', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                Staff console
+              </b>
+              <span className="staff__brand-sub" style={{ fontSize: '0.625rem' }}>
+                Sri Lanka · Since 2016
               </span>
             </div>
           </Link>
