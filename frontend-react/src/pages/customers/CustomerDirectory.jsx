@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchCustomers } from '../../services/apiClient.js'
+import { useNavigate } from 'react-router-dom'
+import { fetchCustomers, fetchBookings, fetchCustomerTrips, updateCustomer } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
@@ -17,6 +18,7 @@ import {
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27047)
  */
 export default function CustomerDirectory() {
+  const navigate = useNavigate()
   const { isMobile } = useResponsive()
   const [dataList, setDataList] = useState([])
   const [loading, setLoading] = useState(true)
@@ -28,6 +30,19 @@ export default function CustomerDirectory() {
   const [selectedUser, setSelectedUser] = useState(null)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState('')
+
+  // Trip Records Modal State
+  const [showTripsModal, setShowTripsModal] = useState(false)
+  const [tripsModalLoading, setTripsModalLoading] = useState(false)
+  const [tripsModalError, setTripsModalError] = useState(null)
+  const [tripsRecords, setTripsRecords] = useState([])
+
+  // Edit Profile Modal State
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [editFormData, setEditFormData] = useState({ fullName: '', phone: '' })
+  const [editLoading, setEditLoading] = useState(false)
+  const [editSuccess, setEditSuccess] = useState('')
+  const [editError, setEditError] = useState(null)
   usePageTitle('Customer & Staff Directory · Serendib Trails')
 
   async function loadCustomers(cancelled = false) {
@@ -152,6 +167,118 @@ export default function CustomerDirectory() {
       setShowInviteModal(false)
       setInviteSuccess('')
     }, 2000)
+  }
+
+  async function handleOpenTrips(user) {
+    if (!user) return
+    setShowTripsModal(true)
+    setTripsModalLoading(true)
+    setTripsModalError(null)
+    setTripsRecords([])
+
+    if (user.isStaff) {
+      setTripsModalLoading(false)
+      return
+    }
+
+    try {
+      const [bookingsRes, tripsRes] = await Promise.allSettled([
+        fetchBookings({ customerId: user.id }),
+        fetchCustomerTrips(user.id)
+      ])
+
+      const bookings = bookingsRes.status === 'fulfilled'
+        ? (Array.isArray(bookingsRes.value) ? bookingsRes.value : (bookingsRes.value?.data || []))
+        : []
+      const trips = tripsRes.status === 'fulfilled'
+        ? (Array.isArray(tripsRes.value) ? tripsRes.value : (tripsRes.value?.data || []))
+        : []
+
+      const matchedBookings = bookings.filter(
+        (b) => b.customerId === user.id || (b.customerName && b.customerName.toLowerCase() === user.name.toLowerCase())
+      )
+      const matchedTrips = trips.filter((t) => t.customerId === user.id)
+
+      const formatted = [
+        ...matchedBookings.map((b) => {
+          const statusNames = ['Draft', 'Awaiting Approval', 'Confirmed', 'Rejected', 'Cancelled', 'Completed']
+          const statusStr = typeof b.status === 'number' ? (statusNames[b.status] || 'Active') : String(b.status || 'Active')
+          return {
+            type: 'Booking',
+            id: b.id,
+            reference: b.bookingReference || `ST-BK-${b.id}`,
+            title: b.bookingItems?.length > 0
+              ? b.bookingItems.map((i) => i.tourName || 'Serendib Tour').filter(Boolean).join(', ')
+              : 'Custom Tailored Tour Package',
+            date: b.createdAt ? b.createdAt.split('T')[0] : 'Recent',
+            amount: b.totalCost ? `$${Number(b.totalCost).toLocaleString()} ${b.currency || 'USD'}` : 'Contact agent',
+            status: statusStr,
+            itineraryId: b.itineraryId
+          }
+        }),
+        ...matchedTrips.map((t) => ({
+          type: 'Trip Request',
+          id: t.id,
+          reference: `TRIP-REQ-${t.id}`,
+          title: t.rawRequestText || (t.destinationId ? `Destination Visit #${t.destinationId}` : 'Bespoke Tour Request'),
+          date: t.startDate ? t.startDate.split('T')[0] : 'Upcoming',
+          amount: t.budgetCeiling ? `$${Number(t.budgetCeiling).toLocaleString()} ${t.currency || 'USD'}` : 'Flexible',
+          status: t.status || 'Planned',
+          itineraryId: null
+        }))
+      ]
+
+      setTripsRecords(formatted)
+    } catch (err) {
+      setTripsModalError(err.message || 'Failed to load trip records from database.')
+    } finally {
+      setTripsModalLoading(false)
+    }
+  }
+
+  function handleOpenEdit(user) {
+    if (!user) return
+    setEditFormData({
+      fullName: user.name || '',
+      phone: user.phone || ''
+    })
+    setEditSuccess('')
+    setEditError(null)
+    setShowEditModal(true)
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault()
+    if (!selectedUser) return
+    setEditLoading(true)
+    setEditError(null)
+    try {
+      await updateCustomer(selectedUser.id, {
+        fullName: editFormData.fullName,
+        phone: editFormData.phone
+      })
+      setDataList((prev) =>
+        prev.map((u) =>
+          u.id === selectedUser.id
+            ? { ...u, name: editFormData.fullName, phone: editFormData.phone }
+            : u
+        )
+      )
+      setSelectedUser((prev) => ({
+        ...prev,
+        name: editFormData.fullName,
+        phone: editFormData.phone
+      }))
+      setEditSuccess('Customer profile updated successfully.')
+      setTimeout(() => {
+        setShowEditModal(false)
+        setEditSuccess('')
+      }, 1500)
+    } catch (err) {
+      setEditError(err.response?.data?.message || err.message || 'Failed to update customer profile.')
+    } finally {
+      setEditLoading(false)
+    }
   }
 
   return (
@@ -380,7 +507,7 @@ export default function CustomerDirectory() {
                 type="button"
                 className="btn-outline"
                 style={{ height: '32px', padding: '0 0.625rem' }}
-                onClick={() => alert(`Editing profile for ${selectedUser.name}`)}
+                onClick={() => handleOpenEdit(selectedUser)}
               >
                 <EditIcon size={14} />
                 <span>Edit profile</span>
@@ -481,12 +608,12 @@ export default function CustomerDirectory() {
               type="button"
               className="btn-outline"
               style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}
-              onClick={() => alert(`Showing trip history for ${selectedUser.name}`)}
+              onClick={() => handleOpenTrips(selectedUser)}
             >
               <ArrowRightIcon size={14} />
               <span>
                 {selectedUser.isStaff
-                  ? `View ${selectedUser.name} logs`
+                  ? `View ${selectedUser.name} activity`
                   : `View ${selectedUser.trips} trip records`}
               </span>
             </button>
@@ -583,6 +710,306 @@ export default function CustomerDirectory() {
                   </button>
                   <button type="submit" className="btn-gold">
                     Send invitation
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Trip Records Modal ── */}
+      {showTripsModal && selectedUser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 27, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowTripsModal(false)
+          }}
+        >
+          <div className="staff-card" style={{ width: '100%', maxWidth: '640px', maxHeight: '85vh', overflowY: 'auto', padding: '1.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid #eef2f5', paddingBottom: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="avatar-circle">
+                  {selectedUser.initials}
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#182126' }}>
+                    {selectedUser.isStaff ? `${selectedUser.name} · Staff Activity` : `Trip records · ${selectedUser.name}`}
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
+                    {selectedUser.email} · {selectedUser.phone}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ height: '30px', padding: '0 0.5rem' }}
+                onClick={() => setShowTripsModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {selectedUser.isStaff ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <strong style={{ display: 'block', color: '#182126', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                    Staff Operational Role
+                  </strong>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', lineHeight: 1.5 }}>
+                    {selectedUser.name} is an active <strong>{selectedUser.role}</strong> in the <strong>{selectedUser.department || 'Tour Operations'}</strong> department.
+                    Staff accounts manage booking approvals, itinerary reviews, and catalog items.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={() => {
+                      setShowTripsModal(false)
+                      navigate('/staff/itineraries')
+                    }}
+                  >
+                    Review Itineraries
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-gold"
+                    onClick={() => {
+                      setShowTripsModal(false)
+                      navigate('/staff/bookings')
+                    }}
+                  >
+                    Open Booking Approvals
+                  </button>
+                </div>
+              </div>
+            ) : tripsModalLoading ? (
+              <div style={{ padding: '2.5rem', textAlign: 'center' }}>
+                <LoadingState message="Fetching live trip records from database…" />
+              </div>
+            ) : tripsModalError ? (
+              <AlertBanner
+                type="error"
+                message={tripsModalError}
+                onRetry={() => handleOpenTrips(selectedUser)}
+                onDismiss={() => setTripsModalError(null)}
+              />
+            ) : tripsRecords.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#66747b', fontWeight: 600 }}>
+                    {tripsRecords.length} RECORDED {tripsRecords.length === 1 ? 'TRIP / BOOKING' : 'TRIPS & BOOKINGS'}
+                  </span>
+                  <span className="badge-pill badge-green">
+                    <span className="badge-dot" /> Database synced
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {tripsRecords.map((item) => (
+                    <div
+                      key={`${item.type}-${item.id}`}
+                      style={{
+                        padding: '1rem',
+                        background: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <strong style={{ color: '#182126', fontSize: '0.875rem' }}>{item.reference}</strong>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '0.5rem' }}>
+                            ({item.type})
+                          </span>
+                        </div>
+                        <span
+                          className={`badge-pill ${
+                            item.status.toLowerCase().includes('confirm') || item.status.toLowerCase().includes('complet')
+                              ? 'badge-green'
+                              : item.status.toLowerCase().includes('await') || item.status.toLowerCase().includes('pend')
+                              ? 'badge-yellow'
+                              : item.status.toLowerCase().includes('reject') || item.status.toLowerCase().includes('cancel')
+                              ? 'badge-red'
+                              : 'badge-blue'
+                          }`}
+                        >
+                          <span className="badge-dot" /> {item.status}
+                        </span>
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: '0.8125rem', color: '#334155', fontWeight: 500 }}>
+                        {item.title}
+                      </p>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b', paddingTop: '0.25rem', borderTop: '1px dashed #e2e8f0' }}>
+                        <span>Date: <strong>{item.date}</strong></span>
+                        <span>Amount: <strong style={{ color: '#0f172a' }}>{item.amount}</strong></span>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem' }}>
+                        {item.type === 'Booking' ? (
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            style={{ height: '28px', fontSize: '0.75rem', padding: '0 0.5rem' }}
+                            onClick={() => {
+                              setShowTripsModal(false)
+                              navigate('/staff/bookings')
+                            }}
+                          >
+                            Inspect in Bookings →
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            style={{ height: '28px', fontSize: '0.75rem', padding: '0 0.5rem' }}
+                            onClick={() => {
+                              setShowTripsModal(false)
+                              navigate('/staff/itineraries')
+                            }}
+                          >
+                            Review Itinerary →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🧳</div>
+                <h4 style={{ margin: '0 0 0.5rem 0', color: '#182126', fontSize: '1rem', fontWeight: 700 }}>
+                  No trip records found
+                </h4>
+                <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.8125rem', color: '#64748b', maxWidth: '360px', marginLeft: 'auto', marginRight: 'auto' }}>
+                  {selectedUser.name} currently has no active trip requests or tour bookings recorded in the system.
+                </p>
+                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={() => setShowTripsModal(false)}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-gold"
+                    onClick={() => {
+                      setShowTripsModal(false)
+                      navigate('/planner')
+                    }}
+                  >
+                    Plan a tour for customer
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Customer Profile Modal ── */}
+      {showEditModal && selectedUser && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 27, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowEditModal(false)
+          }}
+        >
+          <div className="staff-card" style={{ width: '100%', maxWidth: '440px', padding: '1.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#182126' }}>
+                Edit profile · {selectedUser.name}
+              </h3>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ height: '30px', padding: '0 0.5rem' }}
+                onClick={() => setShowEditModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            {editSuccess ? (
+              <div className="banner-success" style={{ marginBottom: '1rem' }}>
+                {editSuccess}
+              </div>
+            ) : (
+              <form onSubmit={handleSaveEdit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {editError && (
+                  <AlertBanner
+                    type="error"
+                    message={editError}
+                    onDismiss={() => setEditError(null)}
+                  />
+                )}
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                    Full Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormData.fullName}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, fullName: e.target.value }))}
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                    Phone Number
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.phone}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    onClick={() => setShowEditModal(false)}
+                    disabled={editLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-gold" disabled={editLoading}>
+                    {editLoading ? 'Saving…' : 'Save Changes'}
                   </button>
                 </div>
               </form>
