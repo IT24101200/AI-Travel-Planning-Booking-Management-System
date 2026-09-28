@@ -93,19 +93,36 @@ export default function Login() {
           }}
         />
 
-        {/* Top Brand Mark */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', position: 'relative', zIndex: 2 }}>
-          <div className="staff__brand-box">
-            <MountainSnowIcon size={24} />
-          </div>
-          <div>
-            <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f7faf9', display: 'block', lineHeight: 1.1 }}>
-              Serendib Trails
-            </span>
-            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aab7bb', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              Staff console
-            </span>
-          </div>
+        {/* Top Brand Mark with return link */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', zIndex: 2 }}>
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', textDecoration: 'none' }} title="Return to public website">
+            <div className="staff__brand-box">
+              <MountainSnowIcon size={24} />
+            </div>
+            <div>
+              <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f7faf9', display: 'block', lineHeight: 1.1 }}>
+                Serendib Trails
+              </span>
+              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aab7bb', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Staff console
+              </span>
+            </div>
+          </Link>
+          <Link
+            to="/"
+            style={{
+              color: '#cbd5e1',
+              fontSize: '0.75rem',
+              textDecoration: 'none',
+              padding: '0.35rem 0.65rem',
+              borderRadius: '6px',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              transition: 'background-color 0.15s ease'
+            }}
+          >
+            ← Public site
+          </Link>
         </div>
 
         {/* Hero Narrative Headline */}
@@ -255,6 +272,13 @@ export default function Login() {
             <span>{busy ? 'Verifying credentials…' : 'Sign in to staff console'}</span>
             <ArrowRightIcon size={16} />
           </button>
+
+          {/* Customer return link */}
+          <div style={{ textAlign: 'center', margin: '0.25rem 0' }}>
+            <Link to="/" style={{ fontSize: '0.75rem', color: '#66747b', textDecoration: 'none', fontWeight: 500 }}>
+              Not a staff member? <span style={{ color: '#b7791f', fontWeight: 600 }}>Return to customer site →</span>
+            </Link>
+          </div>
 
           {/* Security footnote */}
           <p style={{ margin: 0, fontSize: '0.6875rem', color: '#8fa0a6', textAlign: 'center', lineHeight: 1.4 }}>

@@ -146,6 +146,9 @@ export function StaffLayout() {
                 </span>
               </div>
             </div>
+            <Link to="/" className="staff__signout" style={{ color: '#8fa0a6' }}>
+              <span>← View customer website</span>
+            </Link>
             <Link to="/" className="staff__signout" onClick={logout}>
               <LogOutIcon size={14} />
               <span>Sign out</span>

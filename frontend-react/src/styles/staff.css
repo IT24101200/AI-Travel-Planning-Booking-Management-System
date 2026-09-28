@@ -9,8 +9,8 @@
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: 0;
-  min-height: calc(100svh - 4.75rem);
-  margin-top: 4.75rem;
+  min-height: 100svh;
+  margin-top: 0;
   background-color: #f4f6f7;
   color: #182126;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -27,7 +27,7 @@
   color: #f7faf9;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   position: sticky;
-  top: 4.75rem;
+  top: 0;
   z-index: 40;
 }
 
@@ -81,14 +81,14 @@
 /* ── Sticky Sidebar ── */
 .staff__side {
   position: sticky;
-  top: 4.75rem;
+  top: 0;
   align-self: start;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
   width: 240px;
-  min-height: calc(100svh - 4.75rem);
-  height: calc(100svh - 4.75rem);
+  min-height: 100svh;
+  height: 100svh;
   padding: 1.75rem 1.125rem 1.375rem 1.125rem;
   background-color: #17242a;
   color: #f7faf9;

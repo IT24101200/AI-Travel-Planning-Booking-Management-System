@@ -89,8 +89,8 @@ export async function deleteDestination(id) {
 // Student A — Customer & Notification API endpoints
 // ─────────────────────────────────────────────────────────────
 
-export async function fetchCustomers() {
-  const { data } = await api.get('/Customer')
+export async function fetchCustomers(params = {}) {
+  const { data } = await api.get('/Customer', { params: { pageSize: 50, ...params } })
   return data
 }
 
