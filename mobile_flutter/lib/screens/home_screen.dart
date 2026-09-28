@@ -315,6 +315,21 @@ class _ExploreTabState extends State<_ExploreTab> {
             ),
           ),
 
+          const SizedBox(height: 10),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                _buildQuickAction(
+                  icon: Icons.calendar_month_outlined,
+                  label: 'My Itineraries',
+                  onTap: () => Navigator.pushNamed(context, '/itinerary'),
+                ),
+              ],
+            ),
+          ),
+
           const SizedBox(height: 26),
 
           // ── Dream Destinations Section ──

@@ -16,14 +16,17 @@ import {
   CloseIcon,
   CheckIcon,
   TrashIcon,
-  PlusIcon
+  PlusIcon,
+  SearchIcon
 } from '../../components/ui/Icons.jsx'
 
 const TABS = ['Draft', 'Proposed', 'Accepted', 'Discarded']
+const PAGE_SIZE = 5
 
 /**
  * Serendib Trails — AI Itinerary Review
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27928)
+ * Enhanced with role validation, filtering, sorting, and pagination.
  */
 export default function ItineraryReview() {
   usePageTitle('AI Itinerary Review · Serendib Trails')
@@ -38,7 +41,13 @@ export default function ItineraryReview() {
   const [busyAction, setBusyAction] = useState(false)
   const [removingItemId, setRemovingItemId] = useState(null)
   const [agentLogs, setAgentLogs] = useState([])
+  const [loadingAgentLogs, setLoadingAgentLogs] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+
+  // Filters, sorting, and pagination
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState('newest')
+  const [page, setPage] = useState(1)
 
   async function loadItineraries(showLoading = true) {
     if (showLoading) setLoading(true)
@@ -59,7 +68,7 @@ export default function ItineraryReview() {
         const rawCode = it.code || `ITN-${2048 - idx}`
         const customerName = it.customerName || (idx === 0 ? 'Amelia Thompson' : idx === 1 ? 'Jonas Weber' : idx === 2 ? 'Ravi Mehta' : 'Sofia Martins')
         const title = it.title || (idx === 0 ? 'Cultural Triangle & Coast' : idx === 1 ? 'Tea Country by Rail' : idx === 2 ? 'Wildlife & East Coast' : 'Wellness Escape')
-        const totalCost = it.totalCost || (idx === 0 ? 2180 : idx === 1 ? 1460 : idx === 2 ? 2940 : 1880)
+        const totalCost = it.totalCost || it.totalEstimatedCost || (idx === 0 ? 2180 : idx === 1 ? 1460 : idx === 2 ? 2940 : 1880)
 
         // Mock activities if missing items
         let items = it.items || []
@@ -110,17 +119,65 @@ export default function ItineraryReview() {
     loadItineraries()
   }, [])
 
-  // Filter queue by status tab
-  const queue = useMemo(() => {
-    return itineraries.filter(it => it.status.toLowerCase() === activeTab.toLowerCase())
-  }, [itineraries, activeTab])
+  // Filter queue by status tab, search query, and sorting
+  const filteredQueue = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const filtered = itineraries.filter((it) => {
+      const matchesTab = activeTab === 'All' || it.status.toLowerCase() === activeTab.toLowerCase()
+      const matchesQuery =
+        !q ||
+        [it.id, it.code, it.title, it.customerName, it.tripRequestId, it.customerId].some(
+          (val) => String(val ?? '').toLowerCase().includes(q)
+        )
+
+      return matchesTab && matchesQuery
+    })
+
+    return [...filtered].sort((first, second) => {
+      if (sort === 'cost-high') {
+        return Number(second.totalCost) - Number(first.totalCost)
+      }
+      if (sort === 'cost-low') {
+        return Number(first.totalCost) - Number(second.totalCost)
+      }
+
+      const firstTime = new Date(first.createdAt || 0).getTime() || 0
+      const secondTime = new Date(second.createdAt || 0).getTime() || 0
+      return sort === 'oldest' ? firstTime - secondTime : secondTime - firstTime
+    })
+  }, [itineraries, activeTab, query, sort])
+
+  const totalPages = Math.max(1, Math.ceil(filteredQueue.length / PAGE_SIZE))
+  const pagedQueue = filteredQueue.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // Keep selection synced
   useEffect(() => {
-    if (queue.length > 0 && (!selectedItinerary || !queue.find(q => q.id === selectedItinerary.id))) {
-      setSelectedItinerary(queue[0])
+    if (filteredQueue.length > 0 && (!selectedItinerary || !filteredQueue.find(q => q.id === selectedItinerary.id))) {
+      setSelectedItinerary(filteredQueue[0])
     }
-  }, [queue, selectedItinerary])
+  }, [filteredQueue, selectedItinerary])
+
+  // Fetch AI agent logs when an itinerary is selected
+  useEffect(() => {
+    let cancelled = false
+    async function loadLogs() {
+      if (!selectedItinerary?.tripRequestId) return
+      setLoadingAgentLogs(true)
+      try {
+        const logs = await fetchAgentLogs(selectedItinerary.tripRequestId)
+        if (!cancelled) {
+          setAgentLogs(Array.isArray(logs) ? logs : (logs?.data || []))
+        }
+      } catch {
+        if (!cancelled) setAgentLogs([])
+      } finally {
+        if (!cancelled) setLoadingAgentLogs(false)
+      }
+    }
+
+    loadLogs()
+    return () => { cancelled = true }
+  }, [selectedItinerary])
 
   // Group items by day
   const dayGroups = useMemo(() => {
@@ -132,7 +189,7 @@ export default function ItineraryReview() {
       groups[d].push(item)
     })
     return Object.entries(groups).map(([dayNum, items]) => {
-      const subtotal = items.reduce((sum, it) => sum + (Number(it.cost) || 0), 0)
+      const subtotal = items.reduce((sum, it) => sum + (Number(it.cost || it.priceAtSelection) || 0), 0)
       const loc = items[0]?.location || 'Sigiriya'
       return {
         dayNumber: Number(dayNum),
@@ -155,7 +212,7 @@ export default function ItineraryReview() {
       }
       setNotice({ type: 'success', message: `Itinerary #${selectedItinerary.code} marked as ${newStatus}.` })
     } catch (err) {
-      setNotice({ type: 'error', message: err.message || `Failed to update status to ${newStatus}.` })
+      setNotice({ type: 'error', message: err.response?.data?.message || err.message || `Failed to update status to ${newStatus}.` })
     } finally {
       setBusyAction(false)
     }
@@ -217,14 +274,19 @@ export default function ItineraryReview() {
 
       {/* ── Status Tabs matching Figma ── */}
       <div className="staff-tabs">
-        {TABS.map((t) => {
-          const count = itineraries.filter(i => i.status.toLowerCase() === t.toLowerCase()).length
+        {['All', ...TABS].map((t) => {
+          const count = t === 'All'
+            ? itineraries.length
+            : itineraries.filter(i => i.status.toLowerCase() === t.toLowerCase()).length
           return (
             <button
               key={t}
               type="button"
               className={`staff-tab ${activeTab === t ? 'is-active' : ''}`}
-              onClick={() => setActiveTab(t)}
+              onClick={() => {
+                setActiveTab(t)
+                setPage(1)
+              }}
             >
               <span>{t}</span>
               <span className="staff-tab__count">{count}</span>
@@ -251,130 +313,178 @@ export default function ItineraryReview() {
       )}
 
       {/* ── Split Workspace matching Figma 2:27928 ── */}
-      <div className="split-workspace" style={{ gridTemplateColumns: '340px minmax(0, 1fr)' }}>
-        {/* Left Column: Proposal Queue + AI Log Context */}
+      <div className="split-workspace" style={{ gridTemplateColumns: '360px minmax(0, 1fr)' }}>
+        {/* Left Column: Proposal Queue + Search + Sort + Pagination + AI Log Context */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className="staff-card" style={{ padding: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '1px solid #eef2f3' }}>
               <strong style={{ fontSize: '0.9375rem', color: '#182126' }}>Proposal queue</strong>
-              <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>{queue.length} in {activeTab}</span>
+              <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>{filteredQueue.length} {activeTab === 'All' ? 'total' : `in ${activeTab}`}</span>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {loading ? (
-                <div style={{ padding: '2rem', textAlign: 'center' }}>
-                  <LoadingState message="Loading proposals…" />
-                </div>
-              ) : queue.length > 0 ? (
-                queue.map((it) => {
-                  const isSelected = selectedItinerary?.id === it.id
+            {/* Search & Sort Filters */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <div className="staff-search-box" style={{ maxWidth: '100%', height: '34px' }}>
+                <SearchIcon size={14} />
+                <input
+                  type="text"
+                  placeholder="Search code, title, or guest…"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value)
+                    setPage(1)
+                  }}
+                  style={{ fontSize: '0.75rem' }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.6875rem', color: '#64748b' }}>Sort:</span>
+                <select
+                  className="btn-outline"
+                  style={{ height: '30px', fontSize: '0.75rem', padding: '0 0.5rem', flex: 1 }}
+                  value={sort}
+                  onChange={(e) => {
+                    setSort(e.target.value)
+                    setPage(1)
+                  }}
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="cost-high">Cost: High to Low</option>
+                  <option value="cost-low">Cost: Low to High</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Proposal Cards List */}
+            {loading ? (
+              <LoadingState label="Loading queue…" />
+            ) : pagedQueue.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {pagedQueue.map((item) => {
+                  const isSelected = selectedItinerary?.id === item.id
                   return (
                     <div
-                      key={it.id}
-                      onClick={() => setSelectedItinerary(it)}
+                      key={item.id}
+                      onClick={() => setSelectedItinerary(item)}
                       style={{
-                        padding: '0.875rem',
+                        padding: '0.75rem',
                         borderRadius: '8px',
-                        border: isSelected ? '1px solid #b7791f' : '1px solid #dde3e5',
-                        backgroundColor: isSelected ? '#fff8ea' : '#ffffff',
+                        border: isSelected ? '1.5px solid #267a55' : '1px solid #eef2f3',
+                        background: isSelected ? '#f5fbf7' : '#ffffff',
                         cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        boxShadow: isSelected ? '0 2px 8px rgba(183, 121, 31, 0.15)' : 'none'
+                        transition: 'all 0.15s ease'
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#475569', letterSpacing: '0.04em' }}>
-                          {it.code}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#66747b', letterSpacing: '0.5px' }}>
+                          #{item.code}
                         </span>
-                        <span
-                          className={`badge-pill ${
-                            it.status === 'Accepted'
-                              ? 'badge-green'
-                              : it.status === 'Discarded'
-                              ? 'badge-red'
-                              : it.status === 'Draft'
-                              ? 'badge-gray'
-                              : 'badge-amber'
-                          }`}
-                        >
-                          <span className="badge-dot" /> {it.status}
+                        <span className={`badge-pill ${item.status === 'Accepted' ? 'badge-green' : item.status === 'Proposed' ? 'badge-gold' : 'badge-gray'}`} style={{ fontSize: '0.625rem', padding: '1px 6px' }}>
+                          <span className="badge-dot" /> {item.status}
                         </span>
                       </div>
-
-                      <strong style={{ display: 'block', fontSize: '0.875rem', color: '#182126', marginBottom: '0.2rem' }}>
-                        {it.title}
-                      </strong>
-
+                      <h4 style={{ margin: '0 0 2px 0', fontSize: '0.875rem', fontWeight: 600, color: '#182126' }}>
+                        {item.title}
+                      </h4>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#66747b' }}>
+                        {item.customerName} · {item.travellers} travellers · {item.durationDays} days
+                      </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <span style={{ color: '#66747b' }}>{it.customerName}</span>
-                        <strong style={{ color: '#182126' }}>${it.totalCost.toLocaleString()}</strong>
+                        <strong style={{ color: '#182126' }}>${item.totalCost}</strong>
+                        <span style={{ color: '#267a55', fontWeight: 600, fontSize: '0.6875rem' }}>
+                          {item.items?.length || 0} activities
+                        </span>
                       </div>
                     </div>
                   )
-                })
-              ) : (
-                <p style={{ fontSize: '0.8125rem', color: '#66747b', textAlign: 'center', padding: '1.5rem 0' }}>
-                  No {activeTab.toLowerCase()} itineraries in queue.
-                </p>
-              )}
-            </div>
+                })}
+              </div>
+            ) : (
+              <p style={{ margin: '1rem 0', fontSize: '0.8125rem', color: '#66747b', textAlign: 'center' }}>
+                No itineraries match your filters.
+              </p>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid #eef2f3', fontSize: '0.75rem' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ height: '26px', padding: '0 8px', fontSize: '0.6875rem' }}
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => p - 1)}
+                >
+                  ‹ Prev
+                </button>
+                <span style={{ color: '#64748b' }}>
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ height: '26px', padding: '0 8px', fontSize: '0.6875rem' }}
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Next ›
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* AI Log Context Box matching Figma 2:27928 */}
+          {/* AI Reasoning Trace Card matching Figma */}
           {selectedItinerary && (
-            <div
-              style={{
-                backgroundColor: '#17242a',
-                color: '#f7faf9',
-                borderRadius: '10px',
-                padding: '1rem',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.5rem'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#b7791f', fontSize: '0.75rem', fontWeight: 700 }}>
-                <SparklesIcon size={14} />
-                <span>AI log context</span>
+            <div className="staff-card" style={{ padding: '1rem', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <SparklesIcon size={16} />
+                <strong style={{ fontSize: '0.8125rem', color: '#0f172a' }}>AI Reasoning trail</strong>
               </div>
-              <p style={{ margin: 0, fontSize: '0.75rem', lineHeight: '1.45', color: '#cbd5e1' }}>
-                {selectedItinerary.aiLogSummary}
+              <p style={{ margin: 0, fontSize: '0.75rem', color: '#475569', lineHeight: 1.45 }}>
+                {selectedItinerary.aiLogSummary || 'CoordinatorAgent resolved optimal logistics for traveller requirements.'}
               </p>
+              {agentLogs.length > 0 && (
+                <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {agentLogs.slice(0, 3).map((log, i) => (
+                    <div key={log.id || i} style={{ fontSize: '0.6875rem', color: '#64748b' }}>
+                      <strong style={{ color: '#334155' }}>{log.agentName}:</strong> {log.stepName}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Right Pane: Itinerary Details & Day Columns */}
+        {/* Right Column: Detailed Day-by-Day Workspace matching Figma 2:27928 */}
         {selectedItinerary ? (
-          <div className="detail-pane" style={{ padding: '1.5rem' }}>
-            <div className="detail-pane__head" style={{ alignItems: 'center' }}>
+          <div className="staff-card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Header info */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid #eef2f3' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#182126' }}>
-                    {selectedItinerary.title}
-                  </h2>
-                  <span
-                    className={`badge-pill ${
-                      selectedItinerary.status === 'Accepted'
-                        ? 'badge-green'
-                        : selectedItinerary.status === 'Discarded'
-                        ? 'badge-red'
-                        : selectedItinerary.status === 'Draft'
-                        ? 'badge-gray'
-                        : 'badge-amber'
-                    }`}
-                  >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#66747b' }}>#{selectedItinerary.code}</span>
+                  <span className={`badge-pill ${selectedItinerary.status === 'Accepted' ? 'badge-green' : selectedItinerary.status === 'Proposed' ? 'badge-gold' : 'badge-gray'}`}>
                     <span className="badge-dot" /> {selectedItinerary.status}
                   </span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: '#66747b', marginTop: '0.2rem', display: 'block' }}>
-                  {selectedItinerary.customerName} · {selectedItinerary.durationDays} days · {selectedItinerary.travellers} travellers · Estimated ${selectedItinerary.totalCost.toLocaleString()}
-                </span>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: '#182126' }}>
+                  {selectedItinerary.title}
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: '#66747b' }}>
+                  Prepared for <strong>{selectedItinerary.customerName}</strong> ({selectedItinerary.travellers} travellers, {selectedItinerary.durationDays} days)
+                </p>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <span style={{ fontSize: '0.6875rem', color: '#66747b', display: 'block' }}>TOTAL ESTIMATE</span>
+                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>${selectedItinerary.totalCost}</strong>
               </div>
             </div>
 
-            {/* Day Columns Grid matching Figma */}
-            <div className="itinerary-days-grid">
+            {/* Day columns horizontal container */}
+            <div className="day-grid">
               {dayGroups.map((day) => (
                 <div key={day.dayNumber} className="day-column">
                   <div className="day-column__head">
@@ -400,7 +510,7 @@ export default function ItineraryReview() {
                             {act.activityName}
                           </p>
                         </div>
-                        <span className="activity-cost">${act.cost}</span>
+                        <span className="activity-cost">${act.cost || act.priceAtSelection}</span>
                         <button
                           type="button"
                           style={{

@@ -1,30 +1,32 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createTour, deleteTour, fetchDestinations, fetchTours, updateTour } from '../../services/apiClient.js'
+import {
+  createTour,
+  deleteTour,
+  fetchDestinations,
+  fetchTours,
+  updateTour
+} from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import {
-  PlusIcon,
   SearchIcon,
-  EditIcon,
+  PlusIcon,
   RefreshIcon,
-  CloseIcon,
+  EditIcon,
+  TrashIcon,
   CheckIcon
 } from '../../components/ui/Icons.jsx'
 
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const CATEGORIES = ['All', 'Heritage', 'Adventure', 'Wildlife', 'Culinary', 'Scenic']
+const CATEGORIES = ['All', 'Heritage', 'Wildlife', 'Cultural', 'Marine', 'Scenic', 'Adventure']
 
-// High-quality imagery for tours
 const FALLBACK_TOUR_IMAGES = {
-  sigiriya: '/images/destinations/sigiriya.jpg',
-  yala: '/images/destinations/yala.jpg',
-  kandy: '/images/destinations/kandy.jpg',
-  galle: '/images/destinations/galle.jpg',
-  ella: '/images/destinations/ella.jpg',
-  nuwara: '/images/destinations/nuwara-eliya.jpg',
-  default: '/images/destinations/sigiriya.jpg'
+  sigiriya: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
+  yala: 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=600&auto=format&fit=crop&q=80',
+  kandy: 'https://images.unsplash.com/photo-1546708973-b339540b5162?w=600&auto=format&fit=crop&q=80',
+  galle: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=600&auto=format&fit=crop&q=80',
+  ella: 'https://images.unsplash.com/photo-1588258524675-c61917a10786?w=600&auto=format&fit=crop&q=80',
+  default: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80'
 }
 
 /**
@@ -36,16 +38,18 @@ export default function TourCatalogManagement() {
   const [destinations, setDestinations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState(null)
+
+  // Filters
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
+  const [statusFilter, setStatusFilter] = useState('All')
   const [page, setPage] = useState(1)
+  const pageSize = 8
 
-  // Drawer state: 'edit' | 'create' | null
-  const [drawerMode, setDrawerMode] = useState('edit')
+  // Selection & Right Drawer / Edit Mode
   const [selectedTour, setSelectedTour] = useState(null)
-
-  // Active form data
+  const [drawerMode, setDrawerMode] = useState(null) // 'create' | 'edit' | null
   const [formData, setFormData] = useState({
     name: '',
     destinationId: '',
@@ -74,10 +78,18 @@ export default function TourCatalogManagement() {
       ])
 
       if (!cancelled) {
+        const loadErrors = []
         let destList = []
+
         if (destRes.status === 'fulfilled') {
           destList = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           setDestinations(destList)
+          if (destList.length > 0 && !formData.destinationId) {
+            setFormData((f) => ({ ...f, destinationId: destList[0].id }))
+          }
+        } else {
+          setDestinations([])
+          loadErrors.push('Could not load destinations. Check that the backend is running.')
         }
 
         if (tourRes.status === 'fulfilled') {
@@ -114,11 +126,16 @@ export default function TourCatalogManagement() {
           if (mapped.length > 0 && !selectedTour) {
             selectForEdit(mapped[0])
           }
+        } else {
+          setRows([])
+          loadErrors.push('Could not load tours. Check that the backend is running.')
         }
+
+        setError(loadErrors.length > 0 ? loadErrors.join(' ') : null)
       }
     } catch (err) {
       if (!cancelled) {
-        setError(err.response?.data?.message || err.message || 'Failed to load tours from database.')
+        setError(err.response?.data?.message || err.message || 'Failed to load tour catalog.')
       }
     } finally {
       if (!cancelled) setLoading(false)
@@ -143,123 +160,100 @@ export default function TourCatalogManagement() {
       defaultStartTime: tour.defaultStartTime,
       description: tour.description
     })
-    setImagePreview(tour.imageUrl || '')
     setImageFile(null)
+    setImagePreview(tour.imageUrl || '')
   }
 
   function startCreateTour() {
-    setDrawerMode('create')
     setSelectedTour(null)
+    setDrawerMode('create')
     setFormData({
       name: '',
-      destinationId: destinations[0]?.id || 1,
-      price: '120.00',
-      durationHours: 6,
+      destinationId: destinations[0]?.id || '',
+      price: '85.00',
+      durationHours: 4,
       category: 'Heritage',
-      defaultStartTime: '08:30',
-      description: 'Comprehensive guided experience with private transport and certified guide.'
+      defaultStartTime: '08:00',
+      description: 'Exclusive guided experience operated by certified naturalists and historians.'
     })
-    setImagePreview('')
     setImageFile(null)
+    setImagePreview('')
   }
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return rows.filter((r) => {
-      const matchCat = category === 'All' || r.category.toLowerCase() === category.toLowerCase()
-      const matchQ = !q || r.name.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q)
-      return matchCat && matchQ
-    })
-  }, [rows, query, category])
-
-  const pageSize = 5
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const view = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   function onImageChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-      setNotice('Only JPEG, PNG, and WebP images are allowed.')
-      return
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setNotice('The image must be 5 MB or smaller.')
-      return
-    }
     setImageFile(file)
-    setImagePreview(URL.createObjectURL(file))
-    setNotice('')
+    const reader = new FileReader()
+    reader.onload = () => setImagePreview(String(reader.result))
+    reader.readAsDataURL(file)
   }
 
   async function handleSaveTour(e) {
     e.preventDefault()
-    if (!formData.name.trim() || Number(formData.price) <= 0) {
-      setNotice('Please provide a valid tour name and price.')
-      return
-    }
     setBusy(true)
-    setNotice('')
+    setNotice(null)
     try {
-      const destId = Number(formData.destinationId) || destinations[0]?.id || 1
       if (drawerMode === 'create') {
-        await createTour({
-          name: formData.name.trim(),
-          description: formData.description,
-          price: Number(formData.price),
-          durationHours: Number(formData.durationHours) || 8,
+        const fallbackBlob = await fetch(FALLBACK_TOUR_IMAGES.default).then(r => r.blob())
+        const fileToSend = imageFile || new File([fallbackBlob], 'tour.jpg', { type: 'image/jpeg' })
+        const res = await createTour({
+          destinationId: Number(formData.destinationId),
+          name: formData.name,
           category: formData.category,
-          defaultStartTime: formData.defaultStartTime,
-          destinationId: destId,
+          price: Number(formData.price),
           currency: 'USD',
-        }, imageFile)
-        setNotice(`Tour "${formData.name.trim()}" created successfully.`)
+          durationHours: Number(formData.durationHours),
+          defaultStartTime: `${formData.defaultStartTime}:00`,
+          description: formData.description,
+          status: 'Active'
+        }, fileToSend)
+        setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
       } else if (drawerMode === 'edit' && selectedTour) {
         await updateTour(selectedTour.id, {
-          name: formData.name.trim(),
-          description: formData.description,
-          price: Number(formData.price),
-          durationHours: Number(formData.durationHours) || 8,
+          destinationId: Number(formData.destinationId),
+          name: formData.name,
           category: formData.category,
-          defaultStartTime: formData.defaultStartTime,
-          destinationId: destId,
+          price: Number(formData.price),
           currency: 'USD',
+          durationHours: Number(formData.durationHours),
+          defaultStartTime: `${formData.defaultStartTime}:00`,
+          description: formData.description,
           status: selectedTour.status
-        }, imageFile)
-        setNotice(`Tour "${formData.name.trim()}" updated successfully.`)
+        })
+        setNotice({ type: 'success', message: `Tour "${formData.name}" updated successfully.` })
       }
       await loadTours()
     } catch (err) {
-      setNotice(`Failed to save tour: ${err.response?.data?.message || err.message}`)
+      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Operation failed.' })
     } finally {
       setBusy(false)
     }
   }
 
-  async function toggleTourStatus(tour, e) {
-    e.stopPropagation()
-    const nextStatus = tour.status === 'Active' ? 'Inactive' : 'Active'
+  async function handleDeleteTour(id, name) {
+    if (!window.confirm(`Are you sure you want to deactivate "${name}"?`)) return
     try {
-      await updateTour(tour.id, {
-        name: tour.name,
-        description: tour.description,
-        price: tour.price,
-        durationHours: tour.durationHours,
-        category: tour.category,
-        defaultStartTime: tour.defaultStartTime,
-        destinationId: tour.destinationId,
-        currency: 'USD',
-        status: nextStatus
-      })
-      setRows(prev => prev.map(t => t.id === tour.id ? { ...t, status: nextStatus } : t))
-      if (selectedTour?.id === tour.id) {
-        setSelectedTour(prev => ({ ...prev, status: nextStatus }))
-      }
-      setNotice(`Tour status changed to ${nextStatus}.`)
+      await deleteTour(id)
+      setNotice({ type: 'success', message: `Tour "${name}" deactivated.` })
+      loadTours()
     } catch (err) {
-      setNotice(`Failed to update status: ${err.response?.data?.message || err.message}`)
+      setNotice({ type: 'error', message: err.message || 'Failed to deactivate tour.' })
     }
   }
+
+  // Filtered & Paginated records
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return rows.filter((r) => {
+      if (category !== 'All' && r.category.toLowerCase() !== category.toLowerCase()) return false
+      if (statusFilter !== 'All' && r.status.toLowerCase() !== statusFilter.toLowerCase()) return false
+      return !q || r.name.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q)
+    })
+  }, [rows, query, category, statusFilter])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className="staff-page">
@@ -309,17 +303,17 @@ export default function TourCatalogManagement() {
         </div>
 
         <div className="staff-tabs" style={{ width: 'auto', flex: 1, justifyContent: 'flex-end' }}>
-          {CATEGORIES.map((c) => (
+          {CATEGORIES.map((cat) => (
             <button
-              key={c}
+              key={cat}
               type="button"
-              className={`staff-tab ${category === c ? 'is-active' : ''}`}
+              className={`staff-tab ${category === cat ? 'is-active' : ''}`}
               onClick={() => {
-                setCategory(c)
+                setCategory(cat)
                 setPage(1)
               }}
             >
-              {c}
+              <span>{cat}</span>
             </button>
           ))}
         </div>
@@ -336,152 +330,165 @@ export default function TourCatalogManagement() {
 
       {notice && (
         <AlertBanner
-          type={notice.startsWith('Failed') ? 'error' : 'success'}
-          message={notice}
-          onDismiss={() => setNotice('')}
+          type={notice.type}
+          message={notice.message}
+          onDismiss={() => setNotice(null)}
         />
       )}
 
-      {/* ── Split Workspace matching Figma 2:27473 ── */}
-      <div className="split-workspace">
-        {/* Left Column: Tour Card List */}
-        <div className="tour-card-list">
+      {/* ── Split Layout: Table on Left (65%), Edit Drawer on Right (35%) matching Figma ── */}
+      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 380px' : '1fr' }}>
+        <div className="staff-table-wrap">
           {loading ? (
-            <div className="staff-card" style={{ padding: '3rem', textAlign: 'center' }}>
-              <LoadingState message="Loading experiences from catalog database…" />
-            </div>
-          ) : view.length > 0 ? (
-            view.map((t) => {
-              const isSelected = selectedTour?.id === t.id && drawerMode === 'edit'
-              return (
-                <div
-                  key={t.id}
-                  className={`tour-item-card ${isSelected ? 'is-selected' : ''}`}
-                  onClick={() => selectForEdit(t)}
-                >
-                  <img
-                    src={t.imageUrl}
-                    alt={t.name}
-                    className="tour-item-thumb"
-                    onError={(e) => {
-                      e.target.onerror = null
-                      e.target.src = FALLBACK_TOUR_IMAGES.default
-                    }}
-                  />
-                  <div className="tour-item-body">
-                    <div className="tour-item-header">
-                      <h3 className="tour-item-title">{t.name}</h3>
-                      <span className={`badge-pill ${t.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
-                        <span className="badge-dot" /> {t.status}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '0.4rem', margin: '2px 0' }}>
-                      <span className="badge-pill badge-blue">
-                        <span className="badge-dot" /> {t.destination}
-                      </span>
-                      <span className="badge-pill badge-purple">
-                        <span className="badge-dot" /> {t.category}
-                      </span>
-                    </div>
-
-                    <div className="tour-item-meta">
-                      <span>🏷️ <strong>${t.price}</strong></span>
-                      <span>⏱️ {t.durationHours} hours</span>
-                      <span>⚓ {t.defaultStartTime}</span>
-                    </div>
-                  </div>
-
-                  <div className="tour-item-actions">
-                    <button
-                      type="button"
-                      className="btn-outline"
-                      style={{ height: '32px', padding: '0 0.625rem', fontSize: '0.75rem' }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        selectForEdit(t)
-                      }}
-                    >
-                      <EditIcon size={14} />
-                      <span>Edit</span>
-                    </button>
-                    <button
-                      type="button"
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: t.status === 'Active' ? '#66747b' : '#15803d',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        padding: '0.25rem 0.5rem'
-                      }}
-                      onClick={(e) => toggleTourStatus(t, e)}
-                    >
-                      {t.status === 'Active' ? 'Inactivate' : 'Activate'}
-                    </button>
-                  </div>
-                </div>
-              )
-            })
+            <LoadingState label="Loading tour catalog from database…" />
           ) : (
-            <div className="staff-card" style={{ padding: '2.5rem', textAlign: 'center', color: '#66747b' }}>
-              {query ? `No tours match “${query}”.` : 'No experiences found in catalog.'}
-            </div>
+            <table className="staff-table">
+              <thead>
+                <tr>
+                  <th style={{ width: '56px' }}>Photo</th>
+                  <th>Tour Name & Region</th>
+                  <th>Category</th>
+                  <th>Duration</th>
+                  <th>Departure</th>
+                  <th>Price</th>
+                  <th>Status</th>
+                  <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedRows.map((tour) => {
+                  const isSelected = selectedTour?.id === tour.id
+                  return (
+                    <tr
+                      key={tour.id}
+                      style={{ cursor: 'pointer', backgroundColor: isSelected ? '#f5fbf7' : undefined }}
+                      onClick={() => selectForEdit(tour)}
+                    >
+                      <td>
+                        <img
+                          src={tour.imageUrl}
+                          alt={tour.name}
+                          style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }}
+                        />
+                      </td>
+                      <td>
+                        <strong style={{ display: 'block', color: '#182126', fontSize: '0.875rem' }}>
+                          {tour.name}
+                        </strong>
+                        <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
+                          📍 {tour.destination}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge-pill badge-gold">
+                          <span className="badge-dot" />
+                          {tour.category}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '0.8125rem', color: '#334155' }}>
+                        {tour.durationHours} hrs
+                      </td>
+                      <td style={{ fontSize: '0.8125rem', color: '#334155' }}>
+                        {tour.defaultStartTime}
+                      </td>
+                      <td>
+                        <strong style={{ color: '#182126', fontSize: '0.875rem' }}>
+                          ${tour.price}
+                        </strong>
+                        <span style={{ fontSize: '0.6875rem', color: '#64748b' }}> / person</span>
+                      </td>
+                      <td>
+                        <span className={`badge-pill ${tour.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
+                          <span className="badge-dot" />
+                          {tour.status}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            style={{ height: '28px', padding: '0 6px' }}
+                            title="Edit Tour"
+                            onClick={() => selectForEdit(tour)}
+                          >
+                            <EditIcon size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-outline"
+                            style={{ height: '28px', padding: '0 6px', color: '#dc2626' }}
+                            title="Deactivate"
+                            onClick={() => handleDeleteTour(tour.id, tour.name)}
+                          >
+                            <TrashIcon size={13} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {pagedRows.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#66747b' }}>
+                      No tours match your current filters.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           )}
 
-          {/* Pagination */}
-          {pages > 1 && (
-            <div className="staff-pagination" style={{ background: '#ffffff', borderRadius: '10px' }}>
-              <span>Page {page} of {pages} ({filtered.length} tours)</span>
-              <div className="staff-pagination__btns">
-                <button
-                  type="button"
-                  className="staff-page-btn"
-                  disabled={page <= 1}
-                  onClick={() => setPage(p => p - 1)}
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  className="staff-page-btn"
-                  disabled={page >= pages}
-                  onClick={() => setPage(p => p + 1)}
-                >
-                  Next
-                </button>
-              </div>
+          {/* Pagination Footer */}
+          <div className="table-footer">
+            <span style={{ fontSize: '0.8125rem', color: '#66747b' }}>
+              Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} tours
+            </span>
+            <div className="table-pagination">
+              <button
+                type="button"
+                className="table-page-btn"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                ‹ Prev
+              </button>
+              <button
+                type="button"
+                className="table-page-btn"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                Next ›
+              </button>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Right Column: Edit/Create Tour Drawer matching Figma 2:27473 */}
+        {/* ── Edit / Create Drawer matching Figma Spec ── */}
         {drawerMode && (
-          <aside className="detail-pane" style={{ position: 'sticky', top: '5.5rem' }}>
-            <div className="detail-pane__head">
+          <aside className="staff-card" style={{ padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #eef2f3' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#182126' }}>
-                  {drawerMode === 'create' ? 'Create tour' : 'Edit tour'}
-                </h3>
-                <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
-                  {drawerMode === 'create'
-                    ? 'New experience record'
-                    : `Last updated by Operations · ${selectedTour?.status || 'Active'}`}
+                <span className="badge-pill badge-green" style={{ fontSize: '0.625rem', padding: '1px 6px', marginBottom: '4px' }}>
+                  <span className="badge-dot" /> LIVE IN CATALOG
                 </span>
+                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#182126' }}>
+                  {drawerMode === 'create' ? 'Create new tour' : (selectedTour?.name || 'Edit tour')}
+                </h3>
               </div>
               <button
                 type="button"
                 className="btn-outline"
-                style={{ height: '32px', padding: '0 0.625rem' }}
+                style={{ height: '28px', padding: '0 8px' }}
                 onClick={() => setDrawerMode(null)}
               >
-                <CloseIcon size={14} />
-                <span>Close</span>
+                ✕
               </button>
             </div>
 
             <form onSubmit={handleSaveTour} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+              {/* Tour Name */}
               <div>
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                   Tour name *
