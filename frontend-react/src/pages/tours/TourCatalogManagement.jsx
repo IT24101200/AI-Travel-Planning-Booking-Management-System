@@ -40,12 +40,17 @@ export default function TourCatalogManagement() {
       ])
 
       if (!cancelled) {
+        const loadErrors = []
+
         if (destRes.status === 'fulfilled') {
           const destList = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           setDestinations(destList)
           if (destList.length > 0 && !form.destinationId) {
             setForm((f) => ({ ...f, destinationId: destList[0].id }))
           }
+        } else {
+          setDestinations([])
+          loadErrors.push('Could not load destinations. Check that the backend is running.')
         }
 
         if (tourRes.status === 'fulfilled') {
@@ -63,7 +68,12 @@ export default function TourCatalogManagement() {
             status: t.status || 'Active',
           }))
           setRows(mapped)
+        } else {
+          setRows([])
+          loadErrors.push('Could not load tours. Check that the backend is running.')
         }
+
+        setError(loadErrors.length > 0 ? loadErrors.join(' ') : null)
       }
     } catch (err) {
       if (!cancelled) {
@@ -238,7 +248,7 @@ export default function TourCatalogManagement() {
         </div>
         <div className="staff-toolbar">
           <input className="input" placeholder="Search tours…" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} />
-          <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
+          <select className="select" value={category} onChange={(e) => { setCategory(e.target.value); setPage(1) }} aria-label="Category">
             {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
@@ -401,7 +411,7 @@ export default function TourCatalogManagement() {
                   )}
                 </tr>
               ))
-            ) : (
+            ) : error ? null : (
               <tr><td colSpan={8} className="staff-empty">No tours found in database.</td></tr>
             )}
           </tbody>

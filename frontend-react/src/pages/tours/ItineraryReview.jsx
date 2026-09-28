@@ -141,7 +141,10 @@ export default function ItineraryReview() {
     }
   }
 
-  async function handleRemoveItem(itineraryId, itemId) {
+  async function handleRemoveItem(itineraryId, itemId, itineraryStatus) {
+    const status = normalizeStatus(itineraryStatus);
+    if (status === 'Accepted' || status === 'Discarded') return;
+
     setRemovingItemId(itemId);
     setNotice(null);
 
@@ -234,6 +237,7 @@ export default function ItineraryReview() {
                   const isExpanded = expandedItineraryId === itinerary.id;
                   const groupedItems = groupItemsByDay(itinerary.items);
                   const status = normalizeStatus(itinerary.status);
+                  const canEdit = status === 'Draft' || status === 'Proposed';
                   const tripRequestId = itinerary.tripRequestId;
                   const agentTrailOpen = Boolean(openAgentTrails[tripRequestId]);
                   const agentLogs = agentLogsByTripRequest[tripRequestId] ?? [];
@@ -297,19 +301,25 @@ export default function ItineraryReview() {
                                                 )}
                                               </td>
                                               <td>
+                                                {canEdit && (
                                                 <button
                                                   className="btn btn--danger btn--small"
                                                   type="button"
                                                   disabled={removingItemId === item.id}
                                                   onClick={(event) => {
                                                     event.stopPropagation();
-                                                    handleRemoveItem(itinerary.id, item.id);
+                                                    handleRemoveItem(
+                                                      itinerary.id,
+                                                      item.id,
+                                                      itinerary.status,
+                                                    );
                                                   }}
                                                 >
                                                   {removingItemId === item.id
                                                     ? 'Removing…'
                                                     : 'Remove'}
                                                 </button>
+                                                )}
                                               </td>
                                             </tr>
                                           ))}

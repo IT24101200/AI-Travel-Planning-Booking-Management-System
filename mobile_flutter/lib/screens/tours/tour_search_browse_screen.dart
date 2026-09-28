@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
@@ -17,11 +19,20 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   bool _loading = true;
   String? _error;
   final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
   String _selectedCategory = 'All';
 
   String _selectedSort = 'Top Rated';
 
-  final List<String> _categoryTabs = ['All', 'Culture', 'Wildlife', 'Hiking', 'Coast'];
+  final List<String> _categoryTabs = [
+    'All',
+    'Heritage',
+    'Rail journey',
+    'Safari',
+    'Marine',
+    'Tea',
+    'Snorkelling',
+  ];
 
   @override
   void initState() {
@@ -56,7 +67,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = 'Unable to connect to server. Please try again.';
+          _error = e.toString();
           _loading = false;
         });
       }
@@ -68,9 +79,8 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     if (_selectedCategory != 'All') {
       final cat = _selectedCategory.toLowerCase();
       list = list.where((tour) {
-        final name = (tour['name'] ?? '').toString().toLowerCase();
         final category = (tour['category'] ?? '').toString().toLowerCase();
-        return name.contains(cat) || category.contains(cat);
+        return category == cat;
       }).toList();
     }
 
@@ -84,8 +94,17 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
+  }
+
+  void _scheduleSearch(String value) {
+    setState(() {});
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
+      _loadTours(search: value.trim());
+    });
   }
 
   @override
@@ -182,13 +201,19 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
-                        onSubmitted: (value) => _loadTours(search: value),
+                        onChanged: _scheduleSearch,
+                        onSubmitted: (value) {
+                          _searchDebounce?.cancel();
+                          _loadTours(search: value.trim());
+                        },
                       ),
                     ),
                     if (_searchCtrl.text.isNotEmpty)
                       GestureDetector(
                         onTap: () {
+                          _searchDebounce?.cancel();
                           _searchCtrl.clear();
+                          setState(() {});
                           _loadTours();
                         },
                         child: const Icon(Icons.close, size: 18, color: Color(0xFF9CA3AF)),
@@ -374,30 +399,40 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     final uploadedImage = ApiService.resolveMediaUrl(
       tour['imageUrl']?.toString(),
     );
-    final imageUrl = uploadedImage.isNotEmpty
-        ? uploadedImage
-        : AppDestinations.getImageForDestination(tourName);
-    final price = (tour['price'] ?? 68).toString();
-    final duration = tour['durationHours'] ?? 6;
-    final category = (tour['category'] ?? 'CULTURE').toString().toUpperCase();
-    final location = tour['location'] ?? (tourName.split(' ').first);
+    final price = tour['price']?.toString() ?? 'Unavailable';
+    final currency = (tour['currency']?.toString().trim().isNotEmpty ?? false)
+        ? tour['currency'].toString()
+        : 'LKR';
+    final duration = tour['durationHours']?.toString() ?? 'N/A';
+    final category = (tour['category'] ?? 'Uncategorized').toString().toUpperCase();
+    final location = tour['destinationName'] ??
+        (tour['destinationId'] != null ? 'Destination #${tour['destinationId']}' : 'Destination unavailable');
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/tour-details',
+          arguments: tour['id'],
+        ),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.02),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
+          child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Left: Photo thumbnail
@@ -406,10 +441,16 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             child: SizedBox(
               width: 110,
               height: 125,
-              child: AppNetworkImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-              ),
+              child: uploadedImage.isNotEmpty
+                  ? AppNetworkImage(
+                      imageUrl: uploadedImage,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      color: const Color(0xFFE5E7EB),
+                      alignment: Alignment.center,
+                      child: const Icon(Icons.image_not_supported_outlined),
+                    ),
             ),
           ),
           const SizedBox(width: 14),
@@ -425,34 +466,14 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Category & Rating Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            category,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.figmaGold,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          Row(
-                            children: [
-                              const Icon(Icons.star_border, color: AppColors.figmaGold, size: 14),
-                              const SizedBox(width: 3),
-                              Text(
-                                '4.9',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF111827),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                      Text(
+                        category,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.figmaGold,
+                          letterSpacing: 0.8,
+                        ),
                       ),
                       const SizedBox(height: 3),
 
@@ -506,7 +527,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                             style: GoogleFonts.plusJakartaSans(fontSize: 10, color: const Color(0xFF9CA3AF)),
                           ),
                           Text(
-                            '\$$price',
+                            '$currency $price',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
@@ -515,19 +536,14 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           ),
                         ],
                       ),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(context, '/tour-details', arguments: tour['id']);
-                        },
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: const BoxDecoration(
-                            color: AppColors.figmaDarkGreen,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.north_east, color: Colors.white, size: 18),
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: AppColors.figmaDarkGreen,
+                          shape: BoxShape.circle,
                         ),
+                        child: const Icon(Icons.north_east, color: Colors.white, size: 18),
                       ),
                     ],
                   ),
@@ -536,6 +552,8 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             ),
           ),
         ],
+          ),
+        ),
       ),
     );
   }
