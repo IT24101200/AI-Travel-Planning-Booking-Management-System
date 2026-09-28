@@ -608,7 +608,7 @@ export default function TourCatalogManagement() {
                     <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600, color: '#182126', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {imageFile ? imageFile.name : (selectedTour?.name ? `${selectedTour.name.toLowerCase().replace(/\s+/g, '-')}.jpg` : 'experience.jpg')}
                     </p>
-                    <label style={{ fontSize: '0.75rem', color: '#b7791f', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
+                    <label style={{ fontSize: '0.75rem', color: '#166b4f', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
                       Replace image
                       <input
                         type="file"

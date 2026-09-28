@@ -1,7 +1,7 @@
 /* ==========================================================================
    Serendib Trails — Staff Console Stylesheet
-   Designed based on Figma Dev Mode Specifications (node-id: 0-1)
-   Palette: Canvas #f4f6f7, Sidebar #17242a, Ochre Gold #b7791f, Slate #182126
+   Ceylon Forest & Emerald Green Theme
+   Palette: Canvas #f4f6f7, Sidebar #08271e, Primary Green #166b4f, Accent Leaf #35b183
    ========================================================================== */
 
 /* ── Staff Master Layout Shell ── */
@@ -23,9 +23,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
-  background-color: #17242a;
+  background-color: #08271e;
   color: #f7faf9;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   position: sticky;
   top: 0;
   z-index: 40;
@@ -63,9 +63,9 @@
 }
 
 .staff__mobile-toggle {
-  background: #22333a;
+  background: #0f3d30;
   color: #f7faf9;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 6px;
   padding: 0.35rem 0.75rem;
   font-size: 0.8125rem;
@@ -75,7 +75,7 @@
 }
 
 .staff__mobile-toggle:hover {
-  background: #2d414a;
+  background: #165342;
 }
 
 /* ── Sticky Sidebar ── */
@@ -90,10 +90,11 @@
   min-height: 100svh;
   height: 100svh;
   padding: 1.75rem 1.125rem 1.375rem 1.125rem;
-  background-color: #17242a;
+  background-color: #08271e;
   color: #f7faf9;
   box-sizing: border-box;
   z-index: 30;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* ── Sidebar Brand ── */
@@ -166,21 +167,22 @@
   align-items: center;
   gap: 0.75rem;
   text-decoration: none;
-  color: #b7c2c6;
+  color: #9ebcb1;
   font-size: 0.8125rem;
   font-weight: 500;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .staff__link:hover {
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: rgba(255, 255, 255, 0.07);
   color: #f7faf9;
 }
 
 .staff__link.is-active {
-  background-color: #22333a;
-  color: #f7faf9;
+  background-color: rgba(31, 140, 102, 0.24);
+  color: #ffffff;
   font-weight: 700;
+  border-left: 3px solid #35b183;
 }
 
 .staff__link-icon {
@@ -200,7 +202,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background-color: #b7791f;
+  background-color: #35b183;
+  box-shadow: 0 0 8px rgba(53, 177, 131, 0.6);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -229,14 +232,15 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background-color: #f8ebcf;
-  color: #8a5614;
+  background-color: #d9f4e7;
+  color: #0a4d38;
   font-weight: 800;
   font-size: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  border: 1px solid rgba(53, 177, 131, 0.3);
 }
 
 .staff__identity {
@@ -249,7 +253,7 @@
 
 .staff__role-label {
   font-size: 0.6875rem;
-  color: #8fa0a6;
+  color: #8daea1;
   text-transform: capitalize;
   white-space: nowrap;
   overflow: hidden;
@@ -269,7 +273,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  color: #aab7bb;
+  color: #8daea1;
   font-size: 0.75rem;
   text-decoration: none;
   padding: 0.25rem;
@@ -278,7 +282,7 @@
 }
 
 .staff__signout:hover {
-  color: #f7faf9;
+  color: #ffffff;
 }
 
 /* ── Main Workspace Viewport ── */
@@ -312,7 +316,7 @@
 }
 
 .staff-page__eyebrow {
-  color: #b7791f;
+  color: #166b4f;
   font-size: 0.6875rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -343,10 +347,12 @@
 }
 
 /* ── Standard Buttons matching Figma ── */
-.btn-gold {
-  background-color: #b7791f;
-  color: #f7faf9;
-  border: 1px solid #b7791f;
+.btn-gold,
+.btn-green,
+.btn-primary {
+  background-color: #166b4f;
+  color: #ffffff;
+  border: 1px solid #166b4f;
   border-radius: 6px;
   height: 38px;
   padding: 0 0.875rem;
@@ -357,13 +363,16 @@
   gap: 0.5rem;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
   white-space: nowrap;
 }
 
-.btn-gold:hover {
-  background-color: #9d6517;
-  border-color: #9d6517;
+.btn-gold:hover,
+.btn-green:hover,
+.btn-primary:hover {
+  background-color: #11533d;
+  border-color: #11533d;
+  box-shadow: 0 2px 8px rgba(22, 107, 79, 0.25);
 }
 
 .btn-outline {
@@ -447,13 +456,13 @@
 }
 
 .staff-tab.is-active {
-  background-color: #17242a;
-  color: #f7faf9;
+  background-color: #0f4a37;
+  color: #ffffff;
   font-weight: 700;
 }
 
 .staff-tab__count {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.06);
   color: inherit;
   padding: 1px 6px;
   border-radius: 999px;
@@ -461,7 +470,7 @@
 }
 
 .staff-tab.is-active .staff-tab__count {
-  background: #33444c;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 /* ── Cards & Data Grids matching Figma ── */
@@ -529,7 +538,7 @@
 }
 
 .staff-table tr.is-selected {
-  background-color: #fff8ea;
+  background-color: #eefaf4;
 }
 
 .staff-table tbody tr:hover:not(.is-selected) {
@@ -620,8 +629,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background-color: #fef3c7;
-  color: #b7791f;
+  background-color: #d9f4e7;
+  color: #166b4f;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -684,9 +693,9 @@
 }
 
 .staff-page-btn.is-active {
-  background-color: #17242a;
-  color: #f7faf9;
-  border-color: #17242a;
+  background-color: #166b4f;
+  color: #ffffff;
+  border-color: #166b4f;
 }
 
 /* ── Search Input Box ── */
@@ -703,6 +712,12 @@
   max-width: 280px;
   color: #66747b;
   box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.staff-search-box:focus-within {
+  border-color: #166b4f;
+  box-shadow: 0 0 0 2px rgba(22, 107, 79, 0.18);
 }
 
 .staff-search-box input {
@@ -913,13 +928,13 @@
   cursor: pointer;
 }
 .tour-item-card:hover {
-  border-color: #b7791f;
-  box-shadow: 0 4px 14px rgba(183, 121, 31, 0.08);
+  border-color: #166b4f;
+  box-shadow: 0 4px 14px rgba(22, 107, 79, 0.1);
 }
 .tour-item-card.is-selected {
-  background-color: #fff8ea;
-  border-color: #b7791f;
-  box-shadow: 0 4px 16px rgba(183, 121, 31, 0.12);
+  background-color: #eefaf4;
+  border-color: #166b4f;
+  box-shadow: 0 4px 16px rgba(22, 107, 79, 0.14);
 }
 .tour-item-thumb {
   width: 110px;
@@ -1032,7 +1047,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background-color: #b7791f;
+  background-color: #166b4f;
   color: #ffffff;
   font-size: 0.6875rem;
   font-weight: 700;
@@ -1048,7 +1063,7 @@
 .activity-time {
   font-size: 0.625rem;
   font-weight: 800;
-  color: #b7791f;
+  color: #166b4f;
   text-transform: uppercase;
 }
 .activity-name {
