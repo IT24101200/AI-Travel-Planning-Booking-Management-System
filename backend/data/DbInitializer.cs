@@ -246,6 +246,66 @@ namespace backend.Data
             await context.SaveChangesAsync();
 
             // ─────────────────────────────────────────────────────────────
+            // 3b. Ensure all existing registered customers have distinct preferences
+            // ─────────────────────────────────────────────────────────────
+            var registeredCusts = await context.Customers
+                .Include(c => c.Preference)
+                .Where(c => (c.Role == "Customer" || string.IsNullOrEmpty(c.Role)))
+                .ToListAsync();
+
+            foreach (var cust in registeredCusts)
+            {
+                if (cust.Preference == null)
+                {
+                    var nameLower = (cust.FullName ?? "").ToLower();
+                    decimal minB = 1800m;
+                    decimal maxB = 3800m;
+                    string activities = "Cultural Heritage · Wildlife Safari · Tea Country";
+                    string dietary = "No restrictions";
+                    string access = "None";
+
+                    if (nameLower.Contains("pamoda"))
+                    {
+                        minB = 2200m;
+                        maxB = 4200m;
+                        activities = "Hill Country Treks · Ancient Temples · Photography";
+                        dietary = "Vegetarian";
+                        access = "Ground-floor rooms preferred";
+                    }
+                    else if (nameLower.Contains("pasindu"))
+                    {
+                        minB = 1600m;
+                        maxB = 3200m;
+                        activities = "Surfing · Coastal Treks · Seafood Dining";
+                        dietary = "No dietary restrictions";
+                        access = "None";
+                    }
+                    else if (nameLower.Contains("chathuranga"))
+                    {
+                        minB = 1400m;
+                        maxB = 2900m;
+                        activities = "Scenic Rail · Eco Lodges · Waterfall Trails";
+                        dietary = "Vegan-friendly";
+                        access = "None";
+                    }
+
+                    context.Preferences.Add(new Preference
+                    {
+                        CustomerId = cust.Id,
+                        BudgetMin = minB,
+                        BudgetMax = maxB,
+                        Currency = "USD",
+                        PreferredActivities = activities,
+                        DietaryNotes = dietary,
+                        AccessibilityNotes = access,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
+            await context.SaveChangesAsync();
+
+            // ─────────────────────────────────────────────────────────────
             // 4. Destinations (Curated Sri Lankan Highlights)
             // ─────────────────────────────────────────────────────────────
             var destinationData = new[]
