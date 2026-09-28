@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx';
 import { usePageTitle } from '../../lib/hooks.js';
 import {
@@ -9,6 +9,7 @@ import {
 } from '../../services/apiClient.js';
 
 const ITINERARY_STATUS_LABELS = ['Draft', 'Proposed', 'Accepted', 'Discarded'];
+const PAGE_SIZE = 5;
 
 function normalizeStatus(status) {
   if (typeof status === 'number') return ITINERARY_STATUS_LABELS[status] ?? 'Unknown';
@@ -83,6 +84,46 @@ export default function ItineraryReview() {
   const [openAgentTrails, setOpenAgentTrails] = useState({});
   const [agentLogsByTripRequest, setAgentLogsByTripRequest] = useState({});
   const [loadingAgentLogs, setLoadingAgentLogs] = useState({});
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sort, setSort] = useState('newest');
+  const [page, setPage] = useState(1);
+
+  const filteredItineraries = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const filtered = itineraries.filter((itinerary) => {
+      const matchesQuery =
+        !normalizedQuery ||
+        [itinerary.id, itinerary.tripRequestId, itinerary.customerId].some(
+          (value) => String(value ?? '').toLowerCase().includes(normalizedQuery),
+        );
+      const matchesStatus =
+        statusFilter === 'All' || normalizeStatus(itinerary.status) === statusFilter;
+
+      return matchesQuery && matchesStatus;
+    });
+
+    return [...filtered].sort((first, second) => {
+      if (sort === 'cost-high') {
+        return Number(second.totalEstimatedCost) - Number(first.totalEstimatedCost);
+      }
+      if (sort === 'cost-low') {
+        return Number(first.totalEstimatedCost) - Number(second.totalEstimatedCost);
+      }
+
+      const firstCreatedAt = new Date(first.createdAt).getTime() || 0;
+      const secondCreatedAt = new Date(second.createdAt).getTime() || 0;
+      return sort === 'oldest'
+        ? firstCreatedAt - secondCreatedAt
+        : secondCreatedAt - firstCreatedAt;
+    });
+  }, [itineraries, query, sort, statusFilter]);
+
+  const pages = Math.max(1, Math.ceil(filteredItineraries.length / PAGE_SIZE));
+  const pageItineraries = filteredItineraries.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   async function loadItineraries(showLoading = true) {
     if (showLoading) setLoading(true);
@@ -101,6 +142,10 @@ export default function ItineraryReview() {
   useEffect(() => {
     loadItineraries();
   }, []);
+
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, pages));
+  }, [pages]);
 
   function toggleItinerary(itineraryId) {
     setExpandedItineraryId((currentId) =>
@@ -220,6 +265,48 @@ export default function ItineraryReview() {
         </div>
       ) : (
         <section className="panel panel--solid">
+          <div className="staff-toolbar">
+            <input
+              className="input"
+              placeholder="Search by itinerary, trip request or customer ID"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
+            />
+            <select
+              className="select"
+              value={statusFilter}
+              aria-label="Status"
+              onChange={(event) => {
+                setStatusFilter(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="All">All</option>
+              {ITINERARY_STATUS_LABELS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+            <select
+              className="select"
+              value={sort}
+              aria-label="Sort itineraries"
+              onChange={(event) => {
+                setSort(event.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="cost-high">Cost: High to Low</option>
+              <option value="cost-low">Cost: Low to High</option>
+            </select>
+          </div>
+
           <div className="staff-table-wrap">
             <table className="staff-table">
               <thead>
@@ -233,7 +320,7 @@ export default function ItineraryReview() {
                 </tr>
               </thead>
               <tbody>
-                {itineraries.map((itinerary) => {
+                {pageItineraries.map((itinerary) => {
                   const isExpanded = expandedItineraryId === itinerary.id;
                   const groupedItems = groupItemsByDay(itinerary.items);
                   const status = normalizeStatus(itinerary.status);
@@ -426,13 +513,37 @@ export default function ItineraryReview() {
                   );
                 })}
 
-                {!itineraries.length && (
+                {!itineraries.length ? (
                   <tr>
                     <td colSpan="6">No itineraries are available for review.</td>
                   </tr>
-                )}
+                ) : !filteredItineraries.length ? (
+                  <tr>
+                    <td colSpan="6">No itineraries match your filters</td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
+          </div>
+
+          <div className="staff-pager">
+            <button
+              type="button"
+              disabled={page <= 1}
+              onClick={() => setPage((currentPage) => currentPage - 1)}
+            >
+              Prev
+            </button>
+            <span>
+              Page {page} of {pages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= pages}
+              onClick={() => setPage((currentPage) => currentPage + 1)}
+            >
+              Next
+            </button>
           </div>
         </section>
       )}
