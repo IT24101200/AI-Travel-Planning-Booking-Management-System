@@ -9,8 +9,8 @@ class ApiService {
   // ── Backend URLs ──
   // Web (Chrome): runs on localhost
   static const String _webUrl = 'http://localhost:5138/api';
-  // Mobile (Physical phone / Emulator): PC's local Wi-Fi IP or emulator 10.0.2.2
-  static const String _mobileUrl = 'http://192.168.1.3:5138/api';
+  // Mobile (Physical phone / Emulator): PC's local Wi-Fi IP (192.168.1.4) or emulator 10.0.2.2
+  static const String _mobileUrl = 'http://192.168.1.4:5138/api';
 
   static String get baseUrl {
     // When running in Chrome (Flutter Web):
