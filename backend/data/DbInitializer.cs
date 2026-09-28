@@ -1024,6 +1024,51 @@ namespace backend.Data
                     await context.SaveChangesAsync();
                 }
             }
+
+            // Ensure all registered customer profiles have multi-channel notifications
+            var allCustProfiles = await context.Customers
+                .Where(c => c.Role == "Customer" || string.IsNullOrEmpty(c.Role))
+                .ToListAsync();
+
+            foreach (var cust in allCustProfiles)
+            {
+                var count = await context.Notifications.CountAsync(n => n.CustomerId == cust.Id);
+                if (count == 0)
+                {
+                    var fName = (cust.FullName ?? "Customer").Split(' ')[0];
+                    context.Notifications.AddRange(
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.Email,
+                            MessageType = MessageType.BookingConfirmation,
+                            Content = $"Dear {fName}, your bespoke Sri Lanka travel booking has been confirmed by Serendib Trails. Full travel documents are ready.",
+                            Status = NotificationStatus.Sent,
+                            SentAt = DateTime.UtcNow.AddDays(-2)
+                        },
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.SMS,
+                            MessageType = MessageType.Reminder,
+                            Content = $"Serendib Trails: Chauffeur guide pickup confirmed for {fName}. Contact: +94 77 123 4567.",
+                            Status = NotificationStatus.Sent,
+                            SentAt = DateTime.UtcNow.AddHours(-8)
+                        },
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.InApp,
+                            MessageType = MessageType.TripUpdate,
+                            Content = $"Day-by-day itinerary excursion details updated for {cust.FullName}.",
+                            Status = NotificationStatus.Read,
+                            ReadAt = DateTime.UtcNow.AddHours(-2),
+                            SentAt = DateTime.UtcNow.AddHours(-15)
+                        }
+                    );
+                }
+            }
+            await context.SaveChangesAsync();
         }
 
         private static IdentityUser? primaryCustomer(Dictionary<string, IdentityUser> dict)
