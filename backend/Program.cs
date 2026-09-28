@@ -325,6 +325,16 @@ app.MapGet("/supabasehealth", async () =>
     }
 });
 
+// Seed database with realistic sample data on startup
+try
+{
+    await backend.Data.DbInitializer.SeedAsync(app.Services);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[Seeding Notice] Initial seeding encountered: {ex.Message}");
+}
+
 app.Run();
 
 public partial class Program { }
