@@ -28,6 +28,7 @@ export default function NotificationLogs() {
   const [page, setPage] = useState(1)
   const [showTestModal, setShowTestModal] = useState(false)
   const [testSent, setTestSent] = useState('')
+  const [selectedNotification, setSelectedNotification] = useState(null)
   usePageTitle('Notification Outbox · Serendib Trails')
 
   async function loadNotifications(cancelled = false) {
@@ -293,19 +294,27 @@ export default function NotificationLogs() {
                         )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        {isFailed ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', justifyContent: 'flex-end' }}>
                           <button
                             type="button"
                             className="btn-outline"
-                            style={{ height: '30px', padding: '0 0.625rem', fontSize: '0.75rem' }}
-                            onClick={() => resend(r.id)}
+                            style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => setSelectedNotification(r)}
+                            title="View notification message and delivery details"
                           >
-                            <RotateCcwIcon size={13} />
-                            <span>Resend</span>
+                            View
                           </button>
-                        ) : (
-                          <span style={{ color: '#8fa0a6' }}>—</span>
-                        )}
+                          <button
+                            type="button"
+                            className={isFailed ? 'btn-gold' : 'btn-outline'}
+                            style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => resend(r.id)}
+                            title={isFailed ? 'Retry failed notification delivery' : 'Resend notification to recipient'}
+                          >
+                            <RotateCcwIcon size={12} />
+                            <span>{isFailed ? 'Retry' : 'Resend'}</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -479,6 +488,119 @@ export default function NotificationLogs() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── View Notification Payload Modal ── */}
+      {selectedNotification && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 27, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100,
+            padding: '1rem'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedNotification(null)
+          }}
+        >
+          <div className="staff-card" style={{ width: '100%', maxWidth: '520px', padding: '1.75rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem', borderBottom: '1px solid #eef2f5', paddingBottom: '1rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#182126' }}>
+                    {selectedNotification.displayId}
+                  </h3>
+                  <span className="badge-pill badge-blue">
+                    {selectedNotification.channel}
+                  </span>
+                </div>
+                <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
+                  Dispatched on {selectedNotification.at}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ height: '30px', padding: '0 0.5rem' }}
+                onClick={() => setSelectedNotification(null)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Recipient</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.8125rem', wordBreak: 'break-all' }}>
+                    {selectedNotification.recipient}
+                  </span>
+                </div>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Message Type</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.8125rem' }}>
+                    {selectedNotification.type}
+                  </span>
+                </div>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Delivery Channel</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.8125rem' }}>
+                    {selectedNotification.channel}
+                  </span>
+                </div>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Delivery Status</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.8125rem' }}>
+                    {selectedNotification.status}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                  Message Content / Payload
+                </span>
+                <div style={{
+                  padding: '0.875rem',
+                  borderRadius: '6px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  fontSize: '0.8125rem',
+                  color: '#334155',
+                  lineHeight: 1.5,
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {selectedNotification.content}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setSelectedNotification(null)}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn-gold"
+                  onClick={() => {
+                    resend(selectedNotification.id)
+                    setSelectedNotification(null)
+                  }}
+                >
+                  <RotateCcwIcon size={13} />
+                  <span>Resend notification</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
