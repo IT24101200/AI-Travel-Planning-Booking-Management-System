@@ -94,6 +94,11 @@ export async function fetchCustomers(params = {}) {
   return data
 }
 
+export async function updateCustomer(id, data) {
+  const { data: res } = await api.put(`/Customer/${id}`, data)
+  return res
+}
+
 export async function fetchNotifications() {
   const { data } = await api.get('/Notification')
   return data
@@ -192,9 +197,18 @@ export async function decideApproval(bookingId, decision, comment) {
   return data
 }
 
-export async function fetchBookings() {
-  const { data } = await api.get('/Booking')
+export async function fetchBookings(params = {}) {
+  const { data } = await api.get('/Booking', { params })
   return data
+}
+
+export async function fetchCustomerTrips(customerId) {
+  try {
+    const { data } = await api.get('/TripRequest/search', { params: { customerId } })
+    return data
+  } catch {
+    return []
+  }
 }
 
 export async function fetchPayments(status) {
