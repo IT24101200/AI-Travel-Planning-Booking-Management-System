@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
 import { usePageTitle } from '../../lib/hooks.js'
 import {
-  MountainSnowIcon,
+  LeafIcon,
   ArrowRightIcon,
   CheckIcon
 } from '../../components/ui/Icons.jsx'
@@ -75,7 +75,7 @@ export default function Login() {
       <div
         className="login-brand-col"
         style={{
-          background: 'linear-gradient(135deg, #0b1418 0%, #17242a 50%, #1b332b 100%)',
+          background: 'linear-gradient(135deg, #06231b 0%, #0a3628 50%, #0f4a37 100%)',
           position: 'relative',
           overflow: 'hidden'
         }}
@@ -88,7 +88,7 @@ export default function Login() {
             left: '-10%',
             width: '600px',
             height: '600px',
-            background: 'radial-gradient(circle, rgba(183, 121, 31, 0.18) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(53, 177, 131, 0.22) 0%, transparent 70%)',
             pointerEvents: 'none'
           }}
         />
@@ -97,14 +97,14 @@ export default function Login() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', zIndex: 2 }}>
           <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', textDecoration: 'none' }} title="Return to public website">
             <div className="staff__brand-box">
-              <MountainSnowIcon size={24} />
+              <LeafIcon size={24} />
             </div>
-            <div>
-              <span style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f7faf9', display: 'block', lineHeight: 1.1 }}>
+            <div className="staff__brand-text">
+              <b className="staff__brand-name" style={{ fontSize: '1.25rem' }}>
                 Serendib Trails
-              </span>
-              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#aab7bb', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                Staff console
+              </b>
+              <span className="staff__brand-sub" style={{ fontSize: '0.625rem' }}>
+                Sri Lanka · Since 2016
               </span>
             </div>
           </Link>
@@ -127,7 +127,7 @@ export default function Login() {
 
         {/* Hero Narrative Headline */}
         <div className="login-brand-col__hero" style={{ position: 'relative', zIndex: 2 }}>
-          <p style={{ color: '#b7791f', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
+          <p style={{ color: '#6ed4ab', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
             TRAVEL OPERATIONS, CONNECTED
           </p>
           <h1 className="login-brand-col__title">
@@ -139,19 +139,19 @@ export default function Login() {
 
           <div className="login-brand-col__features" style={{ marginTop: '1rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#b7791f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#166b4f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CheckIcon size={12} />
               </div>
               <span>Secure staff access</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#b7791f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#166b4f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CheckIcon size={12} />
               </div>
               <span>Live operations data</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#b7791f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#166b4f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CheckIcon size={12} />
               </div>
               <span>AI-assisted review</span>
@@ -169,7 +169,7 @@ export default function Login() {
       <div className="login-form-col">
         <form className="login-card" onSubmit={onSubmit}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <span style={{ color: '#b7791f', fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            <span style={{ color: '#166b4f', fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
               SECURE STAFF ACCESS
             </span>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#182126', margin: 0, lineHeight: 1.2 }}>
@@ -238,7 +238,7 @@ export default function Login() {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ accentColor: '#b7791f' }}
+                style={{ accentColor: '#166b4f' }}
               />
               <span>Remember this device</span>
             </label>
@@ -248,7 +248,7 @@ export default function Login() {
                 e.preventDefault()
                 alert('Contact internal IT operations at ops@serendib.lk to request password reset.')
               }}
-              style={{ color: '#b7791f', textDecoration: 'none', fontWeight: 600 }}
+              style={{ color: '#166b4f', textDecoration: 'none', fontWeight: 600 }}
             >
               Forgot password?
             </a>
@@ -276,7 +276,7 @@ export default function Login() {
           {/* Customer return link */}
           <div style={{ textAlign: 'center', margin: '0.25rem 0' }}>
             <Link to="/" style={{ fontSize: '0.75rem', color: '#66747b', textDecoration: 'none', fontWeight: 500 }}>
-              Not a staff member? <span style={{ color: '#b7791f', fontWeight: 600 }}>Return to customer site →</span>
+              Not a staff member? <span style={{ color: '#166b4f', fontWeight: 600 }}>Return to customer site →</span>
             </Link>
           </div>
 

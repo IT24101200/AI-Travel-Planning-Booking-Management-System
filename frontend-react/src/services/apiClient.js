@@ -109,6 +109,12 @@ export async function resendNotification(id) {
   return data
 }
 
+export async function sendNotification(payload) {
+  const { data } = await api.post('/Notification/send', payload)
+  return data
+}
+
+
 // ─────────────────────────────────────────────────────────────
 // Student B — Tours & Itineraries API endpoints
 // ─────────────────────────────────────────────────────────────

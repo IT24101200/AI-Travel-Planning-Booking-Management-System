@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchNotifications, resendNotification } from '../../services/apiClient.js'
+import {
+  fetchNotifications,
+  resendNotification,
+  sendNotification,
+  fetchCustomers
+} from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
@@ -17,26 +22,54 @@ const STATUSES = ['Pending', 'Sent', 'Failed', 'Read']
 /**
  * Serendib Trails — Notification Outbox
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27250)
+ * Displays transactional and multi-channel notifications for all customers.
  */
 export default function NotificationLogs() {
   const [status, setStatus] = useState('All')
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState([])
+  const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [note, setNote] = useState('')
   const [page, setPage] = useState(1)
   const [showTestModal, setShowTestModal] = useState(false)
   const [testSent, setTestSent] = useState('')
+  const [sendingTest, setSendingTest] = useState(false)
   const [selectedNotification, setSelectedNotification] = useState(null)
+
+  // Send Test Notification Form state
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [testChannel, setTestChannel] = useState('Email')
+  const [testMessageType, setTestMessageType] = useState('BookingConfirmation')
+  const [testContent, setTestContent] = useState('Serendib Trails: Your bespoke booking reservation has been confirmed.')
+  const [testRecipient, setTestRecipient] = useState('')
+
   usePageTitle('Notification Outbox · Serendib Trails')
 
   async function loadNotifications(cancelled = false) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetchNotifications()
-      const live = Array.isArray(res) ? res : (res?.data || [])
+      // Fetch both live notifications and customer directory
+      const [notifRes, custRes] = await Promise.all([
+        fetchNotifications(),
+        fetchCustomers().catch(() => [])
+      ])
+
+      const rawCustList = Array.isArray(custRes) ? custRes : (custRes?.data || [])
+      // Filter out staff members to show true customers only
+      const trueCustomers = rawCustList.filter(c => c.role === 'Customer' || !c.role)
+
+      if (!cancelled) {
+        setCustomers(trueCustomers)
+        if (trueCustomers.length > 0 && !selectedCustomerId) {
+          setSelectedCustomerId(trueCustomers[0].id)
+          setTestRecipient(trueCustomers[0].email || trueCustomers[0].phone || '')
+        }
+      }
+
+      const live = Array.isArray(notifRes) ? notifRes : (notifRes?.data || [])
       if (!cancelled) {
         const mapped = live.map((n, idx) => {
           const rawChannel = typeof n.channel === 'number' ? (CHANNELS[n.channel] || 'Email') : (n.channel || 'Email')
@@ -56,10 +89,29 @@ export default function NotificationLogs() {
             displayTimestamp = `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
           }
 
+          // Match customer profile for reliable name & contact
+          const matchedCust = trueCustomers.find(c => c.id === n.customerId)
+          const customerName = n.customerName || matchedCust?.fullName || 'Customer'
+          const customerEmail = n.customerEmail || matchedCust?.email || ''
+          const customerPhone = n.customerPhone || matchedCust?.phone || ''
+
+          let recipient = n.recipient
+          if (!recipient) {
+            if (rawChannel === 'SMS') {
+              recipient = customerPhone || customerEmail || '+94 77 123 4567'
+            } else {
+              recipient = customerEmail || customerPhone || 'customer@serendib.lk'
+            }
+          }
+
           return {
             id: n.id,
             displayId: formattedId,
-            recipient: n.customerEmail || n.recipient || (rawChannel === 'SMS' ? '+94 77 912 4481' : 'amelia.t@example.com'),
+            customerId: n.customerId,
+            customerName,
+            customerEmail,
+            customerPhone,
+            recipient,
             channel: rawChannel,
             type: rawType,
             status: rawStatus,
@@ -90,7 +142,9 @@ export default function NotificationLogs() {
       const matchesStatus = status === 'All' || r.status.toLowerCase() === status.toLowerCase()
       const matchesQuery = !q ||
         r.displayId.toLowerCase().includes(q) ||
+        r.customerName.toLowerCase().includes(q) ||
         r.recipient.toLowerCase().includes(q) ||
+        (r.customerEmail && r.customerEmail.toLowerCase().includes(q)) ||
         r.type.toLowerCase().includes(q) ||
         r.channel.toLowerCase().includes(q)
       return matchesStatus && matchesQuery
@@ -113,13 +167,33 @@ export default function NotificationLogs() {
     }
   }
 
-  function handleSendTest(e) {
+  async function handleSendTest(e) {
     e.preventDefault()
-    setTestSent('Test notification dispatched via Serendib multi-channel gateway.')
-    setTimeout(() => {
-      setShowTestModal(false)
-      setTestSent('')
-    }, 2000)
+    if (!selectedCustomerId) {
+      setNote('Please select a customer to send the notification to.')
+      return
+    }
+
+    setSendingTest(true)
+    try {
+      await sendNotification({
+        customerId: selectedCustomerId,
+        channel: testChannel,
+        messageType: testMessageType,
+        content: testContent
+      })
+      const targetCust = customers.find(c => c.id === selectedCustomerId)
+      setTestSent(`Notification dispatched successfully to ${targetCust ? targetCust.fullName : 'customer'} via ${testChannel}!`)
+      await loadNotifications(false)
+      setTimeout(() => {
+        setShowTestModal(false)
+        setTestSent('')
+        setSendingTest(false)
+      }, 1500)
+    } catch (err) {
+      setSendingTest(false)
+      setNote(`Failed to send notification: ${err.response?.data?.message || err.message}`)
+    }
   }
 
   return (
@@ -205,7 +279,7 @@ export default function NotificationLogs() {
             <SearchIcon size={16} />
             <input
               type="text"
-              placeholder="Search ID or recipient"
+              placeholder="Search by customer, recipient, or ID…"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value)
@@ -221,7 +295,7 @@ export default function NotificationLogs() {
             <thead>
               <tr>
                 <th>NOTIFICATION ID</th>
-                <th>RECIPIENT</th>
+                <th>CUSTOMER & RECIPIENT</th>
                 <th>CHANNEL</th>
                 <th>MESSAGE TYPE</th>
                 <th>SENT TIMESTAMP</th>
@@ -233,7 +307,7 @@ export default function NotificationLogs() {
               {loading ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem' }}>
-                    <LoadingState message="Loading notification logs from database…" />
+                    <LoadingState message="Loading customer notification logs from database…" />
                   </td>
                 </tr>
               ) : view.length > 0 ? (
@@ -252,7 +326,16 @@ export default function NotificationLogs() {
                           {r.displayId}
                         </strong>
                       </td>
-                      <td style={{ color: '#182126' }}>{r.recipient}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                          <span style={{ color: '#182126', fontWeight: 600, fontSize: '0.8125rem' }}>
+                            {r.customerName}
+                          </span>
+                          <span style={{ color: '#66747b', fontSize: '0.75rem' }}>
+                            {r.recipient}
+                          </span>
+                        </div>
+                      </td>
                       <td>
                         {r.channel === 'Email' ? (
                           <span className="badge-pill badge-blue">
@@ -300,7 +383,7 @@ export default function NotificationLogs() {
                             className="btn-outline"
                             style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem' }}
                             onClick={() => setSelectedNotification(r)}
-                            title="View notification message and delivery details"
+                            title="View notification message and customer delivery details"
                           >
                             View
                           </button>
@@ -309,7 +392,7 @@ export default function NotificationLogs() {
                             className={isFailed ? 'btn-gold' : 'btn-outline'}
                             style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem' }}
                             onClick={() => resend(r.id)}
-                            title={isFailed ? 'Retry failed notification delivery' : 'Resend notification to recipient'}
+                            title={isFailed ? 'Retry failed notification delivery' : 'Resend notification to customer'}
                           >
                             <RotateCcwIcon size={12} />
                             <span>{isFailed ? 'Retry' : 'Resend'}</span>
@@ -322,7 +405,7 @@ export default function NotificationLogs() {
               ) : (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                    {query ? `No notifications match “${query}”.` : 'No notifications in outbox.'}
+                    {query ? `No notifications match “${query}”.` : 'No customer notifications in outbox.'}
                   </td>
                 </tr>
               )}
@@ -366,28 +449,25 @@ export default function NotificationLogs() {
         </div>
       </div>
 
-      {/* ── 4 KPI Delivery Health Cards matching Figma 2:27250 ── */}
+      {/* ── 4 KPI Delivery Health Cards calculated from customer notification data ── */}
       <div className="kpi-grid">
-        <div className="kpi-card">
-          <p className="kpi-card__label">Email</p>
-          <p className="kpi-card__val">99.3%</p>
-          <p className="kpi-card__sub" style={{ color: '#66747b' }}>3,842 delivered</p>
-        </div>
-        <div className="kpi-card">
-          <p className="kpi-card__label">SMS</p>
-          <p className="kpi-card__val">96.8%</p>
-          <p className="kpi-card__sub" style={{ color: '#b91c1c' }}>1,124 delivered · 2 failures</p>
-        </div>
-        <div className="kpi-card">
-          <p className="kpi-card__label">Push</p>
-          <p className="kpi-card__val">98.7%</p>
-          <p className="kpi-card__sub" style={{ color: '#66747b' }}>2,409 delivered</p>
-        </div>
-        <div className="kpi-card">
-          <p className="kpi-card__label">InApp</p>
-          <p className="kpi-card__val">100%</p>
-          <p className="kpi-card__sub" style={{ color: '#15803d' }}>864 delivered</p>
-        </div>
+        {CHANNELS.map((ch) => {
+          const chRows = rows.filter(r => r.channel.toLowerCase() === ch.toLowerCase())
+          const total = chRows.length
+          const delivered = chRows.filter(r => r.status.toLowerCase() === 'sent' || r.status.toLowerCase() === 'read').length
+          const failed = chRows.filter(r => r.status.toLowerCase() === 'failed').length
+          const percent = total > 0 ? ((delivered / total) * 100).toFixed(1) : '100'
+
+          return (
+            <div key={ch} className="kpi-card">
+              <p className="kpi-card__label">{ch}</p>
+              <p className="kpi-card__val">{percent}%</p>
+              <p className="kpi-card__sub" style={{ color: failed > 0 ? '#b91c1c' : '#66747b' }}>
+                {delivered} delivered{failed > 0 ? ` · ${failed} failed` : ''}
+              </p>
+            </div>
+          )
+        })}
       </div>
 
       {/* ── Send Test Notification Modal ── */}
@@ -403,17 +483,21 @@ export default function NotificationLogs() {
             zIndex: 100,
             padding: '1rem'
           }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !sendingTest) setShowTestModal(false)
+          }}
         >
-          <div className="staff-card" style={{ width: '100%', maxWidth: '440px', padding: '1.75rem' }}>
+          <div className="staff-card" style={{ width: '100%', maxWidth: '480px', padding: '1.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 700, color: '#182126' }}>
-                Send test notification
+                Send notification to customer
               </h3>
               <button
                 type="button"
                 className="btn-outline"
                 style={{ height: '30px', padding: '0 0.5rem' }}
                 onClick={() => setShowTestModal(false)}
+                disabled={sendingTest}
               >
                 ✕
               </button>
@@ -427,31 +511,86 @@ export default function NotificationLogs() {
               <form onSubmit={handleSendTest} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                    Recipient Address or Phone *
+                    Target Customer *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     required
-                    placeholder="e.g. traveller@example.com or +94 77 123 4567"
-                    className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                  />
+                    className="btn-outline"
+                    style={{ width: '100%', height: '38px', padding: '0 0.75rem', color: '#182126' }}
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      const id = e.target.value
+                      setSelectedCustomerId(id)
+                      const cust = customers.find(c => c.id === id)
+                      if (cust) {
+                        setTestRecipient(testChannel === 'SMS' ? (cust.phone || cust.email) : (cust.email || cust.phone))
+                      }
+                    }}
+                  >
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.fullName} ({c.email || c.phone || 'Customer'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Delivery Channel *
+                    </label>
+                    <select
+                      className="btn-outline"
+                      style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
+                      value={testChannel}
+                      onChange={(e) => {
+                        const ch = e.target.value
+                        setTestChannel(ch)
+                        const cust = customers.find(c => c.id === selectedCustomerId)
+                        if (cust) {
+                          setTestRecipient(ch === 'SMS' ? (cust.phone || cust.email) : (cust.email || cust.phone))
+                        }
+                      }}
+                    >
+                      <option value="Email">Email</option>
+                      <option value="SMS">SMS (Dialog Gateway)</option>
+                      <option value="Push">Push Notification</option>
+                      <option value="InApp">In-App Notification</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Message Type *
+                    </label>
+                    <select
+                      className="btn-outline"
+                      style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
+                      value={testMessageType}
+                      onChange={(e) => setTestMessageType(e.target.value)}
+                    >
+                      <option value="BookingConfirmation">Booking Confirmation</option>
+                      <option value="TripUpdate">Trip Update</option>
+                      <option value="Reminder">Reminder</option>
+                      <option value="PaymentReceipt">Payment Receipt</option>
+                      <option value="SystemAlert">System Alert</option>
+                      <option value="Promotion">Promotion</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                    Delivery Channel *
+                    Recipient Address or Phone
                   </label>
-                  <select
-                    className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
-                    defaultValue="Email"
-                  >
-                    <option value="Email">Email</option>
-                    <option value="SMS">SMS (Dialog Gateway)</option>
-                    <option value="Push">Push Notification</option>
-                    <option value="InApp">In-App Notification</option>
-                  </select>
+                  <input
+                    type="text"
+                    readOnly
+                    value={testRecipient}
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%', backgroundColor: '#f8fafc', color: '#475569' }}
+                  />
                 </div>
 
                 <div>
@@ -461,7 +600,7 @@ export default function NotificationLogs() {
                   <textarea
                     required
                     rows={3}
-                    placeholder="Enter test message payload..."
+                    placeholder="Enter notification message payload..."
                     style={{
                       width: '100%',
                       padding: '0.5rem 0.75rem',
@@ -470,7 +609,8 @@ export default function NotificationLogs() {
                       fontSize: '0.8125rem',
                       boxSizing: 'border-box'
                     }}
-                    defaultValue="Serendib Trails: Your booking #BK-9281 has been confirmed with hotel hold."
+                    value={testContent}
+                    onChange={(e) => setTestContent(e.target.value)}
                   />
                 </div>
 
@@ -479,11 +619,12 @@ export default function NotificationLogs() {
                     type="button"
                     className="btn-outline"
                     onClick={() => setShowTestModal(false)}
+                    disabled={sendingTest}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn-gold">
-                    Dispatch notification
+                  <button type="submit" className="btn-gold" disabled={sendingTest}>
+                    {sendingTest ? 'Dispatching…' : 'Dispatch notification'}
                   </button>
                 </div>
               </form>
@@ -537,7 +678,13 @@ export default function NotificationLogs() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
                 <div className="profile-stat-box">
-                  <span className="profile-stat-label">Recipient</span>
+                  <span className="profile-stat-label">Customer Name</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#182126' }}>
+                    {selectedNotification.customerName}
+                  </span>
+                </div>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Recipient Contact</span>
                   <span className="profile-stat-val" style={{ fontSize: '0.8125rem', wordBreak: 'break-all' }}>
                     {selectedNotification.recipient}
                   </span>
@@ -558,6 +705,12 @@ export default function NotificationLogs() {
                   <span className="profile-stat-label">Delivery Status</span>
                   <span className="profile-stat-val" style={{ fontSize: '0.8125rem' }}>
                     {selectedNotification.status}
+                  </span>
+                </div>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Customer ID</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.725rem', color: '#66747b', wordBreak: 'break-all' }}>
+                    {selectedNotification.customerId || '—'}
                   </span>
                 </div>
               </div>

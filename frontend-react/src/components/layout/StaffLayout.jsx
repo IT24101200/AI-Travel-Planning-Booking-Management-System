@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import {
-  MountainSnowIcon,
+  LeafIcon,
   ClipboardCheckIcon,
   ChartTrendingIcon,
   UsersIcon,
@@ -75,8 +75,8 @@ export function StaffLayout() {
       {isMobile && (
         <div className="staff__mobile-bar">
           <div className="staff__mobile-brand">
-            <span className="staff__brand-box">
-              <MountainSnowIcon size={18} />
+            <span className="staff__brand-box" style={{ width: '34px', height: '34px', borderRadius: '10px' }}>
+              <LeafIcon size={18} />
             </span>
             <div className="staff__mobile-crumbs">
               <Link to="/" className="staff__mobile-crumb-home">
@@ -100,13 +100,13 @@ export function StaffLayout() {
       {/* Staff Sidebar */}
       {(!isMobile || mobileMenuOpen) && (
         <aside className={`staff__side${isMobile && mobileMenuOpen ? ' is-mobile-open' : ''}`}>
-          <Link to="/" className="staff__brand">
+          <Link to="/" className="staff__brand" title="Serendib Trails — Home">
             <span className="staff__brand-box">
-              <MountainSnowIcon size={22} />
+              <LeafIcon size={22} />
             </span>
             <div className="staff__brand-text">
               <b className="staff__brand-name">Serendib Trails</b>
-              <span className="staff__brand-sub">Staff console</span>
+              <span className="staff__brand-sub">Sri Lanka · Since 2016</span>
             </div>
           </Link>
 
