@@ -69,14 +69,19 @@ export default function CustomerDirectory() {
             phone: c.phone || '+94 77 428 1120',
             location: c.city ? `${c.city}, ${c.country || 'Sri Lanka'}` : 'Colombo, Sri Lanka',
             joinedAt: c.joinedAt ? c.joinedAt.split('T')[0] : (c.createdAt ? c.createdAt.split('T')[0] : '14 Mar 2023'),
-            trips: c.tripCount ?? c.trips ?? (isStaff ? 0 : 3),
+            trips: c.tripCount ?? c.trips ?? 0,
             lastActive: c.lastActiveAt ? c.lastActiveAt.split('T')[0] : 'Today',
-            // Detailed travel profile matching Figma specs
+            hasPreference: c.hasPreference || !!(c.budgetMin || c.preferredActivities || c.preference),
+            // Dynamic travel profile from database preference records
             travelProfile: {
-              budgetRange: c.budgetRange || '$2,500–$4,000 per trip',
-              preferredActivities: c.preferredActivities || 'Heritage sites · Tea country · Wildlife photography · Local cuisine',
-              dietaryNotes: c.dietaryNotes || 'Pescatarian; avoids peanuts',
-              accessibility: c.accessibility || 'Low-step vehicle preferred; ground-floor room when available'
+              budgetRange: (c.budgetMin != null && c.budgetMax != null)
+                ? `$${Number(c.budgetMin).toLocaleString()}–$${Number(c.budgetMax).toLocaleString()} ${c.currency || 'USD'}`
+                : (c.preference?.budgetMin != null && c.preference?.budgetMax != null)
+                  ? `$${Number(c.preference.budgetMin).toLocaleString()}–$${Number(c.preference.budgetMax).toLocaleString()} ${c.preference.currency || 'USD'}`
+                  : (c.budgetRange || (isStaff ? 'N/A (Staff member)' : 'Not specified yet')),
+              preferredActivities: c.preferredActivities || c.preference?.preferredActivities || (isStaff ? 'Internal operations' : 'Not specified yet'),
+              dietaryNotes: c.dietaryNotes || c.preference?.dietaryNotes || (isStaff ? 'N/A' : 'None specified'),
+              accessibility: c.accessibilityNotes || c.preference?.accessibilityNotes || c.accessibility || (isStaff ? 'N/A' : 'Standard accommodations')
             }
           }
         })
@@ -420,30 +425,56 @@ export default function CustomerDirectory() {
               </div>
             </div>
 
-            {/* Travel Profile Section */}
-            <div>
-              <p className="profile-section-title">Travel profile</p>
+            {/* Travel Profile Section for Customers, or Operational Profile for Staff */}
+            {selectedUser.isStaff ? (
+              <div>
+                <p className="profile-section-title">Staff / Operations profile</p>
 
-              <div className="profile-pref-item">
-                <span className="profile-pref-label">Budget Range</span>
-                <span className="profile-pref-val">{selectedUser.travelProfile.budgetRange}</span>
-              </div>
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Department</span>
+                  <span className="profile-pref-val">{selectedUser.department || 'Operations'}</span>
+                </div>
 
-              <div className="profile-pref-item">
-                <span className="profile-pref-label">Preferred Activities</span>
-                <span className="profile-pref-val">{selectedUser.travelProfile.preferredActivities}</span>
-              </div>
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Access Level</span>
+                  <span className="profile-pref-val">{selectedUser.role} (Internal Management Portal)</span>
+                </div>
 
-              <div className="profile-pref-item">
-                <span className="profile-pref-label">Dietary Notes</span>
-                <span className="profile-pref-val">{selectedUser.travelProfile.dietaryNotes}</span>
-              </div>
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Corporate Email</span>
+                  <span className="profile-pref-val">{selectedUser.email}</span>
+                </div>
 
-              <div className="profile-pref-item">
-                <span className="profile-pref-label">Accessibility Accommodations</span>
-                <span className="profile-pref-val">{selectedUser.travelProfile.accessibility}</span>
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Internal Responsibilities</span>
+                  <span className="profile-pref-val">Tour catalog management, booking approvals, itinerary reviews</span>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <p className="profile-section-title">Travel profile</p>
+
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Budget Range</span>
+                  <span className="profile-pref-val">{selectedUser.travelProfile.budgetRange}</span>
+                </div>
+
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Preferred Activities</span>
+                  <span className="profile-pref-val">{selectedUser.travelProfile.preferredActivities}</span>
+                </div>
+
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Dietary Notes</span>
+                  <span className="profile-pref-val">{selectedUser.travelProfile.dietaryNotes}</span>
+                </div>
+
+                <div className="profile-pref-item">
+                  <span className="profile-pref-label">Accessibility Accommodations</span>
+                  <span className="profile-pref-val">{selectedUser.travelProfile.accessibility}</span>
+                </div>
+              </div>
+            )}
 
             {/* Bottom Action Button */}
             <button

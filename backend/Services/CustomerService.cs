@@ -123,6 +123,7 @@ namespace backend.Services
 
         private static CustomerDto MapToDto(Customer customer, string? email, string? department = null)
         {
+            var pref = customer.Preference;
             return new CustomerDto
             {
                 Id = customer.Id,
@@ -134,7 +135,25 @@ namespace backend.Services
                 TripCount = customer.TripRequests?.Count ?? 0,
                 JoinedAt = customer.JoinedAt,
                 LastActiveAt = customer.LastActiveAt,
-                HasPreference = customer.Preference != null
+                HasPreference = pref != null,
+                BudgetMin = pref?.BudgetMin,
+                BudgetMax = pref?.BudgetMax,
+                Currency = pref?.Currency ?? "USD",
+                PreferredActivities = pref?.PreferredActivities,
+                DietaryNotes = pref?.DietaryNotes,
+                AccessibilityNotes = pref?.AccessibilityNotes,
+                Preference = pref == null ? null : new PreferenceDto
+                {
+                    Id = pref.Id,
+                    CustomerId = pref.CustomerId,
+                    BudgetMin = pref.BudgetMin,
+                    BudgetMax = pref.BudgetMax,
+                    Currency = pref.Currency,
+                    PreferredActivities = pref.PreferredActivities,
+                    DietaryNotes = pref.DietaryNotes,
+                    AccessibilityNotes = pref.AccessibilityNotes,
+                    UpdatedAt = pref.UpdatedAt
+                }
             };
         }
     }
