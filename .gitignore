@@ -6,6 +6,7 @@ backend/wwwroot/uploads/
 backend/appsettings.Development.json
 backend.Tests/bin/
 backend.Tests/obj/
+main.py
 
 # React frontend
 frontend-react/node_modules/
