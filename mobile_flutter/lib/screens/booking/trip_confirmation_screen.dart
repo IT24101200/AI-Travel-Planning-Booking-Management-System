@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../app_constants.dart';
 
-/// Trip confirmation screen matching Figma frame 13 · Trip Confirmation (node 7:11118)
+/// Trip confirmation screen showing final booking pass, QR ticket, and success celebration.
 class TripConfirmationScreen extends StatelessWidget {
   const TripConfirmationScreen({super.key});
 
@@ -11,437 +10,261 @@ class TripConfirmationScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final booking =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    final bookingRef =
-        booking?['bookingReference']?.toString() ?? 'ST-284619';
-    final customerName =
-        booking?['customerName']?.toString() ?? 'Maya Fernando';
-    final tripTitle =
-        booking?['destination'] ?? 'Sri Lanka Discovery';
-    final dates =
-        booking?['dates'] ?? '12–18 October 2026 · 7 days / 6 nights';
+    final bookingRef = booking?['bookingReference'] ?? 'SERENDIB-CONFIRMED';
+    final total = (booking?['totalCost'] ?? booking?['totalEstimatedCost'] ?? 0)
+        .toDouble();
+    final currency = booking?['currency'] ?? 'USD';
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const SizedBox(height: 10),
+      appBar: AppBar(
+        title: const Text('Trip Confirmed'),
+        automaticallyImplyLeading: false,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const SizedBox(height: 10),
 
-              // ── Success Halo & Icon ──
-              Center(
-                child: Container(
-                  width: 92,
-                  height: 92,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE5F1EA),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFC8E4D4),
-                      width: 8,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 58,
-                    height: 58,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF267A55),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                ),
+            // Success Icon Banner
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.leaf50,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.leaf200, width: 2),
               ),
-
-              const SizedBox(height: 14),
-
-              // ── Headline & Subhead ──
-              Text(
-                'Booking Confirmed!',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.figmaDarkGreen,
-                ),
+              child: const Icon(
+                Icons.check_circle,
+                size: 54,
+                color: AppColors.jungle600,
               ),
-              const SizedBox(height: 6),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Your Sri Lankan journey is secured. Tickets and partner contacts are now available offline.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    color: const Color(0xFF6B7280),
-                    height: 1.4,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+            ),
+            const SizedBox(height: 16),
+
+            const Text(
+              'Journey Confirmed!',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: AppColors.ink,
+                letterSpacing: -0.5,
               ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Your payment was authorized and commercial booking finalized.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.ink3, fontSize: 13),
+            ),
+            const SizedBox(height: 24),
 
-              const SizedBox(height: 12),
-
-              // ── Booking Reference Pill ──
-              GestureDetector(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: bookingRef));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Copied "$bookingRef" to clipboard')),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF6EBCB),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'BOOKING REFERENCE',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF6B7280),
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        bookingRef,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF123F32),
-                        ),
-                      ),
-                    ],
-                  ),
+            // ── Travel Pass / Voucher Card ──
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: AppColors.leaf400.withValues(alpha: 0.4),
                 ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── Confirmation Card ──
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF10291F).withValues(alpha: 0.08),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Photo Banner
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: SizedBox(
-                        height: 116,
-                        width: double.infinity,
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=800&auto=format&fit=crop&q=80',
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                            color: const Color(0xFF374151),
-                            child: const Icon(
-                              Icons.landscape,
-                              color: Colors.white54,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Trip Heading
-                    Text(
-                      tripTitle,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.figmaDarkGreen,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      dates,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: const Color(0xFF6B7280),
-                      ),
-                    ),
-
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(
-                        height: 1,
-                        color: Color(0xFFE4E7E2),
-                      ),
-                    ),
-
-                    // 4 Recap Rows
-                    _buildRecapRow(
-                      icon: Icons.place_outlined,
-                      label: 'Destinations',
-                      value: 'Sigiriya · Kandy · Ella · Mirissa',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildRecapRow(
-                      icon: Icons.hotel_outlined,
-                      label: 'Hotel',
-                      value: 'Heritance Kandalama + 2 stays',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildRecapRow(
-                      icon: Icons.directions_car_outlined,
-                      label: 'Transport',
-                      value: 'Private car + reserved train',
-                    ),
-                    const SizedBox(height: 10),
-                    _buildRecapRow(
-                      icon: Icons.people_outline,
-                      label: 'Travelers',
-                      value: '$customerName + 1 guest',
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // ── Share & Download Buttons ──
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Trip itinerary shared!')),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: Color(0xFFE4E7E2)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.share_outlined,
-                              size: 16,
-                              color: Color(0xFF123F32),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Share Trip',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF123F32),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SizedBox(
-                      height: 50,
-                      child: OutlinedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Offline ticket PDF downloaded to storage.'),
-                            ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: Color(0xFFE4E7E2)),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.download_outlined,
-                              size: 16,
-                              color: Color(0xFF123F32),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Download',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF123F32),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 14),
-
-              // ── Next Step Reminder Box ──
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF6EBCB),
-                  borderRadius: BorderRadius.circular(13),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.notifications_active_outlined,
-                      color: AppColors.figmaGold,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        "We'll remind you about visa, weather and packing details 7 days before departure.",
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: const Color(0xFF17211D),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Back to Explore Button ──
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      '/home',
-                      (route) => false,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF123F32),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Icon(Icons.explore_outlined, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Back to Explore',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                      const Row(
+                        children: [
+                          Icon(
+                            Icons.travel_explore,
+                            color: AppColors.jungle600,
+                            size: 22,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'SERENDIB PASS',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                              color: AppColors.jungle900,
+                              letterSpacing: 1.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.leaf100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'READY',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.jungle700,
+                          ),
                         ),
                       ),
                     ],
                   ),
+                  const Divider(height: 24, color: AppColors.line),
+
+                  Text(
+                    bookingRef,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.jungle700,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // QR Code
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.line),
+                    ),
+                    child: QrImageView(
+                      data: bookingRef,
+                      version: QrVersions.auto,
+                      size: 180,
+                      eyeStyle: const QrEyeStyle(
+                        eyeShape: QrEyeShape.square,
+                        color: AppColors.jungle900,
+                      ),
+                      dataModuleStyle: const QrDataModuleStyle(
+                        dataModuleShape: QrDataModuleShape.square,
+                        color: AppColors.jungle800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Instant check-in token for transport, hotels & tour checkpoints',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // ── Summary Details ──
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.line),
+              ),
+              child: Column(
+                children: [
+                  _row('Total Paid', '\$${total.toStringAsFixed(2)} $currency'),
+                  _row('Gateway', 'Stripe Sandbox (tok_visa)'),
+                  _row(
+                    'Confirmation Date',
+                    (() {
+                      final c = booking?['createdAt']?.toString();
+                      if (c == null || c.isEmpty) return 'Today';
+                      return c.length >= 10 ? c.substring(0, 10) : c;
+                    })(),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // Actions
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/home',
+                    (route) => false,
+                  );
+                },
+                icon: const Icon(Icons.explore),
+                label: const Text('Return to Home'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.jungle600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
               ),
-
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pushReplacementNamed(context, '/trip-history');
+                },
+                icon: const Icon(Icons.card_travel, color: AppColors.jungle600),
+                label: const Text(
+                  'View All Bookings',
+                  style: TextStyle(
+                    color: AppColors.jungle600,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.jungle600),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildRecapRow({
-    required IconData icon,
-    required String label,
-    required String value,
-  }) {
-    return Row(
-      children: [
-        Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE5F1EA),
-            borderRadius: BorderRadius.circular(9),
+  Widget _row(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(color: AppColors.ink3, fontSize: 13),
           ),
-          child: Icon(
-            icon,
-            size: 16,
-            color: const Color(0xFF123F32),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+              color: AppColors.ink,
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  color: const Color(0xFF6B7280),
-                ),
-              ),
-              Text(
-                value,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.figmaDarkGreen,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

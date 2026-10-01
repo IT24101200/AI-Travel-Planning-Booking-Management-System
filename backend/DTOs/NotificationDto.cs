@@ -9,10 +9,6 @@ namespace backend.DTOs
     {
         public Guid Id { get; set; }
         public string CustomerId { get; set; } = string.Empty;
-        public string CustomerName { get; set; } = string.Empty;
-        public string CustomerEmail { get; set; } = string.Empty;
-        public string? CustomerPhone { get; set; }
-        public string Recipient { get; set; } = string.Empty;
         public string Channel { get; set; } = string.Empty;
         public string MessageType { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;

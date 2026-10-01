@@ -2,40 +2,20 @@ import { useState, useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
-import {
-  LeafIcon,
-  ClipboardCheckIcon,
-  ChartTrendingIcon,
-  UsersIcon,
-  BellIcon,
-  MapIcon,
-  MapPinIcon,
-  RouteIcon,
-  BuildingIcon,
-  BusFrontIcon,
-  LogOutIcon,
-} from '../ui/Icons.jsx'
 
 const links = [
-  { to: '/staff/bookings', label: 'Approvals', icon: ClipboardCheckIcon },
-  { to: '/staff/payments', label: 'Revenue', icon: ChartTrendingIcon },
-  { to: '/staff/customers', label: 'Customers', icon: UsersIcon },
-  { to: '/staff/notifications', label: 'Notifications', icon: BellIcon },
-  { to: '/staff/tours', label: 'Tours', icon: MapIcon },
-  { to: '/staff/destinations', label: 'Destinations', icon: MapPinIcon },
-  { to: '/staff/itineraries', label: 'Itineraries', icon: RouteIcon },
-  { to: '/staff/hotels', label: 'Hotels', icon: BuildingIcon },
-  { to: '/staff/transport', label: 'Transport', icon: BusFrontIcon },
+  { to: '/staff/bookings', label: 'Approvals' },
+  { to: '/staff/payments', label: 'Revenue' },
+  { to: '/staff/customers', label: 'Customers' },
+  { to: '/staff/notifications', label: 'Notifications' },
+  { to: '/staff/tours', label: 'Tours' },
+  { to: '/staff/destinations', label: 'Destinations' },
+  { to: '/staff/itineraries', label: 'Itineraries' },
+  { to: '/staff/hotels', label: 'Hotels' },
+  { to: '/staff/transport', label: 'Transport' },
 ]
 
-/**
- * Staff console shell designed according to Figma Dev Mode specifications:
- * - Fixed 240px dark slate sidebar (#17242a)
- * - Brand mark with gold rounded icon container (#b7791f)
- * - Icon-based navigation with active indicator marker
- * - User identity block with avatar initials and sign-out
- * - Responsive collapsible drawer on mobile screens
- */
+/** Staff console shell: responsive sidebar on desktop, collapsible drawer on mobile. */
 export function StaffLayout() {
   const { user, logout } = useAuth()
   const { isMobile } = useResponsive()
@@ -49,118 +29,77 @@ export function StaffLayout() {
 
   const activeLink = links.find((l) => location.pathname.startsWith(l.to)) || links[0]
 
-  // Compute initials for user avatar
-  const initials = (() => {
-    if (user?.name) {
-      const parts = user.name.trim().split(/\s+/)
-      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-      return user.name.substring(0, 2).toUpperCase()
-    }
-    if (user?.email) {
-      return user.email.substring(0, 2).toUpperCase()
-    }
-    return 'NK'
-  })()
-
-  const roleTitle = (() => {
-    if (!user?.role) return 'Operations lead'
-    if (user.role.toLowerCase() === 'admin') return 'System administrator'
-    if (user.role.toLowerCase() === 'travelagent') return 'Travel operations agent'
-    return user.role
-  })()
-
   return (
     <div className="staff">
       {/* Mobile Top Bar */}
       {isMobile && (
-        <div className="staff__mobile-bar">
-          <div className="staff__mobile-brand">
-            <span className="staff__brand-box" style={{ width: '34px', height: '34px', borderRadius: '10px' }}>
-              <LeafIcon size={18} />
-            </span>
-            <div className="staff__mobile-crumbs">
-              <Link to="/" className="staff__mobile-crumb-home">
-                Serendib Trails
-              </Link>
-              <span className="staff__mobile-sep">/</span>
-              <span className="staff__mobile-current">{activeLink.label}</span>
-            </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '0.75rem 1rem',
+            backgroundColor: '#1E293B',
+            color: '#FFFFFF',
+            borderBottom: '1px solid #334155',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link to="/" style={{ color: '#94A3B8', textDecoration: 'none', fontSize: '0.8125rem' }}>
+              Serendib Trails
+            </Link>
+            <span style={{ color: '#475569' }}>/</span>
+            <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{activeLink.label}</span>
           </div>
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
-            className="staff__mobile-toggle"
-            aria-label="Toggle navigation menu"
+            style={{
+              backgroundColor: '#334155',
+              color: '#F8FAFC',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '0.35rem 0.75rem',
+              fontSize: '0.8125rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+            }}
           >
-            {mobileMenuOpen ? 'Close ✕' : 'Menu ☰'}
+            {mobileMenuOpen ? 'Close ✕' : 'Staff Menu ☰'}
           </button>
         </div>
       )}
 
-      {/* Staff Sidebar */}
+      {/* Staff Sidebar / Navigation */}
       {(!isMobile || mobileMenuOpen) && (
-        <aside className={`staff__side${isMobile && mobileMenuOpen ? ' is-mobile-open' : ''}`}>
-          <Link to="/" className="staff__brand" title="Serendib Trails — Home">
-            <span className="staff__brand-box">
-              <LeafIcon size={22} />
-            </span>
-            <div className="staff__brand-text">
-              <b className="staff__brand-name">Serendib Trails</b>
-              <span className="staff__brand-sub">Sri Lanka · Since 2016</span>
-            </div>
+        <aside className="staff__side">
+          <Link to="/" className="staff__brand">
+            <b>Serendib Trails</b>
+            <span>Staff console</span>
           </Link>
-
-          <div className="staff__divider" />
-
-          <nav className="staff__nav" aria-label="Staff Navigation">
-            {links.map((item) => {
-              const IconComponent = item.icon
-              const isActive = location.pathname.startsWith(item.to) || (item.to === '/staff/bookings' && location.pathname === '/staff')
-
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={`staff__link${isActive ? ' is-active' : ''}`}
-                >
-                  <span className="staff__link-icon">
-                    <IconComponent size={17} />
-                  </span>
-                  <span className="staff__link-label">{item.label}</span>
-                  {isActive && <span className="staff__link-marker" />}
-                </NavLink>
-              )
-            })}
+          <nav className="staff__nav" aria-label="Staff">
+            {links.map((l) => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                className={({ isActive }) => `staff__link${isActive ? ' is-active' : ''}`}
+              >
+                {l.label}
+              </NavLink>
+            ))}
           </nav>
-
-          <div className="staff__side-spacer" />
-
-          {/* Account & Profile Footer */}
-          <div className="staff__account">
-            <div className="staff__user-card">
-              <div className="staff__avatar">{initials}</div>
-              <div className="staff__identity">
-                <span className="staff__role-label">{roleTitle}</span>
-                <span className="staff__email-label" title={user?.email || 'n.kapoor@serendib.lk'}>
-                  {user?.email || 'n.kapoor@serendib.lk'}
-                </span>
-              </div>
-            </div>
-            <Link to="/" className="staff__signout" style={{ color: '#8fa0a6' }}>
-              <span>← View customer website</span>
-            </Link>
-            <Link to="/" className="staff__signout" onClick={logout}>
-              <LogOutIcon size={14} />
-              <span>Sign out</span>
+          <div className="staff__foot">
+            <span className="staff__user">{user?.email}</span>
+            <Link to="/" className="staff__ghost" onClick={logout}>
+              Sign out
             </Link>
           </div>
         </aside>
       )}
 
-      {/* Main Content Workspace */}
-      <main className="staff__main" id="staff-workspace">
+      <div className="staff__main">
         <Outlet />
-      </main>
+      </div>
     </div>
   )
 }

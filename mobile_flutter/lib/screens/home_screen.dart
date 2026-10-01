@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../app_constants.dart';
 import '../services/api_service.dart';
+import '../widgets/common_widgets.dart';
 import 'profile/trip_history_screen.dart';
 import 'profile/notifications_screen.dart';
 import 'profile/profile_preferences_screen.dart';
@@ -53,22 +53,36 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F5EF),
       body: screens[_currentIndex],
+      floatingActionButton: _currentIndex == 0
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.pushNamed(context, '/trip-request'),
+              backgroundColor: AppColors.jungle600,
+              elevation: 4,
+              icon: const Icon(Icons.auto_awesome, color: AppColors.sand400),
+              label: const Text(
+                'AI Plan Trip',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            )
+          : null,
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+          border: Border(top: BorderSide(color: AppColors.line, width: 1)),
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
-          selectedItemColor: AppColors.figmaDarkGreen,
-          unselectedItemColor: const Color(0xFF9CA3AF),
-          selectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w500),
+          selectedItemColor: AppColors.jungle600,
+          unselectedItemColor: AppColors.ink3,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
           elevation: 0,
           items: const [
             BottomNavigationBarItem(
@@ -77,12 +91,12 @@ class _HomeScreenState extends State<HomeScreen> {
               label: 'Explore',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.luggage_outlined),
-              activeIcon: Icon(Icons.luggage),
+              icon: Icon(Icons.card_travel_outlined),
+              activeIcon: Icon(Icons.card_travel),
               label: 'My Trips',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_none_outlined),
+              icon: Icon(Icons.notifications_outlined),
               activeIcon: Icon(Icons.notifications),
               label: 'Alerts',
             ),
@@ -98,7 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Rich Explore Dashboard Tab matching Figma Frame 04
+/// Rich Explore Dashboard Tab
 class _ExploreTab extends StatefulWidget {
   final String userName;
   const _ExploreTab({required this.userName});
@@ -131,56 +145,47 @@ class _ExploreTabState extends State<_ExploreTab> {
     }
   }
 
-  String _getUserInitials() {
-    if (widget.userName.isEmpty) return 'MF';
-    final parts = widget.userName.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    }
-    return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final greetingName = widget.userName.isNotEmpty
-        ? widget.userName.split(' ').first.toUpperCase()
-        : 'MAYA';
-
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Top Hero with Scenic Backdrop, Avatar & Search Pill ──
+          // ── Hero Header with Sri Lanka Scenic Photo ──
           Stack(
-            clipBehavior: Clip.none,
             children: [
               Container(
-                height: 230,
+                height: 250,
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/photos/ella-1280.jpg'),
+                    image: AssetImage(AppDestinations.heroSigiriya),
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
+              // Gradient Overlay
               Container(
-                height: 230,
+                height: 250,
                 width: double.infinity,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Colors.black.withValues(alpha: 0.35),
-                      Colors.black.withValues(alpha: 0.65),
+                      AppColors.jungle900.withValues(alpha: 0.4),
+                      AppColors.jungle900.withValues(alpha: 0.85),
                     ],
                   ),
                 ),
               ),
+              // Header Content
               SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -191,387 +196,317 @@ class _ExploreTabState extends State<_ExploreTab> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'AYUBOWAN, $greetingName',
-                                style: GoogleFonts.plusJakartaSans(
-                                  color: Colors.white.withValues(alpha: 0.8),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1.1,
+                                widget.userName.isNotEmpty
+                                    ? 'Hello, ${widget.userName.split(' ').first}'
+                                    : 'Ayubowan!',
+                                style: const TextStyle(
+                                  color: AppColors.sand400,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
-                              const SizedBox(height: 2),
-                              Text(
+                              const Text(
                                 'Explore Serendib',
-                                style: GoogleFonts.plusJakartaSans(
+                                style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 26,
+                                  fontSize: 24,
                                   fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
                                 ),
                               ),
                             ],
                           ),
-                          GestureDetector(
-                            onTap: () => Navigator.pushNamed(context, '/profile-preferences'),
-                            child: Container(
-                              width: 38,
-                              height: 38,
-                              decoration: const BoxDecoration(
-                                color: AppColors.figmaGold,
-                                shape: BoxShape.circle,
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.search,
+                                color: Colors.white,
                               ),
-                              child: Center(
-                                child: Text(
-                                  _getUserInitials(),
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: AppColors.figmaDarkGreen,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/tour-search'),
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              // Search Pill overlapping hero bottom
-              Positioned(
-                bottom: -22,
-                left: 20,
-                right: 20,
-                child: GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/tour-search'),
-                  child: Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.search, color: Color(0xFF6B7280), size: 20),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Search places, tours & stays',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: const Color(0xFF6B7280),
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
+                      const SizedBox(height: 18),
+                      // Search Trigger Bar
+                      InkWell(
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/tour-search'),
+                        borderRadius: BorderRadius.circular(14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(
+                                Icons.search,
+                                color: AppColors.jungle600,
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Find tours, waterfalls, tea trails...',
+                                  style: TextStyle(
+                                    color: AppColors.ink3,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              Icon(Icons.tune, color: AppColors.ink3, size: 18),
+                            ],
                           ),
                         ),
-                        const Icon(Icons.tune, color: Color(0xFF6B7280), size: 18),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 36),
+          const SizedBox(height: 16),
 
-          // ── 4 Quick Actions Row ──
+          // ── Quick Navigation Services Grid ──
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
                 _buildQuickAction(
+                  context,
                   icon: Icons.auto_awesome,
                   label: 'AI Plan',
+                  color: AppColors.jungle600,
                   onTap: () => Navigator.pushNamed(context, '/trip-request'),
                 ),
-                const SizedBox(width: 10),
                 _buildQuickAction(
-                  icon: Icons.map_outlined,
+                  context,
+                  icon: Icons.tour_outlined,
                   label: 'Tours',
+                  color: AppColors.ocean500,
                   onTap: () => Navigator.pushNamed(context, '/tour-search'),
                 ),
-                const SizedBox(width: 10),
                 _buildQuickAction(
-                  icon: Icons.apartment_outlined,
+                  context,
+                  icon: Icons.hotel_outlined,
                   label: 'Hotels',
+                  color: AppColors.sand600,
                   onTap: () => Navigator.pushNamed(context, '/accommodation'),
                 ),
-                const SizedBox(width: 10),
                 _buildQuickAction(
-                  icon: Icons.directions_subway_outlined,
+                  context,
+                  icon: Icons.directions_bus_outlined,
                   label: 'Transit',
+                  color: AppColors.coral500,
                   onTap: () => Navigator.pushNamed(context, '/transport'),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                _buildQuickAction(
-                  icon: Icons.calendar_month_outlined,
-                  label: 'My Itineraries',
-                  onTap: () => Navigator.pushNamed(context, '/itinerary'),
-                ),
-              ],
-            ),
+          // ── Popular Destinations Carousel ──
+          SectionHeader(
+            title: 'Top Destinations',
+            subtitle: 'Iconic wonders across the pearl of the Indian Ocean',
+            actionLabel: 'See All',
+            onAction: () => Navigator.pushNamed(context, '/tour-search'),
           ),
-
-          const SizedBox(height: 26),
-
-          // ── Dream Destinations Section ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Dream destinations',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF111827),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/tour-search'),
-                  child: Text(
-                    'See all',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF166B4F),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-
           SizedBox(
-            height: 145,
-            child: ListView(
+            height: 210,
+            child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [
-                _buildDestinationCard(
-                  name: 'Ella',
-                  category: 'Tea country',
-                  imagePath: 'assets/photos/ella-1280.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Ella'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Mirissa',
-                  category: 'South coast',
-                  imagePath: 'assets/photos/mirissa-1280.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Mirissa'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Yala',
-                  category: 'Wild frontier',
-                  imagePath: 'assets/photos/yala-1280.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Yala'),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 22),
-
-          // ── Four Agents One Seamless Trip Banner ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: GestureDetector(
-              onTap: () => Navigator.pushNamed(context, '/trip-request'),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.figmaDarkGreen,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: AppColors.figmaGold,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome,
-                        color: AppColors.figmaDarkGreen,
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Four agents. One seamless trip.',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Routes, rooms, transport and review — coordinated in minutes.',
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white.withValues(alpha: 0.75),
-                              fontSize: 11,
-                              height: 1.25,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(
-                      Icons.arrow_forward,
-                      color: AppColors.figmaGold,
-                      size: 20,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ── Featured Tours Section ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Featured tours',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF111827),
+              itemCount: AppDestinations.featured.length,
+              itemBuilder: (context, index) {
+                final dest = AppDestinations.featured[index];
+                return DestinationCardWidget(
+                  name: dest.name,
+                  region: dest.region,
+                  tagline: dest.tagline,
+                  imageUrl: dest.imageUrl,
+                  rating: dest.rating,
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/tour-search',
+                    arguments: dest.name,
                   ),
-                ),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/tour-search'),
-                  child: Text(
-                    'Browse',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF166B4F),
-                    ),
-                  ),
-                ),
-              ],
+                );
+              },
             ),
-          ),
-          const SizedBox(height: 12),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _loadingTours
-                ? const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator(strokeWidth: 2)))
-                : _buildFigmaFeaturedTourCard(),
           ),
 
           const SizedBox(height: 20),
 
-          // ── Sticky AI Plan My Trip Pill Button ──
+          // ── AI Planner Banner Card ──
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pushNamed(context, '/trip-request'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.figmaDarkGreen,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(26),
-                  ),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [AppColors.jungle700, AppColors.jungle800],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                    const SizedBox(width: 8),
-                    Text(
-                      'AI Plan My Trip',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.jungle900.withValues(alpha: 0.15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.psychology,
+                      color: AppColors.sand400,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Multi-Agent Trip Planner',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Let 4 autonomous agents build, schedule & validate your dream vacation.',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, '/trip-request'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.sand500,
+                      foregroundColor: AppColors.jungle900,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                  ],
-                ),
+                    child: const Text(
+                      'Start',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
 
-          const SizedBox(height: 30),
+          const SizedBox(height: 20),
+
+          // ── Featured Tours Section ──
+          SectionHeader(
+            title: 'Curated Experiences',
+            subtitle: 'Hand-picked guided tours and heritage walks',
+            actionLabel: 'Browse All',
+            onAction: () => Navigator.pushNamed(context, '/tour-search'),
+          ),
+
+          if (_loadingTours)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: LoadingIndicator(message: 'Loading tours...'),
+            )
+          else if (_tours.isEmpty)
+            // Fallback preview cards if database is freshly seeded
+            _buildSampleTourList(context)
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(bottom: 90),
+              itemCount: _tours.length > 5 ? 5 : _tours.length,
+              itemBuilder: (context, index) {
+                final tour = _tours[index];
+                return _buildTourCard(context, tour);
+              },
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildQuickAction({
+  Widget _buildQuickAction(
+    BuildContext context, {
     required IconData icon,
     required String label,
+    required Color color,
     required VoidCallback onTap,
   }) {
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: AppColors.figmaDarkGreen, size: 22),
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 24),
+              ),
               const SizedBox(height: 6),
               Text(
                 label,
-                style: GoogleFonts.plusJakartaSans(
+                style: const TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF111827),
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.ink2,
                 ),
               ),
             ],
@@ -581,58 +516,130 @@ class _ExploreTabState extends State<_ExploreTab> {
     );
   }
 
-  Widget _buildDestinationCard({
-    required String name,
-    required String category,
-    required String imagePath,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 115,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          image: DecorationImage(
-            image: AssetImage(imagePath),
-            fit: BoxFit.cover,
+  Widget _buildTourCard(BuildContext context, Map<String, dynamic> tour) {
+    final tourName = tour['name'] ?? 'Tour';
+    final uploadedImage = ApiService.resolveMediaUrl(
+      tour['imageUrl']?.toString(),
+    );
+    final imageUrl = uploadedImage.isNotEmpty
+        ? uploadedImage
+        : AppDestinations.getImageForDestination(tourName);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
+        ],
+        border: Border.all(color: AppColors.line),
+      ),
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/tour-details',
+          arguments: tour['id'],
         ),
-        child: Stack(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(18),
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.3),
-                    Colors.black.withValues(alpha: 0.6),
-                  ],
+            // Image with Price Tag Overlay
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
+                  child: AppNetworkImage(
+                    imageUrl: imageUrl,
+                    height: 140,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    category,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.jungle800.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '\$${(tour['price'] ?? 0).toStringAsFixed(0)} ${tour['currency'] ?? 'USD'}',
+                      style: const TextStyle(
+                        color: AppColors.sand400,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
+                ),
+                Positioned(
+                  bottom: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.schedule,
+                          size: 12,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${tour['durationHours'] ?? 2} Hours',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Content
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    name,
-                    style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                    tourName,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tour['category'] ?? 'Sightseeing Tour',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.jungle600,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -644,99 +651,37 @@ class _ExploreTabState extends State<_ExploreTab> {
     );
   }
 
-  Widget _buildFigmaFeaturedTourCard() {
-    final tour = _tours.isNotEmpty ? _tours.first : null;
-    final tourName = tour != null ? (tour['name'] ?? 'Kandy Heritage & Lake Walk') : 'Kandy Heritage & Lake Walk';
-    final tourPrice = tour != null ? (tour['price'] ?? 42) : 42;
-    final tourDuration = tour != null ? (tour['durationHours'] ?? 6) : 6;
-    final tourCategory = tour != null ? (tour['category'] ?? 'CULTURE').toString().toUpperCase() : 'CULTURE';
-
-    return GestureDetector(
-      onTap: () {
-        if (tour != null && tour['id'] != null) {
-          Navigator.pushNamed(context, '/tour-details', arguments: tour['id']);
-        } else {
-          Navigator.pushNamed(context, '/tour-search');
-        }
+  Widget _buildSampleTourList(BuildContext context) {
+    final sampleTours = [
+      {
+        'name': 'Sigiriya Lion Rock Sunrise Climb',
+        'price': 185,
+        'category': 'UNESCO Heritage',
+        'durationHours': 4,
       },
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                'assets/photos/kandy-1280.jpg',
-                width: 76,
-                height: 64,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 76,
-                  height: 64,
-                  color: AppColors.figmaDarkGreen,
-                  child: const Icon(Icons.landscape, color: Colors.white),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    tourCategory,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.figmaGold,
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    tourName,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF111827),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.star_border, color: AppColors.figmaGold, size: 14),
-                      const SizedBox(width: 3),
-                      Text(
-                        '4.8',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF374151),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '· $tourDuration hours · from \$$tourPrice',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: const Color(0xFF6B7280),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      {
+        'name': 'Ella Nine Arches Bridge & Tea Walk',
+        'price': 145,
+        'category': 'Hiking & Train',
+        'durationHours': 3,
+      },
+      {
+        'name': 'Mirissa Whale Watching Cruise',
+        'price': 168,
+        'category': 'Marine Wildlife',
+        'durationHours': 5,
+      },
+    ];
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(bottom: 90),
+      itemCount: sampleTours.length,
+      itemBuilder: (context, index) {
+        final tour = sampleTours[index];
+        return _buildTourCard(context, tour);
+      },
     );
   }
 }

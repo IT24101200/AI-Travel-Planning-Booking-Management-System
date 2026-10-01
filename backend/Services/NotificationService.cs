@@ -18,18 +18,11 @@ namespace backend.Services
         public async Task<List<NotificationDto>> GetByCustomerIdAsync(
             string? customerId, string? status, DateTime? from, DateTime? to, int page, int pageSize)
         {
-            var query = _db.Notifications
-                .Include(n => n.Customer)
-                .AsQueryable();
+            var query = _db.Notifications.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(customerId))
             {
                 query = query.Where(n => n.CustomerId == customerId);
-            }
-            else
-            {
-                // In staff outbox: show only notifications belonging to Customers
-                query = query.Where(n => n.Customer.Role == "Customer" || string.IsNullOrEmpty(n.Customer.Role));
             }
 
             // Filter by status
@@ -48,21 +41,12 @@ namespace backend.Services
                 query = query.Where(n => n.SentAt <= to.Value);
             }
 
-            var notifications = await query
+            return await query
                 .OrderByDescending(n => n.SentAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
+                .Select(n => MapToDto(n))
                 .ToListAsync();
-
-            // Fetch user emails for all matching customer IDs
-            var customerIds = notifications.Select(n => n.CustomerId).Distinct().ToList();
-            var userEmails = await _db.Users
-                .Where(u => customerIds.Contains(u.Id))
-                .ToDictionaryAsync(u => u.Id, u => u.Email ?? "");
-
-            return notifications
-                .Select(n => MapToDto(n, userEmails.GetValueOrDefault(n.CustomerId, "")))
-                .ToList();
         }
 
         public async Task<int> GetCountAsync(string? customerId, string? status, DateTime? from, DateTime? to)
@@ -72,10 +56,6 @@ namespace backend.Services
             if (!string.IsNullOrWhiteSpace(customerId))
             {
                 query = query.Where(n => n.CustomerId == customerId);
-            }
-            else
-            {
-                query = query.Where(n => n.Customer.Role == "Customer" || string.IsNullOrEmpty(n.Customer.Role));
             }
 
             if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<NotificationStatus>(status, true, out var parsed))
@@ -93,19 +73,13 @@ namespace backend.Services
 
         public async Task<NotificationDto?> GetByIdAsync(Guid notificationId)
         {
-            var n = await _db.Notifications
-                .Include(n => n.Customer)
-                .FirstOrDefaultAsync(n => n.Id == notificationId);
-            if (n == null) return null;
-
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == n.CustomerId);
-            return MapToDto(n, user?.Email ?? "");
+            var n = await _db.Notifications.FindAsync(notificationId);
+            return n == null ? null : MapToDto(n);
         }
 
         public async Task<NotificationDto?> MarkAsReadAsync(Guid notificationId, string customerId)
         {
             var notification = await _db.Notifications
-                .Include(n => n.Customer)
                 .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
 
             if (notification == null) return null;
@@ -114,14 +88,12 @@ namespace backend.Services
             notification.ReadAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == notification.CustomerId);
-            return MapToDto(notification, user?.Email ?? "");
+            return MapToDto(notification);
         }
 
         public async Task<NotificationDto?> MarkAsUnreadAsync(Guid notificationId, string customerId)
         {
             var notification = await _db.Notifications
-                .Include(n => n.Customer)
                 .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
 
             if (notification == null) return null;
@@ -130,8 +102,7 @@ namespace backend.Services
             notification.ReadAt = null;
             await _db.SaveChangesAsync();
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == notification.CustomerId);
-            return MapToDto(notification, user?.Email ?? "");
+            return MapToDto(notification);
         }
 
         public async Task<int> MarkAllAsReadAsync(string customerId)
@@ -150,33 +121,31 @@ namespace backend.Services
             return unread.Count;
         }
 
-        public async Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string? customerId = null)
+        public async Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string customerId)
         {
-            var query = _db.Notifications
-                .Include(n => n.Customer)
-                .AsQueryable();
-            if (!string.IsNullOrEmpty(customerId))
-            {
-                query = query.Where(n => n.CustomerId == customerId);
-            }
+            var notification = await _db.Notifications
+                .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
 
-            var notification = await query.FirstOrDefaultAsync(n => n.Id == notificationId);
             if (notification == null) return null;
 
-            // Reset to Sent for re-delivery
-            notification.Status = NotificationStatus.Sent;
+            if (notification.Status != NotificationStatus.Failed)
+            {
+                throw new InvalidOperationException("Only failed notifications can be resent.");
+            }
+
+            // Reset to Pending for re-delivery
+            notification.Status = NotificationStatus.Pending;
             notification.SentAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == notification.CustomerId);
-            return MapToDto(notification, user?.Email ?? "");
+            return MapToDto(notification);
         }
 
         public async Task<NotificationDto> SendNotificationAsync(SendNotificationDto dto)
         {
             // Validate customer exists
-            var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == dto.CustomerId);
-            if (customer == null)
+            var customerExists = await _db.Customers.AnyAsync(c => c.Id == dto.CustomerId);
+            if (!customerExists)
                 throw new KeyNotFoundException($"Customer with ID '{dto.CustomerId}' not found.");
 
             // Parse Channel enum from string
@@ -200,39 +169,15 @@ namespace backend.Services
             _db.Notifications.Add(notification);
             await _db.SaveChangesAsync();
 
-            notification.Customer = customer;
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == dto.CustomerId);
-
-            return MapToDto(notification, user?.Email ?? "");
+            return MapToDto(notification);
         }
 
-        private static NotificationDto MapToDto(Notification n, string userEmail = "")
+        private static NotificationDto MapToDto(Notification n)
         {
-            var customerName = n.Customer?.FullName ?? "Customer";
-            var customerPhone = n.Customer?.Phone;
-
-            string recipient;
-            if (n.Channel == NotificationChannel.SMS)
-            {
-                recipient = !string.IsNullOrWhiteSpace(customerPhone)
-                    ? customerPhone
-                    : (!string.IsNullOrWhiteSpace(userEmail) ? userEmail : customerName);
-            }
-            else
-            {
-                recipient = !string.IsNullOrWhiteSpace(userEmail)
-                    ? userEmail
-                    : (!string.IsNullOrWhiteSpace(customerPhone) ? customerPhone : customerName);
-            }
-
             return new NotificationDto
             {
                 Id = n.Id,
                 CustomerId = n.CustomerId,
-                CustomerName = customerName,
-                CustomerEmail = userEmail,
-                CustomerPhone = customerPhone,
-                Recipient = recipient,
                 Channel = n.Channel.ToString(),
                 MessageType = n.MessageType.ToString(),
                 Content = n.Content,

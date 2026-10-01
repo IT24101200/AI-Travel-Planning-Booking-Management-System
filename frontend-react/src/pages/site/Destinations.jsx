@@ -3,76 +3,22 @@ import { Masthead } from '../../components/layout/Masthead.jsx'
 import { DestinationCard } from '../../components/cards/DestinationCard.jsx'
 import { Reveal } from '../../components/ui/Reveal.jsx'
 import { CtaBand } from '../../components/home/HomeSections.jsx'
-import { allTags, destinations as fallbackDestinations } from '../../data/destinations.js'
-import { fetchDestinations } from '../../services/apiClient.js'
+import { allTags, destinations } from '../../data/destinations.js'
 import { useScene } from '../../lib/sceneContext.js'
 import { usePageTitle } from '../../lib/hooks.js'
 
 export default function Destinations() {
   const { activeId, setActiveId } = useScene()
   const [tag, setTag] = useState('All')
-  const [destList, setDestList] = useState(fallbackDestinations)
   usePageTitle('Destinations')
 
   useEffect(() => {
     if (!activeId) setActiveId('sigiriya')
   }, [activeId, setActiveId])
 
-  // Load live destinations from database API
-  useEffect(() => {
-    let cancelled = false
-    async function loadData() {
-      try {
-        const live = await fetchDestinations()
-        if (cancelled || !Array.isArray(live) || live.length === 0) return
-
-        const merged = live.map((d) => {
-          const nameNorm = (d.name || '').trim().toLowerCase()
-          const matched = fallbackDestinations.find(
-            (fb) => fb.name.toLowerCase() === nameNorm || fb.id.toLowerCase() === nameNorm
-          )
-
-          return {
-            id: matched?.id || d.name.toLowerCase().replace(/\s+/g, '-'),
-            dbId: d.id,
-            name: d.name,
-            region: matched?.region || d.country || 'Sri Lanka',
-            scene: matched?.scene || 'heritage',
-            tagline: matched?.tagline || d.description?.slice(0, 60) || 'Discover timeless Ceylon',
-            blurb: d.description || matched?.blurb || 'Ancient wonders and pristine landscapes.',
-            story: matched?.story || d.description,
-            highlights: matched?.highlights || ['Cultural Landmarks', 'Panoramic Vistas', 'Local Traditions'],
-            bestTime: matched?.bestTime || 'Year-round',
-            idealDays: matched?.idealDays || 2,
-            priceFrom: matched?.priceFrom || 140,
-            currency: matched?.currency || 'USD',
-            coords: { lat: d.latitude || 7.957, lng: d.longitude || 80.7603 },
-            tags: matched?.tags || ['Heritage', 'Scenic'],
-            image: d.imageUrl || matched?.image || 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?auto=format&fit=crop&w=1200&q=80',
-            thumb: matched?.thumb || d.imageUrl,
-            palette: matched?.palette
-          }
-        })
-
-        setDestList(merged)
-      } catch {
-        // Fall back gracefully to local catalog on connection issue
-      }
-    }
-
-    loadData()
-    return () => { cancelled = true }
-  }, [])
-
-  const availableTags = useMemo(() => {
-    const set = new Set(allTags)
-    destList.forEach((d) => d.tags?.forEach((t) => set.add(t)))
-    return ['All', ...Array.from(set)]
-  }, [destList])
-
   const filtered = useMemo(
-    () => (tag === 'All' ? destList : destList.filter((d) => d.tags?.includes(tag))),
-    [tag, destList],
+    () => (tag === 'All' ? destinations : destinations.filter((d) => d.tags.includes(tag))),
+    [tag],
   )
 
   return (
@@ -95,7 +41,7 @@ export default function Destinations() {
 
             <div className="filters" style={{ margin: 0 }}>
               <span className="filters__label">Filter</span>
-              {availableTags.map((option) => (
+              {['All', ...allTags].map((option) => (
                 <button
                   key={option}
                   type="button"
@@ -112,7 +58,7 @@ export default function Destinations() {
           {filtered.length ? (
             <div className="grid grid--3">
               {filtered.map((destination, i) => (
-                <Reveal key={destination.id || i} delay={i * 70}>
+                <Reveal key={destination.id} delay={i * 70}>
                   <DestinationCard destination={destination} onActivate={setActiveId} />
                 </Reveal>
               ))}

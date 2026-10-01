@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
 
-/// Accommodation options screen matching Figma frame 08 · Accommodation Options (node 7:10737)
+/// Accommodation options screen showing verified Sri Lankan hotels and room categories.
 class AccommodationOptionsScreen extends StatefulWidget {
   const AccommodationOptionsScreen({super.key});
 
@@ -18,50 +17,20 @@ class _AccommodationOptionsScreenState
   List<dynamic> _hotels = [];
   bool _loading = true;
   String? _error;
+  Map<String, dynamic>? _selectedRoom;
+  String _selectedHotelName = '';
 
-  String _selectedCategory = 'Hotel';
-  final List<String> _categories = ['Hotel', 'Resort', 'Villa', 'Hostel'];
-
-  // Default curated stays matching Figma
-  final List<Map<String, dynamic>> _curatedStays = [
-    {
-      'id': 'heritance',
-      'name': 'Heritance Kandalama',
-      'location': 'Dambulla · 11 km from Sigiriya',
-      'amenities': 'Pool · Spa · Lake view',
-      'rating': 4.9,
-      'price': 186,
-      'image':
-          'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      'id': '98acres',
-      'name': '98 Acres Resort',
-      'location': 'Ella · Tea estate',
-      'amenities': 'Breakfast · Pool · Mountain view',
-      'rating': 4.8,
-      'price': 214,
-      'image':
-          'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      'id': 'fortprinters',
-      'name': 'The Fort Printers',
-      'location': 'Galle Fort · Historic quarter',
-      'amenities': 'Courtyard · Breakfast · Wi-Fi',
-      'rating': 4.7,
-      'price': 142,
-      'image':
-          'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=600&auto=format&fit=crop&q=80',
-    },
+  // Curated hotel photography using bundled local assets
+  final List<String> _hotelImages = [
+    'assets/photos/nuwara-eliya-1280.jpg',
+    'assets/photos/kandy-1280.jpg',
+    'assets/photos/mirissa-1280.jpg',
+    'assets/photos/sigiriya-1280.jpg',
   ];
-
-  late String _selectedStayId;
 
   @override
   void initState() {
     super.initState();
-    _selectedStayId = _curatedStays.first['id'];
     _loadHotels();
   }
 
@@ -81,7 +50,7 @@ class _AccommodationOptionsScreenState
     } catch (e) {
       if (mounted) {
         setState(() {
-          // Keep curated fallback on error
+          _error = 'Failed to load accommodation catalog';
           _loading = false;
         });
       }
@@ -90,485 +59,396 @@ class _AccommodationOptionsScreenState
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
-        ),
-      );
-    }
-
-    if (_error != null && _hotels.isEmpty && _curatedStays.isEmpty) {
-      return Scaffold(
-        backgroundColor: AppColors.figmaSurface,
-        appBar: AppBar(
-          backgroundColor: AppColors.figmaSurface,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
-            onPressed: () => Navigator.pop(context),
-          ),
-          title: Text(
-            'Choose your stay',
-            style: GoogleFonts.plusJakartaSans(
-              color: AppColors.figmaDarkGreen,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        body: ErrorMessage(message: _error!, onRetry: _loadHotels),
-      );
-    }
-
-    // Merge backend hotels if available
-    final List<Map<String, dynamic>> displayStays = _hotels.isNotEmpty
-        ? _hotels.map((h) {
-            return {
-              'id': h['id'].toString(),
-              'name': h['name'] ?? 'Boutique Hotel',
-              'location': h['city'] != null
-                  ? '${h['city']} · Central Province'
-                  : 'Sri Lanka',
-              'amenities': h['amenities'] ?? 'Wi-Fi · Breakfast · AC',
-              'rating': 4.8,
-              'price': (h['pricePerNight'] ?? 150).toInt(),
-              'image': (h['imageUrl'] != null &&
-                      h['imageUrl'].toString().isNotEmpty)
-                  ? ApiService.resolveMediaUrl(h['imageUrl'])
-                  : 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
-            };
-          }).toList()
-        : _curatedStays;
-
-    final selectedStay = displayStays.firstWhere(
-      (s) => s['id'] == _selectedStayId,
-      orElse: () => displayStays.first,
-    );
-
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header Bar ──
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Back button
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  // Title & Guests
-                  Column(
-                    children: [
-                      Text(
-                        'Choose your stay',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.figmaDarkGreen,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '12–18 Oct · 2 guests',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  // Map Icon Button
-                  GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/trip-map'),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.map_outlined,
-                        color: AppColors.figmaDarkGreen,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 18),
-
-              // ── Category Pills Filter Row ──
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _categories.map((category) {
-                    final isSelected = _selectedCategory == category;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedCategory = category;
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AppColors.figmaDarkGreen
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: isSelected
-                                  ? AppColors.figmaDarkGreen
-                                  : AppColors.figmaCardBorder,
-                            ),
-                          ),
-                          child: Text(
-                            category,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: isSelected
-                                  ? Colors.white
-                                  : AppColors.figmaDarkGreen,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-
-              const SizedBox(height: 18),
-
-              // ── Recommended Stays Header ──
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${displayStays.length} recommended stays',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.figmaDarkGreen,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Text(
-                        'Best match',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.arrow_downward,
-                        size: 14,
-                        color: Color(0xFF0F766E),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Stay Cards List ──
-              ...displayStays.map((stay) {
-                final isSelected = stay['id'] == _selectedStayId;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 14),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.figmaGold
-                          : AppColors.figmaCardBorder,
-                      width: isSelected ? 1.5 : 1.0,
-                    ),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Thumbnail
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          stay['image'] as String,
-                          width: 110,
-                          height: 125,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) => Container(
-                            width: 110,
-                            height: 125,
-                            color: const Color(0xFFE5E7EB),
-                            child: const Icon(
-                              Icons.hotel,
-                              color: Color(0xFF9CA3AF),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Details
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Rating & Selected pill
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.star_rounded,
-                                      color: AppColors.figmaGold,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 2),
-                                    Text(
-                                      '${stay['rating']}',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.figmaDarkGreen,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                if (isSelected)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFBF4E4),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      'SELECTED',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.figmaGold,
-                                        letterSpacing: 0.5,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            // Name
-                            Text(
-                              stay['name'] as String,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.figmaDarkGreen,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            // Location
-                            Text(
-                              stay['location'] as String,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11,
-                                color: const Color(0xFF6B7280),
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 3),
-                            // Amenities
-                            Text(
-                              stay['amenities'] as String,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 11,
-                                color: const Color(0xFF0F766E),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 10),
-                            // Price & Action Button
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      '\$${stay['price']}',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.figmaDarkGreen,
-                                      ),
-                                    ),
-                                    Text(
-                                      'per night',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10,
-                                        color: const Color(0xFF6B7280),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedStayId = stay['id'] as String;
-                                    });
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 18,
-                                      vertical: 8,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? AppColors.figmaGold
-                                          : AppColors.figmaDarkGreen,
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    child: Text(
-                                      isSelected ? 'Selected' : 'Select',
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-
-              const SizedBox(height: 10),
-
-              // ── Policy Box ──
-              Container(
+      appBar: AppBar(
+        title: const Text('Hotels & Boutique Stays'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined),
+            tooltip: 'View on Interactive Map',
+            onPressed: () => Navigator.pushNamed(context, '/trip-map'),
+          ),
+        ],
+      ),
+      body: _loading
+          ? const LoadingIndicator(
+              message: 'Finding luxury & heritage hotels...',
+            )
+          : _error != null
+          ? ErrorMessage(message: _error!, onRetry: _loadHotels)
+          : _hotels.isEmpty
+          ? _buildSampleHotelsView()
+          : RefreshIndicator(
+              color: AppColors.jungle600,
+              onRefresh: _loadHotels,
+              child: ListView.builder(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 16,
                   vertical: 12,
                 ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEAF2EC),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                itemCount: _hotels.length,
+                itemBuilder: (context, index) =>
+                    _buildHotelCard(_hotels[index], index),
+              ),
+            ),
+      bottomNavigationBar: _selectedRoom != null
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: const Border(top: BorderSide(color: AppColors.line)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: SafeArea(
                 child: Row(
                   children: [
-                    const Icon(
-                      Icons.check_circle_outline,
-                      color: Color(0xFF0F766E),
-                      size: 18,
-                    ),
-                    const SizedBox(width: 10),
                     Expanded(
-                      child: Text(
-                        'Rates include taxes and free cancellation until 8 October.',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: const Color(0xFF064E3B),
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _selectedHotelName,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.ink3,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${_selectedRoom!['roomType']} • \$${_selectedRoom!['pricePerNight']}/night',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.jungle600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(context, '/trip-map'),
+                      icon: const Icon(Icons.map_outlined, size: 16),
+                      label: const Text('Map'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.jungle600,
+                        side: const BorderSide(color: AppColors.jungle600),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.pushNamed(context, '/transport'),
+                      icon: const Icon(Icons.arrow_forward, size: 16),
+                      label: const Text('Transit'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.jungle600,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       ),
                     ),
                   ],
                 ),
               ),
+            )
+          : null,
+    );
+  }
 
-              const SizedBox(height: 16),
+  Widget _buildHotelCard(Map<String, dynamic> hotel, int index) {
+    final rooms = hotel['rooms'] as List<dynamic>? ?? [];
+    final stars = hotel['starRating'] ?? 4;
+    final name = hotel['name'] ?? 'Heritage Resort';
+    final address = hotel['address'] ?? 'Scenic Province, Sri Lanka';
+    final image = _hotelImages[index % _hotelImages.length];
 
-              // ── Continue Button ──
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/transport',
-                      arguments: selectedStay,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.figmaDarkGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(26),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.arrow_forward, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Continue with ${selectedStay['name']}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ExpansionTile(
+          initiallyExpanded: index == 0,
+          shape: const Border(),
+          collapsedShape: const Border(),
+          backgroundColor: Colors.white,
+          collapsedBackgroundColor: Colors.white,
+          tilePadding: const EdgeInsets.all(12),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: AppNetworkImage(
+              imageUrl: image,
+              width: 70,
+              height: 70,
+              fit: BoxFit.cover,
+            ),
+          ),
+          title: Text(
+            name,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 16,
+              color: AppColors.ink,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 4),
+              Row(
+                children: List.generate(
+                  stars,
+                  (_) => const Icon(
+                    Icons.star_rounded,
+                    size: 16,
+                    color: AppColors.sand500,
                   ),
                 ),
               ),
-
-              const SizedBox(height: 24),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.location_on_outlined,
+                    size: 14,
+                    color: AppColors.ink3,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      address,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.ink3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
+          children: [
+            const Divider(color: AppColors.line),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(
+                  Icons.meeting_room_outlined,
+                  size: 16,
+                  color: AppColors.jungle600,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Available Room Types (${rooms.length})',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.jungle800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (rooms.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.mist,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Text(
+                    'Standard & Deluxe options automatically coordinated by AI Booking Agent',
+                    style: TextStyle(fontSize: 12, color: AppColors.ink2),
+                  ),
+                ),
+              )
+            else
+              ...rooms.map<Widget>((room) => _buildRoomTile(room, name)),
+          ],
         ),
       ),
+    );
+  }
+
+  Widget _buildRoomTile(Map<String, dynamic> room, String hotelName) {
+    final price = (room['pricePerNight'] ?? 0).toDouble();
+    final currency = room['currency'] ?? 'USD';
+    final roomType = room['roomType'] ?? 'Deluxe Room';
+    final capacity = room['capacity'] ?? 2;
+    final isSelected = _selectedRoom == room;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedRoom = room;
+          _selectedHotelName = hotelName;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Selected $roomType at $hotelName'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: AppColors.jungle600,
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.leaf50 : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.jungle600 : AppColors.line,
+            width: isSelected ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.jungle600 : AppColors.leaf50,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                isSelected ? Icons.check : Icons.bed_outlined,
+                color: isSelected ? Colors.white : AppColors.jungle600,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    roomType,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      color: isSelected ? AppColors.jungle700 : AppColors.ink,
+                    ),
+                  ),
+                  Text(
+                    'Capacity: $capacity Guests',
+                    style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '\$${price.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.jungle600,
+                    fontSize: 16,
+                  ),
+                ),
+                Text(
+                  '$currency / night',
+                  style: const TextStyle(fontSize: 10, color: AppColors.ink3),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSampleHotelsView() {
+    final samples = [
+      {
+        'name': 'Heritance Kandalama',
+        'address': 'Dambulla / Sigiriya, Cultural Triangle',
+        'starRating': 5,
+        'rooms': [
+          {
+            'roomType': 'Superior Panoramic Room',
+            'capacity': 2,
+            'pricePerNight': 195,
+            'currency': 'USD',
+          },
+          {
+            'roomType': 'Luxury Suite with Jacuzzi',
+            'capacity': 3,
+            'pricePerNight': 285,
+            'currency': 'USD',
+          },
+        ],
+      },
+      {
+        'name': '98 Acres Resort & Spa',
+        'address': 'Greenland Estate, Ella',
+        'starRating': 5,
+        'rooms': [
+          {
+            'roomType': 'Standard Chalet',
+            'capacity': 2,
+            'pricePerNight': 210,
+            'currency': 'USD',
+          },
+          {
+            'roomType': 'Greenland Executive Suite',
+            'capacity': 4,
+            'pricePerNight': 340,
+            'currency': 'USD',
+          },
+        ],
+      },
+      {
+        'name': 'Cinnamon Wild Yala',
+        'address': 'Kirinda, Deep South Wildlife Reserve',
+        'starRating': 4,
+        'rooms': [
+          {
+            'roomType': 'Jungle Chalet',
+            'capacity': 2,
+            'pricePerNight': 175,
+            'currency': 'USD',
+          },
+          {
+            'roomType': 'Beach Chalet',
+            'capacity': 2,
+            'pricePerNight': 225,
+            'currency': 'USD',
+          },
+        ],
+      },
+    ];
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      itemCount: samples.length,
+      itemBuilder: (context, index) => _buildHotelCard(samples[index], index),
     );
   }
 }

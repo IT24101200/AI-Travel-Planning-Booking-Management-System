@@ -45,7 +45,7 @@ class TravelApp extends StatelessWidget {
           surfaceContainerLowest: AppColors.ivory,
           error: AppColors.coral500,
         ),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme().apply(
+        textTheme: GoogleFonts.poppinsTextTheme().apply(
           bodyColor: AppColors.ink2,
           displayColor: AppColors.ink,
         ),
@@ -54,9 +54,9 @@ class TravelApp extends StatelessWidget {
           foregroundColor: Colors.white,
           elevation: 0,
           centerTitle: false,
-          titleTextStyle: GoogleFonts.plusJakartaSans(
+          titleTextStyle: GoogleFonts.poppins(
             fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
             color: Colors.white,
             letterSpacing: -0.2,
           ),
@@ -71,7 +71,7 @@ class TravelApp extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
             ),
-            textStyle: GoogleFonts.plusJakartaSans(
+            textStyle: GoogleFonts.poppins(
               fontSize: 15,
               fontWeight: FontWeight.w600,
             ),

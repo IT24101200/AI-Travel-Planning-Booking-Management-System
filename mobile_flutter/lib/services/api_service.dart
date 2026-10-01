@@ -3,24 +3,14 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
-
-  final String message;
-  final int? statusCode;
-
-  @override
-  String toString() => message;
-}
-
 /// Single HTTP client for all backend API calls.
 /// Stores JWT token via flutter_secure_storage and attaches it to every request.
 class ApiService {
   // ── Backend URLs ──
   // Web (Chrome): runs on localhost
   static const String _webUrl = 'http://localhost:5138/api';
-  // Mobile (Physical phone / Emulator): PC's local Wi-Fi IP (192.168.1.4) or emulator 10.0.2.2
-  static const String _mobileUrl = 'http://192.168.1.4:5138/api';
+  // Mobile (Physical phone / Emulator): PC's local Wi-Fi IP or emulator 10.0.2.2
+  static const String _mobileUrl = 'http://192.168.1.3:5138/api';
 
   static String get baseUrl {
     // When running in Chrome (Flutter Web):
@@ -89,32 +79,6 @@ class ApiService {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
     };
-  }
-
-  static String _responseError(http.Response response, String fallback) {
-    try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        final message = decoded['message'] ?? decoded['title'] ?? decoded['error'];
-        if (message != null && message.toString().trim().isNotEmpty) {
-          return message.toString();
-        }
-
-        final errors = decoded['errors'];
-        if (errors is Map) {
-          final messages = errors.values
-              .expand((value) => value is List ? value : [value])
-              .map((value) => value.toString())
-              .where((value) => value.trim().isNotEmpty)
-              .toList();
-          if (messages.isNotEmpty) return messages.join('\n');
-        }
-      }
-    } catch (_) {
-      // Use the supplied fallback when the server response is not JSON.
-    }
-
-    return '$fallback (${response.statusCode})';
   }
 
   /// Generic GET request
@@ -241,22 +205,15 @@ class ApiService {
   static Future<List<dynamic>> getTours({String? search, String? sortBy}) async {
     String endpoint = 'tour';
     List<String> params = [];
-    if (search != null && search.isNotEmpty) {
-      params.add('search=${Uri.encodeQueryComponent(search)}');
-    }
-    if (sortBy != null) {
-      params.add('sortBy=${Uri.encodeQueryComponent(sortBy)}');
-    }
+    if (search != null && search.isNotEmpty) params.add('search=$search');
+    if (sortBy != null) params.add('sortBy=$sortBy');
     if (params.isNotEmpty) endpoint += '?${params.join('&')}';
 
     final response = await get(endpoint);
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as List<dynamic>;
     }
-    throw ApiException(
-      _responseError(response, 'Failed to load tours'),
-      statusCode: response.statusCode,
-    );
+    return [];
   }
 
   static Future<Map<String, dynamic>?> getTour(int id) async {
@@ -265,18 +222,6 @@ class ApiService {
       return jsonDecode(response.body);
     }
     return null;
-  }
-
-  static Future<Map<String, dynamic>> getTourOrThrow(int id) async {
-    final response = await get('tour/$id');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    }
-
-    throw ApiException(
-      _responseError(response, 'Failed to load tour details'),
-      statusCode: response.statusCode,
-    );
   }
 
   // ── Itineraries ──
@@ -288,25 +233,6 @@ class ApiService {
       return jsonDecode(response.body) as List<dynamic>;
     }
     return [];
-  }
-
-  /// Strict itinerary loader for screens that must distinguish an empty list
-  /// from authentication and server failures.
-  static Future<List<dynamic>> getMyItinerariesOrThrow() async {
-    final userId = await getUserId();
-    if (userId == null || userId.trim().isEmpty) {
-      throw const ApiException('Your session is missing a customer ID. Please sign in again.');
-    }
-
-    final response = await get('itinerary/customer/$userId');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
-
-    throw ApiException(
-      _responseError(response, 'Failed to load itineraries'),
-      statusCode: response.statusCode,
-    );
   }
 
   static Future<Map<String, dynamic>?> getItinerary(int id) async {
@@ -325,31 +251,6 @@ class ApiService {
       'status': 'Discarded',
     });
     return response.statusCode == 200;
-  }
-
-  static Future<Map<String, dynamic>> addItineraryItem(
-    int itineraryId,
-    int tourId,
-    int dayNumber,
-    String startTime,
-    String endTime,
-  ) async {
-    final response = await post('itinerary/$itineraryId/items', {
-      'tourId': tourId,
-      'dayNumber': dayNumber,
-      'sequenceOrder': 0,
-      'startTime': startTime,
-      'endTime': endTime,
-    });
-
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as Map<String, dynamic>;
-    }
-
-    throw ApiException(
-      _responseError(response, 'Failed to add the tour to the itinerary'),
-      statusCode: response.statusCode,
-    );
   }
 
   // ── Hotels ──

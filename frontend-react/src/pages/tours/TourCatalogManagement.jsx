@@ -1,69 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  createTour,
-  deleteTour,
-  fetchDestinations,
-  fetchTours,
-  updateTour
-} from '../../services/apiClient.js'
+import { Link } from 'react-router-dom'
+import { createTour, deleteTour, fetchDestinations, fetchTours, updateTour } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
-import { LoadingState } from '../../components/ui/LoadingState.jsx'
-import {
-  SearchIcon,
-  PlusIcon,
-  RefreshIcon,
-  EditIcon,
-  TrashIcon,
-  CheckIcon
-} from '../../components/ui/Icons.jsx'
 
-const CATEGORIES = ['All', 'Heritage', 'Wildlife', 'Cultural', 'Marine', 'Scenic', 'Adventure']
+const PAGE_SIZE = 6
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
-const FALLBACK_TOUR_IMAGES = {
-  sigiriya: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
-  yala: 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=600&auto=format&fit=crop&q=80',
-  kandy: 'https://images.unsplash.com/photo-1546708973-b339540b5162?w=600&auto=format&fit=crop&q=80',
-  galle: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=600&auto=format&fit=crop&q=80',
-  ella: 'https://images.unsplash.com/photo-1588258524675-c61917a10786?w=600&auto=format&fit=crop&q=80',
-  default: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80'
-}
-
-/**
- * Serendib Trails — Tour Catalog Management
- * Designed based on Figma Dev Mode Specifications (node-id: 2:27473)
- */
+/** Student B — tour catalog with real database CRUD + search / filter / sort / pagination. */
 export default function TourCatalogManagement() {
   const [rows, setRows] = useState([])
   const [destinations, setDestinations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [notice, setNotice] = useState(null)
-
-  // Filters
+  const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
-  const [statusFilter, setStatusFilter] = useState('All')
   const [page, setPage] = useState(1)
-  const pageSize = 8
-
-  // Selection & Right Drawer / Edit Mode
-  const [selectedTour, setSelectedTour] = useState(null)
-  const [drawerMode, setDrawerMode] = useState(null) // 'create' | 'edit' | null
-  const [formData, setFormData] = useState({
-    name: '',
-    destinationId: '',
-    price: '',
-    durationHours: 8,
-    category: 'Heritage',
-    defaultStartTime: '05:15',
-    description: ''
-  })
-  const [imageFile, setImageFile] = useState(null)
+  const [form, setForm] = useState({ name: '', destinationId: '', price: '', duration: '', category: 'Heritage', defaultStartTime: '09:00' })
+  const [image, setImage] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  usePageTitle('Tour Catalog · Serendib Trails')
+  const [imageInputKey, setImageInputKey] = useState(0)
+  // Edit mode state
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  usePageTitle('Tours · Staff')
 
   async function loadTours(cancelled = false) {
     setLoading(true)
@@ -78,64 +40,34 @@ export default function TourCatalogManagement() {
       ])
 
       if (!cancelled) {
-        const loadErrors = []
-        let destList = []
-
         if (destRes.status === 'fulfilled') {
-          destList = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
+          const destList = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           setDestinations(destList)
-          if (destList.length > 0 && !formData.destinationId) {
-            setFormData((f) => ({ ...f, destinationId: destList[0].id }))
+          if (destList.length > 0 && !form.destinationId) {
+            setForm((f) => ({ ...f, destinationId: destList[0].id }))
           }
-        } else {
-          setDestinations([])
-          loadErrors.push('Could not load destinations. Check that the backend is running.')
         }
 
         if (tourRes.status === 'fulfilled') {
           const live = Array.isArray(tourRes.value) ? tourRes.value : (tourRes.value?.data || [])
-          const mapped = live.map((t) => {
-            const destName = t.destinationName || t.destination?.name || 'Sigiriya'
-            const destKey = destName.toLowerCase()
-            let thumb = t.imageUrl
-            if (!thumb) {
-              if (destKey.includes('sigiriya')) thumb = FALLBACK_TOUR_IMAGES.sigiriya
-              else if (destKey.includes('yala')) thumb = FALLBACK_TOUR_IMAGES.yala
-              else if (destKey.includes('kandy')) thumb = FALLBACK_TOUR_IMAGES.kandy
-              else if (destKey.includes('galle')) thumb = FALLBACK_TOUR_IMAGES.galle
-              else if (destKey.includes('ella')) thumb = FALLBACK_TOUR_IMAGES.ella
-              else thumb = FALLBACK_TOUR_IMAGES.default
-            }
-
-            return {
-              id: t.id,
-              name: t.name,
-              destination: destName,
-              destinationId: t.destinationId || (destList.length > 0 ? destList[0].id : 1),
-              price: t.price,
-              durationHours: t.durationHours || 8,
-              category: t.category || 'Heritage',
-              defaultStartTime: t.defaultStartTime?.slice(0, 5) || '05:15',
-              status: t.status || 'Active',
-              description: t.description || `Guided excursion in scenic ${destName}.`,
-              imageUrl: thumb
-            }
-          })
+          const mapped = live.map((t) => ({
+            id: t.id,
+            name: t.name,
+            destination: t.destinationName || t.destination?.name || 'Sri Lanka',
+            destinationId: t.destinationId || 1,
+            price: t.price,
+            duration: `${t.durationHours || 3} hrs`,
+            durationHours: t.durationHours || 3,
+            category: t.category || 'Heritage',
+            defaultStartTime: t.defaultStartTime?.slice(0, 5) || '09:00',
+            status: t.status || 'Active',
+          }))
           setRows(mapped)
-
-          if (mapped.length > 0 && !selectedTour) {
-            selectForEdit(mapped[0])
-          }
-        } else {
-          setRows([])
-          loadErrors.push('Could not load tours. Check that the backend is running.')
         }
-
-        setError(loadErrors.length > 0 ? loadErrors.join(' ') : null)
       }
     } catch (err) {
       if (!cancelled) {
-        setError(err.response?.data?.message || err.message || 'Failed to load tour catalog.')
+        setError(err.response?.data?.message || err.message || 'Failed to load tours from database.')
       }
     } finally {
       if (!cancelled) setLoading(false)
@@ -148,176 +80,174 @@ export default function TourCatalogManagement() {
     return () => { cancelled = true }
   }, [])
 
-  function selectForEdit(tour) {
-    setSelectedTour(tour)
-    setDrawerMode('edit')
-    setFormData({
-      name: tour.name,
-      destinationId: tour.destinationId,
-      price: tour.price,
-      durationHours: tour.durationHours,
-      category: tour.category,
-      defaultStartTime: tour.defaultStartTime,
-      description: tour.description
-    })
-    setImageFile(null)
-    setImagePreview(tour.imageUrl || '')
-  }
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+  }, [imagePreview])
 
-  function startCreateTour() {
-    setSelectedTour(null)
-    setDrawerMode('create')
-    setFormData({
-      name: '',
-      destinationId: destinations[0]?.id || '',
-      price: '85.00',
-      durationHours: 4,
-      category: 'Heritage',
-      defaultStartTime: '08:00',
-      description: 'Exclusive guided experience operated by certified naturalists and historians.'
-    })
-    setImageFile(null)
-    setImagePreview('')
-  }
+  const categories = useMemo(() => ['All', ...new Set(rows.map((r) => r.category))], [rows])
 
-  function onImageChange(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImageFile(file)
-    const reader = new FileReader()
-    reader.onload = () => setImagePreview(String(reader.result))
-    reader.readAsDataURL(file)
-  }
+  const view = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return rows.filter(
+      (r) =>
+        (!q || r.name.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q)) &&
+        (category === 'All' || r.category === category),
+    )
+  }, [rows, query, category])
 
-  async function handleSaveTour(e) {
+  const pages = Math.max(1, Math.ceil(view.length / PAGE_SIZE))
+  const pageRows = view.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  // Add a new tour to the database
+  async function addTour(e) {
     e.preventDefault()
-    setBusy(true)
-    setNotice(null)
+    if (destinations.length === 0) {
+      setNotice('Create a destination first, then return here to add a tour.')
+      return
+    }
+    if (!form.name.trim() || Number(form.price) <= 0) {
+      setNotice('Please provide a valid tour name and price.')
+      return
+    }
+    if (!image) {
+      setNotice('Please select a JPEG, PNG, or WebP image for the tour.')
+      return
+    }
+
     try {
-      if (drawerMode === 'create') {
-        const fallbackBlob = await fetch(FALLBACK_TOUR_IMAGES.default).then(r => r.blob())
-        const fileToSend = imageFile || new File([fallbackBlob], 'tour.jpg', { type: 'image/jpeg' })
-        const res = await createTour({
-          destinationId: Number(formData.destinationId),
-          name: formData.name,
-          category: formData.category,
-          price: Number(formData.price),
-          currency: 'USD',
-          durationHours: Number(formData.durationHours),
-          defaultStartTime: `${formData.defaultStartTime}:00`,
-          description: formData.description,
-          status: 'Active'
-        }, fileToSend)
-        setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
-      } else if (drawerMode === 'edit' && selectedTour) {
-        await updateTour(selectedTour.id, {
-          destinationId: Number(formData.destinationId),
-          name: formData.name,
-          category: formData.category,
-          price: Number(formData.price),
-          currency: 'USD',
-          durationHours: Number(formData.durationHours),
-          defaultStartTime: `${formData.defaultStartTime}:00`,
-          description: formData.description,
-          status: selectedTour.status
-        })
-        setNotice({ type: 'success', message: `Tour "${formData.name}" updated successfully.` })
-      }
+      const destId = Number(form.destinationId)
+      const selectedDest = destinations.find((d) => d.id === destId)
+      await createTour({
+        name: form.name.trim(),
+        description: `${form.duration.trim() || '3 hrs'} excursion in ${selectedDest?.name || 'Sri Lanka'}`,
+        price: Number(form.price),
+        durationHours: Number.parseInt(form.duration) || 3,
+        category: form.category,
+        defaultStartTime: form.defaultStartTime,
+        destinationId: destId,
+        currency: 'USD',
+      }, image)
+      setNotice(`Tour "${form.name.trim()}" added to database successfully.`)
+      setForm({ name: '', destinationId: destinations[0]?.id || '', price: '', duration: '', category: 'Heritage', defaultStartTime: '09:00' })
+      setImage(null)
+      setImagePreview('')
+      setImageInputKey((key) => key + 1)
       await loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Operation failed.' })
-    } finally {
-      setBusy(false)
+      setNotice(`Failed to save tour: ${err.response?.data?.message || err.message}`)
     }
   }
 
-  async function handleDeleteTour(id, name) {
-    if (!window.confirm(`Are you sure you want to deactivate "${name}"?`)) return
+  function selectImage(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      event.target.value = ''
+      setImage(null)
+      setImagePreview('')
+      setNotice('Only JPEG, PNG, and WebP images are allowed.')
+      return
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      event.target.value = ''
+      setImage(null)
+      setImagePreview('')
+      setNotice('The image must be 5 MB or smaller.')
+      return
+    }
+    setImage(file)
+    setImagePreview(URL.createObjectURL(file))
+    setNotice('')
+  }
+
+  // Start editing a row
+  function startEdit(row) {
+    setEditId(row.id)
+    setEditForm({
+      name: row.name,
+      destinationId: row.destinationId || 1,
+      price: row.price,
+      duration: row.durationHours || 3,
+      category: row.category,
+      defaultStartTime: row.defaultStartTime || '09:00',
+    })
+  }
+
+  // Save the edit to the database
+  async function saveEdit(id) {
+    if (!editForm.name.trim()) return
+
+    try {
+      const destId = Number(editForm.destinationId) || 1
+      const selectedDest = destinations.find((d) => d.id === destId)
+      await updateTour(id, {
+        name: editForm.name.trim(),
+        description: `${editForm.duration || 3} hrs excursion in ${selectedDest?.name || 'Sri Lanka'}`,
+        price: Number(editForm.price) || 50,
+        durationHours: Number(editForm.duration) || 3,
+        category: editForm.category,
+        defaultStartTime: editForm.defaultStartTime,
+        destinationId: destId,
+      })
+      setNotice(`Tour #${id} updated in database.`)
+      setEditId(null)
+      await loadTours()
+    } catch (err) {
+      setNotice(`Failed to update tour: ${err.response?.data?.message || err.message}`)
+    }
+  }
+
+  // Toggle status (Active / Inactive)
+  async function toggle(row) {
+    const nextStatus = row.status === 'Active' ? 'Inactive' : 'Active'
+    try {
+      await updateTour(row.id, {
+        name: row.name,
+        price: row.price,
+        durationHours: row.durationHours,
+        category: row.category,
+        defaultStartTime: row.defaultStartTime,
+        destinationId: row.destinationId || 1,
+        status: nextStatus,
+      })
+      setNotice(`Tour #${row.id} set to ${nextStatus}.`)
+      await loadTours()
+    } catch (err) {
+      setNotice(`Status update failed: ${err.response?.data?.message || err.message}`)
+    }
+  }
+
+  // Delete a tour from database
+  async function remove(id) {
+    if (!window.confirm(`Delete tour #${id}?`)) return
     try {
       await deleteTour(id)
-      setNotice({ type: 'success', message: `Tour "${name}" deactivated.` })
-      loadTours()
+      setNotice(`Tour #${id} deleted from database.`)
+      await loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.message || 'Failed to deactivate tour.' })
+      setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
     }
   }
-
-  // Filtered & Paginated records
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return rows.filter((r) => {
-      if (category !== 'All' && r.category.toLowerCase() !== category.toLowerCase()) return false
-      if (statusFilter !== 'All' && r.status.toLowerCase() !== statusFilter.toLowerCase()) return false
-      return !q || r.name.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q)
-    })
-  }, [rows, query, category, statusFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className="staff-page">
-      {/* ── Page Header matching Figma 2:27473 ── */}
       <header className="staff-page__head">
-        <div className="staff-page__title-block">
-          <p className="staff-page__eyebrow">CATALOG / EXPERIENCES</p>
-          <h1 className="staff-page__title">Tour catalog</h1>
-          <p className="staff-page__subtitle">
-            Maintain sellable experiences, pricing, schedules, and publishing status.
-          </p>
+        <div>
+          <p className="eyebrow">Component B · Tours</p>
+          <h1>Tour catalog</h1>
         </div>
-        <div className="staff-page__actions">
-          <button
-            type="button"
-            className="btn-outline"
-            onClick={() => loadTours(false)}
-            disabled={loading}
-          >
-            <RefreshIcon size={15} />
-            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
-          </button>
-          <button
-            type="button"
-            className="btn-gold"
-            onClick={startCreateTour}
-          >
-            <PlusIcon size={15} />
-            <span>Create tour</span>
+        <div className="staff-toolbar">
+          <input className="input" placeholder="Search tours…" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} />
+          <select className="select" value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Category">
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <button type="button" className="btn btn--sm" onClick={() => loadTours(false)} disabled={loading}>
+            {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </header>
-
-      {/* ── Toolbar: Search Box on Left, Category Tabs on Right ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-        <div className="staff-search-box" style={{ maxWidth: '320px' }}>
-          <SearchIcon size={16} />
-          <input
-            type="text"
-            placeholder="Search tours or destinations"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setPage(1)
-            }}
-          />
-        </div>
-
-        <div className="staff-tabs" style={{ width: 'auto', flex: 1, justifyContent: 'flex-end' }}>
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              className={`staff-tab ${category === cat ? 'is-active' : ''}`}
-              onClick={() => {
-                setCategory(cat)
-                setPage(1)
-              }}
-            >
-              <span>{cat}</span>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {error && (
         <AlertBanner
@@ -330,339 +260,158 @@ export default function TourCatalogManagement() {
 
       {notice && (
         <AlertBanner
-          type={notice.type}
-          message={notice.message}
-          onDismiss={() => setNotice(null)}
+          type={notice.includes('failed') || notice.includes('Failed') ? 'error' : 'success'}
+          message={notice}
+          onDismiss={() => setNotice('')}
         />
       )}
 
-      {/* ── Split Layout: Table on Left (65%), Edit Drawer on Right (35%) matching Figma ── */}
-      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 380px' : '1fr' }}>
-        <div className="staff-table-wrap">
-          {loading ? (
-            <LoadingState label="Loading tour catalog from database…" />
+      <form className="panel panel--solid staff-form" onSubmit={addTour}>
+        <b>Add tour to database</b>
+        <div className="staff-form__grid">
+          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          {destinations.length > 0 ? (
+            <select className="select" value={form.destinationId} onChange={(e) => setForm({ ...form, destinationId: e.target.value })}>
+              {destinations.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
           ) : (
-            <table className="staff-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '56px' }}>Photo</th>
-                  <th>Tour Name & Region</th>
-                  <th>Category</th>
-                  <th>Duration</th>
-                  <th>Departure</th>
-                  <th>Price</th>
-                  <th>Status</th>
-                  <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedRows.map((tour) => {
-                  const isSelected = selectedTour?.id === tour.id
-                  return (
-                    <tr
-                      key={tour.id}
-                      style={{ cursor: 'pointer', backgroundColor: isSelected ? '#f5fbf7' : undefined }}
-                      onClick={() => selectForEdit(tour)}
-                    >
-                      <td>
-                        <img
-                          src={tour.imageUrl}
-                          alt={tour.name}
-                          style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }}
-                        />
-                      </td>
-                      <td>
-                        <strong style={{ display: 'block', color: '#182126', fontSize: '0.875rem' }}>
-                          {tour.name}
-                        </strong>
-                        <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
-                          📍 {tour.destination}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="badge-pill badge-gold">
-                          <span className="badge-dot" />
-                          {tour.category}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '0.8125rem', color: '#334155' }}>
-                        {tour.durationHours} hrs
-                      </td>
-                      <td style={{ fontSize: '0.8125rem', color: '#334155' }}>
-                        {tour.defaultStartTime}
-                      </td>
-                      <td>
-                        <strong style={{ color: '#182126', fontSize: '0.875rem' }}>
-                          ${tour.price}
-                        </strong>
-                        <span style={{ fontSize: '0.6875rem', color: '#64748b' }}> / person</span>
-                      </td>
-                      <td>
-                        <span className={`badge-pill ${tour.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
-                          <span className="badge-dot" />
-                          {tour.status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="btn-outline"
-                            style={{ height: '28px', padding: '0 6px' }}
-                            title="Edit Tour"
-                            onClick={() => selectForEdit(tour)}
-                          >
-                            <EditIcon size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-outline"
-                            style={{ height: '28px', padding: '0 6px', color: '#dc2626' }}
-                            title="Deactivate"
-                            onClick={() => handleDeleteTour(tour.id, tour.name)}
-                          >
-                            <TrashIcon size={13} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {pagedRows.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#66747b' }}>
-                      No tours match your current filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <input className="input" value="No destinations available" disabled aria-label="No destinations available" />
           )}
-
-          {/* Pagination Footer */}
-          <div className="table-footer">
-            <span style={{ fontSize: '0.8125rem', color: '#66747b' }}>
-              Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} tours
-            </span>
-            <div className="table-pagination">
-              <button
-                type="button"
-                className="table-page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-              >
-                ‹ Prev
-              </button>
-              <button
-                type="button"
-                className="table-page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => p + 1)}
-              >
-                Next ›
-              </button>
-            </div>
-          </div>
+          <input className="input" type="number" min="1" placeholder="Price USD" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
+          <input className="input" placeholder="Duration (e.g. 4 hrs)" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
+          <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            <option>Heritage</option>
+            <option>Rail journey</option>
+            <option>Safari</option>
+            <option>Marine</option>
+            <option>Tea</option>
+            <option>Snorkelling</option>
+          </select>
+          <label>
+            Start Time
+            <input className="input" type="time" value={form.defaultStartTime} onChange={(e) => setForm({ ...form, defaultStartTime: e.target.value })} />
+          </label>
+          <input
+            key={imageInputKey}
+            className="input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={selectImage}
+            required
+            aria-label="Tour image"
+          />
+          <button
+            className="btn btn--sm"
+            type="submit"
+            disabled={loading || destinations.length === 0}
+            title={destinations.length === 0 ? 'Create a destination first' : 'Add tour'}
+            style={destinations.length === 0 ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+          >
+            Add
+          </button>
         </div>
-
-        {/* ── Edit / Create Drawer matching Figma Spec ── */}
-        {drawerMode && (
-          <aside className="staff-card" style={{ padding: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #eef2f3' }}>
-              <div>
-                <span className="badge-pill badge-green" style={{ fontSize: '0.625rem', padding: '1px 6px', marginBottom: '4px' }}>
-                  <span className="badge-dot" /> LIVE IN CATALOG
-                </span>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#182126' }}>
-                  {drawerMode === 'create' ? 'Create new tour' : (selectedTour?.name || 'Edit tour')}
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="btn-outline"
-                style={{ height: '28px', padding: '0 8px' }}
-                onClick={() => setDrawerMode(null)}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveTour} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-              {/* Tour Name */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Tour name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sigiriya Sunrise & Village Trail"
-                  className="staff-search-box"
-                  style={{ maxWidth: '100%', width: '100%' }}
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-
-              {/* 2-Column: Destination & Category */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Destination *
-                  </label>
-                  <select
-                    className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.5rem', fontSize: '0.8125rem' }}
-                    value={formData.destinationId}
-                    onChange={(e) => setFormData({ ...formData, destinationId: e.target.value })}
-                  >
-                    {destinations.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Category *
-                  </label>
-                  <select
-                    className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.5rem', fontSize: '0.8125rem' }}
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  >
-                    {CATEGORIES.filter(c => c !== 'All').map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* 3-Column: Price, Duration, Start Time */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Price USD
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Duration (hrs)
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="72"
-                    required
-                    className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                    value={formData.durationHours}
-                    onChange={(e) => setFormData({ ...formData, durationHours: e.target.value })}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                    value={formData.defaultStartTime}
-                    onChange={(e) => setFormData({ ...formData, defaultStartTime: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              {/* Cover Image Upload Box matching Figma */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Cover image
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.75rem', border: '1px solid #dde3e5', borderRadius: '8px', background: '#f8fafa' }}>
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      style={{ width: '64px', height: '48px', objectFit: 'cover', borderRadius: '6px' }}
-                    />
-                  ) : (
-                    <div style={{ width: '64px', height: '48px', background: '#e2e8f0', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6875rem', color: '#64748b' }}>
-                      No img
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600, color: '#182126', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {imageFile ? imageFile.name : (selectedTour?.name ? `${selectedTour.name.toLowerCase().replace(/\s+/g, '-')}.jpg` : 'experience.jpg')}
-                    </p>
-                    <label style={{ fontSize: '0.75rem', color: '#166b4f', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
-                      Replace image
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        style={{ display: 'none' }}
-                        onChange={onImageChange}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Description Textarea */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Description
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '6px',
-                    border: '1px solid #c8d1d4',
-                    fontSize: '0.8125rem',
-                    boxSizing: 'border-box'
-                  }}
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                />
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="btn-outline"
-                  onClick={() => setDrawerMode(null)}
-                >
-                  Save as draft
-                </button>
-                <button
-                  type="submit"
-                  className="btn-gold"
-                  disabled={busy}
-                >
-                  <CheckIcon size={14} />
-                  <span>{busy ? 'Saving…' : (drawerMode === 'create' ? 'Create tour' : 'Save changes')}</span>
-                </button>
-              </div>
-            </form>
-          </aside>
+        {imagePreview && (
+          <img
+            src={imagePreview}
+            alt="Selected tour preview"
+            style={{ width: '180px', height: '110px', objectFit: 'cover', borderRadius: '12px', marginTop: '1rem' }}
+          />
         )}
+        {destinations.length === 0 && (
+          <div className="notice notice--error">
+            No destinations exist yet. <Link to="/staff/destinations">Open Destination Management</Link> and add one before creating a tour.
+          </div>
+        )}
+      </form>
+
+      <div className="panel panel--solid staff-table-wrap">
+        <table className="staff-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Destination</th>
+              <th>Price</th>
+              <th>Duration</th>
+              <th>Category</th>
+              <th>Start Time</th>
+              <th>Status</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={8} className="staff-empty">Loading tours from database…</td></tr>
+            ) : pageRows.length > 0 ? (
+              pageRows.map((r) => (
+                <tr key={r.id}>
+                  {editId === r.id ? (
+                    <>
+                      <td><input className="input input--sm" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
+                      <td>
+                        {destinations.length > 0 ? (
+                          <select className="select select--sm" value={editForm.destinationId} onChange={(e) => setEditForm({ ...editForm, destinationId: e.target.value })}>
+                            {destinations.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input className="input input--sm" value={editForm.destinationId} onChange={(e) => setEditForm({ ...editForm, destinationId: e.target.value })} />
+                        )}
+                      </td>
+                      <td><input className="input input--sm" type="number" min="1" value={editForm.price} onChange={(e) => setEditForm({ ...editForm, price: e.target.value })} /></td>
+                      <td><input className="input input--sm" value={editForm.duration} onChange={(e) => setEditForm({ ...editForm, duration: e.target.value })} /></td>
+                      <td>
+                        <select className="select" value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}>
+                          <option>Heritage</option>
+                          <option>Rail journey</option>
+                          <option>Safari</option>
+                          <option>Marine</option>
+                          <option>Tea</option>
+                          <option>Snorkelling</option>
+                        </select>
+                      </td>
+                      <td><input className="input input--sm" type="time" value={editForm.defaultStartTime} onChange={(e) => setEditForm({ ...editForm, defaultStartTime: e.target.value })} aria-label="Start Time" /></td>
+                      <td><span className={`staff-pill staff-pill--${r.status.toLowerCase()}`}>{r.status}</span></td>
+                      <td className="staff-row-actions">
+                        <button type="button" className="btn btn--sm" onClick={() => saveEdit(r.id)}>Save</button>
+                        <button type="button" className="staff-mini" onClick={() => setEditId(null)}>Cancel</button>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td><b>{r.name}</b></td>
+                      <td>{r.destination}</td>
+                      <td>${r.price}</td>
+                      <td>{r.duration}</td>
+                      <td><span className="chip">{r.category}</span></td>
+                      <td>{r.defaultStartTime}</td>
+                      <td><span className={`staff-pill staff-pill--${r.status.toLowerCase()}`}>{r.status}</span></td>
+                      <td className="staff-row-actions">
+                        <button type="button" className="staff-mini" onClick={() => startEdit(r)}>Edit</button>
+                        <button type="button" className="staff-mini" onClick={() => toggle(r)}>
+                          {r.status === 'Active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button type="button" className="staff-mini staff-mini--danger" onClick={() => remove(r.id)}>
+                          Delete
+                        </button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan={8} className="staff-empty">No tours found in database.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="staff-pager">
+        <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
+        <span>Page {page} of {pages} · {view.length} tours</span>
+        <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next →</button>
       </div>
     </div>
   )

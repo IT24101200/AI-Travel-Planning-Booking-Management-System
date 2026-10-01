@@ -440,72 +440,47 @@ class StatusBadge extends StatelessWidget {
   final String status;
   const StatusBadge({super.key, required this.status});
 
-  Color _getTextColor() {
+  Color _getColor() {
     switch (status.toLowerCase()) {
       case 'confirmed':
       case 'completed':
       case 'paid':
       case 'active':
       case 'accepted':
-        return AppColors.jungle700;
+        return AppColors.jungle600;
       case 'pending':
       case 'draft':
       case 'planning':
-        return AppColors.sand700;
+        return AppColors.sand600;
       case 'awaitingapproval':
       case 'awaiting approval':
       case 'proposed':
-        return AppColors.ocean700;
+        return AppColors.ocean500;
       case 'rejected':
       case 'failed':
       case 'cancelled':
         return AppColors.coral500;
       default:
-        return AppColors.inkSecondary;
-    }
-  }
-
-  Color _getBgColor() {
-    switch (status.toLowerCase()) {
-      case 'confirmed':
-      case 'completed':
-      case 'paid':
-      case 'active':
-      case 'accepted':
-        return AppColors.leaf100;
-      case 'pending':
-      case 'draft':
-      case 'planning':
-        return AppColors.sand100;
-      case 'awaitingapproval':
-      case 'awaiting approval':
-      case 'proposed':
-        return AppColors.ocean300.withValues(alpha: 0.3);
-      case 'rejected':
-      case 'failed':
-      case 'cancelled':
-        return AppColors.coral500.withValues(alpha: 0.12);
-      default:
-        return AppColors.surfaceContainer;
+        return AppColors.ink3;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final textColor = _getTextColor();
-    final bgColor = _getBgColor();
+    final color = _getColor();
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: bgColor,
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         status,
         style: TextStyle(
-          color: textColor,
+          color: color,
           fontSize: 12,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

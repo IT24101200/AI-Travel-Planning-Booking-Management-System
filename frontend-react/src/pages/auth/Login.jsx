@@ -1,17 +1,10 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Masthead } from '../../components/layout/Masthead.jsx'
 import { useAuth } from '../../lib/auth.jsx'
 import { usePageTitle } from '../../lib/hooks.js'
-import {
-  LeafIcon,
-  ArrowRightIcon,
-  CheckIcon
-} from '../../components/ui/Icons.jsx'
 
-/**
- * Serendib Trails — Staff Portal Login
- * Designed based on Figma Dev Mode Specifications (node-id: 2:26586)
- */
+/** Staff + customer sign-in. Demo-ready: works offline, tries the API first. */
 export default function Login() {
   const { login, logout } = useAuth()
   const navigate = useNavigate()
@@ -19,7 +12,6 @@ export default function Login() {
   const [email, setEmail] = useState('agent@colombo.lk')
   const [password, setPassword] = useState('Staff@123')
   const [showPassword, setShowPassword] = useState(false)
-  const [rememberMe, setRememberMe] = useState(true)
   const [error, setError] = useState(() => {
     if (location.state?.error) return location.state.error
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('expired')) {
@@ -28,16 +20,16 @@ export default function Login() {
     return ''
   })
   const [busy, setBusy] = useState(false)
-  usePageTitle('Staff Sign In · Serendib Trails')
+  usePageTitle('Staff Sign in')
 
   async function onSubmit(e) {
     e.preventDefault()
     if (!email.includes('@')) {
-      setError('Please use a valid email address.')
+      setError('Use a valid email address.')
       return
     }
     if (password.length < 4) {
-      setError('Password must contain at least 4 characters.')
+      setError('Password needs at least 4 characters.')
       return
     }
     setError('')
@@ -45,14 +37,14 @@ export default function Login() {
     try {
       const session = await login(email.trim(), password)
       if (!session || session.token === 'demo-token') {
-        setError('Invalid staff credentials. Please check your email and password.')
+        setError('Invalid email or password. Please check your staff credentials.')
         return
       }
 
       // Customers CANNOT log into the staff portal
       if (session.role === 'customer') {
         logout()
-        setError('Access denied: Customer accounts cannot log in to the staff console. Please use staff credentials.')
+        setError('Access denied: Customer accounts cannot log in to the staff portal. Please use staff credentials.')
         return
       }
 
@@ -63,229 +55,121 @@ export default function Login() {
         navigate('/staff', { replace: true })
       }
     } catch {
-      setError('Authentication failed. Server unreachable or invalid credentials.')
+      setError('Sign-in failed. Try again.')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="login-split-page">
-      {/* ── Left Column: Brand Hero Backdrop matching Figma 2:26586 ── */}
-      <div
-        className="login-brand-col"
-        style={{
-          background: 'linear-gradient(135deg, #06231b 0%, #0a3628 50%, #0f4a37 100%)',
-          position: 'relative',
-          overflow: 'hidden'
-        }}
-      >
-        {/* Subtle decorative glowing mesh overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '-20%',
-            left: '-10%',
-            width: '600px',
-            height: '600px',
-            background: 'radial-gradient(circle, rgba(53, 177, 131, 0.22) 0%, transparent 70%)',
-            pointerEvents: 'none'
-          }}
-        />
-
-        {/* Top Brand Mark with return link */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', position: 'relative', zIndex: 2 }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', textDecoration: 'none' }} title="Return to public website">
-            <div className="staff__brand-box">
-              <LeafIcon size={24} />
-            </div>
-            <div className="staff__brand-text">
-              <b className="staff__brand-name" style={{ fontSize: '1.25rem' }}>
-                Serendib Trails
-              </b>
-              <span className="staff__brand-sub" style={{ fontSize: '0.625rem' }}>
-                Sri Lanka · Since 2016
-              </span>
-            </div>
-          </Link>
-          <Link
-            to="/"
+    <>
+      <Masthead
+        eyebrow="Staff sign in"
+        title="Welcome back."
+        lede="Agents and admins sign in here. Use your staff credentials to access the console."
+        crumbs={[{ label: 'Sign in' }]}
+      />
+      <section className="section section--overlap">
+        <div className="shell" style={{ maxWidth: '34rem' }}>
+          {/* Frosted-glass login card floats over scenic backdrop */}
+          <form
+            className="panel form"
             style={{
-              color: '#cbd5e1',
-              fontSize: '0.75rem',
-              textDecoration: 'none',
-              padding: '0.35rem 0.65rem',
-              borderRadius: '6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              transition: 'background-color 0.15s ease'
+              position: 'relative',
+              overflow: 'hidden',
+              padding: '2.25rem',
+              background: 'rgba(255, 255, 255, 0.94)',
+              border: '1px solid rgba(255, 255, 255, 0.85)',
+              borderRadius: 'var(--r-xl)',
+              backdropFilter: 'blur(20px) saturate(140%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(140%)',
+              boxShadow: '0 0 0 1px rgba(53, 177, 131, 0.18), 0 24px 54px -16px rgba(8, 32, 26, 0.16), 0 8px 24px -6px rgba(224, 166, 63, 0.12)',
             }}
+            onSubmit={onSubmit}
           >
-            ← Public site
-          </Link>
-        </div>
-
-        {/* Hero Narrative Headline */}
-        <div className="login-brand-col__hero" style={{ position: 'relative', zIndex: 2 }}>
-          <p style={{ color: '#6ed4ab', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', margin: 0 }}>
-            TRAVEL OPERATIONS, CONNECTED
-          </p>
-          <h1 className="login-brand-col__title">
-            Every journey, carefully coordinated.
-          </h1>
-          <p className="login-brand-col__sub">
-            Review bookings, keep partners aligned, and make every Sri Lankan itinerary exceptional—from one secure workspace.
-          </p>
-
-          <div className="login-brand-col__features" style={{ marginTop: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#166b4f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CheckIcon size={12} />
-              </div>
-              <span>Secure staff access</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#166b4f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CheckIcon size={12} />
-              </div>
-              <span>Live operations data</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: '#166b4f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <CheckIcon size={12} />
-              </div>
-              <span>AI-assisted review</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom copyright notice */}
-        <div style={{ fontSize: '0.75rem', color: '#8fa0a6', position: 'relative', zIndex: 2 }}>
-          © {new Date().getFullYear()} Serendib Trails Ltd. All rights reserved.
-        </div>
-      </div>
-
-      {/* ── Right Column: Sign-in Form Card matching Figma 2:26586 ── */}
-      <div className="login-form-col">
-        <form className="login-card" onSubmit={onSubmit}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-            <span style={{ color: '#166b4f', fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              SECURE STAFF ACCESS
-            </span>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: 700, color: '#182126', margin: 0, lineHeight: 1.2 }}>
-              Welcome back
-            </h2>
-            <p style={{ fontSize: '0.8125rem', color: '#66747b', margin: 0 }}>
-              Sign in with your approved Serendib Trails account.
-            </p>
-          </div>
-
-          {/* Email field */}
-          <div>
-            <label htmlFor="staff-email" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#182126', marginBottom: '0.35rem' }}>
-              Staff email *
-            </label>
-            <input
-              id="staff-email"
-              type="email"
-              required
-              autoComplete="username"
-              className="staff-search-box"
-              style={{ maxWidth: '100%', width: '100%', height: '42px' }}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          {/* Password field */}
-          <div>
-            <label htmlFor="staff-password" style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#182126', marginBottom: '0.35rem' }}>
-              Password *
-            </label>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <input
-                id="staff-password"
-                type={showPassword ? 'text' : 'password'}
-                required
-                autoComplete="current-password"
-                className="staff-search-box"
-                style={{ maxWidth: '100%', width: '100%', height: '42px', paddingRight: '2.5rem' }}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '0.75rem',
-                  background: 'none',
-                  border: 'none',
-                  color: '#66747b',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer'
-                }}
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
-            </div>
-          </div>
-
-          {/* Remember me & Forgot Password */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8125rem' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', color: '#182126' }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                style={{ accentColor: '#166b4f' }}
-              />
-              <span>Remember this device</span>
-            </label>
-            <a
-              href="#forgot"
-              onClick={(e) => {
-                e.preventDefault()
-                alert('Contact internal IT operations at ops@serendib.lk to request password reset.')
+            {/* Top colorful accent stripe */}
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: 'linear-gradient(90deg, var(--sand-500, #e0a63f) 0%, var(--leaf-400, #35b183) 35%, var(--ocean-400, #29aebd) 70%, var(--coral-500, #e4694a) 100%)',
               }}
-              style={{ color: '#166b4f', textDecoration: 'none', fontWeight: 600 }}
-            >
-              Forgot password?
-            </a>
-          </div>
-
-          {/* Error / Validation Alert Banner */}
-          {error && (
-            <div className="banner-danger" style={{ fontSize: '0.75rem' }}>
-              <span style={{ fontSize: '1rem' }}>ⓘ</span>
-              <span>{error}</span>
+              aria-hidden="true"
+            />
+            <div className="field">
+              <label className="field__label" htmlFor="email">
+                Email
+              </label>
+              <input
+                id="email"
+                className="input"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-          )}
-
-          {/* Gold Submit Button */}
-          <button
-            type="submit"
-            className="btn-gold"
-            style={{ width: '100%', height: '42px', justifyContent: 'center', fontSize: '0.875rem' }}
-            disabled={busy}
-          >
-            <span>{busy ? 'Verifying credentials…' : 'Sign in to staff console'}</span>
-            <ArrowRightIcon size={16} />
-          </button>
-
-          {/* Customer return link */}
-          <div style={{ textAlign: 'center', margin: '0.25rem 0' }}>
-            <Link to="/" style={{ fontSize: '0.75rem', color: '#66747b', textDecoration: 'none', fontWeight: 500 }}>
-              Not a staff member? <span style={{ color: '#166b4f', fontWeight: 600 }}>Return to customer site →</span>
-            </Link>
-          </div>
-
-          {/* Security footnote */}
-          <p style={{ margin: 0, fontSize: '0.6875rem', color: '#8fa0a6', textAlign: 'center', lineHeight: 1.4 }}>
-            Protected by multi-factor authentication · Session activity is audited
-          </p>
-        </form>
-      </div>
-    </div>
+            <div className="field">
+              <label className="field__label" htmlFor="password">
+                Password
+              </label>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <input
+                  id="password"
+                  className="input"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{ paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.65rem',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '0.25rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: showPassword ? 'var(--forest-600, #0d9488)' : 'var(--text-muted, #64748b)',
+                    transition: 'color 0.15s ease',
+                  }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <span className="field__hint">Staff login: agent@colombo.lk or agent@serendibtrails.lk / Staff@123</span>
+            </div>
+            {error ? <div className="notice notice--error">{error}</div> : null}
+            <button className="btn btn--block" type="submit" disabled={busy}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+            <p className="field__hint" style={{ textAlign: 'center' }}>
+              Customer? <Link to="/planner">Continue to the AI planner</Link>
+            </p>
+          </form>
+        </div>
+      </section>
+    </>
   )
 }

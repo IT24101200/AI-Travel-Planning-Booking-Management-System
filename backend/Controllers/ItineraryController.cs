@@ -28,39 +28,13 @@ namespace backend.Controllers
         [HttpPost]
         [ProducesResponseType(typeof(ItineraryDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] CreateItineraryRequest request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-            string customerId;
-
-            if (isStaff)
-            {
-                if (string.IsNullOrWhiteSpace(request.CustomerId))
-                    return BadRequest(new { message = "CustomerId is required when creating an itinerary as staff." });
-
-                customerId = request.CustomerId;
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(userId))
-                    return Unauthorized();
-
-                if (!string.IsNullOrWhiteSpace(request.CustomerId) && request.CustomerId != userId)
-                    return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only create itineraries for yourself." });
-
-                customerId = userId;
-            }
-
-            if (request.EndDate < request.StartDate)
-                return BadRequest(new { message = "EndDate cannot be before StartDate." });
-
             var created = await _service.CreateItineraryAsync(
-                customerId,
+                request.CustomerId,
                 request.TripRequestId,
                 request.StartDate,
                 request.EndDate,
@@ -211,9 +185,6 @@ namespace backend.Controllers
 
             if (!isStaff && itinerary.CustomerId != userId)
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = "You do not have access to this itinerary." });
-
-            if (!isStaff && request.ResolvedStatus != ItineraryStatus.Discarded)
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Customers can only request changes. Approval is done by staff." });
 
             var (success, errorMessage) = await _service.UpdateItineraryStatusAsync(id, request.ResolvedStatus);
 

@@ -57,7 +57,6 @@ class TripPlanningState(TypedDict, total=False):
     budget_ceiling: float
     currency: str
     retry_count: int
-    access_token: Optional[str]
     status: str
     trip_days: int
     plan_summary: Dict[str, Any]
@@ -147,19 +146,12 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
     """
     trip_id = initial_data.get("trip_request_id", 0)
 
-    # Never persist credentials in AgentLog input snapshots.
-    safe_initial_data = {
-        key: value
-        for key, value in initial_data.items()
-        if key not in {"access_token", "auth_token", "authorization"}
-    }
-
     # Audit log starting of pipeline
     log_agent_step(
         trip_request_id=trip_id,
         agent_name="CoordinatorAgent",
         step_name="InitializePipeline",
-        input_data=safe_initial_data,
+        input_data=initial_data,
         output_data={"message": "Multi-agent planning workflow started"},
         status="Started"
     )

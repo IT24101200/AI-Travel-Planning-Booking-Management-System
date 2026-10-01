@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../widgets/common_widgets.dart';
 
-/// AI Trip Request screen matching Figma frame 15 · AI Trip Request (node 7:11285)
+/// Trip request form screen — "Plan My Trip" with multi-agent orchestration.
 class TripRequestScreen extends StatefulWidget {
   const TripRequestScreen({super.key});
 
@@ -12,773 +12,664 @@ class TripRequestScreen extends StatefulWidget {
 }
 
 class _TripRequestScreenState extends State<TripRequestScreen> {
-  final _destinationCtrl =
-      TextEditingController(text: 'Sigiriya, Kandy, Ella & Mirissa');
-  final _specialRequestsCtrl = TextEditingController(
-    text: 'Quiet stays, vegetarian meals, easy-paced mornings',
-  );
+  final _formKey = GlobalKey<FormState>();
+  final _requestTextCtrl = TextEditingController();
+  final _budgetCtrl = TextEditingController(text: '1200');
+  final _travellerCtrl = TextEditingController(text: '2');
 
-  String _dateRangeText = '12–18 Oct';
-  int _travelers = 2;
-  final double _budget = 1800;
+  List<dynamic> _destinations = [];
+  int? _selectedDestinationId;
+  String _selectedDestinationName = 'Sigiriya';
+  DateTime? _startDate;
+  DateTime? _endDate;
+  final String _currency = 'USD';
+  bool _loading = false;
+  bool _loadingDestinations = true;
+  String? _error;
+  String? _success;
+  int? _createdTripId;
 
-  final Set<String> _selectedInterests = {
-    'Culture',
-    'Wildlife',
-    'Beaches',
-  };
+  @override
+  void initState() {
+    super.initState();
+    _startDate = DateTime.now().add(const Duration(days: 7));
+    _endDate = DateTime.now().add(const Duration(days: 12));
+    _loadDestinations();
+  }
 
-  final List<Map<String, dynamic>> _interestOptions = [
-    {'name': 'Culture', 'icon': Icons.account_balance_outlined},
-    {'name': 'Wildlife', 'icon': Icons.pets_outlined},
-    {'name': 'Tea country', 'icon': Icons.eco_outlined},
-    {'name': 'Beaches', 'icon': Icons.waves_outlined},
-    {'name': 'Food', 'icon': Icons.restaurant_outlined},
-  ];
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments;
+    if (args is Map<String, dynamic>) {
+      final name = args['name']?.toString() ?? '';
+      _requestTextCtrl.text =
+          'I want to experience $name with guided tours, quality hotel and comfortable transit.';
+      _selectedDestinationName = name;
+    }
+  }
 
-  bool _isGenerating = false;
+  /// Load available destinations for dropdown
+  Future<void> _loadDestinations() async {
+    try {
+      final list = await ApiService.getDestinations();
+      if (mounted) {
+        setState(() {
+          _destinations = list;
+          _loadingDestinations = false;
+          if (_destinations.isNotEmpty && _selectedDestinationId == null) {
+            _selectedDestinationId = _destinations.first['id'];
+            _selectedDestinationName =
+                _destinations.first['name'] ?? 'Sigiriya';
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingDestinations = false);
+    }
+  }
+
+  /// Pick a date using the date picker
+  Future<void> _pickDate({required bool isStart}) async {
+    final initial = isStart
+        ? (_startDate ?? DateTime.now().add(const Duration(days: 7)))
+        : (_endDate ?? DateTime.now().add(const Duration(days: 12)));
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.jungle600,
+              onPrimary: Colors.white,
+              onSurface: AppColors.ink,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStart) {
+          _startDate = picked;
+          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+            _endDate = _startDate!.add(const Duration(days: 3));
+          }
+        } else {
+          _endDate = picked;
+        }
+      });
+    }
+  }
+
+  /// Submit trip request to backend
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_startDate == null || _endDate == null) {
+      setState(() => _error = 'Please select start and end dates');
+      return;
+    }
+    if (_endDate!.isBefore(_startDate!)) {
+      setState(() => _error = 'End date must be after start date');
+      return;
+    }
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _success = null;
+    });
+
+    try {
+      final result = await ApiService.createTripRequest({
+        'destinationId': _selectedDestinationId,
+        'rawRequestText': _requestTextCtrl.text.trim(),
+        'startDate': _startDate!.toIso8601String(),
+        'endDate': _endDate!.toIso8601String(),
+        'travellerCount': int.tryParse(_travellerCtrl.text) ?? 1,
+        'budgetCeiling': double.tryParse(_budgetCtrl.text) ?? 0,
+        'currency': _currency,
+      });
+
+      if (!mounted) return;
+
+      if (result['statusCode'] == 200 || result['statusCode'] == 201) {
+        setState(() {
+          _createdTripId = result['id'] is int ? result['id'] : int.tryParse(result['id']?.toString() ?? '');
+          _success =
+              'Trip request submitted! 4 AI Agents are now coordinating your itinerary, hotel & transport options.';
+        });
+      } else {
+        setState(() {
+          _error =
+              result['message'] ??
+              'Failed to submit trip request. Please try again.';
+        });
+      }
+    } catch (_) {
+      setState(
+        () => _error = 'Unable to reach backend API. Check network connection.',
+      );
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  void _applyQuickPrompt(String prompt) {
+    setState(() {
+      _requestTextCtrl.text = prompt;
+    });
+  }
 
   @override
   void dispose() {
-    _destinationCtrl.dispose();
-    _specialRequestsCtrl.dispose();
+    _requestTextCtrl.dispose();
+    _budgetCtrl.dispose();
+    _travellerCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _generateItinerary() async {
-    setState(() => _isGenerating = true);
-
-    try {
-      final promptText =
-          'Destination: ${_destinationCtrl.text.trim()}, Interests: ${_selectedInterests.join(", ")}, Requests: ${_specialRequestsCtrl.text.trim()}';
-
-      final start = DateTime.now().add(const Duration(days: 14));
-      final end = start.add(const Duration(days: 6));
-
-      await ApiService.createTripRequest({
-        'destinationId': null,
-        'rawRequestText': promptText,
-        'startDate': start.toIso8601String(),
-        'endDate': end.toIso8601String(),
-        'travellerCount': _travelers,
-        'budgetCeiling': _budget,
-        'currency': 'USD',
-      });
-    } catch (_) {
-      // Offline fallback handling
-    }
-
-    if (mounted) {
-      await Future.delayed(const Duration(milliseconds: 1400));
-      if (mounted) {
-        setState(() => _isGenerating = false);
-        Navigator.pushNamed(context, '/itinerary');
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final previewImage = AppDestinations.getImageForDestination(
+      _selectedDestinationName,
+    );
+
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── App Bar ──
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF10291F).withValues(alpha: 0.08),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
-                        size: 19,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Plan with AI',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF17211D),
-                          ),
-                        ),
-                        Text(
-                          'Four specialist agents, one island journey',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            color: const Color(0xFF6E7772),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+      appBar: AppBar(title: const Text('AI Trip Planner')),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Dynamic Scenic Banner ──
+            Stack(
+              children: [
+                AppNetworkImage(
+                  imageUrl: previewImage,
+                  height: 180,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                ),
+                Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.3),
+                        AppColors.jungle900.withValues(alpha: 0.85),
                       ],
                     ),
                   ),
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.info_outline,
-                        color: AppColors.figmaDarkGreen,
-                        size: 19,
-                      ),
-                      onPressed: _showInfoDialog,
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── AI Intro Banner ──
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF123F32),
-                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: const BoxDecoration(
-                        color: AppColors.figmaGold,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.auto_awesome,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Tell us what your perfect trip feels like',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            "We'll assemble a bookable itinerary in under two minutes.",
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 8,
-                              color: Colors.white.withValues(alpha: 0.74),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Destination Input ──
-              Text(
-                'DESTINATION',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF6E7772),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.place_outlined,
-                      size: 18,
-                      color: AppColors.figmaDarkGreen,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _destinationCtrl,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF17211D),
+                Positioned(
+                  bottom: 16,
+                  left: 20,
+                  right: 20,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.sand500,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: AppColors.jungle900,
+                          size: 24,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // ── Dates and Travelers Row ──
-              Row(
-                children: [
-                  // Date Range
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'DATE RANGE',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF6E7772),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 5),
-                        GestureDetector(
-                          onTap: () async {
-                            final now = DateTime.now();
-                            final range = await showDateRangePicker(
-                              context: context,
-                              firstDate: now,
-                              lastDate: now.add(const Duration(days: 365)),
-                            );
-                            if (range != null) {
-                              setState(() {
-                                _dateRangeText =
-                                    '${range.start.day}–${range.end.day} Oct';
-                              });
-                            }
-                          },
-                          child: Container(
-                            height: 42,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(11),
-                              border: Border.all(
-                                color: const Color(0xFFE4E7E2),
+                      const SizedBox(width: 14),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Describe Your Ideal Journey',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            child: Row(
-                              children: [
-                                const Icon(
-                                  Icons.calendar_today_outlined,
-                                  size: 15,
-                                  color: AppColors.figmaDarkGreen,
+                            SizedBox(height: 2),
+                            Text(
+                              'Coordinator • Itinerary • Booking • Validation',
+                              style: TextStyle(
+                                color: AppColors.sand200,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            // ── Form Area ──
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Status messages
+                    if (_error != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.coral500.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.coral500.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.error_outline,
+                              color: AppColors.coral500,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _error!,
+                                style: const TextStyle(
+                                  color: AppColors.coral500,
+                                  fontSize: 13,
                                 ),
-                                const SizedBox(width: 8),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    if (_success != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.leaf50,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.jungle600.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle,
+                                  color: AppColors.jungle600,
+                                  size: 22,
+                                ),
+                                SizedBox(width: 8),
                                 Text(
-                                  _dateRangeText,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF17211D),
+                                  'Trip Planning Initiated!',
+                                  style: TextStyle(
+                                    color: AppColors.jungle800,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
                                   ),
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _success!,
+                              style: const TextStyle(
+                                color: AppColors.ink2,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/trip-history',
+                                    arguments: {
+                                      'initialTab': 1,
+                                      'openTripId': _createdTripId,
+                                    },
+                                  );
+                                },
+                                icon: const Icon(Icons.auto_awesome, size: 18),
+                                label: const Text('🚀 Track AI Agent Progress Live'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.jungle600,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Section: Destination Selection
+                    const Text(
+                      'Primary Destination',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _loadingDestinations
+                        ? const LinearProgressIndicator(
+                            color: AppColors.jungle600,
+                          )
+                        : DropdownButtonFormField<int>(
+                            initialValue: _selectedDestinationId,
+                            decoration: const InputDecoration(
+                              hintText: 'Select destination',
+                              prefixIcon: Icon(
+                                Icons.place_outlined,
+                                color: AppColors.jungle600,
+                              ),
+                            ),
+                            items: _destinations.map<DropdownMenuItem<int>>((
+                              d,
+                            ) {
+                              return DropdownMenuItem<int>(
+                                value: d['id'],
+                                child: Text(
+                                  '${d['name']} — ${d['country'] ?? 'Sri Lanka'}',
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (v) {
+                              setState(() {
+                                _selectedDestinationId = v;
+                                final match = _destinations.firstWhere(
+                                  (d) => d['id'] == v,
+                                  orElse: () => null,
+                                );
+                                if (match != null) {
+                                  _selectedDestinationName =
+                                      match['name'] ?? '';
+                                }
+                              });
+                            },
+                          ),
+
+                    const SizedBox(height: 20),
+
+                    // Section: Travel Dates
+                    const Text(
+                      'Travel Window',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => _pickDate(isStart: true),
+                            borderRadius: BorderRadius.circular(12),
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Departure',
+                                prefixIcon: Icon(
+                                  Icons.calendar_month,
+                                  color: AppColors.jungle600,
+                                  size: 20,
+                                ),
+                              ),
+                              child: Text(
+                                _startDate != null
+                                    ? '${_startDate!.year}-${_startDate!.month.toString().padLeft(2, '0')}-${_startDate!.day.toString().padLeft(2, '0')}'
+                                    : 'Select',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => _pickDate(isStart: false),
+                            borderRadius: BorderRadius.circular(12),
+                            child: InputDecorator(
+                              decoration: const InputDecoration(
+                                labelText: 'Return',
+                                prefixIcon: Icon(
+                                  Icons.calendar_month,
+                                  color: AppColors.jungle600,
+                                  size: 20,
+                                ),
+                              ),
+                              child: Text(
+                                _endDate != null
+                                    ? '${_endDate!.year}-${_endDate!.month.toString().padLeft(2, '0')}-${_endDate!.day.toString().padLeft(2, '0')}'
+                                    : 'Select',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  // Travelers Counter
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+
+                    const SizedBox(height: 20),
+
+                    // Section: Party Size & Budget
+                    Row(
                       children: [
-                        Text(
-                          'TRAVELERS',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF6E7772),
-                            letterSpacing: 0.5,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Travellers',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _travellerCtrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  prefixIcon: Icon(
+                                    Icons.group_outlined,
+                                    color: AppColors.jungle600,
+                                    size: 20,
+                                  ),
+                                ),
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) return 'Required';
+                                  final n = int.tryParse(v);
+                                  if (n == null || n < 1) return 'Min 1';
+                                  return null;
+                                },
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 5),
-                        Container(
-                          height: 42,
-                          padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(11),
-                            border: Border.all(
-                              color: const Color(0xFFE4E7E2),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              GestureDetector(
-                                onTap: () {
-                                  if (_travelers > 1) {
-                                    setState(() => _travelers--);
-                                  }
-                                },
-                                child: const Icon(
-                                  Icons.remove,
-                                  size: 16,
-                                  color: AppColors.figmaDarkGreen,
+                              const Text(
+                                'Max Budget',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.ink,
                                 ),
                               ),
-                              Text(
-                                '$_travelers',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF17211D),
+                              const SizedBox(height: 8),
+                              TextFormField(
+                                controller: _budgetCtrl,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  prefixText: '\$ ',
+                                  prefixIcon: Icon(
+                                    Icons.account_balance_wallet_outlined,
+                                    color: AppColors.jungle600,
+                                    size: 20,
+                                  ),
                                 ),
-                              ),
-                              GestureDetector(
-                                onTap: () {
-                                  setState(() => _travelers++);
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) return 'Required';
+                                  final n = double.tryParse(v);
+                                  if (n == null || n <= 0) return 'Must be > 0';
+                                  return null;
                                 },
-                                child: const Icon(
-                                  Icons.add,
-                                  size: 16,
-                                  color: AppColors.figmaDarkGreen,
-                                ),
                               ),
                             ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 14),
+                    const SizedBox(height: 20),
 
-              // ── Budget Heading & Slider ──
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'TOTAL BUDGET',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF6E7772),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  Text(
-                    '\$1,400 – \$2,200',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF123F32),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Container(
-                height: 8,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE4E7E2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: 0.65,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.figmaGold,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Travel Interests ──
-              Text(
-                'TRAVEL INTERESTS',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF6E7772),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: _interestOptions.map((opt) {
-                  final name = opt['name'] as String;
-                  final icon = opt['icon'] as IconData;
-                  final isSelected = _selectedInterests.contains(name);
-
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        if (isSelected) {
-                          _selectedInterests.remove(name);
-                        } else {
-                          _selectedInterests.add(name);
-                        }
-                      });
-                    },
-                    child: Container(
-                      height: 32,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? const Color(0xFF123F32)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFF123F32)
-                              : const Color(0xFFE4E7E2),
-                        ),
+                    // Section: Prompt / Vision
+                    const Text(
+                      'Trip Preferences & Interests',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Quick suggestion chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            icon,
-                            size: 13,
-                            color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF17211D),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            name,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF17211D),
-                            ),
-                          ),
+                          _buildPromptChip('Tea Country & Scenic Trains'),
+                          _buildPromptChip('Wildlife Safari & Marine Coast'),
+                          _buildPromptChip('UNESCO Heritage & Rock Forts'),
                         ],
                       ),
                     ),
-                  );
-                }).toList(),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Special Requests ──
-              Text(
-                'Special requests',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF6E7772),
-                ),
-              ),
-              const SizedBox(height: 5),
-              Container(
-                height: 44,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 16,
-                      color: AppColors.figmaDarkGreen,
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: TextField(
-                        controller: _specialRequestsCtrl,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: const Color(0xFF17211D),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: _requestTextCtrl,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText:
+                            'e.g., A 5-day nature and heritage vacation visiting Sigiriya and Ella with boutique stays and scenic train rides...',
+                        alignLabelWithHint: true,
+                        prefixIcon: Padding(
+                          padding: EdgeInsets.only(bottom: 60),
+                          child: Icon(
+                            Icons.edit_note,
+                            color: AppColors.jungle600,
+                          ),
                         ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
+                      ),
+                      validator: (v) => (v == null || v.isEmpty)
+                          ? 'Please describe your trip preferences'
+                          : null,
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _loading ? null : _submit,
+                        icon: _loading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.auto_awesome,
+                                color: AppColors.sand400,
+                              ),
+                        label: Text(
+                          _loading
+                              ? 'Orchestrating 4 AI Agents...'
+                              : 'Plan My Trip with AI',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.jungle600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 2,
                         ),
                       ),
                     ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // ── Generate AI Itinerary Button ──
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isGenerating ? null : _generateItinerary,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF123F32),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _isGenerating
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.auto_awesome, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Generate AI Itinerary',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // ── Agent Workspace Panel ──
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Agent workspace',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF17211D),
-                          ),
-                        ),
-                        Text(
-                          'Live',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF2F7057),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-
-                    // 2x2 Agent Grid
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildAgentCard(
-                            icon: Icons.alt_route,
-                            name: 'Planning Agent',
-                            desc: 'Building your route',
-                            status: _isGenerating ? 'Synthesizing...' : 'Working',
-                            statusColor: const Color(0xFF3676A8),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildAgentCard(
-                            icon: Icons.hotel_outlined,
-                            name: 'Hotel Agent',
-                            desc: 'Matching verified stays',
-                            status: 'Ready',
-                            statusColor: const Color(0xFF267A55),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildAgentCard(
-                            icon: Icons.train_outlined,
-                            name: 'Transport Agent',
-                            desc: 'Comparing island travel',
-                            status: 'Queued',
-                            statusColor: const Color(0xFFB36A16),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildAgentCard(
-                            icon: Icons.verified_outlined,
-                            name: 'Review Agent',
-                            desc: 'Quality & budget check',
-                            status: 'Queued',
-                            statusColor: const Color(0xFF6E7772),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildAgentCard({
-    required IconData icon,
-    required String name,
-    required String desc,
-    required String status,
-    required Color statusColor,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7F5EF),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE5F1EA),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 14, color: const Color(0xFF123F32)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: const Color(0xFF17211D),
-                  ),
-                ),
-                Text(
-                  desc,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 7,
-                    color: const Color(0xFF6E7772),
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  status,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 8,
-                    fontWeight: FontWeight.w700,
-                    color: statusColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showInfoDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          'Multi-Agent Trip Engine',
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            color: AppColors.figmaDarkGreen,
-          ),
+  Widget _buildPromptChip(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ActionChip(
+        label: Text(label),
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          color: AppColors.jungle700,
+          fontWeight: FontWeight.w600,
         ),
-        content: Text(
-          'Our AI system orchestrates 4 specialized travel agents: Planning Agent maps routes, Hotel Agent books boutique stays, Transport Agent organizes vehicles, and Review Agent validates safety and budget.',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 13,
-            color: const Color(0xFF4B5563),
-            height: 1.4,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Got it'),
-          ),
-        ],
+        backgroundColor: AppColors.leaf50,
+        side: const BorderSide(color: AppColors.leaf100),
+        onPressed: () => _applyQuickPrompt(label),
       ),
     );
   }

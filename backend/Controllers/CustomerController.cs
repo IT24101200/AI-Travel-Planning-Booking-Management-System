@@ -84,26 +84,6 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Update a customer profile by ID (TravelAgent or Admin).
-        /// </summary>
-        [HttpPut("{id}")]
-        [Authorize(Roles = "TravelAgent,Admin")]
-        [ProducesResponseType(typeof(CustomerDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateCustomer(string id, [FromBody] CustomerUpdateDto dto)
-        {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
-            var updated = await _customerService.UpdateAsync(id, dto);
-            if (updated == null)
-                return NotFound(new { message = "Customer not found." });
-
-            return Ok(updated);
-        }
-
-        /// <summary>
         /// List all customers with search, sort, and pagination (Staff Customer Directory).
         /// Only TravelAgent or Admin can access the full customer list.
         /// </summary>
