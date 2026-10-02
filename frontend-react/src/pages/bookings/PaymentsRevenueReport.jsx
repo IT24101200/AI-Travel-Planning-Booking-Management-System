@@ -80,12 +80,8 @@ export default function PaymentsRevenueReport() {
         value: Number(m.revenue) || 0,
       }))
     }
-    // Fallback if no monthly records yet
-    const paidTotal = payments.filter((p) => p.status === 'Paid').reduce((s, p) => s + p.amount, 0)
-    return [
-      { month: 'Current', value: paidTotal },
-    ]
-  }, [summaryData, payments])
+    return []
+  }, [summaryData])
 
   const max = Math.max(...bars.map((b) => b.value), 1)
   const pages = Math.max(1, Math.ceil(payments.length / PAGE_SIZE))
@@ -122,15 +118,21 @@ export default function PaymentsRevenueReport() {
 
       <div className="panel panel--solid staff-chart">
         <b>Monthly revenue from database</b>
-        <div className="staff-bars">
-          {bars.map((b) => (
-            <div key={b.month} className="staff-bar">
-              <div className="staff-bar__fill" style={{ height: `${Math.round((b.value / max) * 100)}%` }} />
-              <span>{b.month}</span>
-              <em>${b.value}</em>
-            </div>
-          ))}
-        </div>
+        {bars.length > 0 ? (
+          <div className="staff-bars">
+            {bars.map((b) => (
+              <div key={b.month} className="staff-bar">
+                <div className="staff-bar__fill" style={{ height: `${Math.round((b.value / max) * 100)}%` }} />
+                <span>{b.month}</span>
+                <em>${b.value}</em>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="staff-empty" style={{ margin: '1rem 0 0' }}>
+            No monthly revenue trends recorded in database yet.
+          </p>
+        )}
       </div>
 
       <div className="panel panel--solid staff-table-wrap">

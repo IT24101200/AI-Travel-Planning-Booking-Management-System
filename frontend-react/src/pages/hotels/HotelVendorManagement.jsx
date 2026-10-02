@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createHotel, deleteHotel, fetchHotels, updateHotel } from '../../services/apiClient.js'
+import { createHotel, deleteHotel, fetchDestinations, fetchHotels, updateHotel } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 
@@ -8,12 +8,13 @@ const PAGE_SIZE = 6
 /** Student C — hotel & vendor management with real database CRUD (add/edit/delete), room stats & pagination. */
 export default function HotelVendorManagement() {
   const [rows, setRows] = useState([])
+  const [destinations, setDestinations] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [form, setForm] = useState({ name: '', location: '', stars: '3' })
+  const [form, setForm] = useState({ name: '', location: '', stars: '3', destinationId: '' })
   // Edit mode state
   const [editId, setEditId] = useState(null)
   const [editForm, setEditForm] = useState({})
@@ -23,28 +24,42 @@ export default function HotelVendorManagement() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetchHotels()
-      const live = Array.isArray(res) ? res : (res?.data || [])
-      if (!cancelled) {
-        const mapped = live.map((h) => {
-          const rooms = Array.isArray(h.rooms) ? h.rooms : []
-          const roomCount = rooms.reduce((acc, r) => acc + (r.totalRooms || 1), 0)
-          const validPrices = rooms.map((r) => Number(r.pricePerNight) || 0).filter((p) => p > 0)
-          const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null
+      const [hotelsRes, destsRes] = await Promise.allSettled([
+        fetchHotels(),
+        fetchDestinations(),
+      ])
 
-          return {
-            id: h.id,
-            name: h.name,
-            location: h.destinationName || h.address || 'Sri Lanka',
-            address: h.address || '',
-            destinationId: h.destinationId || 1,
-            stars: h.starRating || 3,
-            roomCount: roomCount || (rooms.length > 0 ? rooms.length : 0),
-            minPrice,
-            status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Active'),
+      if (!cancelled) {
+        if (destsRes.status === 'fulfilled') {
+          const destList = Array.isArray(destsRes.value) ? destsRes.value : (destsRes.value?.data || [])
+          setDestinations(destList)
+          if (destList.length > 0) {
+            setForm((f) => ({ ...f, destinationId: f.destinationId || destList[0].id }))
           }
-        })
-        setRows(mapped)
+        }
+
+        if (hotelsRes.status === 'fulfilled') {
+          const live = Array.isArray(hotelsRes.value) ? hotelsRes.value : (hotelsRes.value?.data || [])
+          const mapped = live.map((h) => {
+            const rooms = Array.isArray(h.rooms) ? h.rooms : []
+            const roomCount = rooms.reduce((acc, r) => acc + (r.totalRooms || 1), 0)
+            const validPrices = rooms.map((r) => Number(r.pricePerNight) || 0).filter((p) => p > 0)
+            const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null
+
+            return {
+              id: h.id,
+              name: h.name,
+              location: h.destinationName || h.address || 'Sri Lanka',
+              address: h.address || '',
+              destinationId: h.destinationId || 1,
+              stars: h.starRating || 3,
+              roomCount: roomCount || (rooms.length > 0 ? rooms.length : 0),
+              minPrice,
+              status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Active'),
+            }
+          })
+          setRows(mapped)
+        }
       }
     } catch (err) {
       if (!cancelled) {
@@ -80,12 +95,12 @@ export default function HotelVendorManagement() {
     try {
       await createHotel({
         name: form.name.trim(),
-        destinationId: 1,
+        destinationId: Number(form.destinationId) || (destinations[0]?.id || 1),
         address: form.location.trim(),
         starRating: Number(form.stars) || 3,
       })
       setNotice(`Hotel "${form.name.trim()}" added to database.`)
-      setForm({ name: '', location: '', stars: '3' })
+      setForm({ name: '', location: '', stars: '3', destinationId: destinations[0]?.id || '' })
       await loadHotels()
     } catch (err) {
       setNotice(`Failed to add hotel: ${err.response?.data?.message || err.message}`)
@@ -111,7 +126,7 @@ export default function HotelVendorManagement() {
       await updateHotel(id, {
         name: editForm.name.trim(),
         address: editForm.location.trim(),
-        destinationId: editForm.destinationId || 1,
+        destinationId: Number(editForm.destinationId) || 1,
         starRating: Number(editForm.stars) || 3,
       })
       setNotice(`Hotel #${id} updated in database.`)
@@ -175,7 +190,19 @@ export default function HotelVendorManagement() {
         <b>Add hotel to database</b>
         <div className="staff-form__grid">
           <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-          <input className="input" placeholder="Location / Address" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required />
+          <input className="input" placeholder="Address / Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required />
+          <select
+            className="select"
+            value={form.destinationId}
+            onChange={(e) => setForm({ ...form, destinationId: e.target.value })}
+            aria-label="Destination"
+          >
+            {destinations.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
           <select className="select" value={form.stars} onChange={(e) => setForm({ ...form, stars: e.target.value })}>
             <option value="3">3 Stars</option>
             <option value="4">4 Stars</option>
@@ -207,7 +234,21 @@ export default function HotelVendorManagement() {
                   {editId === h.id ? (
                     <>
                       <td><input className="input input--sm" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
-                      <td><input className="input input--sm" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} /></td>
+                      <td>
+                        <input className="input input--sm" value={editForm.location} onChange={(e) => setEditForm({ ...editForm, location: e.target.value })} placeholder="Address" />
+                        {destinations.length > 0 && (
+                          <select
+                            className="select select--sm"
+                            style={{ marginTop: '0.25rem' }}
+                            value={editForm.destinationId}
+                            onChange={(e) => setEditForm({ ...editForm, destinationId: e.target.value })}
+                          >
+                            {destinations.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
                       <td>
                         <select className="select" value={editForm.stars} onChange={(e) => setEditForm({ ...editForm, stars: e.target.value })}>
                           <option value="3">3 Stars</option>

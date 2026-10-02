@@ -52,7 +52,7 @@ export default function BookingApprovalDashboard() {
                     text: `${dec}: ${a.comment || 'No comment'} (${a.decidedAt ? a.decidedAt.replace('T', ' ').substring(0, 16) : ''})`,
                   }
                 })
-              : [{ agent: 'System', text: 'Booking submitted and awaiting travel agent approval.' }],
+              : [],
           }
         })
         setRows(mapped)
@@ -286,11 +286,17 @@ export default function BookingApprovalDashboard() {
 
             <h4 style={{ margin: '1rem 0 0.5rem' }}>Decision Audit Trail</h4>
             <div className="staff-sub" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {active.trail.map((t, idx) => (
-                <div key={idx} style={{ padding: '0.3rem 0.5rem', background: 'rgba(0,0,0,0.03)', borderRadius: '4px' }}>
-                  <b>[{t.agent}]</b> {t.text}
-                </div>
-              ))}
+              {active.trail && active.trail.length > 0 ? (
+                active.trail.map((t, idx) => (
+                  <div key={idx} style={{ padding: '0.3rem 0.5rem', background: 'rgba(0,0,0,0.03)', borderRadius: '4px' }}>
+                    <b>[{t.agent}]</b> {t.text}
+                  </div>
+                ))
+              ) : (
+                <p className="staff-sub" style={{ margin: 0, fontStyle: 'italic' }}>
+                  No human approval decisions recorded in database yet.
+                </p>
+              )}
             </div>
 
             <div style={{ marginTop: '1rem' }}>
