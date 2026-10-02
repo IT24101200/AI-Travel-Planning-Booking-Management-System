@@ -38,7 +38,7 @@ def build_booking_package(state):
         for room in rooms:
             if room.get("capacity", 1) >= traveller_count:
                 avail = check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date)
-                if avail and avail.get("isAvailable"):
+                if avail and avail.get("availableRooms", 0) > 0:
                     available_rooms.append({
                         "hotel_id": hotel.get("id"),
                         "hotel_name": hotel.get("name"),
@@ -64,7 +64,7 @@ def build_booking_package(state):
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
             avail = check_transport_availability(t.get("id"))
-            if avail and avail.get("isAvailable"):
+            if avail and avail.get("availableSeats", 0) > 0:
                 available_transports.append({
                     "transport_id": t.get("id"),
                     "type": t.get("type"),
@@ -84,13 +84,13 @@ def build_booking_package(state):
 
     if not available_rooms:
         available_rooms = [{
-            "hotel_id": 201, "hotel_name": "Grand Horizon Resort", "room_id": 301, 
-            "room_type": "Deluxe Double", "price_per_night": 150.0, "currency": "LKR"
+            "hotel_id": 2, "hotel_name": "Santani Wellness Resort & Spa", "room_id": 3, 
+            "room_type": "Mountain View Chalet", "price_per_night": 350.0, "currency": "USD"
         }]
     if not available_transports:
         available_transports = [{
-            "transport_id": 401, "type": "Flight", "provider": "SkyWings Airlines",
-            "price": 200.0, "currency": "LKR"
+            "transport_id": 1, "type": "Train", "provider": "Sri Lanka Railways (Ella Odyssey)",
+            "price": 25.0, "currency": "USD"
         }]
 
     itinerary = state.get("itinerary", {})
@@ -138,7 +138,7 @@ Rules:
 
     try:
         interaction = client.interactions.create(
-            model="gemini-1.5-flash",
+            model="gemini-3.5-flash",
             input=prompt.strip(),
         )
         response_text = _remove_markdown_fences(interaction.output_text)

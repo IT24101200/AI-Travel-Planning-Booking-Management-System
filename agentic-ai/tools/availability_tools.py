@@ -10,7 +10,8 @@ def search_hotels(destination_id):
     try:
         response = requests.get(endpoint, params={"destinationId": destination_id}, timeout=10)
         response.raise_for_status()
-        hotels = response.json()
+        hotels_data = response.json()
+        hotels = hotels_data.get("data", []) if isinstance(hotels_data, dict) else hotels_data
         return [h for h in hotels if isinstance(h, dict) and str(h.get("status", "")).lower() == "active"]
     except Exception as e:
         print(f"Error searching hotels: {e}")
@@ -41,7 +42,8 @@ def search_transports():
     try:
         response = requests.get(endpoint, timeout=10)
         response.raise_for_status()
-        transports = response.json()
+        transports_data = response.json()
+        transports = transports_data.get("data", []) if isinstance(transports_data, dict) else transports_data
         return [t for t in transports if isinstance(t, dict) and str(t.get("status", "")).lower() == "active"]
     except Exception as e:
         print(f"Error searching transports: {e}")
