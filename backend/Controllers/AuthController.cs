@@ -38,7 +38,10 @@ namespace backend.Controllers
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(new { message = "Validation failed.", errors = errors });
+            }
 
             var existingUser = await _userManager.FindByEmailAsync(dto.Email);
             if (existingUser != null)
@@ -93,7 +96,10 @@ namespace backend.Controllers
         public async Task<IActionResult> RegisterStaff([FromBody] RegisterStaffDto dto)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(new { message = "Validation failed.", errors = errors });
+            }
 
             // Simple secret code check — set "StaffSecretCode" in appsettings.json
             var correctCode = _configuration["StaffSecretCode"] ?? "staff123";
@@ -155,7 +161,10 @@ namespace backend.Controllers
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(new { message = "Validation failed.", errors = errors });
+            }
 
             var user = await _userManager.FindByEmailAsync(dto.Email);
             if (user == null)

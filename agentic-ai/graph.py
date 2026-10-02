@@ -37,7 +37,11 @@ except (ImportError, AttributeError):
         """Placeholder pass-through until Student D merges validation_agent.py."""
         return {
             "validation_result": {"is_valid": True},
-            "plan_json": state.get("plan_summary", {})
+            "plan_json": {
+                "plan_summary": state.get("plan_summary", {}),
+                "itinerary": state.get("itinerary", {}),
+                "booking_details": state.get("booking_details", {})
+            }
         }
 
 from logger import log_agent_step, BACKEND_URL
