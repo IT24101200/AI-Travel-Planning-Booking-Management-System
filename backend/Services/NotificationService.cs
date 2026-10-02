@@ -18,7 +18,7 @@ namespace backend.Services
         public async Task<List<NotificationDto>> GetByCustomerIdAsync(
             string? customerId, string? status, DateTime? from, DateTime? to, int page, int pageSize)
         {
-            var query = _db.Notifications.AsQueryable();
+            var query = _db.Notifications.Include(n => n.Customer).AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(customerId))
             {
@@ -41,12 +41,18 @@ namespace backend.Services
                 query = query.Where(n => n.SentAt <= to.Value);
             }
 
-            return await query
+            var list = await query
                 .OrderByDescending(n => n.SentAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(n => MapToDto(n))
                 .ToListAsync();
+
+            var userIds = list.Select(n => n.CustomerId).Distinct().ToList();
+            var userEmails = await _db.Users
+                .Where(u => userIds.Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.Email ?? string.Empty);
+
+            return list.Select(n => MapToDto(n, userEmails.GetValueOrDefault(n.CustomerId))).ToList();
         }
 
         public async Task<int> GetCountAsync(string? customerId, string? status, DateTime? from, DateTime? to)
@@ -73,13 +79,16 @@ namespace backend.Services
 
         public async Task<NotificationDto?> GetByIdAsync(Guid notificationId)
         {
-            var n = await _db.Notifications.FindAsync(notificationId);
-            return n == null ? null : MapToDto(n);
+            var n = await _db.Notifications.Include(n => n.Customer).FirstOrDefaultAsync(n => n.Id == notificationId);
+            if (n == null) return null;
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == n.CustomerId);
+            return MapToDto(n, user?.Email);
         }
 
         public async Task<NotificationDto?> MarkAsReadAsync(Guid notificationId, string customerId)
         {
             var notification = await _db.Notifications
+                .Include(n => n.Customer)
                 .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
 
             if (notification == null) return null;
@@ -88,12 +97,14 @@ namespace backend.Services
             notification.ReadAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            return MapToDto(notification);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == notification.CustomerId);
+            return MapToDto(notification, user?.Email);
         }
 
         public async Task<NotificationDto?> MarkAsUnreadAsync(Guid notificationId, string customerId)
         {
             var notification = await _db.Notifications
+                .Include(n => n.Customer)
                 .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
 
             if (notification == null) return null;
@@ -102,7 +113,8 @@ namespace backend.Services
             notification.ReadAt = null;
             await _db.SaveChangesAsync();
 
-            return MapToDto(notification);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == notification.CustomerId);
+            return MapToDto(notification, user?.Email);
         }
 
         public async Task<int> MarkAllAsReadAsync(string customerId)
@@ -124,6 +136,7 @@ namespace backend.Services
         public async Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string customerId)
         {
             var notification = await _db.Notifications
+                .Include(n => n.Customer)
                 .FirstOrDefaultAsync(n => n.Id == notificationId && n.CustomerId == customerId);
 
             if (notification == null) return null;
@@ -138,14 +151,15 @@ namespace backend.Services
             notification.SentAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
-            return MapToDto(notification);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == notification.CustomerId);
+            return MapToDto(notification, user?.Email);
         }
 
         public async Task<NotificationDto> SendNotificationAsync(SendNotificationDto dto)
         {
             // Validate customer exists
-            var customerExists = await _db.Customers.AnyAsync(c => c.Id == dto.CustomerId);
-            if (!customerExists)
+            var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == dto.CustomerId);
+            if (customer == null)
                 throw new KeyNotFoundException($"Customer with ID '{dto.CustomerId}' not found.");
 
             // Parse Channel enum from string
@@ -169,15 +183,19 @@ namespace backend.Services
             _db.Notifications.Add(notification);
             await _db.SaveChangesAsync();
 
-            return MapToDto(notification);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == dto.CustomerId);
+            notification.Customer = customer;
+            return MapToDto(notification, user?.Email);
         }
 
-        private static NotificationDto MapToDto(Notification n)
+        private static NotificationDto MapToDto(Notification n, string? email = null)
         {
             return new NotificationDto
             {
                 Id = n.Id,
                 CustomerId = n.CustomerId,
+                CustomerName = n.Customer?.FullName ?? string.Empty,
+                CustomerEmail = email ?? string.Empty,
                 Channel = n.Channel.ToString(),
                 MessageType = n.MessageType.ToString(),
                 Content = n.Content,

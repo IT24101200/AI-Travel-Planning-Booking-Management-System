@@ -95,7 +95,7 @@ export async function fetchCustomers() {
 }
 
 export async function fetchNotifications() {
-  const { data } = await api.get('/Notification')
+  const { data } = await api.get('/Notification', { params: { pageSize: 100 } })
   return data
 }
 

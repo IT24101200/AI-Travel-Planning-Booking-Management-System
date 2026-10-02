@@ -22,11 +22,13 @@ export default function NotificationLogs() {
     setError(null)
     try {
       const res = await fetchNotifications()
-      const live = Array.isArray(res) ? res : (res?.data || [])
+      const live = Array.isArray(res) ? res : (res?.items || res?.data || [])
       if (!cancelled) {
         const mapped = live.map((n) => ({
           id: n.id,
-          recipient: n.customerEmail || n.recipient || (n.customerId ? `User ${n.customerId.substring(0, 8)}…` : 'Customer'),
+          recipient: n.customerName
+            ? (n.customerEmail ? `${n.customerName} (${n.customerEmail})` : n.customerName)
+            : (n.customerEmail || n.recipient || (n.customerId ? `Customer ${n.customerId.substring(0, 8)}…` : 'Customer')),
           channel: typeof n.channel === 'number' ? (CHANNELS[n.channel] || 'Email') : (n.channel || 'Email'),
           type: typeof n.messageType === 'number' ? (TYPES[n.messageType] || 'Notification') : (n.messageType || n.type || 'Booking Update'),
           status: typeof n.status === 'number' ? (STATUSES[n.status] || 'Sent') : (n.status || 'Sent'),
