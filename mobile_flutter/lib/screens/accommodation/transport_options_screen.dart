@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../app_constants.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../services/api_service.dart';
-import '../../widgets/common_widgets.dart';
 
-/// Transport options screen showing fleet, trains, buses, and private transfers across Sri Lanka.
+/// Transport options screen matching Figma Dev Mode (09 · Transport Options).
 class TransportOptionsScreen extends StatefulWidget {
   const TransportOptionsScreen({super.key});
 
@@ -13,12 +12,35 @@ class TransportOptionsScreen extends StatefulWidget {
 
 class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   List<dynamic> _options = [];
-  bool _loading = true;
-  String? _error;
-  String _selectedFilter = 'All';
-  Map<String, dynamic>? _selectedOption;
+  String _selectedCategory = 'Car Rental';
+  int _selectedIndex = 0;
 
-  final List<String> _filters = ['All', 'Train', 'Car', 'Bus', 'Flight'];
+  final List<String> _categories = ['Car Rental', 'Train', 'Bus', 'Tuk-Tuk'];
+
+  final List<Map<String, dynamic>> _sampleVehicles = [
+    {
+      'id': '1',
+      'tag': 'BEST MATCH',
+      'name': 'Private Hybrid Sedan',
+      'provider': 'Serendib Mobility · 4.9',
+      'capacity': '3 guests · 2 bags',
+      'features': 'A/C · English-speaking driver · Flexible stops',
+      'price': 118,
+      'buttonLabel': 'Book Car',
+      'imageUrl': 'assets/photos/nuwara-eliya-1280.jpg',
+    },
+    {
+      'id': '2',
+      'tag': 'MORE SPACE',
+      'name': 'Premium Safari Van',
+      'provider': 'Ceylon Routes · 4.8',
+      'capacity': '6 guests · 5 bags',
+      'features': 'A/C · Wi-Fi · Child seat available',
+      'price': 164,
+      'buttonLabel': 'Select Van',
+      'imageUrl': 'assets/photos/kandy-1280.jpg',
+    },
+  ];
 
   @override
   void initState() {
@@ -27,487 +49,419 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   }
 
   Future<void> _loadTransport() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
     try {
       final list = await ApiService.getTransportOptions();
       if (mounted) {
         setState(() {
-          _options = list;
-          _loading = false;
+          _options = list.isNotEmpty ? list : _sampleVehicles;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
-          _error = 'Failed to load transit fleet options';
-          _loading = false;
+          _options = _sampleVehicles;
         });
       }
     }
-  }
-
-  IconData _getTransportIcon(String type) {
-    switch (type.toLowerCase()) {
-      case 'flight':
-        return Icons.flight_takeoff;
-      case 'train':
-        return Icons.train_outlined;
-      case 'bus':
-        return Icons.directions_bus_filled_outlined;
-      case 'car':
-        return Icons.directions_car_filled_outlined;
-      default:
-        return Icons.commute_outlined;
-    }
-  }
-
-  Color _getTransportColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'train':
-        return AppColors.sand600;
-      case 'flight':
-        return AppColors.ocean500;
-      case 'car':
-        return AppColors.jungle600;
-      case 'bus':
-        return AppColors.coral500;
-      default:
-        return AppColors.jungle700;
-    }
-  }
-
-  List<dynamic> get _filteredOptions {
-    if (_selectedFilter == 'All') return _options;
-    return _options
-        .where(
-          (o) =>
-              (o['type'] ?? '').toString().toLowerCase() ==
-              _selectedFilter.toLowerCase(),
-        )
-        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    final displayList = _filteredOptions;
+    final displayList = _options.isNotEmpty ? _options : _sampleVehicles;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Transit & Transfers'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.map_outlined),
-            tooltip: 'View Route on Map',
-            onPressed: () => Navigator.pushNamed(context, '/trip-map'),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Filter Chips
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
+      backgroundColor: const Color(0xFFFBF9F4),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Top Header Row ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
               child: Row(
-                children: _filters.map((f) {
-                  final isSelected = _selectedFilter == f;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(f),
-                      selected: isSelected,
-                      onSelected: (selected) {
-                        if (selected) setState(() => _selectedFilter = f);
-                      },
-                      selectedColor: AppColors.jungle600,
-                      backgroundColor: AppColors.mist,
-                      labelStyle: TextStyle(
-                        color: isSelected ? Colors.white : AppColors.ink2,
-                        fontWeight: isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(
-                          color: isSelected
-                              ? AppColors.jungle600
-                              : AppColors.line,
-                        ),
-                      ),
-                      showCheckmark: false,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          // Content Area
-          Expanded(
-            child: _loading
-                ? const LoadingIndicator(
-                    message: 'Loading verified transport fleet...',
-                  )
-                : _error != null
-                ? ErrorMessage(message: _error!, onRetry: _loadTransport)
-                : displayList.isEmpty
-                ? _buildSampleTransitList()
-                : RefreshIndicator(
-                    color: AppColors.jungle600,
-                    onRefresh: _loadTransport,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      itemCount: displayList.length,
-                      itemBuilder: (context, index) =>
-                          _buildTransportCard(displayList[index]),
-                    ),
-                  ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: _selectedOption != null
-          ? Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: const Border(top: BorderSide(color: AppColors.line)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _selectedOption!['provider'] ?? 'Transit Option',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.ink3,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${_selectedOption!['type']} • \$${_selectedOption!['price']}',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.jungle600,
-                            ),
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFEDECE4)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlinedButton.icon(
-                      onPressed: () => Navigator.pushNamed(context, '/trip-map'),
-                      icon: const Icon(Icons.map_outlined, size: 16),
-                      label: const Text('Map'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.jungle600,
-                        side: const BorderSide(color: AppColors.jungle600),
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: const Center(
+                        child: Icon(Icons.arrow_back, color: Color(0xFF1E1E1E), size: 20),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () => Navigator.pushNamed(context, '/checkout'),
-                      icon: const Icon(Icons.payment, size: 16),
-                      label: const Text('Checkout'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.jungle600,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          : null,
-    );
-  }
-
-  Widget _buildTransportCard(Map<String, dynamic> opt) {
-    final type = opt['type'] ?? 'Transport';
-    final provider = opt['provider'] ?? 'Standard Transit Provider';
-    final routeFrom = opt['routeFrom'] ?? 'Origin';
-    final routeTo = opt['routeTo'] ?? 'Destination';
-    final departure = opt['departureTime'] ?? 'Scheduled Time';
-    final arrival = opt['arrivalTime'] ?? 'Scheduled Time';
-    final price = (opt['price'] ?? 0).toDouble();
-    final currency = opt['currency'] ?? 'USD';
-    final capacity = opt['capacity'] ?? 20;
-    final icon = _getTransportIcon(type);
-    final color = _getTransportColor(type);
-    final isSelected = _selectedOption == opt;
-
-    return InkWell(
-      onTap: () {
-        setState(() => _selectedOption = opt);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Selected $provider ($type)'),
-            duration: const Duration(seconds: 2),
-            backgroundColor: AppColors.jungle600,
-          ),
-        );
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.leaf50 : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected ? AppColors.jungle600 : AppColors.line,
-            width: isSelected ? 1.5 : 1.0,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top Row: Type, Provider, and Price
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: isSelected ? AppColors.jungle600 : color.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      isSelected ? Icons.check : icon,
-                      color: isSelected ? Colors.white : color,
-                      size: 24,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          provider,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: AppColors.ink,
+                          'Transport',
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF08201A),
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        Text(
-                          type.toUpperCase(),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Compare verified island travel',
                           style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: color,
-                            letterSpacing: 0.8,
+                            fontSize: 12,
+                            color: Color(0xFF8A9E96),
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '\$${price.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.jungle600,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFEDECE4)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
-                      ),
-                      Text(
-                        currency,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.ink3,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.help_outline, color: Color(0xFF1E1E1E), size: 20),
+                    ),
                   ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 14),
+            // ── Category Filter Pills ──
+            SizedBox(
+              height: 38,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                itemCount: _categories.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final cat = _categories[index];
+                  final isSelected = _selectedCategory == cat;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedCategory = cat),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF0E382C) : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          cat,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
 
-              // Route Visualization
-              Container(
-                padding: const EdgeInsets.all(12),
+            const SizedBox(height: 14),
+
+            // ── Route Dark Green Banner ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Container(
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: isSelected ? Colors.white : AppColors.mist,
-                  borderRadius: BorderRadius.circular(12),
+                  color: const Color(0xFF134035),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Departure',
-                            style: TextStyle(fontSize: 10, color: AppColors.ink3),
-                          ),
-                          Text(
-                            routeFrom,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: AppColors.ink,
-                            ),
-                          ),
-                          Text(
-                            departure,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.ink2,
-                            ),
-                          ),
-                        ],
+                    const Text(
+                      'YOUR ROUTE · 12 OCTOBER',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFD4A346),
+                        letterSpacing: 0.8,
                       ),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(
-                        Icons.arrow_forward,
-                        color: AppColors.jungle600,
-                        size: 18,
-                      ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          const Text(
-                            'Arrival',
-                            style: TextStyle(fontSize: 10, color: AppColors.ink3),
-                          ),
-                          Text(
-                            routeTo,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                              color: AppColors.ink,
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'CMB',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
-                          ),
-                          Text(
-                            arrival,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.ink2,
+                            Text(
+                              'Colombo Airport',
+                              style: TextStyle(color: Color(0xFFB8D3C8), fontSize: 11),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                        const Icon(Icons.arrow_forward, color: Color(0xFFD4A346), size: 20),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'SIG',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              'Sigiriya · 3h 40m',
+                              style: TextStyle(color: Color(0xFFB8D3C8), fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+            ),
 
-              const SizedBox(height: 10),
+            const SizedBox(height: 14),
 
-              // Capacity & Availability
-              Row(
-                children: [
-                  const Icon(
-                    Icons.airline_seat_recline_normal,
-                    size: 16,
-                    color: AppColors.ink3,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Capacity: $capacity Seats',
-                    style: const TextStyle(fontSize: 12, color: AppColors.ink3),
-                  ),
-                  const Spacer(),
-                  Text(
-                    isSelected ? 'Selected Transit Option' : 'Available on Schedule',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: isSelected ? AppColors.jungle700 : AppColors.leaf400,
-                    ),
-                  ),
-                ],
+            // ── Vehicles List ──
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                itemCount: displayList.length,
+                itemBuilder: (context, index) {
+                  final vehicle = displayList[index];
+                  final isSelected = index == _selectedIndex;
+                  return _buildVehicleCard(vehicle, index, isSelected);
+                },
               ),
-            ],
-          ),
+            ),
+
+            // ── Bottom Train Note Banner (Soft Sand) ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
+              child: GestureDetector(
+                onTap: () => Navigator.pushNamed(context, '/checkout'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF6EED8),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.directions_subway_outlined, color: Color(0xFFB27D26), size: 20),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Ella leg? Reserved scenic train seats are available from \$24.',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: Color(0xFF08201A),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: Color(0xFFB27D26), size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildSampleTransitList() {
-    final samples = [
-      {
-        'type': 'Train',
-        'provider': 'Sri Lanka Railways (Observation Car)',
-        'routeFrom': 'Kandy Central Station',
-        'routeTo': 'Ella Mountain Viaduct',
-        'departureTime': '08:47 AM',
-        'arrivalTime': '02:30 PM',
-        'price': 45,
-        'currency': 'USD',
-        'capacity': 48,
-      },
-      {
-        'type': 'Car',
-        'provider': 'Serendib Private Chauffeur & SUV',
-        'routeFrom': 'Bandaranaike Intl (CMB)',
-        'routeTo': 'Sigiriya Heritage Zone',
-        'departureTime': 'On Arrival',
-        'arrivalTime': '3.5 Hours Direct',
-        'price': 90,
-        'currency': 'USD',
-        'capacity': 4,
-      },
-      {
-        'type': 'Bus',
-        'provider': 'Air-Conditioned Coastal Express',
-        'routeFrom': 'Colombo Fort',
-        'routeTo': 'Mirissa Beach Pier',
-        'departureTime': '09:00 AM',
-        'arrivalTime': '11:45 AM',
-        'price': 25,
-        'currency': 'USD',
-        'capacity': 32,
-      },
-    ];
+  Widget _buildVehicleCard(Map<String, dynamic> item, int index, bool isSelected) {
+    final tag = item['tag'] ?? 'BEST MATCH';
+    final name = item['name'] ?? 'Private Hybrid Sedan';
+    final provider = item['provider'] ?? 'Serendib Mobility · 4.9';
+    final capacity = item['capacity'] ?? '3 guests · 2 bags';
+    final features = item['features'] ?? 'A/C · English-speaking driver';
+    final price = item['price'] ?? 118;
+    final btnLabel = item['buttonLabel'] ?? 'Book Car';
+    final imageUrl = item['imageUrl'] ?? 'assets/photos/nuwara-eliya-1280.jpg';
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: samples.length,
-      itemBuilder: (context, index) => _buildTransportCard(samples[index]),
+    return GestureDetector(
+      onTap: () => setState(() => _selectedIndex = index),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? const Color(0xFFD4A346) : const Color(0xFFEDECE4),
+            width: isSelected ? 1.8 : 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Vehicle Thumbnail Image
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: SizedBox(
+                    width: 104,
+                    height: 78,
+                    child: imageUrl.startsWith('http')
+                        ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0E382C)))
+                        : Image.asset(imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0E382C))),
+                  ),
+                ),
+                const SizedBox(width: 14),
+
+                // Vehicle Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tag,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFD4A346),
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF08201A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        provider,
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF8A9E96)),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.people_alt, size: 12, color: Color(0xFF4B5563)),
+                          const SizedBox(width: 4),
+                          Text(
+                            capacity,
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF4B5563), fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+            Text(
+              features,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1B6B5D),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+            Container(height: 1, color: const Color(0xFFEDECE4)),
+            const SizedBox(height: 12),
+
+            // Price & Action Button
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '\$$price',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF08201A),
+                      ),
+                    ),
+                    const Text(
+                      'total · all inclusive',
+                      style: TextStyle(fontSize: 10, color: Color(0xFF8A9E96)),
+                    ),
+                  ],
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/checkout'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0E382C),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      btnLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

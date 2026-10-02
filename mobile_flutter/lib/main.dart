@@ -119,6 +119,7 @@ class TravelApp extends StatelessWidget {
         '/tour-search': (context) => const AuthGuard(child: TourSearchBrowseScreen()),
         '/tour-details': (context) => const AuthGuard(child: TourDetailsScreen()),
         '/itinerary': (context) => const AuthGuard(child: MyItineraryScreen()),
+        '/my-itinerary': (context) => const AuthGuard(child: MyItineraryScreen()),
         '/accommodation': (context) => const AuthGuard(child: AccommodationOptionsScreen()),
         '/transport': (context) => const AuthGuard(child: TransportOptionsScreen()),
         '/trip-map': (context) => const AuthGuard(child: TripMapScreen()),

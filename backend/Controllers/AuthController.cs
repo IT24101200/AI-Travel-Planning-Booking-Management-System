@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using backend.Data;
 using backend.Models;
+using backend.Models.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -68,6 +69,28 @@ namespace backend.Controllers
             };
 
             _db.Customers.Add(customer);
+
+            // Create welcome alert in database
+            _db.Notifications.AddRange(
+                new Notification
+                {
+                    CustomerId = user.Id,
+                    Channel = NotificationChannel.InApp,
+                    MessageType = MessageType.SystemAlert,
+                    Content = $"Welcome to Serendib Trails, {dto.FullName}! Your AI multi-agent travel concierge is active and ready.",
+                    Status = NotificationStatus.Sent,
+                    SentAt = DateTime.UtcNow
+                },
+                new Notification
+                {
+                    CustomerId = user.Id,
+                    Channel = NotificationChannel.InApp,
+                    MessageType = MessageType.TripUpdate,
+                    Content = "Discover Sri Lanka: Explore curated tours in Ella, Sigiriya, Mirissa, and Yala National Park.",
+                    Status = NotificationStatus.Sent,
+                    SentAt = DateTime.UtcNow.AddSeconds(1)
+                }
+            );
             await _db.SaveChangesAsync();
 
             var token = await GenerateJwtTokenAsync(user);
