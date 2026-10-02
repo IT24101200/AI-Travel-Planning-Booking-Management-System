@@ -202,11 +202,33 @@ class ApiService {
 
   // ── Tours ──
 
-  static Future<List<dynamic>> getTours({String? search, String? sortBy}) async {
+  static Future<List<dynamic>> getTours({
+    String? search,
+    int? destinationId,
+    String? category,
+    num? minPrice,
+    num? maxPrice,
+    String? sortBy,
+    bool descending = false,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
     String endpoint = 'tour';
     List<String> params = [];
-    if (search != null && search.isNotEmpty) params.add('search=$search');
-    if (sortBy != null) params.add('sortBy=$sortBy');
+    if (search != null && search.trim().isNotEmpty) {
+      params.add('search=${Uri.encodeComponent(search.trim())}');
+    }
+    if (destinationId != null) params.add('destinationId=$destinationId');
+    if (category != null && category.isNotEmpty && category != 'All') {
+      params.add('category=${Uri.encodeComponent(category)}');
+    }
+    if (minPrice != null) params.add('minPrice=$minPrice');
+    if (maxPrice != null) params.add('maxPrice=$maxPrice');
+    if (sortBy != null && sortBy.isNotEmpty) params.add('sortBy=$sortBy');
+    if (descending) params.add('descending=true');
+    params.add('page=$page');
+    params.add('pageSize=$pageSize');
+
     if (params.isNotEmpty) endpoint += '?${params.join('&')}';
 
     final response = await get(endpoint);
@@ -226,31 +248,134 @@ class ApiService {
 
   // ── Itineraries ──
 
+  // Optional mock delegates for unit and widget tests
+  static Future<List<dynamic>> Function()? mockGetMyItineraries;
+  static Future<Map<String, dynamic>?> Function(int id)? mockGetItinerary;
+  static Future<bool> Function(int itineraryId)? mockAcceptItinerary;
+  static Future<bool> Function(int itineraryId, String comment)? mockRequestItineraryChanges;
+
   static Future<List<dynamic>> getMyItineraries() async {
-    final userId = await getUserId();
-    final response = await get('itinerary/customer/$userId');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
+    if (mockGetMyItineraries != null) {
+      return await mockGetMyItineraries!();
     }
+    try {
+      final userId = await getUserId();
+      if (userId == null || userId.isEmpty) return [];
+      final response = await get('itinerary/customer/$userId');
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is List) return decoded;
+        if (decoded is Map && decoded['data'] is List) return decoded['data'] as List<dynamic>;
+      }
+    } catch (_) {}
     return [];
   }
 
   static Future<Map<String, dynamic>?> getItinerary(int id) async {
-    final response = await get('itinerary/$id');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+    if (mockGetItinerary != null) {
+      return await mockGetItinerary!(id);
     }
+    try {
+      final response = await get('itinerary/$id');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (_) {}
     return null;
   }
 
-  /// Requests changes to an itinerary by marking it as Discarded, so a travel
-  /// agent / the planning workflow knows the customer was not satisfied with
-  /// the AI-proposed schedule.
-  static Future<bool> requestItineraryChanges(int itineraryId) async {
-    final response = await patch('itinerary/$itineraryId/status', {
-      'status': 'Discarded',
-    });
-    return response.statusCode == 200;
+  /// Creates a new Itinerary record in the database linked to a trip request: POST api/itinerary
+  static Future<Map<String, dynamic>?> createItinerary({
+    required int tripRequestId,
+    required DateTime startDate,
+    required DateTime endDate,
+    String currency = 'LKR',
+  }) async {
+    try {
+      final userId = await getUserId();
+      if (userId == null || userId.isEmpty) return null;
+      final body = {
+        'customerId': userId,
+        'tripRequestId': tripRequestId,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'currency': currency,
+      };
+      final response = await post('itinerary', body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Updates itinerary status (e.g. Accepted, Draft, Discarded) with optional notes
+  static Future<bool> updateItineraryStatus(int itineraryId, String status, {String? notes}) async {
+    try {
+      final body = <String, dynamic>{
+        'status': status,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      };
+      final response = await patch('itinerary/$itineraryId/status', body);
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Accepts an itinerary proposal (sets status to Accepted)
+  static Future<bool> acceptItinerary(int itineraryId) async {
+    if (mockAcceptItinerary != null) {
+      return await mockAcceptItinerary!(itineraryId);
+    }
+    return await updateItineraryStatus(itineraryId, 'Accepted');
+  }
+
+  /// Requests changes by setting status back to Draft with customer comment notes
+  static Future<bool> requestItineraryChanges(int itineraryId, String comment) async {
+    if (mockRequestItineraryChanges != null) {
+      return await mockRequestItineraryChanges!(itineraryId, comment);
+    }
+    return await updateItineraryStatus(itineraryId, 'Draft', notes: comment);
+  }
+
+  /// Adds a scheduled tour item to an itinerary: POST api/itinerary/{id}/items
+  static Future<Map<String, dynamic>> addItemToItinerary({
+    required int itineraryId,
+    required int tourId,
+    int dayNumber = 1,
+    int sequenceOrder = 1,
+    String startTime = '09:00:00',
+    String endTime = '12:00:00',
+  }) async {
+    try {
+      final response = await post('itinerary/$itineraryId/items', {
+        'tourId': tourId,
+        'dayNumber': dayNumber,
+        'sequenceOrder': sequenceOrder,
+        'startTime': startTime,
+        'endTime': endTime,
+      });
+
+      final decoded = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      final bool success = response.statusCode == 200 || response.statusCode == 201;
+      String message = '';
+      if (decoded is Map && decoded['message'] != null) {
+        message = decoded['message'].toString();
+      }
+
+      return {
+        'success': success,
+        'statusCode': response.statusCode,
+        'message': message,
+        'data': decoded,
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Failed to connect to server: $e',
+      };
+    }
   }
 
   // ── Hotels ──
@@ -373,10 +498,10 @@ class ApiService {
   }
 
   static Future<void> markNotificationRead(String id) async {
-    await put('notification/$id/read', {});
+    await patch('notification/$id/read', {});
   }
 
   static Future<void> markAllNotificationsRead() async {
-    await put('notification/mark-all-read', {});
+    await post('notification/mark-all-read', {});
   }
 }

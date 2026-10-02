@@ -348,6 +348,65 @@ namespace backend.Data
                     }
                 }
             }
+
+            // 7. Seed realistic Customer Notifications in Database
+            if (!await context.Notifications.AnyAsync())
+            {
+                var customers = await context.Customers.ToListAsync();
+                foreach (var cust in customers)
+                {
+                    context.Notifications.AddRange(
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.InApp,
+                            MessageType = MessageType.BookingConfirmation,
+                            Content = "Booking confirmed: All services for Sri Lanka Discovery are secured. Your digital ticket is ready.",
+                            Status = NotificationStatus.Sent,
+                            SentAt = DateTime.UtcNow.AddMinutes(-2)
+                        },
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.InApp,
+                            MessageType = MessageType.PaymentReceipt,
+                            Content = "Payment successful: We received $1,712 for booking ST-284619. Your receipt is available.",
+                            Status = NotificationStatus.Sent,
+                            SentAt = DateTime.UtcNow.AddMinutes(-12)
+                        },
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.InApp,
+                            MessageType = MessageType.SystemAlert,
+                            Content = "Ella weather update: Light afternoon rain is forecast. We moved your tea walk to 9:00 AM.",
+                            Status = NotificationStatus.Sent,
+                            SentAt = DateTime.UtcNow.AddHours(-1)
+                        },
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.InApp,
+                            MessageType = MessageType.Reminder,
+                            Content = "Train seats reserved: Observation seats 12A and 12B are held for Kandy to Ella on 14 October.",
+                            Status = NotificationStatus.Read,
+                            ReadAt = DateTime.UtcNow.AddHours(-6),
+                            SentAt = DateTime.UtcNow.AddDays(-1)
+                        },
+                        new Notification
+                        {
+                            CustomerId = cust.Id,
+                            Channel = NotificationChannel.InApp,
+                            MessageType = MessageType.TripUpdate,
+                            Content = "Your AI itinerary improved: Review Agent reduced transfer time by 45 minutes while keeping every stop.",
+                            Status = NotificationStatus.Read,
+                            ReadAt = DateTime.UtcNow.AddDays(-1),
+                            SentAt = DateTime.UtcNow.AddDays(-1)
+                        }
+                    );
+                }
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
