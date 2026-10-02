@@ -107,10 +107,44 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         return;
       }
 
-      // 3. Query existing customer itineraries from backend API
+      // 3. Query existing customer trip requests and itineraries from backend API
+      final tripRequests = ApiService.mockGetMyItineraries == null ? await ApiService.getMyTripRequests() : [];
       final list = await ApiService.getMyItineraries();
-      if (list.isNotEmpty) {
-        dynamic selected = list.first;
+      
+      dynamic latestTrip = tripRequests.isNotEmpty ? tripRequests.first : null;
+      dynamic latestItin = list.isNotEmpty ? list.first : null;
+
+      // If we have a latest trip request, check if the latest itinerary matches it
+      if (latestTrip != null && latestItin != null) {
+        final itinTripId = latestItin['tripRequestId'];
+        final tripId = latestTrip['id'];
+        
+        // If the IDs don't match, or if the trip request is newer, show the pending trip
+        if (itinTripId != tripId) {
+           final built = await _buildItineraryFromTrip(Map<String, dynamic>.from(latestTrip));
+           if (mounted) {
+             setState(() {
+               _itinerary = built;
+               _isLoading = false;
+             });
+           }
+           return;
+        }
+      } else if (latestTrip != null && latestItin == null) {
+         // No itineraries exist yet, only a pending trip request
+         final built = await _buildItineraryFromTrip(Map<String, dynamic>.from(latestTrip));
+         if (mounted) {
+           setState(() {
+             _itinerary = built;
+             _isLoading = false;
+           });
+         }
+         return;
+      }
+
+      // 4. Load the completed itinerary
+      if (latestItin != null) {
+        dynamic selected = latestItin;
         final int? id = selected is Map ? (int.tryParse(selected['id']?.toString() ?? '')) : null;
 
         if (id != null) {
@@ -129,25 +163,6 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           });
         }
         return;
-      }
-
-      // 4. Fallback: If no itineraries exist yet, check if the customer has an active TripRequest in DB
-      // Note: Only check when ApiService.mockGetMyItineraries == null to preserve empty state unit tests
-      if (ApiService.mockGetMyItineraries == null) {
-        final tripRequests = await ApiService.getMyTripRequests();
-        if (tripRequests.isNotEmpty) {
-          final latestTrip = tripRequests.first;
-          if (latestTrip is Map) {
-            final built = await _buildItineraryFromTrip(Map<String, dynamic>.from(latestTrip));
-            if (mounted) {
-              setState(() {
-                _itinerary = built;
-                _isLoading = false;
-              });
-            }
-            return;
-          }
-        }
       }
 
       // No itinerary and no trip request found -> show empty state
