@@ -1,11 +1,12 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../../app_constants.dart';
 
-/// Full Route Map screen using open-source OpenStreetMap (flutter_map).
-/// Renders interactive tiles, route polylines, and waypoint markers for the itinerary.
+/// Trip map screen — OpenStreetMap with route polyline, numbered markers,
+/// and animated pan-to on waypoint tap.
 class TripMapScreen extends StatefulWidget {
   const TripMapScreen({super.key});
 
@@ -13,473 +14,540 @@ class TripMapScreen extends StatefulWidget {
   State<TripMapScreen> createState() => _TripMapScreenState();
 }
 
-class _TripMapScreenState extends State<TripMapScreen> {
-  final MapController _mapController = MapController();
-  int _selectedStopIndex = 0;
+class _TripMapScreenState extends State<TripMapScreen>
+    with TickerProviderStateMixin {
+  late final MapController _mapController;
+  int _focusedIndex = -1;
+  List<LatLng> _detailedRoutePoints = [];
+  bool _isLoadingRoute = false;
 
-  // Curated waypoints connecting the 7-day Sri Lanka Discovery circuit
-  final List<Map<String, dynamic>> _waypoints = [
+  // Default iconic Sri Lanka circuit
+  static const List<Map<String, dynamic>> _defaultStops = [
     {
-      'day': 'Day 1',
-      'name': 'Sigiriya Lion Rock',
-      'location': LatLng(7.9570, 80.7603),
+      'name': 'Sigiriya Lion Rock Fortress',
+      'type': 'Heritage',
+      'latitude': 7.9570,
+      'longitude': 80.7603,
       'region': 'Matale District',
-      'category': 'Culture & Heritage',
-      'description': 'Ancient palace and fortress complex with 5th-century frescoes.',
-      'imageUrl': AppDestinations.heroSigiriya,
-      'duration': '3.5 hrs from Colombo',
+      'icon': Icons.castle_outlined,
     },
     {
-      'day': 'Day 2',
-      'name': 'Kandy Temple of Tooth',
-      'location': LatLng(7.2906, 80.6337),
-      'region': 'Central Province',
-      'category': 'Sacred Heritage',
-      'description': 'Royal palace complex housing the sacred relic of the tooth of the Buddha.',
-      'imageUrl': AppDestinations.featured[0].imageUrl,
-      'duration': '2.5 hrs from Sigiriya',
+      'name': 'Temple of the Sacred Tooth',
+      'type': 'Temple',
+      'latitude': 7.2906,
+      'longitude': 80.6337,
+      'region': 'Kandy',
+      'icon': Icons.temple_hindu_outlined,
     },
     {
-      'day': 'Day 3–4',
-      'name': 'Ella Tea Country',
-      'location': LatLng(6.8667, 81.0466),
-      'region': 'Badulla District',
-      'category': 'Highlands & Hiking',
-      'description': 'Nine Arches Colonial Bridge and Little Adam\'s Peak tea plantations.',
-      'imageUrl': AppDestinations.featured[1].imageUrl,
-      'duration': '6.0 hrs scenic train',
+      'name': 'Nine Arches Colonial Bridge',
+      'type': 'Tour',
+      'latitude': 6.8667,
+      'longitude': 81.0466,
+      'region': 'Ella Valley',
+      'icon': Icons.train_outlined,
     },
     {
-      'day': 'Day 5–7',
-      'name': 'Mirissa Coastal Beach',
-      'location': LatLng(5.9483, 80.4589),
+      'name': 'Mirissa Coconut Tree Hill',
+      'type': 'Beach',
+      'latitude': 5.9483,
+      'longitude': 80.4589,
       'region': 'Southern Coast',
-      'category': 'Ocean & Wellness',
-      'description': 'Coconut Tree Hill, secret beach coves, and blue whale watching.',
-      'imageUrl': AppDestinations.featured[2].imageUrl,
-      'duration': '3.0 hrs transfer',
+      'icon': Icons.beach_access_outlined,
+    },
+    {
+      'name': 'Yala Leopard Safari Zone',
+      'type': 'Wildlife',
+      'latitude': 6.3728,
+      'longitude': 81.5019,
+      'region': 'Ruhuna',
+      'icon': Icons.park_outlined,
     },
   ];
 
+  List<Map<String, dynamic>> _stops = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_stops.isNotEmpty) return; // already set
+
+    final args = ModalRoute.of(context)?.settings.arguments;
+    List<Map<String, dynamic>> parsed = [];
+
+    if (args is List) {
+      parsed = args.cast<Map<String, dynamic>>();
+    } else if (args is Map<String, dynamic>) {
+      final items = args['items'] as List<dynamic>? ?? [];
+      parsed = items.map((i) {
+        return <String, dynamic>{
+          'name': i['tourName'] ?? 'Attraction Stop',
+          'type': 'Tour',
+          'latitude': 7.9570, // Needs real coordinates for production
+          'longitude': 80.7603,
+          'region': 'Sri Lanka',
+          'icon': Icons.tour_outlined,
+        };
+      }).toList();
+    }
+
+    setState(() {
+      _stops = parsed.isEmpty ? _defaultStops : parsed;
+    });
+    
+    _fetchRoute();
+  }
+
+  Future<void> _fetchRoute() async {
+    if (_stops.length < 2) return;
+    setState(() => _isLoadingRoute = true);
+
+    try {
+      final coordinatesString = _stops.map((s) {
+        final lat = (s['latitude'] as num).toDouble();
+        final lng = (s['longitude'] as num).toDouble();
+        return '$lng,$lat';
+      }).join(';');
+
+      final url = Uri.parse(
+          'https://router.project-osrm.org/route/v1/driving/$coordinatesString?overview=full&geometries=geojson');
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['code'] == 'Ok' && data['routes'] != null && data['routes'].isNotEmpty) {
+          final coordinates = data['routes'][0]['geometry']['coordinates'] as List;
+          final List<LatLng> points = coordinates.map((coord) {
+            return LatLng((coord[1] as num).toDouble(), (coord[0] as num).toDouble());
+          }).toList();
+
+          if (mounted) {
+            setState(() {
+              _detailedRoutePoints = points;
+              _isLoadingRoute = false;
+            });
+          }
+        } else {
+          if (mounted) setState(() => _isLoadingRoute = false);
+        }
+      } else {
+        if (mounted) setState(() => _isLoadingRoute = false);
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingRoute = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  // Compute the centre of all waypoints so the map opens centred on the route
+  LatLng get _routeCenter {
+    if (_stops.isEmpty) return const LatLng(7.8731, 80.7718);
+    final avgLat =
+        _stops.map((s) => (s['latitude'] as num).toDouble()).reduce((a, b) => a + b) /
+            _stops.length;
+    final avgLng =
+        _stops.map((s) => (s['longitude'] as num).toDouble()).reduce((a, b) => a + b) /
+            _stops.length;
+    return LatLng(avgLat, avgLng);
+  }
+
+  List<LatLng> get _routePoints =>
+      _stops.map((s) => LatLng((s['latitude'] as num).toDouble(), (s['longitude'] as num).toDouble())).toList();
+
+  void _panTo(int index) {
+    setState(() => _focusedIndex = index);
+    final stop = _stops[index];
+    final target = LatLng(
+      (stop['latitude'] as num).toDouble(),
+      (stop['longitude'] as num).toDouble(),
+    );
+
+    // Animate pan with AnimationController for smooth movement
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    final latTween = Tween<double>(begin: _mapController.camera.center.latitude, end: target.latitude);
+    final lngTween = Tween<double>(begin: _mapController.camera.center.longitude, end: target.longitude);
+    final zoomTween = Tween<double>(begin: _mapController.camera.zoom, end: 10.0);
+    final curve = CurvedAnimation(parent: controller, curve: Curves.easeInOut);
+
+    controller.addListener(() {
+      _mapController.move(
+        LatLng(latTween.evaluate(curve), lngTween.evaluate(curve)),
+        zoomTween.evaluate(curve),
+      );
+    });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) controller.dispose();
+    });
+    controller.forward();
+  }
+
+  Color _typeColor(String type) {
+    switch (type.toLowerCase()) {
+      case 'heritage':
+        return const Color(0xFFD97706);
+      case 'temple':
+        return const Color(0xFF7C3AED);
+      case 'beach':
+        return const Color(0xFF0EA5E9);
+      case 'wildlife':
+        return const Color(0xFF16A34A);
+      default:
+        return AppColors.jungle600;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Collect all points for polyline
-    final List<LatLng> routePoints = _waypoints.map((w) => w['location'] as LatLng).toList();
-    final currentStop = _waypoints[_selectedStopIndex];
-
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F4),
-      body: Stack(
-        children: [
-          // ── 1. Open-Source OpenStreetMap Tile Layer ──
-          FlutterMap(
-            mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: LatLng(7.15, 80.75),
-              initialZoom: 8.0,
-              minZoom: 6.0,
-              maxZoom: 18.0,
-              interactionOptions: InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-              ),
-            ),
-            children: [
-              // OpenStreetMap Standard Tiles
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.serendib_trails',
-                maxZoom: 19,
-              ),
-
-              // Full circuit route Polyline
-              PolylineLayer(
-                polylines: [
-                  // Gold border / halo line
-                  Polyline(
-                    points: routePoints,
-                    strokeWidth: 6.0,
-                    color: const Color(0xFFD4A346),
-                  ),
-                  // Dark Forest Green core line
-                  Polyline(
-                    points: routePoints,
-                    strokeWidth: 3.5,
-                    color: const Color(0xFF0E382C),
-                  ),
-                ],
-              ),
-
-              // Waypoint Markers
-              MarkerLayer(
-                markers: List.generate(_waypoints.length, (index) {
-                  final wp = _waypoints[index];
-                  final isSelected = index == _selectedStopIndex;
-                  final LatLng pos = wp['location'] as LatLng;
-
-                  return Marker(
-                    point: pos,
-                    width: isSelected ? 52 : 42,
-                    height: isSelected ? 52 : 42,
-                    alignment: Alignment.center,
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedStopIndex = index);
-                        _mapController.move(pos, 10.5);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 250),
-                        decoration: BoxDecoration(
-                          color: isSelected ? const Color(0xFF0E382C) : Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: isSelected ? const Color(0xFFD4A346) : const Color(0xFF0E382C),
-                            width: isSelected ? 3 : 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            '${index + 1}',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : const Color(0xFF0E382C),
-                              fontWeight: FontWeight.w900,
-                              fontSize: isSelected ? 15 : 13,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ],
-          ),
-
-          // ── 2. Top Header Overlay (Back Button + Title Pill) ──
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  // Back button
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.arrow_back, color: Color(0xFF08201A), size: 20),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-
-                  // Route Title Badge
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0E382C),
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.18),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.alt_route, color: Color(0xFFD4A346), size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Sri Lanka Route Circuit',
-                                  style: GoogleFonts.poppins(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                const Text(
-                                  'Sigiriya → Kandy → Ella → Mirissa',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Color(0xFFB8D3C8),
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── 3. Floating Zoom Controls ──
-          Positioned(
-            right: 16,
-            top: 110,
-            child: Column(
-              children: [
-                _buildMapFloatingBtn(
-                  icon: Icons.add,
-                  onTap: () {
-                    final zoom = _mapController.camera.zoom;
-                    _mapController.move(_mapController.camera.center, zoom + 1);
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildMapFloatingBtn(
-                  icon: Icons.remove,
-                  onTap: () {
-                    final zoom = _mapController.camera.zoom;
-                    _mapController.move(_mapController.camera.center, zoom - 1);
-                  },
-                ),
-                const SizedBox(height: 8),
-                _buildMapFloatingBtn(
-                  icon: Icons.fit_screen_outlined,
-                  onTap: () {
-                    // Reset to overview of Sri Lanka
-                    _mapController.move(const LatLng(7.15, 80.75), 8.0);
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          // ── 4. Bottom Selected Waypoint Info Card & Circuit Selector ──
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 24,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Waypoint horizontal mini chips
-                SizedBox(
-                  height: 34,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _waypoints.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final wp = _waypoints[index];
-                      final isSelected = index == _selectedStopIndex;
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() => _selectedStopIndex = index);
-                          _mapController.move(wp['location'] as LatLng, 10.5);
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF0E382C) : Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 4,
-                                offset: const Offset(0, 1),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 18,
-                                height: 18,
-                                decoration: BoxDecoration(
-                                  color: isSelected ? const Color(0xFFD4A346) : const Color(0xFF0E382C),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    '${index + 1}',
-                                    style: TextStyle(
-                                      color: isSelected ? const Color(0xFF1A1A1A) : Colors.white,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                wp['name'],
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white : const Color(0xFF08201A),
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 11.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // Active Stop Detail Card
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFEDECE4)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      // Thumbnail
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(14),
-                        child: SizedBox(
-                          width: 80,
-                          height: 80,
-                          child: Image.asset(
-                            currentStop['imageUrl'],
-                            fit: BoxFit.cover,
-                            errorBuilder: (c, e, s) => Container(
-                              color: const Color(0xFF0E382C),
-                              child: const Icon(Icons.photo, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-
-                      // Text Info
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEEFAF4),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    currentStop['day'].toString().toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF0E382C),
-                                    ),
-                                  ),
-                                ),
-                                Text(
-                                  currentStop['duration'],
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFF8A9E96),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              currentStop['name'],
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF08201A),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              currentStop['description'],
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: Color(0xFF6B7280),
-                                height: 1.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+      backgroundColor: const Color(0xFFF0F4F8),
+      appBar: AppBar(
+        title: const Text(
+          'Trip Route Map',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: AppColors.jungle900,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.fit_screen_outlined),
+            tooltip: 'Fit all waypoints',
+            onPressed: () {
+              _mapController.move(_routeCenter, 7.0);
+              setState(() => _focusedIndex = -1);
+            },
           ),
         ],
       ),
-    );
-  }
+      body: Column(
+        children: [
+          // ── OSM Map ──
+          Expanded(
+            flex: 6,
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _mapController,
+                  options: MapOptions(
+                    initialCenter: _routeCenter,
+                    initialZoom: 7.0,
+                    maxZoom: 18.0,
+                    minZoom: 5.0,
+                  ),
+                  children: [
+                    // OpenStreetMap tile layer
+                    TileLayer(
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.aitravel.mobile',
+                      maxZoom: 18,
+                    ),
 
-  Widget _buildMapFloatingBtn({required IconData icon, required VoidCallback onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(color: const Color(0xFFEDECE4)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
+                    // Route polyline connecting all stops
+                    if (_routePoints.length > 1)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _detailedRoutePoints.isNotEmpty
+                                ? _detailedRoutePoints
+                                : _routePoints,
+                            strokeWidth: 3.5,
+                            color: AppColors.jungle600.withValues(alpha: 0.75),
+                            pattern: StrokePattern.dashed(
+                              segments: const [12.0, 6.0],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                    // Numbered markers
+                    MarkerLayer(
+                      markers: List.generate(_stops.length, (i) {
+                        final stop = _stops[i];
+                        final lat = (stop['latitude'] as num).toDouble();
+                        final lng = (stop['longitude'] as num).toDouble();
+                        final isFocused = _focusedIndex == i;
+                        final color = _typeColor(stop['type'] ?? '');
+
+                        return Marker(
+                          point: LatLng(lat, lng),
+                          width: isFocused ? 44 : 32,
+                          height: isFocused ? 44 : 32,
+                          alignment: Alignment.topCenter,
+                          child: GestureDetector(
+                            onTap: () => _panTo(i),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              width: isFocused ? 44 : 32,
+                              height: isFocused ? 44 : 32,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.ocean400,
+                                  width: isFocused ? 3 : 2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppColors.ocean400.withValues(alpha: 0.3),
+                                    blurRadius: isFocused ? 12 : 6,
+                                    spreadRadius: isFocused ? 2 : 0,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  Icons.my_location,
+                                  color: AppColors.ocean400,
+                                  size: isFocused ? 22 : 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ],
+                ),
+
+                // Floating stop count badge
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.jungle900.withValues(alpha: 0.88),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.route, color: Colors.white, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${_stops.length} waypoints',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // OSM attribution (required by OSM license)
+                Positioned(
+                  bottom: 4,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '© OpenStreetMap contributors',
+                      style: TextStyle(fontSize: 9, color: Colors.black54),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Center(
-          child: Icon(icon, color: const Color(0xFF08201A), size: 20),
-        ),
+          ),
+
+          // ── Waypoint list panel ──
+          Expanded(
+            flex: 4,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 12,
+                    offset: Offset(0, -3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 6),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.line,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.place, color: AppColors.jungle600, size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Tap a stop to navigate',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      itemCount: _stops.length,
+                      itemBuilder: (context, index) {
+                        final stop = _stops[index];
+                        final isFocused = _focusedIndex == index;
+                        final color = _typeColor(stop['type'] ?? '');
+                        final isLast = index == _stops.length - 1;
+
+                        return GestureDetector(
+                          onTap: () => _panTo(index),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 250),
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: isFocused
+                                  ? color.withValues(alpha: 0.1)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isFocused ? color : AppColors.line,
+                                width: isFocused ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // Step number with connector line
+                                Column(
+                                  children: [
+                                    Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: isFocused
+                                            ? color
+                                            : color.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '${index + 1}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13,
+                                            color: isFocused ? Colors.white : color,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    if (!isLast)
+                                      Container(
+                                        width: 2,
+                                        height: 18,
+                                        margin: const EdgeInsets.symmetric(vertical: 2),
+                                        color: color.withValues(alpha: 0.25),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(width: 10),
+
+                                // Name, type, coords
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        stop['name'] ?? 'Stop ${index + 1}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 13,
+                                          color: isFocused ? color : AppColors.ink,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 1),
+                                            decoration: BoxDecoration(
+                                              color: color.withValues(alpha: 0.12),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              stop['type'] ?? 'Location',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: color,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Flexible(
+                                            child: Text(
+                                              stop['region'] ?? 'Sri Lanka',
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                color: AppColors.ink3,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Navigate icon
+                                Icon(
+                                  Icons.my_location,
+                                  color: isFocused ? color : AppColors.ink3,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

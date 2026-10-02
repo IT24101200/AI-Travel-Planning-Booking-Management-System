@@ -1498,7 +1498,40 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/checkout', arguments: _itinerary),
+              onPressed: () async {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Loading booking...')),
+                );
+                try {
+                  final bookings = await ApiService.getMyBookings();
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  
+                  final matchingBooking = bookings.firstWhere(
+                    (b) => b is Map && b['itineraryId'] == _itinerary!['id'],
+                    orElse: () => null,
+                  );
+                  
+                  if (matchingBooking != null) {
+                    Navigator.pushNamed(
+                      context,
+                      '/checkout',
+                      arguments: matchingBooking['id'],
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Booking not finalized yet. Awaiting agent approval.')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Failed to load booking details.')),
+                    );
+                  }
+                }
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0E382C),
                 foregroundColor: Colors.white,
