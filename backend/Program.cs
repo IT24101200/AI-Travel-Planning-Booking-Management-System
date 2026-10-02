@@ -125,8 +125,25 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
-// ── Controllers ──
-builder.Services.AddControllers();
+// ── Controllers & Consistent Validation Errors ──
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value != null && e.Value.Errors.Count > 0)
+                .SelectMany(x => x.Value!.Errors)
+                .Select(x => x.ErrorMessage)
+                .ToList();
+
+            return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(new
+            {
+                message = "Validation failed.",
+                errors = errors
+            });
+        };
+    });
 builder.Services.AddHttpClient();
 
 // ── DI: Student A Services ──
@@ -242,6 +259,19 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection(); // Disabled for mobile HTTP testing
 app.UseCors("AllowAll");
 app.UseStaticFiles();
+
+// Also serve the uploads directory (for tour images, etc.)
+var uploadsPath = Path.Combine(builder.Environment.ContentRootPath, "wwwroot", "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
+
 
 app.UseAuthentication();
 app.UseAuthorization();

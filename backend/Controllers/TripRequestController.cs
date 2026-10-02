@@ -236,6 +236,129 @@ namespace backend.Controllers
             if (updated == null)
                 return NotFound(new { message = "Trip request not found." });
 
+            if (updated.Status == "AwaitingApproval" && !string.IsNullOrWhiteSpace(updated.PlanJson))
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var scope = _scopeFactory.CreateScope();
+                        var itineraryService = scope.ServiceProvider.GetRequiredService<IItineraryService>();
+                        var bookingService = scope.ServiceProvider.GetRequiredService<IBookingService>();
+                        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TripRequestController>>();
+
+                        using var doc = System.Text.Json.JsonDocument.Parse(updated.PlanJson);
+                        if (doc.RootElement.TryGetProperty("booking_details", out var bd))
+                        {
+                            var totalCost = bd.GetProperty("total_package_cost").GetDecimal();
+                            var currency = bd.GetProperty("currency").GetString() ?? "USD";
+
+                            // 1. Create Itinerary
+                            var itineraryDto = await itineraryService.CreateItineraryAsync(
+                                updated.CustomerId,
+                                updated.Id,
+                                updated.StartDate,
+                                updated.EndDate,
+                                currency);
+
+                            var items = new List<BookingItemCreateDto>();
+
+                            // 2. Add Itinerary Items (Tours)
+                            if (bd.TryGetProperty("itinerary", out var itinNode))
+                            {
+                                System.Text.Json.JsonElement? scheduleElement = null;
+                                if (itinNode.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                {
+                                    scheduleElement = itinNode;
+                                }
+                                else if (itinNode.ValueKind == System.Text.Json.JsonValueKind.Object && itinNode.TryGetProperty("schedule", out var sched))
+                                {
+                                    scheduleElement = sched;
+                                }
+
+                                if (scheduleElement.HasValue && scheduleElement.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                {
+                                    foreach (var day in scheduleElement.Value.EnumerateArray())
+                                {
+                                    var dayNum = day.GetProperty("day_number").GetInt32();
+                                    if (day.TryGetProperty("items", out var tours))
+                                    {
+                                        foreach (var tour in tours.EnumerateArray())
+                                        {
+                                            var tourId = tour.GetProperty("tour_id").GetInt32();
+                                            var start = TimeSpan.Parse(tour.GetProperty("start_time").GetString()!);
+                                            var end = TimeSpan.Parse(tour.GetProperty("end_time").GetString()!);
+                                            var price = tour.GetProperty("price").GetDecimal();
+
+                                            await itineraryService.AddItemToItineraryAsync(itineraryDto.Id, new ItineraryItemCreateDto
+                                            {
+                                                DayNumber = dayNum,
+                                                SequenceOrder = 1, // Just a placeholder, since order isn't strictly defined by the AI output.
+                                                TourId = tourId,
+                                                StartTime = start,
+                                                EndTime = end
+                                            });
+
+                                            items.Add(new BookingItemCreateDto
+                                            {
+                                                ItemType = backend.Models.Enums.BookingItemType.Tour,
+                                                TourId = tourId,
+                                                Quantity = updated.TravellerCount,
+                                                UnitPrice = price
+                                            });
+                                        }
+                                    }
+                                    }
+                                }
+                            }
+
+                            // 3. Add Room to booking items
+                            if (bd.TryGetProperty("selected_room", out var room) && room.TryGetProperty("room_id", out var roomIdProp))
+                            {
+                                items.Add(new BookingItemCreateDto
+                                {
+                                    ItemType = backend.Models.Enums.BookingItemType.Room,
+                                    RoomId = roomIdProp.GetInt32(),
+                                    Quantity = 1,
+                                    UnitPrice = room.GetProperty("price_per_night").GetDecimal(),
+                                    CheckInDate = updated.StartDate,
+                                    CheckOutDate = updated.EndDate
+                                });
+                            }
+
+                            // 4. Add Transport to booking items
+                            if (bd.TryGetProperty("selected_transport", out var transport) && transport.TryGetProperty("transport_id", out var transIdProp))
+                            {
+                                items.Add(new BookingItemCreateDto
+                                {
+                                    ItemType = backend.Models.Enums.BookingItemType.Transport,
+                                    TransportOptionId = transIdProp.GetInt32(),
+                                    Quantity = updated.TravellerCount,
+                                    UnitPrice = transport.GetProperty("price").GetDecimal()
+                                });
+                            }
+
+                            // 5. Create Booking
+                            await bookingService.CreateBookingAsync(new BookingCreateDto
+                            {
+                                CustomerId = updated.CustomerId,
+                                ItineraryId = itineraryDto.Id,
+                                TotalCost = totalCost,
+                                Currency = currency,
+                                Items = items
+                            });
+                            
+                            logger.LogInformation("Successfully converted TripRequest #{Id} into Itinerary #{ItineraryId} and a pending Booking.", updated.Id, itineraryDto.Id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = _scopeFactory.CreateScope().ServiceProvider.GetRequiredService<ILogger<TripRequestController>>();
+                        logger.LogError(ex, "Failed to create Booking/Itinerary from TripRequest #{Id} PlanJson.", id);
+                    }
+                });
+            }
+
             return Ok(updated);
         }
 
