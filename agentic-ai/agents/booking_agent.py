@@ -1,6 +1,6 @@
 import json
 import os
-from google import genai
+import requests
 from dotenv import load_dotenv
 from logger import log_agent_step
 from tools.availability_tools import (
@@ -9,8 +9,7 @@ from tools.availability_tools import (
 )
 
 load_dotenv()
-api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-client = genai.Client(api_key=api_key)
+aiml_api_key = os.getenv("AIML_API_KEY")
 
 def _remove_markdown_fences(text):
     cleaned = text.strip()
@@ -28,6 +27,21 @@ def build_booking_package(state):
     start_date = state.get("start_date")
     end_date = state.get("end_date")
     traveller_count = state.get("traveller_count", 1)
+    currency = str(state.get("currency", "USD")).upper()
+
+    itinerary = state.get("itinerary", {})
+    if not isinstance(itinerary, dict) or itinerary.get("error"):
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "INVALID_ITINERARY",
+            "error": itinerary.get("error", "A valid persisted itinerary is required."),
+        }
+    if not itinerary.get("itinerary_id"):
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "MISSING_ITINERARY_ID",
+            "error": "A persisted itinerary ID is required before inventory selection.",
+        }
     
     # 1. Search Hotels
     hotels = search_hotels(destination_id)
@@ -38,7 +52,7 @@ def build_booking_package(state):
         for room in rooms:
             if room.get("capacity", 1) >= traveller_count:
                 avail = check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date)
-                if avail and avail.get("availableRooms", 0) > 0:
+                if avail and avail.get("isAvailable"):
                     available_rooms.append({
                         "hotel_id": hotel.get("id"),
                         "hotel_name": hotel.get("name"),
@@ -64,7 +78,7 @@ def build_booking_package(state):
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
             avail = check_transport_availability(t.get("id"))
-            if avail and avail.get("availableSeats", 0) > 0:
+            if avail and avail.get("isAvailable"):
                 available_transports.append({
                     "transport_id": t.get("id"),
                     "type": t.get("type"),
@@ -83,17 +97,35 @@ def build_booking_package(state):
     )
 
     if not available_rooms:
-        available_rooms = [{
-            "hotel_id": 2, "hotel_name": "Santani Wellness Resort & Spa", "room_id": 3, 
-            "room_type": "Mountain View Chalet", "price_per_night": 350.0, "currency": "USD"
-        }]
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "NO_VALID_ROOM",
+            "error": "No database-backed room is available for the requested dates.",
+        }
     if not available_transports:
-        available_transports = [{
-            "transport_id": 1, "type": "Train", "provider": "Sri Lanka Railways (Ella Odyssey)",
-            "price": 25.0, "currency": "USD"
-        }]
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "NO_VALID_TRANSPORT",
+            "error": "No database-backed transport option is available.",
+        }
 
-    itinerary = state.get("itinerary", {})
+    matching_rooms = [
+        room for room in available_rooms
+        if str(room.get("currency", currency)).upper() == currency
+    ]
+    matching_transports = [
+        option for option in available_transports
+        if str(option.get("currency", currency)).upper() == currency
+    ]
+    if not matching_rooms or not matching_transports:
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "CURRENCY_MISMATCH",
+            "error": f"Inventory currency does not match requested currency {currency}.",
+        }
+    available_rooms = matching_rooms
+    available_transports = matching_transports
+
     itinerary_json = json.dumps(itinerary, indent=2, default=str)
     rooms_json = json.dumps(available_rooms, indent=2, default=str)
     transports_json = json.dumps(available_transports, indent=2, default=str)
@@ -119,7 +151,7 @@ Rules:
 {{
   "booking_package_id": null,
   "total_package_cost": 0.0,
-  "currency": "LKR",
+  "currency": "{currency}",
   "itinerary": <insert the unmodified DRAFT ITINERARY schedule here>,
   "selected_room": {{
     "hotel_id": 1,
@@ -137,14 +169,62 @@ Rules:
 """
 
     try:
-        interaction = client.interactions.create(
-            model="gemini-3.5-flash",
-            input=prompt.strip(),
-        )
-        response_text = _remove_markdown_fences(interaction.output_text)
+        if aiml_api_key:
+            response = requests.post(
+                "https://api.aimlapi.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {aiml_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt.strip()}]
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            response_text = _remove_markdown_fences(response.json()["choices"][0]["message"]["content"])
+        else:
+            from google import genai
+            api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            client = genai.Client(api_key=api_key)
+            interaction = client.interactions.create(
+                model="gemini-3.5-flash",
+                input=prompt.strip(),
+            )
+            response_text = _remove_markdown_fences(interaction.output_text)
+            
         parsed_result = json.loads(response_text)
     except Exception as error:
-        return {"error": f"Gemini request failed: {error}"}
+        return {"error": f"LLM request failed: {error}"}
+
+    if not isinstance(parsed_result, dict):
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "INVALID_BOOKING_OUTPUT",
+            "error": "Booking Agent returned an invalid package.",
+        }
+
+    selected_room = parsed_result.get("selected_room") or {}
+    selected_transport = parsed_result.get("selected_transport") or {}
+    valid_room_ids = {room.get("room_id") for room in available_rooms}
+    valid_transport_ids = {option.get("transport_id") for option in available_transports}
+    if selected_room.get("room_id") not in valid_room_ids:
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "INVALID_ROOM_SELECTION",
+            "error": "Selected room was not returned by the backend availability search.",
+        }
+    if selected_transport.get("transport_id") not in valid_transport_ids:
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "INVALID_TRANSPORT_SELECTION",
+            "error": "Selected transport was not returned by the backend availability search.",
+        }
+    # Preserve Student B's persisted itinerary exactly; do not trust the LLM to
+    # reproduce its database ID or schedule without alteration.
+    parsed_result["itinerary"] = itinerary
+    parsed_result["currency"] = currency
 
     try:
         log_agent_step(
@@ -166,4 +246,6 @@ def booking_node(state: dict) -> dict:
     and returns a concrete, priced booking package.
     """
     result = build_booking_package(state)
+    if isinstance(result, dict) and "total_package_cost" in result and "total_cost" not in result:
+        result["total_cost"] = result["total_package_cost"]
     return {**state, "booking_details": result}

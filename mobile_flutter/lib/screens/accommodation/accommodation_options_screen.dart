@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../widgets/common_widgets.dart';
 
-/// Accommodation options screen matching Figma Dev Mode (08 · Accommodation Options).
+/// Accommodation options screen matching Figma frame 08 · Accommodation Options (node 7:10737)
 class AccommodationOptionsScreen extends StatefulWidget {
   const AccommodationOptionsScreen({super.key});
 
@@ -14,60 +16,73 @@ class AccommodationOptionsScreen extends StatefulWidget {
 class _AccommodationOptionsScreenState
     extends State<AccommodationOptionsScreen> {
   List<dynamic> _hotels = [];
-  String _selectedCategory = 'Hotel';
-  int _selectedIndex = 0;
+  bool _loading = true;
+  String? _error;
 
+  String _selectedCategory = 'Hotel';
   final List<String> _categories = ['Hotel', 'Resort', 'Villa', 'Hostel'];
 
   // Default curated stays matching Figma
-  final List<Map<String, dynamic>> _sampleStays = [
+  final List<Map<String, dynamic>> _curatedStays = [
     {
-      'id': '1',
+      'id': 'heritance',
       'name': 'Heritance Kandalama',
       'location': 'Dambulla · 11 km from Sigiriya',
       'amenities': 'Pool · Spa · Lake view',
-      'price': 186,
       'rating': 4.9,
-      'imageUrl': 'assets/photos/sigiriya-1280.jpg',
+      'price': 186,
+      'image':
+          'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
     },
     {
-      'id': '2',
+      'id': '98acres',
       'name': '98 Acres Resort',
       'location': 'Ella · Tea estate',
       'amenities': 'Breakfast · Pool · Mountain view',
-      'price': 214,
       'rating': 4.8,
-      'imageUrl': 'assets/photos/nuwara-eliya-1280.jpg',
+      'price': 214,
+      'image':
+          'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&auto=format&fit=crop&q=80',
     },
     {
-      'id': '3',
+      'id': 'fortprinters',
       'name': 'The Fort Printers',
       'location': 'Galle Fort · Historic quarter',
       'amenities': 'Courtyard · Breakfast · Wi-Fi',
-      'price': 142,
       'rating': 4.7,
-      'imageUrl': 'assets/photos/mirissa-1280.jpg',
+      'price': 142,
+      'image':
+          'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=600&auto=format&fit=crop&q=80',
     },
   ];
+
+  late String _selectedStayId;
 
   @override
   void initState() {
     super.initState();
+    _selectedStayId = _curatedStays.first['id'];
     _loadHotels();
   }
 
   Future<void> _loadHotels() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final list = await ApiService.getHotels();
       if (mounted) {
         setState(() {
-          _hotels = list.isNotEmpty ? list : _sampleStays;
+          _hotels = list;
+          _loading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _hotels = _sampleStays;
+          // Keep curated fallback on error
+          _loading = false;
         });
       }
     }
@@ -75,421 +90,483 @@ class _AccommodationOptionsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final stays = _hotels.isNotEmpty ? _hotels : _sampleStays;
-    final selectedHotel = stays.isNotEmpty && _selectedIndex < stays.length
-        ? stays[_selectedIndex]['name'] ?? 'Heritance Kandalama'
-        : 'Heritance Kandalama';
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+        ),
+      );
+    }
+
+    if (_error != null && _hotels.isEmpty && _curatedStays.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        appBar: AppBar(
+          backgroundColor: AppColors.figmaSurface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Choose your stay',
+            style: GoogleFonts.plusJakartaSans(
+              color: AppColors.figmaDarkGreen,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        body: ErrorMessage(message: _error!, onRetry: _loadHotels),
+      );
+    }
+
+    // Merge backend hotels if available
+    final List<Map<String, dynamic>> displayStays = _hotels.isNotEmpty
+        ? _hotels.map((h) {
+            return {
+              'id': h['id'].toString(),
+              'name': h['name'] ?? 'Boutique Hotel',
+              'location': h['city'] != null
+                  ? '${h['city']} · Central Province'
+                  : 'Sri Lanka',
+              'amenities': h['amenities'] ?? 'Wi-Fi · Breakfast · AC',
+              'rating': 4.8,
+              'price': (h['pricePerNight'] ?? 150).toInt(),
+              'image': (h['imageUrl'] != null &&
+                      h['imageUrl'].toString().isNotEmpty)
+                  ? ApiService.resolveMediaUrl(h['imageUrl'])
+                  : 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
+            };
+          }).toList()
+        : _curatedStays;
+
+    final selectedStay = displayStays.firstWhere(
+      (s) => s['id'] == _selectedStayId,
+      orElse: () => displayStays.first,
+    );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F4),
+      backgroundColor: AppColors.figmaSurface,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Top Header Row ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
-              child: Row(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Header Bar ──
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Back button
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFEDECE4)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.arrow_back, color: Color(0xFF1E1E1E), size: 20),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.figmaDarkGreen,
+                        size: 20,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Choose your stay',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF08201A),
-                            letterSpacing: -0.5,
-                          ),
+                  // Title & Guests
+                  Column(
+                    children: [
+                      Text(
+                        'Choose your stay',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.figmaDarkGreen,
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          '12–18 Oct · 2 guests',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF8A9E96),
-                            fontWeight: FontWeight.w500,
-                          ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '12–18 Oct · 2 guests',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  // Map Icon Button
                   GestureDetector(
                     onTap: () => Navigator.pushNamed(context, '/trip-map'),
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFEDECE4)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.map_outlined, color: Color(0xFF1E1E1E), size: 20),
+                      child: const Icon(
+                        Icons.map_outlined,
+                        color: AppColors.figmaDarkGreen,
+                        size: 20,
                       ),
                     ),
                   ),
                 ],
               ),
-            ),
 
-            // ── Category Filter Chips ──
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
+              const SizedBox(height: 18),
+
+              // ── Category Pills Filter Row ──
+              SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                itemCount: _categories.length,
-                separatorBuilder: (context, index) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final cat = _categories[index];
-                  final isSelected = _selectedCategory == cat;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedCategory = cat),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF0E382C) : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          cat,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
+                child: Row(
+                  children: _categories.map((category) {
+                    final isSelected = _selectedCategory == category;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedCategory = category;
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? AppColors.figmaDarkGreen
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.figmaDarkGreen
+                                  : AppColors.figmaCardBorder,
+                            ),
+                          ),
+                          child: Text(
+                            category,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isSelected
+                                  ? Colors.white
+                                  : AppColors.figmaDarkGreen,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  }).toList(),
+                ),
               ),
-            ),
 
-            const SizedBox(height: 14),
+              const SizedBox(height: 18),
 
-            // ── Count and Sorting Row ──
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
+              // ── Recommended Stays Header ──
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '18 recommended stays',
-                    style: TextStyle(
+                    '${displayStays.length} recommended stays',
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF08201A),
+                      color: AppColors.figmaDarkGreen,
                     ),
                   ),
                   Row(
                     children: [
                       Text(
                         'Best match',
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0E382C),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0F766E),
                         ),
                       ),
-                      SizedBox(width: 2),
-                      Icon(Icons.arrow_downward, size: 13, color: Color(0xFF0E382C)),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.arrow_downward,
+                        size: 14,
+                        color: Color(0xFF0F766E),
+                      ),
                     ],
                   ),
                 ],
               ),
-            ),
 
-            const SizedBox(height: 10),
+              const SizedBox(height: 14),
 
-            // ── Stays List ──
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
-                itemCount: stays.length,
-                itemBuilder: (context, index) {
-                  final stay = stays[index];
-                  final isSelected = index == _selectedIndex;
-                  return _buildStayCard(stay, index, isSelected);
-                },
-              ),
-            ),
+              // ── Stay Cards List ──
+              ...displayStays.map((stay) {
+                final isSelected = stay['id'] == _selectedStayId;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 14),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.figmaGold
+                          : AppColors.figmaCardBorder,
+                      width: isSelected ? 1.5 : 1.0,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Thumbnail
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          stay['image'] as String,
+                          width: 110,
+                          height: 125,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 110,
+                            height: 125,
+                            color: const Color(0xFFE5E7EB),
+                            child: const Icon(
+                              Icons.hotel,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Rating & Selected pill
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.star_rounded,
+                                      color: AppColors.figmaGold,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '${stay['rating']}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.figmaDarkGreen,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (isSelected)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFBF4E4),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'SELECTED',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.figmaGold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            // Name
+                            Text(
+                              stay['name'] as String,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.figmaDarkGreen,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            // Location
+                            Text(
+                              stay['location'] as String,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: const Color(0xFF6B7280),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            // Amenities
+                            Text(
+                              stay['amenities'] as String,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: const Color(0xFF0F766E),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 10),
+                            // Price & Action Button
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '\$${stay['price']}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.figmaDarkGreen,
+                                      ),
+                                    ),
+                                    Text(
+                                      'per night',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        color: const Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedStayId = stay['id'] as String;
+                                    });
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppColors.figmaGold
+                                          : AppColors.figmaDarkGreen,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      isSelected ? 'Selected' : 'Select',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
 
-            // ── Policy Mint Banner ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 6, 18, 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEFAF4),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFD9F4E7)),
+              const SizedBox(height: 10),
+
+              // ── Policy Box ──
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
                 ),
-                child: const Row(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEAF2EC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
                   children: [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF13684B), size: 18),
-                    SizedBox(width: 10),
+                    const Icon(
+                      Icons.check_circle_outline,
+                      color: Color(0xFF0F766E),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Text(
                         'Rates include taxes and free cancellation until 8 October.',
-                        style: TextStyle(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
-                          color: Color(0xFF0A3628),
-                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF064E3B),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
 
-            // ── Bottom Fixed Continue Button ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-              child: SizedBox(
+              const SizedBox(height: 16),
+
+              // ── Continue Button ──
+              SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, '/transport'),
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      '/transport',
+                      arguments: selectedStay,
+                    );
+                  },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0E382C),
+                    backgroundColor: AppColors.figmaDarkGreen,
                     foregroundColor: Colors.white,
-                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26),
                     ),
+                    elevation: 0,
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.arrow_forward, size: 18, color: Colors.white),
+                      const Icon(Icons.arrow_forward, size: 18),
                       const SizedBox(width: 8),
                       Text(
-                        'Continue with $selectedHotel',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 15,
+                        'Continue with ${selectedStay['name']}',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
                           fontWeight: FontWeight.w700,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _buildStayCard(Map<String, dynamic> stay, int index, bool isSelected) {
-    final name = stay['name'] ?? 'Stay';
-    final location = stay['location'] ?? stay['city'] ?? 'Sri Lanka';
-    final amenities = stay['amenities'] ?? 'Pool · Spa · Wi-Fi';
-    final price = stay['price'] ?? stay['pricePerNight'] ?? 180;
-    final rating = (stay['rating'] ?? 4.8).toString();
-    final imageUrl = stay['imageUrl'] ?? 'assets/photos/sigiriya-1280.jpg';
-
-    return GestureDetector(
-      onTap: () => setState(() => _selectedIndex = index),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFD4A346) : const Color(0xFFEDECE4),
-            width: isSelected ? 1.8 : 1.0,
+              const SizedBox(height: 24),
+            ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Left Image (rounded square)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: SizedBox(
-                width: 104,
-                height: 104,
-                child: imageUrl.startsWith('http')
-                    ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0E382C)))
-                    : Image.asset(imageUrl, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => Container(color: const Color(0xFF0E382C))),
-              ),
-            ),
-            const SizedBox(width: 14),
-
-            // Right Info
-            Expanded(
-              child: SizedBox(
-                height: 104,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Rating & Optional Selected Tag
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Color(0xFFD4A346), size: 14),
-                            const SizedBox(width: 3),
-                            Text(
-                              rating,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1E1E1E),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (isSelected)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFBF4E4),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'SELECTED',
-                              style: TextStyle(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFD4A346),
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-
-                    // Title
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF08201A),
-                      ),
-                    ),
-
-                    // Location
-                    Text(
-                      location,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Color(0xFF6B7280),
-                      ),
-                    ),
-
-                    // Amenities (teal)
-                    Text(
-                      amenities,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1B6B5D),
-                      ),
-                    ),
-
-                    // Price & Button
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '\$$price',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF08201A),
-                              ),
-                            ),
-                            const Text(
-                              'per night',
-                              style: TextStyle(fontSize: 9.5, color: Color(0xFF8A9E96)),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFFD4A346) : const Color(0xFF0E382C),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            isSelected ? 'Selected' : 'Select',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

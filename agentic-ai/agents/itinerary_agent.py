@@ -14,20 +14,11 @@ from dotenv import load_dotenv
 # The tools directory is next to the agents directory. When the agentic-ai
 # directory is the Python working directory, this imports tools/search_tours.py.
 from tools.search_tours import search_tours
+from tools.itinerary_tools import ItineraryPersistenceError, persist_itinerary
 
 
 # Read variables from a local .env file (if one exists) into the environment.
 load_dotenv()
-
-# Read the itinerary agent's Gemini API key from the environment with fallbacks.
-# Keeping the key outside the source code prevents it from being committed.
-api_key = (
-    os.getenv("GOOGLE_API_KEY_ITINERARY")
-    or os.getenv("GEMINI_API_KEY")
-    or os.getenv("GOOGLE_API_KEY")
-)
-client = genai.Client(api_key=api_key)
-
 
 def _get_tour_value(tour, *possible_names):
     """Return a tour field while allowing common API naming variations."""
@@ -184,16 +175,13 @@ def build_itinerary(trip_request):
     except Exception as error:
         print(f"Warning: Failed to log 'Searched tour catalog': {error}")
 
-    # If the catalog returns no tours for this destination, provide realistic fallback tours
-    # to allow planning and testing without crashing the pipeline.
+    # Inventory must always come from the backend. Never fabricate tour IDs.
     if not candidate_tours:
-        dest_name = trip_request.get("destination_name") or "Selected Destination"
-        candidate_tours = [
-            {"id": 101, "name": f"{dest_name} Cultural Heritage Walk", "price": 45.0, "duration_hours": 3, "category": "Walking Tour", "default_start_time": "09:00:00", "status": "Active"},
-            {"id": 102, "name": f"{dest_name} Historic Temple & Museum Tour", "price": 50.0, "duration_hours": 3, "category": "Culture", "default_start_time": "13:30:00", "status": "Active"},
-            {"id": 103, "name": f"{dest_name} Scenic Nature & Viewpoint Trail", "price": 60.0, "duration_hours": 4, "category": "Sightseeing", "default_start_time": "08:30:00", "status": "Active"},
-            {"id": 104, "name": f"{dest_name} Evening Market & Culinary Tasting", "price": 40.0, "duration_hours": 2, "category": "Food & Beverage", "default_start_time": "17:30:00", "status": "Active"}
-        ]
+        return {
+            "status": "ItineraryFailed",
+            "error_code": "NO_VALID_TOURS",
+            "error": "No active tours are available for the selected destination.",
+        }
 
     # Keep only the fields Gemini needs. The alternative names make this work
     # with APIs that return snake_case, camelCase, or PascalCase JSON keys.
@@ -257,7 +245,7 @@ Rules:
 {{
   "itinerary_id": null,
   "total_estimated_cost": 0.0,
-  "currency": "LKR",
+  "currency": "{trip_request['currency']}",
   "schedule": [
     {{
       "day_number": 1,
@@ -275,13 +263,26 @@ Rules:
 }}
 """.strip()
 
-    # Create the requested Gemini model and send it the completed prompt.
+    # Construct Gemini lazily so importing the shared graph never requires a key.
+    api_key = (
+        os.getenv("GOOGLE_API_KEY_ITINERARY")
+        or os.getenv("GEMINI_API_KEY")
+        or os.getenv("GOOGLE_API_KEY")
+    )
+    if not api_key:
+        return {
+            "status": "ConfigurationFailed",
+            "error_code": "MISSING_ITINERARY_API_KEY",
+            "error": "Itinerary Agent is not configured.",
+        }
+
     try:
-            interaction = client.interactions.create(
+        client = genai.Client(api_key=api_key)
+        interaction = client.interactions.create(
             model="gemini-3.5-flash",
-                input=prompt,
-            )
-            response_text_raw = interaction.output_text
+            input=prompt,
+        )
+        response_text_raw = interaction.output_text
     except Exception as error:
         return {"error": f"Gemini request failed: {error}"}
 
@@ -327,6 +328,7 @@ Rules:
     if not is_valid:
         return {"error": "Validation failed", "details": validation_errors}
 
+    parsed_result["currency"] = trip_request["currency"]
     return parsed_result
 
 
@@ -345,6 +347,7 @@ def itinerary_node(state: dict) -> dict:
         "budget_ceiling": state.get("target_budgets", {}).get("tours_budget")
         or state.get("budget_ceiling"),
         "preferred_activities": state.get("preferred_activities", []),
+        "currency": state.get("currency", "USD"),
     }
 
     if not trip_request["destination_id"]:
@@ -352,8 +355,30 @@ def itinerary_node(state: dict) -> dict:
         trip_request["destination_id"] = 1
 
     result = build_itinerary(trip_request)
-    if isinstance(result, dict) and "total_estimated_cost" in result:
-        result["total_cost"] = result["total_estimated_cost"]
+    if not isinstance(result, dict):
+        result = {
+            "status": "ItineraryFailed",
+            "error_code": "INVALID_ITINERARY_OUTPUT",
+            "error": "Itinerary Agent returned an invalid result.",
+        }
+    if result.get("error"):
+        return {"itinerary": result, "status": result.get("status", "ItineraryFailed")}
+
+    try:
+        itinerary_id = persist_itinerary(state, result)
+    except ItineraryPersistenceError as error:
+        return {
+            "itinerary": {
+                "status": "ItineraryPersistenceFailed",
+                "error_code": "ITINERARY_PERSIST_FAILED",
+                "error": str(error),
+            },
+            "status": "ItineraryPersistenceFailed",
+        }
+
+    result["itinerary_id"] = itinerary_id
+    result["currency"] = state.get("currency", "USD")
+    result["total_cost"] = result["total_estimated_cost"]
     return {**state, "itinerary": result}
 
 

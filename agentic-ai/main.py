@@ -41,6 +41,7 @@ class TripPipelineRequest(BaseModel):
     currency: str = Field("USD", description="Currency code")
     retry_count: Optional[int] = Field(0, description="Initial retry count")
     preferred_activities: Optional[list[str]] = []
+    access_token: Optional[str] = Field(None, description="Backend bearer token; never logged or returned")
 
 
 @app.get("/")

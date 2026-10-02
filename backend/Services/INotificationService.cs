@@ -10,7 +10,7 @@ namespace backend.Services
         Task<NotificationDto?> MarkAsReadAsync(Guid notificationId, string customerId);
         Task<NotificationDto?> MarkAsUnreadAsync(Guid notificationId, string customerId);
         Task<int> MarkAllAsReadAsync(string customerId);
-        Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string customerId);
+        Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string? customerId = null);
         Task<NotificationDto> SendNotificationAsync(SendNotificationDto dto);
     }
 }

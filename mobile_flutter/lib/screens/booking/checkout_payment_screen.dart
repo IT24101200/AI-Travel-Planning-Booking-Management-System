@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../widgets/common_widgets.dart';
 
-/// Checkout and payment screen matching Figma Dev Mode (11 · Checkout & Payment).
+/// Checkout and payment screen matching Figma frame 11 · Checkout & Payment (node 7:10956)
 class CheckoutPaymentScreen extends StatefulWidget {
   const CheckoutPaymentScreen({super.key});
 
@@ -13,457 +14,293 @@ class CheckoutPaymentScreen extends StatefulWidget {
 
 class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   Map<String, dynamic>? _booking;
+  bool _loading = true;
   bool _paying = false;
-  int _selectedMethod = 0; // 0: Card, 1: Wallet
+  String? _error;
+  String? _paymentMessage;
+
+  String _paymentMethod = 'Card'; // 'Card' or 'Wallet'
   bool _saveCard = true;
 
-  final _cardholderCtrl = TextEditingController(text: 'MAYA FERNANDO');
-  final _cardNumberCtrl = TextEditingController(text: '4242 4242 4242 4242');
-  final _expiryCtrl = TextEditingController(text: '10 / 29');
-  final _cvvCtrl = TextEditingController(text: '883');
+  final TextEditingController _nameController =
+      TextEditingController(text: 'MAYA FERNANDO');
+  final TextEditingController _cardNumberController =
+      TextEditingController(text: '4242 4242 4242 4242');
+  final TextEditingController _expiryController =
+      TextEditingController(text: '10 / 29');
+  final TextEditingController _cvvController =
+      TextEditingController(text: '742');
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map<String, dynamic>) {
-      _booking = args;
+    if (args is int && _booking == null) {
+      _loadBooking(args);
+    } else if (args is Map<String, dynamic> && _booking == null) {
+      setState(() {
+        _booking = args;
+        _loading = false;
+      });
+    } else if (_booking == null) {
+      setState(() {
+        _booking = {
+          'id': 101,
+          'bookingReference': 'ST-2026-98214',
+          'destination': 'Sri Lanka Discovery',
+          'dates': '12–18 Oct 2026 · 2 travelers',
+          'stops': 'Sigiriya · Kandy · Ella · Mirissa',
+          'accommodationCost': 1116.0,
+          'toursCost': 218.0,
+          'transfersCost': 284.0,
+          'taxesCost': 94.0,
+          'totalCost': 1712.0,
+          'currency': 'USD',
+        };
+        _loading = false;
+        _error = null;
+      });
     }
   }
 
   @override
   void dispose() {
-    _cardholderCtrl.dispose();
-    _cardNumberCtrl.dispose();
-    _expiryCtrl.dispose();
-    _cvvCtrl.dispose();
+    _nameController.dispose();
+    _cardNumberController.dispose();
+    _expiryController.dispose();
+    _cvvController.dispose();
     super.dispose();
   }
 
+  /// Load booking details by ID
+  Future<void> _loadBooking(int id) async {
+    setState(() => _loading = true);
+    try {
+      final data = await ApiService.getBooking(id);
+      if (mounted) {
+        setState(() {
+          _booking = data;
+          if (_booking == null) _error = 'Booking not found';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load booking details';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  /// Process payment
   Future<void> _pay() async {
+    if (_booking == null) return;
     setState(() {
       _paying = true;
+      _paymentMessage = null;
     });
 
     try {
-      if (_booking != null && _booking!['id'] != null) {
-        await ApiService.createPayment({
-          'bookingId': _booking!['id'],
-          'amount': 1712,
-          'currency': 'USD',
-          'stripeToken': 'tok_visa',
-        });
+      final total = (_booking!['totalCost'] ??
+              _booking!['totalEstimatedCost'] ??
+              1712)
+          .toDouble();
+
+      final result = await ApiService.createPayment({
+        'bookingId': _booking!['id'] ?? 101,
+        'amount': total,
+        'currency': _booking!['currency'] ?? 'USD',
+        'stripeToken': 'tok_visa',
+      });
+
+      if (!mounted) return;
+
+      if (result['statusCode'] == 200 || result['statusCode'] == 201) {
+        Navigator.pushReplacementNamed(
+          context,
+          '/booking-status',
+          arguments: _booking,
+        );
+      } else {
+        // Even if mock endpoint returns default message, navigate to status
+        Navigator.pushReplacementNamed(
+          context,
+          '/booking-status',
+          arguments: _booking,
+        );
       }
-    } catch (_) {
-      // Continue to confirmation in demo / offline mode
+    } catch (e) {
+      // In offline/mock mode, navigate forward to status
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          '/booking-status',
+          arguments: _booking,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _paying = false);
     }
-
-    if (!mounted) return;
-    setState(() => _paying = false);
-
-    Navigator.pushReplacementNamed(
-      context,
-      '/trip-confirmation',
-      arguments: _booking ?? {
-        'id': 284619,
-        'bookingReference': 'ST-284619',
-        'title': 'Sri Lanka Discovery',
-        'dates': '12–18 October 2026',
-        'duration': '7 days / 6 nights',
-        'travelers': 'Maya Fernando + 1 guest',
-        'hotel': 'Heritance Kandalama + 2 stays',
-        'transport': 'Private car + reserved train',
-        'destinations': 'Sigiriya · Kandy · Ella · Mirissa',
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+        ),
+      );
+    }
+
+    if (_error != null && _booking == null) {
+      return Scaffold(
+        backgroundColor: AppColors.figmaSurface,
+        appBar: AppBar(
+          backgroundColor: AppColors.figmaSurface,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Checkout',
+            style: GoogleFonts.plusJakartaSans(
+              color: AppColors.figmaDarkGreen,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        body: ErrorMessage(message: _error!),
+      );
+    }
+
+    final total = (_booking!['totalCost'] ??
+            _booking!['totalEstimatedCost'] ??
+            1712)
+        .toDouble();
+    final accommodationCost =
+        (_booking!['accommodationCost'] ?? 1116).toDouble();
+    final toursCost = (_booking!['toursCost'] ?? 218).toDouble();
+    final transfersCost = (_booking!['transfersCost'] ?? 284).toDouble();
+    final taxesCost = (_booking!['taxesCost'] ?? 94).toDouble();
+    final tripTitle = _booking!['destination'] ?? 'Sri Lanka Discovery';
+    final dates = _booking!['dates'] ?? '12–18 Oct 2026 · 2 travelers';
+    final stops =
+        _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F4),
+      backgroundColor: AppColors.figmaSurface,
       body: SafeArea(
-        child: Column(
-          children: [
-            // ── Top Header Row ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
-              child: Row(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Header Bar ──
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: BoxDecoration(
+                      decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFEDECE4)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.arrow_back, color: Color(0xFF1E1E1E), size: 20),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.figmaDarkGreen,
+                        size: 20,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Checkout',
-                          style: GoogleFonts.poppins(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF08201A),
-                            letterSpacing: -0.5,
-                          ),
+                  Column(
+                    children: [
+                      Text(
+                        'Checkout',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.figmaDarkGreen,
                         ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Secure payment · Step 3 of 3',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF8A9E96),
-                            fontWeight: FontWeight.w500,
-                          ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Secure payment · Step 3 of 3',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: const Color(0xFF6B7280),
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFEDECE4)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
                     ),
-                    child: const Center(
-                      child: Icon(Icons.lock_outline, color: Color(0xFF1E1E1E), size: 20),
+                    child: const Icon(
+                      Icons.lock_outline,
+                      color: AppColors.figmaDarkGreen,
+                      size: 20,
                     ),
                   ),
                 ],
               ),
-            ),
 
-            // ── Scrollable Checkout Body ──
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
+              const SizedBox(height: 18),
+
+              // ── Trip Summary Card ──
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.figmaCardBorder),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Trip Summary Invoice Card
-                    Container(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFEDECE4)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              // 4-Image Grid Collage Thumbnail
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: SizedBox(
-                                  width: 60,
-                                  height: 60,
-                                  child: GridView.count(
-                                    crossAxisCount: 2,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    children: [
-                                      Image.asset(AppDestinations.heroSigiriya, fit: BoxFit.cover),
-                                      Image.asset(AppDestinations.featured[0].imageUrl, fit: BoxFit.cover),
-                                      Image.asset(AppDestinations.featured[1].imageUrl, fit: BoxFit.cover),
-                                      Image.asset(AppDestinations.featured[2].imageUrl, fit: BoxFit.cover),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Sri Lanka Discovery',
-                                      style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w800,
-                                        color: Color(0xFF08201A),
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      '12–18 Oct 2026 · 2 travelers',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        color: Color(0xFF8A9E96),
-                                      ),
-                                    ),
-                                    SizedBox(height: 2),
-                                    Text(
-                                      'Sigiriya · Kandy · Ella · Mirissa',
-                                      style: TextStyle(
-                                        fontSize: 11.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: Color(0xFF1B6B5D),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 14),
-                          Container(height: 1, color: const Color(0xFFEDECE4)),
-                          const SizedBox(height: 12),
-
-                          _buildCostRow('6-night accommodation', '\$1,116'),
-                          const SizedBox(height: 8),
-                          _buildCostRow('Sigiriya & Kandy tours', '\$218'),
-                          const SizedBox(height: 8),
-                          _buildCostRow('Private transfers + train', '\$284'),
-                          const SizedBox(height: 8),
-                          _buildCostRow('Taxes & partner fees', '\$94'),
-
-                          const SizedBox(height: 14),
-                          Container(height: 1, color: const Color(0xFFEDECE4)),
-                          const SizedBox(height: 12),
-
-                          const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Total',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w800,
-                                      color: Color(0xFF08201A),
-                                    ),
-                                  ),
-                                  Text(
-                                    'USD · taxes included',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      color: Color(0xFF8A9E96),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                '\$1,712',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w900,
-                                  color: Color(0xFF0E382C),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Payment Method Section Title
-                    const Text(
-                      'Payment method',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF08201A),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // 2 Options: Card and Wallet
+                    // Top Row with 4-grid collage thumbnail
                     Row(
                       children: [
-                        // Card Option
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedMethod = 0),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: _selectedMethod == 0 ? const Color(0xFFEEFAF4) : Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: _selectedMethod == 0 ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                                  width: _selectedMethod == 0 ? 1.5 : 1.0,
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: GridView.count(
+                              crossAxisCount: 2,
+                              padding: EdgeInsets.zero,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: [
+                                Image.network(
+                                  'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=200&auto=format&fit=crop&q=80',
+                                  fit: BoxFit.cover,
                                 ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: _selectedMethod == 0 ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                                        width: _selectedMethod == 0 ? 4.5 : 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Icon(Icons.credit_card, size: 18, color: Color(0xFF0E382C)),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Card',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF08201A),
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                Image.network(
+                                  'https://images.unsplash.com/photo-1546708973-b339540b5162?w=200&auto=format&fit=crop&q=80',
+                                  fit: BoxFit.cover,
+                                ),
+                                Image.network(
+                                  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&auto=format&fit=crop&q=80',
+                                  fit: BoxFit.cover,
+                                ),
+                                Image.network(
+                                  'https://images.unsplash.com/photo-1588598198321-9735fd52455b?w=200&auto=format&fit=crop&q=80',
+                                  fit: BoxFit.cover,
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-
-                        // Wallet Option
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => _selectedMethod = 1),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: _selectedMethod == 1 ? const Color(0xFFEEFAF4) : Colors.white,
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: _selectedMethod == 1 ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                                  width: _selectedMethod == 1 ? 1.5 : 1.0,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 16,
-                                    height: 16,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: _selectedMethod == 1 ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                                        width: _selectedMethod == 1 ? 4.5 : 1.5,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  const Icon(Icons.account_balance_wallet_outlined, size: 18, color: Color(0xFF6B7280)),
-                                  const SizedBox(width: 8),
-                                  const Text(
-                                    'Wallet',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF08201A),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Cardholder Name
-                    const Text(
-                      'CARDHOLDER NAME',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B7280),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInputField(
-                      controller: _cardholderCtrl,
-                      icon: Icons.person_outline,
-                      hint: 'MAYA FERNANDO',
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Card Number
-                    const Text(
-                      'CARD NUMBER',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF6B7280),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInputField(
-                      controller: _cardNumberCtrl,
-                      icon: Icons.credit_card_outlined,
-                      hint: '4242 4242 4242 4242',
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    // Expiry & CVV
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'EXPIRY',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF6B7280),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              _buildInputField(
-                                controller: _expiryCtrl,
-                                hint: '10 / 29',
-                              ),
-                            ],
                           ),
                         ),
                         const SizedBox(width: 14),
@@ -471,20 +308,32 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'CVV',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF6B7280),
-                                  letterSpacing: 0.5,
+                              Text(
+                                tripTitle,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.figmaDarkGreen,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              _buildInputField(
-                                controller: _cvvCtrl,
-                                hint: '•••',
-                                obscureText: true,
+                              const SizedBox(height: 2),
+                              Text(
+                                dates,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: const Color(0xFF6B7280),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                stops,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: const Color(0xFF0F766E),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
@@ -492,175 +341,461 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       ],
                     ),
 
-                    const SizedBox(height: 14),
-
-                    // Save Card Checkbox
-                    GestureDetector(
-                      onTap: () => setState(() => _saveCard = !_saveCard),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: _saveCard ? const Color(0xFF0E382C) : Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: _saveCard ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: _saveCard
-                                ? const Center(
-                                    child: Icon(Icons.check, size: 14, color: Colors.white),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 10),
-                          const Text(
-                            'Save this card securely for future bookings',
-                            style: TextStyle(fontSize: 12, color: Color(0xFF4B5563)),
-                          ),
-                        ],
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Divider(
+                        height: 1,
+                        color: AppColors.figmaCardBorder,
                       ),
                     ),
 
-                    const SizedBox(height: 14),
+                    // Cost breakdown items
+                    _buildCostItem('6-night accommodation', accommodationCost),
+                    const SizedBox(height: 8),
+                    _buildCostItem('Sigiriya & Kandy tours', toursCost),
+                    const SizedBox(height: 8),
+                    _buildCostItem('Private transfers + train', transfersCost),
+                    const SizedBox(height: 8),
+                    _buildCostItem('Taxes & partner fees', taxesCost),
 
-                    // Shield Info Banner (Soft sand)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF6EED8),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.shield_outlined, color: Color(0xFFB27D26), size: 18),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Protected payment. Free cancellation on eligible items until 8 October.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Color(0xFF08201A),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 14),
+                      child: Divider(
+                        height: 1,
+                        color: AppColors.figmaCardBorder,
                       ),
                     ),
 
-                    const SizedBox(height: 20),
-
-                    // Confirm & Pay Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _paying ? null : _pay,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0E382C),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(26),
+                    // Total Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Total',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.figmaDarkGreen,
+                              ),
+                            ),
+                            Text(
+                              'USD · taxes included',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                color: const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          '\$${total.toStringAsFixed(0)}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.figmaDarkGreen,
                           ),
                         ),
-                        child: _paying
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.lock_outline, size: 18, color: Colors.white),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Confirm & Pay \$1,712',
-                                    style: TextStyle(
-                                      fontSize: 15.5,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                      ),
+                      ],
                     ),
-
-                    const SizedBox(height: 30),
                   ],
                 ),
               ),
-            ),
-          ],
+
+              const SizedBox(height: 22),
+
+              // ── Payment Method Header ──
+              Text(
+                'Payment method',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.figmaDarkGreen,
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Method Selectors (Card vs Wallet)
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _paymentMethod = 'Card'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _paymentMethod == 'Card'
+                              ? const Color(0xFFEAF2EC)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _paymentMethod == 'Card'
+                                ? AppColors.figmaDarkGreen
+                                : AppColors.figmaCardBorder,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _paymentMethod == 'Card'
+                                    ? AppColors.figmaDarkGreen
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: AppColors.figmaDarkGreen,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.credit_card,
+                              color: AppColors.figmaDarkGreen,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Card',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.figmaDarkGreen,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _paymentMethod = 'Wallet'),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _paymentMethod == 'Wallet'
+                              ? const Color(0xFFEAF2EC)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: _paymentMethod == 'Wallet'
+                                ? AppColors.figmaDarkGreen
+                                : AppColors.figmaCardBorder,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 16,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: _paymentMethod == 'Wallet'
+                                    ? AppColors.figmaDarkGreen
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: const Color(0xFF9CA3AF),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.account_balance_wallet_outlined,
+                              color: Color(0xFF6B7280),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Wallet',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF374151),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 18),
+
+              // ── CARDHOLDER NAME ──
+              _buildInputLabel('CARDHOLDER NAME'),
+              const SizedBox(height: 6),
+              _buildInputField(
+                controller: _nameController,
+                icon: Icons.person_outline,
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── CARD NUMBER ──
+              _buildInputLabel('CARD NUMBER'),
+              const SizedBox(height: 6),
+              _buildInputField(
+                controller: _cardNumberController,
+                icon: Icons.credit_card_outlined,
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── EXPIRY & CVV ──
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInputLabel('EXPIRY'),
+                        const SizedBox(height: 6),
+                        _buildInputField(
+                          controller: _expiryController,
+                          icon: null,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildInputLabel('CVV'),
+                        const SizedBox(height: 6),
+                        _buildInputField(
+                          controller: _cvvController,
+                          icon: null,
+                          isPassword: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 14),
+
+              // ── Save Card Checkbox ──
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _saveCard = !_saveCard),
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: _saveCard
+                            ? AppColors.figmaDarkGreen
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: _saveCard
+                              ? AppColors.figmaDarkGreen
+                              : const Color(0xFF9CA3AF),
+                        ),
+                      ),
+                      child: _saveCard
+                          ? const Icon(
+                              Icons.check,
+                              color: Colors.white,
+                              size: 14,
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Save this card securely for future bookings',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: const Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Security Guarantee Box ──
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF6EED8),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.shield_outlined,
+                      color: AppColors.figmaGold,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Protected payment. Free cancellation on eligible items until 8 October.',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          color: const Color(0xFF4B5563),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (_paymentMessage != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _paymentMessage!,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 20),
+
+              // ── Confirm & Pay Button ──
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: _paying ? null : _pay,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.figmaDarkGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _paying
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.lock_outline, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Confirm & Pay \$${total.toStringAsFixed(0)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildCostRow(String title, String amount) {
+  Widget _buildCostItem(String label, double amount) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
-          title,
-          style: const TextStyle(fontSize: 12.5, color: Color(0xFF6B7280)),
+          label,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 13,
+            color: const Color(0xFF6B7280),
+          ),
         ),
         Text(
-          amount,
-          style: const TextStyle(
+          '\$${amount.toStringAsFixed(0)}',
+          style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF08201A),
+            color: AppColors.figmaDarkGreen,
           ),
         ),
       ],
     );
   }
 
+  Widget _buildInputLabel(String text) {
+    return Text(
+      text,
+      style: GoogleFonts.plusJakartaSans(
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        color: const Color(0xFF6B7280),
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+
   Widget _buildInputField({
     required TextEditingController controller,
     IconData? icon,
-    required String hint,
-    bool obscureText = false,
+    bool isPassword = false,
   }) {
     return Container(
-      height: 48,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFEDECE4)),
+        border: Border.all(color: AppColors.figmaCardBorder),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, color: const Color(0xFF8A9E96), size: 19),
-            const SizedBox(width: 10),
-          ],
-          Expanded(
-            child: TextField(
-              controller: controller,
-              obscureText: obscureText,
-              style: const TextStyle(
-                fontSize: 13.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF08201A),
-              ),
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13.5),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
+      child: TextField(
+        controller: controller,
+        obscureText: isPassword,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: AppColors.figmaDarkGreen,
+        ),
+        decoration: InputDecoration(
+          prefixIcon: icon != null
+              ? Icon(icon, color: const Color(0xFF6B7280), size: 18)
+              : null,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
           ),
-        ],
+          border: InputBorder.none,
+        ),
       ),
     );
   }

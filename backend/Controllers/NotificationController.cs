@@ -106,7 +106,8 @@ namespace backend.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ResendFailed(Guid id)
         {
-            var userId = GetUserId();
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+            var userId = isStaff ? null : GetUserId();
 
             try
             {

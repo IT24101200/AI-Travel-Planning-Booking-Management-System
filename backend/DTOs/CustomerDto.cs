@@ -15,5 +15,14 @@ namespace backend.DTOs
         public DateTime JoinedAt { get; set; }
         public DateTime LastActiveAt { get; set; }
         public bool HasPreference { get; set; }
+
+        // Travel Preference Details
+        public decimal? BudgetMin { get; set; }
+        public decimal? BudgetMax { get; set; }
+        public string? Currency { get; set; }
+        public string? PreferredActivities { get; set; }
+        public string? DietaryNotes { get; set; }
+        public string? AccessibilityNotes { get; set; }
+        public PreferenceDto? Preference { get; set; }
     }
 }

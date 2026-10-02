@@ -250,11 +250,16 @@ app.UseExceptionHandler(errorApp =>
 });
 
 // ── Middleware Pipeline ──
-if (app.Environment.IsDevelopment())
+// Enable Swagger documentation for all environments (including cloud deployment)
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "AI Travel Planning API v1");
+    c.RoutePrefix = "swagger";
+});
+
+// Root redirect to Swagger UI for instant access when deployed
+app.MapGet("/", () => Results.Redirect("/swagger"));
 
 // app.UseHttpsRedirection(); // Disabled for mobile HTTP testing
 app.UseCors("AllowAll");
@@ -349,6 +354,16 @@ app.MapGet("/supabasehealth", async () =>
         return Results.Problem(title: "Supabase health check failed", detail: ex.Message);
     }
 });
+
+// Seed database with realistic sample data on startup
+try
+{
+    await backend.Data.DbInitializer.SeedAsync(app.Services);
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[Seeding Notice] Initial seeding encountered: {ex.Message}");
+}
 
 app.Run();
 
