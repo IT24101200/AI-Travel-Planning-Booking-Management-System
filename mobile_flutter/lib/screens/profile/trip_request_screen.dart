@@ -130,7 +130,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
     try {
       await ApiService.createTripRequest({
-        'destinationId': 1,
+        'destinationId': null,
         'rawRequestText':
             '${_destinationCtrl.text}. Pace: $_selectedPace. Interests: ${_selectedInterests.join(', ')}. Notes: ${_specialRequestsCtrl.text}',
         'startDate': _startDate.toIso8601String(),

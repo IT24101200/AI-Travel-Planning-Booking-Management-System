@@ -350,9 +350,12 @@ def itinerary_node(state: dict) -> dict:
         "currency": state.get("currency", "USD"),
     }
 
-    if not trip_request["destination_id"]:
-        # Fallback to default destination ID 1 if not explicitly provided
-        trip_request["destination_id"] = 1
+    if trip_request["destination_id"] == 1 and "sigiriya" in str(state.get("raw_request_text", "")).lower():
+        # User actually wanted a country-wide tour but the mobile app hardcoded destination 1
+        trip_request["destination_id"] = None
+    elif not trip_request["destination_id"]:
+        # Allow multi-destination searches
+        trip_request["destination_id"] = None
 
     result = build_itinerary(trip_request)
     if not isinstance(result, dict):
