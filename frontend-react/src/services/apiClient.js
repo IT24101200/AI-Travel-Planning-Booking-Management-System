@@ -151,6 +151,11 @@ export async function removeItineraryItem(itineraryId, itemId) {
   return data
 }
 
+export async function addItineraryItem(itineraryId, item) {
+  const { data } = await api.post(`/Itinerary/${itineraryId}/items`, item)
+  return data
+}
+
 // ─────────────────────────────────────────────────────────────
 // Student C — Hotels & Transport API endpoints
 // ─────────────────────────────────────────────────────────────

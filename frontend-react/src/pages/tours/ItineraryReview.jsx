@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  addItineraryItem,
   fetchAgentLogs,
   fetchItinerariesForReview,
+  fetchTours,
   removeItineraryItem,
   updateItineraryStatus,
 } from '../../services/apiClient.js'
@@ -24,6 +26,33 @@ import {
 const TABS = ['Draft', 'Proposed', 'Accepted', 'Discarded']
 const PAGE_SIZE = 5
 
+function calendarDate(value) {
+  if (!value) return null
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00Z`)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatDate(value) {
+  const date = value instanceof Date ? value : calendarDate(value)
+  return date
+    ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
+    : 'Date unavailable'
+}
+
+function tourSchedule(tour) {
+  const [hours, minutes, seconds = 0] = (tour.defaultStartTime ?? '').split(':').map(Number)
+  const start = hours * 3600 + minutes * 60 + seconds
+  const duration = Math.round(Number(tour.durationHours) * 3600)
+  const end = start + duration
+  if (!Number.isFinite(start) || !Number.isFinite(duration) || duration <= 0 || start < 0 || end >= 86400) {
+    throw new Error('This tour needs a valid start time and duration within one day.')
+  }
+  return {
+    startTime: new Date(start * 1000).toISOString().slice(11, 19),
+    endTime: new Date(end * 1000).toISOString().slice(11, 19),
+  }
+}
+
 /**
  * Serendib Trails — AI Itinerary Review
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27928)
@@ -38,12 +67,17 @@ export default function ItineraryReview() {
   const [notice, setNotice] = useState(null)
   const [activeTab, setActiveTab] = useState('Proposed')
   const [selectedItinerary, setSelectedItinerary] = useState(null)
-  const [reviewNote, setReviewNote] = useState('Strong pacing and accessible transfers. Confirm the Day 2 dinner can support a peanut-free menu.')
+  const [reviewNote, setReviewNote] = useState('')
   const [busyAction, setBusyAction] = useState(false)
   const [removingItemId, setRemovingItemId] = useState(null)
   const [agentLogs, setAgentLogs] = useState([])
   const [loadingAgentLogs, setLoadingAgentLogs] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [activityDay, setActivityDay] = useState(null)
+  const [activityTourId, setActivityTourId] = useState('')
+  const [activeTours, setActiveTours] = useState([])
+  const [loadingTours, setLoadingTours] = useState(false)
+  const [addingActivity, setAddingActivity] = useState(false)
 
   // Filters, sorting, and pagination
   const [query, setQuery] = useState('')
@@ -57,8 +91,7 @@ export default function ItineraryReview() {
       const res = await fetchItinerariesForReview()
       const list = Array.isArray(res) ? res : (res?.data || [])
 
-      // Map with rich attributes matching Figma
-      const mapped = list.map((it, idx) => {
+      const mapped = list.map((it) => {
         let statusStr = 'Proposed'
         if (typeof it.status === 'number') {
           statusStr = TABS[it.status] || 'Proposed'
@@ -66,49 +99,27 @@ export default function ItineraryReview() {
           statusStr = it.status
         }
 
-        const rawCode = it.code || `ITN-${2048 - idx}`
-        const customerName = it.customerName || (idx === 0 ? 'Amelia Thompson' : idx === 1 ? 'Jonas Weber' : idx === 2 ? 'Ravi Mehta' : 'Sofia Martins')
-        const title = it.title || (idx === 0 ? 'Cultural Triangle & Coast' : idx === 1 ? 'Tea Country by Rail' : idx === 2 ? 'Wildlife & East Coast' : 'Wellness Escape')
-        const totalCost = it.totalCost || it.totalEstimatedCost || (idx === 0 ? 2180 : idx === 1 ? 1460 : idx === 2 ? 2940 : 1880)
-
-        // Mock activities if missing items
-        let items = it.items || []
-        if (items.length === 0) {
-          items = [
-            { id: 101, dayNumber: 1, sequenceOrder: 1, startTime: '08:30:00', timePeriod: 'MORNING', activityName: 'Airport pickup & private transfer', cost: 72, location: 'Sigiriya' },
-            { id: 102, dayNumber: 1, sequenceOrder: 2, startTime: '14:00:00', timePeriod: 'AFTERNOON', activityName: 'Dambulla Cave Temple', cost: 85, location: 'Sigiriya' },
-            { id: 103, dayNumber: 1, sequenceOrder: 3, startTime: '19:00:00', timePeriod: 'EVENING', activityName: 'Lakeside welcome dinner', cost: 48, location: 'Sigiriya' },
-            { id: 201, dayNumber: 2, sequenceOrder: 1, startTime: '05:15:00', timePeriod: 'MORNING', activityName: 'Lion Rock sunrise climb', cost: 96, location: 'Sigiriya' },
-            { id: 202, dayNumber: 2, sequenceOrder: 2, startTime: '13:30:00', timePeriod: 'AFTERNOON', activityName: 'Hiriwadunna village cycle', cost: 78, location: 'Sigiriya' },
-            { id: 203, dayNumber: 2, sequenceOrder: 3, startTime: '18:00:00', timePeriod: 'EVENING', activityName: 'Ayurvedic wind-down', cost: 42, location: 'Sigiriya' },
-            { id: 301, dayNumber: 3, sequenceOrder: 1, startTime: '08:00:00', timePeriod: 'MORNING', activityName: 'Scenic transfer to Kandy', cost: 88, location: 'Kandy' },
-            { id: 302, dayNumber: 3, sequenceOrder: 2, startTime: '14:30:00', timePeriod: 'AFTERNOON', activityName: 'Temple of the Tooth', cost: 54, location: 'Kandy' },
-            { id: 303, dayNumber: 3, sequenceOrder: 3, startTime: '17:30:00', timePeriod: 'EVENING', activityName: 'Kandyan dance performance', cost: 36, location: 'Kandy' },
-          ]
-        }
+        const startDate = calendarDate(it.startDate)
+        const endDate = calendarDate(it.endDate)
+        const durationDays = startDate && endDate && endDate >= startDate
+          ? Math.round((endDate - startDate) / 86400000) + 1
+          : null
 
         return {
           ...it,
-          id: it.id || idx + 1,
-          code: rawCode,
-          customerName,
-          title,
-          totalCost,
+          code: `ITN-${it.id}`,
+          customerName: it.customerName ?? null,
+          title: `Itinerary #${it.id}`,
+          totalCost: it.totalEstimatedCost ?? 0,
           status: statusStr,
-          durationDays: it.durationDays || 8,
-          travellers: it.travellers || 2,
-          items,
-          tripRequestId: it.tripRequestId || 101,
-          aiLogSummary: idx === 0
-            ? 'CoordinatorAgent assembled 3 route variants. Selected v3 for lower transfer time. Validation confidence 96%.'
-            : `ItineraryAgent optimized for culinary & tea plantation stops. Budget headroom ${formatPrice(240)}.`
+          durationDays,
+          travellers: it.travellerCount ?? null,
+          items: it.items ?? [],
         }
       })
 
       setItineraries(mapped)
-      if (mapped.length > 0 && !selectedItinerary) {
-        setSelectedItinerary(mapped[0])
-      }
+      setSelectedItinerary(current => mapped.find(it => it.id === current?.id) ?? mapped[0] ?? null)
     } catch (requestError) {
       setError(requestError.message || 'Unable to load itineraries for review.')
     } finally {
@@ -162,7 +173,11 @@ export default function ItineraryReview() {
   useEffect(() => {
     let cancelled = false
     async function loadLogs() {
-      if (!selectedItinerary?.tripRequestId) return
+      setAgentLogs([])
+      if (!selectedItinerary?.tripRequestId) {
+        setLoadingAgentLogs(false)
+        return
+      }
       setLoadingAgentLogs(true)
       try {
         const logs = await fetchAgentLogs(selectedItinerary.tripRequestId)
@@ -190,11 +205,12 @@ export default function ItineraryReview() {
       groups[d].push(item)
     })
     return Object.entries(groups).map(([dayNum, items]) => {
-      const subtotal = items.reduce((sum, it) => sum + (Number(it.cost || it.priceAtSelection) || 0), 0)
-      const loc = items[0]?.location || 'Sigiriya'
+      const subtotal = items.reduce((sum, it) => sum + Number(it.priceAtSelection ?? 0), 0)
+      const date = calendarDate(selectedItinerary.startDate)
+      if (date) date.setUTCDate(date.getUTCDate() + Number(dayNum) - 1)
       return {
         dayNumber: Number(dayNum),
-        dateStr: `${11 + Number(dayNum)} Nov · ${loc}`,
+        dateStr: formatDate(date),
         subtotal,
         items: items.sort((a, b) => (a.sequenceOrder || 0) - (b.sequenceOrder || 0))
       }
@@ -222,22 +238,65 @@ export default function ItineraryReview() {
   async function handleRemoveActivity(itemId) {
     if (!selectedItinerary) return
     setRemovingItemId(itemId)
+    setError('')
+    setNotice(null)
     try {
       await removeItineraryItem(selectedItinerary.id, itemId)
-      setSelectedItinerary(prev => ({
-        ...prev,
-        items: prev.items.filter(it => it.id !== itemId)
-      }))
       setNotice({ type: 'success', message: 'Activity removed from day schedule.' })
-    } catch {
-      // Optimistic remove for demo
-      setSelectedItinerary(prev => ({
-        ...prev,
-        items: prev.items.filter(it => it.id !== itemId)
-      }))
-      setNotice({ type: 'success', message: 'Activity removed from itinerary.' })
+      await loadItineraries(false)
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to remove activity.')
     } finally {
       setRemovingItemId(null)
+    }
+  }
+
+  async function openAddActivity(dayNumber) {
+    setActivityDay(dayNumber)
+    setActivityTourId('')
+    setActiveTours([])
+    setError('')
+    setNotice(null)
+    setLoadingTours(true)
+    try {
+      const response = await fetchTours({ status: 'Active', pageSize: 1000 })
+      const tours = Array.isArray(response) ? response : (response?.data ?? [])
+      setActiveTours(tours.filter(tour => tour.status === 'Active'))
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to load active tours.')
+    } finally {
+      setLoadingTours(false)
+    }
+  }
+
+  async function handleAddActivity(event) {
+    event.preventDefault()
+    if (!selectedItinerary || addingActivity) return
+    setError('')
+    setAddingActivity(true)
+    try {
+      const tour = activeTours.find(item => String(item.id) === activityTourId)
+      if (!tour) throw new Error('Select an active tour.')
+      const dayNumber = Number(activityDay)
+      if (!Number.isInteger(dayNumber) || dayNumber < 1 || (selectedItinerary.durationDays != null && dayNumber > selectedItinerary.durationDays)) {
+        throw new Error('Select a day within this itinerary.')
+      }
+      const sequenceOrder = Math.max(0, ...selectedItinerary.items
+        .filter(item => Number(item.dayNumber) === dayNumber)
+        .map(item => Number(item.sequenceOrder) || 0)) + 1
+      await addItineraryItem(selectedItinerary.id, {
+        tourId: tour.id,
+        dayNumber,
+        sequenceOrder,
+        ...tourSchedule(tour),
+      })
+      setActivityDay(null)
+      setNotice({ type: 'success', message: 'Activity added to itinerary.' })
+      await loadItineraries(false)
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to add activity.')
+    } finally {
+      setAddingActivity(false)
     }
   }
 
@@ -389,12 +448,15 @@ export default function ItineraryReview() {
                         {item.title}
                       </h4>
                       <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#66747b' }}>
-                        {item.customerName} · {item.travellers} travellers · {item.durationDays} days
+                        {item.customerName || 'Guest unavailable'} · {item.travellers != null ? `${item.travellers} travellers` : 'Traveller count unavailable'} · {item.durationDays != null ? `${item.durationDays} days` : 'Duration unavailable'}
+                      </p>
+                      <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#66747b' }}>
+                        Created: {formatDate(item.createdAt)}
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
                         <strong style={{ color: '#182126' }}>{formatPrice(item.totalCost)}</strong>
                         <span style={{ color: '#267a55', fontWeight: 600, fontSize: '0.6875rem' }}>
-                          {item.items?.length || 0} activities
+                          {item.items.length === 0 ? 'No activities yet' : `${item.items.length} activities`}
                         </span>
                       </div>
                     </div>
@@ -442,10 +504,12 @@ export default function ItineraryReview() {
                 <SparklesIcon size={16} />
                 <strong style={{ fontSize: '0.8125rem', color: '#0f172a' }}>AI Reasoning trail</strong>
               </div>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#475569', lineHeight: 1.45 }}>
-                {selectedItinerary.aiLogSummary || 'CoordinatorAgent resolved optimal logistics for traveller requirements.'}
-              </p>
-              {agentLogs.length > 0 && (
+              {(!selectedItinerary.tripRequestId || loadingAgentLogs || agentLogs.length === 0) && (
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#475569', lineHeight: 1.45 }}>
+                  {selectedItinerary.tripRequestId && loadingAgentLogs ? 'Loading agent logs…' : 'No agent log'}
+                </p>
+              )}
+              {!!selectedItinerary.tripRequestId && !loadingAgentLogs && agentLogs.length > 0 && (
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {agentLogs.slice(0, 3).map((log, i) => (
                     <div key={log.id || i} style={{ fontSize: '0.6875rem', color: '#64748b' }}>
@@ -474,7 +538,10 @@ export default function ItineraryReview() {
                   {selectedItinerary.title}
                 </h2>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: '#66747b' }}>
-                  Prepared for <strong>{selectedItinerary.customerName}</strong> ({selectedItinerary.travellers} travellers, {selectedItinerary.durationDays} days)
+                  <strong>{selectedItinerary.customerName || 'Guest unavailable'}</strong> · {selectedItinerary.travellers != null ? `${selectedItinerary.travellers} travellers` : 'Traveller count unavailable'} · {selectedItinerary.durationDays != null ? `${selectedItinerary.durationDays} days` : 'Duration unavailable'}
+                </p>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: '#66747b' }}>
+                  Created: {formatDate(selectedItinerary.createdAt)}
                 </p>
               </div>
 
@@ -486,6 +553,14 @@ export default function ItineraryReview() {
 
             {/* Day columns horizontal container */}
             <div className="day-grid">
+              {dayGroups.length === 0 && (
+                <div>
+                  <p>No activities yet</p>
+                  <button type="button" className="btn-outline" onClick={() => openAddActivity(1)}>
+                    <PlusIcon size={12} /> Add activity
+                  </button>
+                </div>
+              )}
               {dayGroups.map((day) => (
                 <div key={day.dayNumber} className="day-column">
                   <div className="day-column__head">
@@ -505,13 +580,13 @@ export default function ItineraryReview() {
                         <div className="activity-num">{actIdx + 1}</div>
                         <div className="activity-info">
                           <span className="activity-time">
-                            {act.timePeriod || 'MORNING'} · {act.startTime?.slice(0, 5) || '09:00'}
+                            {act.startTime?.slice(0, 5) || 'Time unavailable'}
                           </span>
                           <p className="activity-name" style={{ margin: '2px 0' }}>
-                            {act.activityName}
+                            {act.tourName}
                           </p>
                         </div>
-                        <span className="activity-cost">{formatPrice(act.cost || act.priceAtSelection)}</span>
+                        <span className="activity-cost">{formatPrice(act.priceAtSelection ?? 0)}</span>
                         <button
                           type="button"
                           style={{
@@ -541,7 +616,7 @@ export default function ItineraryReview() {
                       justifyContent: 'center',
                       borderStyle: 'dashed'
                     }}
-                    onClick={() => alert(`Adding custom activity to Day ${day.dayNumber}`)}
+                    onClick={() => openAddActivity(day.dayNumber)}
                   >
                     <PlusIcon size={12} />
                     <span>Add activity</span>
@@ -571,6 +646,7 @@ export default function ItineraryReview() {
             </div>
 
             {/* Decision Gate Actions matching Figma 2:27928 */}
+            {!['Discarded', 'Accepted'].includes(selectedItinerary.status) && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', paddingTop: '0.5rem', borderTop: '1px solid #eef2f3' }}>
               <button
                 type="button"
@@ -603,6 +679,7 @@ export default function ItineraryReview() {
                 </button>
               </div>
             </div>
+            )}
           </div>
         ) : (
           <div className="staff-card" style={{ padding: '3rem', textAlign: 'center', color: '#66747b' }}>
@@ -610,6 +687,39 @@ export default function ItineraryReview() {
           </div>
         )}
       </div>
+
+      {activityDay !== null && (
+        <div role="dialog" aria-modal="true" aria-labelledby="add-activity-title"
+          style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 27, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '1rem' }}>
+          <form className="staff-card" onSubmit={handleAddActivity}
+            style={{ width: '100%', maxWidth: '440px', padding: '1.5rem', display: 'grid', gap: '1rem', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 id="add-activity-title" style={{ margin: 0 }}>Add activity</h3>
+            {error && <AlertBanner type="error" message={error} onDismiss={() => setError('')} />}
+            <label>
+              Active tour
+              <select required className="btn-outline" style={{ width: '100%' }} value={activityTourId}
+                disabled={loadingTours || addingActivity} onChange={event => setActivityTourId(event.target.value)}>
+                <option value="">{loadingTours ? 'Loading tours…' : 'Select a tour'}</option>
+                {activeTours.map(tour => <option key={tour.id} value={tour.id}>{tour.name} · {tour.durationHours} hrs · {tour.defaultStartTime?.slice(0, 5)}</option>)}
+              </select>
+            </label>
+            {!loadingTours && activeTours.length === 0 && <p>No active tours available.</p>}
+            <label>
+              Day number
+              <input required type="number" min="1" max={selectedItinerary?.durationDays ?? undefined} step="1"
+                className="staff-search-box" style={{ width: '100%' }} value={activityDay} disabled={addingActivity}
+                onChange={event => setActivityDay(event.target.value)} />
+            </label>
+            <p style={{ margin: 0, fontSize: '0.8125rem' }}>Uses the tour's default start time and duration.</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" className="btn-outline" disabled={addingActivity} onClick={() => setActivityDay(null)}>Cancel</button>
+              <button type="submit" className="btn-gold" disabled={loadingTours || addingActivity || !activityTourId}>
+                {addingActivity ? 'Adding…' : 'Add activity'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* ── Generation Settings Modal ── */}
       {showSettingsModal && (
