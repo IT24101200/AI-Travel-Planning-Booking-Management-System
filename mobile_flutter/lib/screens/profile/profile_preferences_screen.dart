@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../main.dart' show themeNotifier;
 
 /// Profile & Preferences screen matching Figma frame 14 · Profile & Preferences
 /// Aligned with SE3090 Master Specification & Student A Component A:
@@ -836,9 +837,93 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 14),
+
+                  // ── 7. Appearance / Theme Toggle ──
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFE4E7E2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F0E3),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.brightness_6_outlined,
+                            color: AppColors.figmaGold,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Appearance',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF17211D),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              ValueListenableBuilder<ThemeMode>(
+                                valueListenable: themeNotifier,
+                                builder: (context, mode, _) {
+                                  final label = mode == ThemeMode.light
+                                      ? 'Light'
+                                      : mode == ThemeMode.dark
+                                          ? 'Dark'
+                                          : 'System default';
+                                  return Text(
+                                    label,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      color: const Color(0xFF6B7280),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => _showThemePicker(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5F1EA),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              'Change',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF123F32),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 20),
 
-                  // ── 7. Save Preferences Button (Component A) ──
+                  // ── 8. Save Preferences Button (Component A) ──
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -880,7 +965,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
 
                   const SizedBox(height: 14),
 
-                  // ── 8. Log Out Button ──
+                  // ── 9. Log Out Button ──
                   SizedBox(
                     width: double.infinity,
                     height: 50,
@@ -968,6 +1053,79 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
           ),
           const Icon(Icons.chevron_right, size: 16, color: Color(0xFF9CA3AF)),
         ],
+      ),
+    );
+  }
+
+  /// Bottom sheet to select Light / Dark / System theme
+  void _showThemePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Choose Theme',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Theme options
+            _buildThemeOption(ctx, Icons.light_mode_outlined, 'Light', ThemeMode.light),
+            const SizedBox(height: 8),
+            _buildThemeOption(ctx, Icons.dark_mode_outlined, 'Dark', ThemeMode.dark),
+            const SizedBox(height: 8),
+            _buildThemeOption(ctx, Icons.settings_suggest_outlined, 'System default', ThemeMode.system),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Single theme option tile for the bottom sheet picker
+  Widget _buildThemeOption(BuildContext ctx, IconData icon, String label, ThemeMode mode) {
+    final isSelected = themeNotifier.value == mode;
+    return GestureDetector(
+      onTap: () {
+        themeNotifier.setThemeMode(mode);
+        Navigator.pop(ctx);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFE5F1EA) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? const Color(0xFF123F32) : const Color(0xFFE4E7E2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: isSelected ? const Color(0xFF123F32) : const Color(0xFF6B7280)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? const Color(0xFF123F32) : const Color(0xFF374151),
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle, size: 20, color: Color(0xFF123F32)),
+          ],
+        ),
       ),
     );
   }

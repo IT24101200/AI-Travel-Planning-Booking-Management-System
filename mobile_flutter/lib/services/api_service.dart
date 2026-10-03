@@ -269,7 +269,12 @@ class ApiService {
 
   // ── Tours ──
 
+  static Future<List<dynamic>> Function({String? search, String? sortBy})? mockGetTours;
+
   static Future<List<dynamic>> getTours({String? search, String? sortBy}) async {
+    if (mockGetTours != null) {
+      return await mockGetTours!(search: search, sortBy: sortBy);
+    }
     String endpoint = 'tour';
     List<String> params = [];
     if (search != null && search.isNotEmpty) {
