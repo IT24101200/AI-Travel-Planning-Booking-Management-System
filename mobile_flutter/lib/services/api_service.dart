@@ -551,7 +551,16 @@ class ApiService {
 
   // ── Notifications ──
 
+  // Optional mock delegates for unit and widget tests
+  static Future<List<dynamic>> Function()? mockGetMyNotifications;
+  static Future<void> Function(String id)? mockMarkNotificationRead;
+  static Future<void> Function(String id)? mockMarkNotificationUnread;
+  static Future<void> Function()? mockMarkAllNotificationsRead;
+
   static Future<List<dynamic>> getMyNotifications() async {
+    if (mockGetMyNotifications != null) {
+      return await mockGetMyNotifications!();
+    }
     try {
       final response = await get('notification/my');
       if (response.statusCode == 200) {
@@ -567,10 +576,23 @@ class ApiService {
   }
 
   static Future<void> markNotificationRead(String id) async {
-    await put('notification/$id/read', {});
+    if (mockMarkNotificationRead != null) {
+      return await mockMarkNotificationRead!(id);
+    }
+    await patch('notification/$id/read', {});
+  }
+
+  static Future<void> markNotificationUnread(String id) async {
+    if (mockMarkNotificationUnread != null) {
+      return await mockMarkNotificationUnread!(id);
+    }
+    await patch('notification/$id/unread', {});
   }
 
   static Future<void> markAllNotificationsRead() async {
-    await put('notification/mark-all-read', {});
+    if (mockMarkAllNotificationsRead != null) {
+      return await mockMarkAllNotificationsRead!();
+    }
+    await post('notification/mark-all-read', {});
   }
 }
