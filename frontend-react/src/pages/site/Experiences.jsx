@@ -51,7 +51,7 @@ export default function Experiences() {
             destinationId: matched?.destinationId || 'sigiriya',
             duration: `${t.durationHours || 3} hrs`,
             price: t.price || matched?.price || 65,
-            currency: t.currency || 'USD',
+            currency: t.currency || 'LKR',
             summary: t.description || matched?.summary || 'Curated excursion with local guides.',
             icon: getIconForCategory(t.category),
             image: t.imageUrl || matched?.image || 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?auto=format&fit=crop&w=800&q=80',

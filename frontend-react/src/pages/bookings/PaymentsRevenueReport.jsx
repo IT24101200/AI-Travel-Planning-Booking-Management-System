@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchPayments, fetchRevenueSummary } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { formatPrice } from '../../lib/formatPrice.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import {
   DownloadIcon,
@@ -51,7 +52,7 @@ export default function PaymentsRevenueReport() {
             reference: p.bookingReference || `ST-BK-${1000 + (p.bookingId || p.id || idx + 1)}`,
             customer: p.customerName || (p.customerId ? `Customer ${p.customerId.substring(0, 8)}…` : 'Travel Guest'),
             amount: p.amount || 0,
-            currency: p.currency || 'USD',
+            currency: p.currency || 'LKR',
             status: typeof p.status === 'number' ? (PAYMENT_STATUSES[p.status] || 'Paid') : (p.status || 'Paid'),
             date: p.paymentDate ? p.paymentDate.split('T')[0] : '2026-09-28',
           }))
@@ -182,7 +183,7 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            ${Number(totals.grossRevenue).toLocaleString('en-US')}
+            {formatPrice(totals.grossRevenue)}
           </p>
           <p className="kpi-card__sub">↑ 12.4% vs last month</p>
         </div>
@@ -208,7 +209,7 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            ${Number(totals.abv).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatPrice(totals.abv)}
           </p>
           <p className="kpi-card__sub">↑ 4.8% vs last month</p>
         </div>
@@ -221,7 +222,7 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            ${Number(totals.pendingEscrow).toLocaleString('en-US')}
+            {formatPrice(totals.pendingEscrow)}
           </p>
           <p className="kpi-card__sub" style={{ color: '#a16207' }}>
             {totals.pendingCount} settlements pending
@@ -301,7 +302,7 @@ export default function PaymentsRevenueReport() {
                     </td>
                     <td>{p.customer}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                      ${Number(p.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      {formatPrice(p.amount, p.currency)}
                     </td>
                     <td style={{ color: '#66747b' }}>{p.currency}</td>
                     <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{p.date}</td>

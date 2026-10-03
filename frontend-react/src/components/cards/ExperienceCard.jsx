@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { ExperienceIcon } from '../ui/ExperienceIcon.jsx'
 import { ClockIcon } from '../ui/Icons.jsx'
 import { getDestination } from '../../data/destinations.js'
+import { formatPrice } from '../../lib/formatPrice.js'
 
 /** Experience card with photo and icon. */
 export function ExperienceCard({ experience }) {
@@ -38,8 +39,7 @@ export function ExperienceCard({ experience }) {
         <div className="card__foot">
           <p className="card__price">
             <b>
-              {experience.currency === 'USD' ? '$' : ''}
-              {experience.price}
+              {formatPrice(experience.price)}
             </b>{' '}
             <span>per person</span>
           </p>

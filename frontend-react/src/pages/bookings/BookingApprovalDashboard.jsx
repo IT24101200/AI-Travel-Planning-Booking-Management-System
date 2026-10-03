@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { decideApproval, fetchAgentLogs, fetchBookings } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { formatPrice } from '../../lib/formatPrice.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import {
@@ -52,7 +53,7 @@ export default function BookingApprovalDashboard() {
             tripRequestId: b.tripRequestId,
             customer: b.customerName || (b.customerId ? `Customer ${b.customerId.substring(0, 8)}…` : 'Customer'),
             total: b.totalCost || 0,
-            currency: b.currency || 'USD',
+            currency: b.currency || 'LKR',
             requested: b.createdAt ? b.createdAt.split('T')[0] : '2026-09-28',
             status: statusStr,
             agentLogs: b.agentLogs || [],
@@ -285,7 +286,7 @@ export default function BookingApprovalDashboard() {
                   <tr>
                     <th style={{ width: '130px' }}>Booking reference</th>
                     <th>Customer name</th>
-                    <th style={{ textAlign: 'right', width: '130px' }}>Total amount USD</th>
+                    <th style={{ textAlign: 'right', width: '130px' }}>Total amount</th>
                     <th style={{ width: '110px' }}>Created date</th>
                     <th style={{ width: '140px' }}>Status</th>
                   </tr>
@@ -313,7 +314,7 @@ export default function BookingApprovalDashboard() {
                         </td>
                         <td>{r.customer}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                          ${Number(r.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          {formatPrice(r.total, r.currency)}
                         </td>
                         <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{r.requested}</td>
                         <td>
@@ -424,7 +425,7 @@ export default function BookingApprovalDashboard() {
                   {active.customer} · 2 travellers
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#66747b' }}>
-                  Total Package: ${Number(active.total).toLocaleString()} {active.currency}
+                  Total Package: {formatPrice(active.total, active.currency)}
                 </p>
               </div>
             </div>

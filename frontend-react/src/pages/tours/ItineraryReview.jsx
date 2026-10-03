@@ -6,6 +6,7 @@ import {
   updateItineraryStatus,
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { formatPrice } from '../../lib/formatPrice.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import {
@@ -100,7 +101,7 @@ export default function ItineraryReview() {
           tripRequestId: it.tripRequestId || 101,
           aiLogSummary: idx === 0
             ? 'CoordinatorAgent assembled 3 route variants. Selected v3 for lower transfer time. Validation confidence 96%.'
-            : 'ItineraryAgent optimized for culinary & tea plantation stops. Budget headroom $240.'
+            : `ItineraryAgent optimized for culinary & tea plantation stops. Budget headroom ${formatPrice(240)}.`
         }
       })
 
@@ -391,7 +392,7 @@ export default function ItineraryReview() {
                         {item.customerName} · {item.travellers} travellers · {item.durationDays} days
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <strong style={{ color: '#182126' }}>${item.totalCost}</strong>
+                        <strong style={{ color: '#182126' }}>{formatPrice(item.totalCost)}</strong>
                         <span style={{ color: '#267a55', fontWeight: 600, fontSize: '0.6875rem' }}>
                           {item.items?.length || 0} activities
                         </span>
@@ -479,7 +480,7 @@ export default function ItineraryReview() {
 
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: '0.6875rem', color: '#66747b', display: 'block' }}>TOTAL ESTIMATE</span>
-                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>${selectedItinerary.totalCost}</strong>
+                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>{formatPrice(selectedItinerary.totalCost)}</strong>
               </div>
             </div>
 
@@ -493,7 +494,7 @@ export default function ItineraryReview() {
                       <span className="day-column__sub">{day.dateStr}</span>
                     </div>
                     <span className="badge-pill badge-blue">
-                      <span className="badge-dot" /> ${day.subtotal}
+                      <span className="badge-dot" /> {formatPrice(day.subtotal)}
                     </span>
                   </div>
 
@@ -510,7 +511,7 @@ export default function ItineraryReview() {
                             {act.activityName}
                           </p>
                         </div>
-                        <span className="activity-cost">${act.cost || act.priceAtSelection}</span>
+                        <span className="activity-cost">{formatPrice(act.cost || act.priceAtSelection)}</span>
                         <button
                           type="button"
                           style={{

@@ -405,8 +405,10 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
         : 'LKR';
     final duration = tour['durationHours']?.toString() ?? 'N/A';
     final category = (tour['category'] ?? 'Uncategorized').toString().toUpperCase();
-    final location = tour['destinationName'] ??
-        (tour['destinationId'] != null ? 'Destination #${tour['destinationId']}' : 'Destination unavailable');
+    final destinationName = tour['destinationName'] as String?;
+    final location = destinationName != null && destinationName.isNotEmpty
+        ? destinationName
+        : 'Unknown destination';
 
     return Material(
       color: Colors.transparent,

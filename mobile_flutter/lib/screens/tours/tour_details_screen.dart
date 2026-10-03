@@ -370,10 +370,10 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
     final imageUrl = ApiService.resolveMediaUrl(tour['imageUrl']?.toString());
     final durationHours = _asDouble(tour['durationHours']);
     final currency = tour['currency']?.toString().trim() ?? '';
-    final destination = tour['destinationName']?.toString() ??
-        (tour['destinationId'] != null
-            ? 'Destination #${tour['destinationId']}'
-            : 'Destination unavailable');
+    final destinationName = tour['destinationName'] as String?;
+    final destination = destinationName != null && destinationName.isNotEmpty
+        ? destinationName
+        : 'Unknown destination';
 
     return Scaffold(
       backgroundColor: AppColors.figmaSurface,

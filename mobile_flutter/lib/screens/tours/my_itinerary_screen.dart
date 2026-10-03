@@ -312,20 +312,21 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pushNamed(
-                context,
-                '/checkout',
-                arguments: itinerary,
+            if (status != 'Discarded')
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(
+                  context,
+                  '/checkout',
+                  arguments: itinerary,
+                ),
+                icon: const Icon(Icons.arrow_forward, size: 18),
+                label: const Text('Continue to Checkout'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.figmaDarkGreen,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size.fromHeight(52),
+                ),
               ),
-              icon: const Icon(Icons.arrow_forward, size: 18),
-              label: const Text('Continue to Checkout'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.figmaDarkGreen,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(52),
-              ),
-            ),
           ],
         ),
       ),

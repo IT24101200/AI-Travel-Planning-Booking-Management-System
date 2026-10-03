@@ -86,6 +86,50 @@ namespace backend.Tests
             Assert.Equal("City Walk", results[0].Name);
             Assert.Equal("Sightseeing", results[0].Category);
             Assert.Equal("Active", results[0].Status);
+            Assert.Equal("Test Destination", results[0].DestinationName);
+            Assert.Equal("Test Country", results[0].DestinationCountry);
+        }
+
+        [Fact]
+        public async Task GetByIdAsync_ReturnsDestinationDetails()
+        {
+            // Arrange
+            var databaseName = Guid.NewGuid().ToString();
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseInMemoryDatabase(databaseName)
+                .Options;
+
+            await using (var seedContext = new AppDbContext(options))
+            {
+                seedContext.Destinations.Add(new Destination
+                {
+                    Id = 1,
+                    Name = "Ella",
+                    Country = "Sri Lanka"
+                });
+                seedContext.Tours.Add(new Tour
+                {
+                    Id = 1,
+                    DestinationId = 1,
+                    Name = "Ella Highlights",
+                    Category = "Sightseeing",
+                    Status = "Active",
+                    Currency = "USD",
+                    DefaultStartTime = TimeSpan.Zero
+                });
+                await seedContext.SaveChangesAsync();
+            }
+
+            await using var context = new AppDbContext(options);
+            var service = new TourService(context);
+
+            // Act
+            var result = await service.GetByIdAsync(1);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal("Ella", result.DestinationName);
+            Assert.Equal("Sri Lanka", result.DestinationCountry);
         }
     }
 }

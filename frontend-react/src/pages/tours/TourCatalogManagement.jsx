@@ -7,6 +7,7 @@ import {
   updateTour
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { formatPrice } from '../../lib/formatPrice.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import {
@@ -108,6 +109,7 @@ export default function TourCatalogManagement() {
             }
 
             return {
+              apiTour: t,
               id: t.id,
               name: t.name,
               destination: destName,
@@ -202,7 +204,7 @@ export default function TourCatalogManagement() {
           name: formData.name,
           category: formData.category,
           price: Number(formData.price),
-          currency: 'USD',
+          currency: 'LKR',
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
@@ -215,7 +217,7 @@ export default function TourCatalogManagement() {
           name: formData.name,
           category: formData.category,
           price: Number(formData.price),
-          currency: 'USD',
+          currency: 'LKR',
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
@@ -228,6 +230,17 @@ export default function TourCatalogManagement() {
       setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Operation failed.' })
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleRestoreTour(tour) {
+    try {
+      await updateTour(tour.id, { ...tour.apiTour, status: 'Active' })
+      setSelectedTour((current) => current?.id === tour.id ? { ...current, status: 'Active' } : current)
+      setNotice({ type: 'success', message: `Tour "${tour.name}" restored.` })
+      await loadTours()
+    } catch (err) {
+      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to restore tour.' })
     }
   }
 
@@ -393,7 +406,7 @@ export default function TourCatalogManagement() {
                       </td>
                       <td>
                         <strong style={{ color: '#182126', fontSize: '0.875rem' }}>
-                          ${tour.price}
+                          {formatPrice(tour.price)}
                         </strong>
                         <span style={{ fontSize: '0.6875rem', color: '#64748b' }}> / person</span>
                       </td>
@@ -417,11 +430,11 @@ export default function TourCatalogManagement() {
                           <button
                             type="button"
                             className="btn-outline"
-                            style={{ height: '28px', padding: '0 6px', color: '#dc2626' }}
-                            title="Deactivate"
-                            onClick={() => handleDeleteTour(tour.id, tour.name)}
+                            style={{ height: '28px', padding: '0 6px', color: tour.status === 'Inactive' ? '#267a55' : '#dc2626' }}
+                            title={tour.status === 'Inactive' ? 'Restore' : 'Deactivate'}
+                            onClick={() => tour.status === 'Inactive' ? handleRestoreTour(tour) : handleDeleteTour(tour.id, tour.name)}
                           >
-                            <TrashIcon size={13} />
+                            {tour.status === 'Inactive' ? 'Restore' : <TrashIcon size={13} />}
                           </button>
                         </div>
                       </td>
@@ -470,8 +483,8 @@ export default function TourCatalogManagement() {
           <aside className="staff-card" style={{ padding: '1.25rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid #eef2f3' }}>
               <div>
-                <span className="badge-pill badge-green" style={{ fontSize: '0.625rem', padding: '1px 6px', marginBottom: '4px' }}>
-                  <span className="badge-dot" /> LIVE IN CATALOG
+                <span className={`badge-pill ${selectedTour?.status === 'Inactive' ? 'badge-gray' : 'badge-green'}`} style={{ fontSize: '0.625rem', padding: '1px 6px', marginBottom: '4px' }}>
+                  <span className="badge-dot" /> {selectedTour?.status === 'Inactive' ? 'INACTIVE' : 'LIVE IN CATALOG'}
                 </span>
                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#182126' }}>
                   {drawerMode === 'create' ? 'Create new tour' : (selectedTour?.name || 'Edit tour')}
@@ -543,7 +556,7 @@ export default function TourCatalogManagement() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Price USD
+                    PRICE (LKR)
                   </label>
                   <input
                     type="number"
@@ -562,7 +575,8 @@ export default function TourCatalogManagement() {
                   </label>
                   <input
                     type="number"
-                    min="1"
+                    step="0.5"
+                    min="0.5"
                     max="72"
                     required
                     className="staff-search-box"

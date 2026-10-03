@@ -26,7 +26,9 @@ namespace backend.Services
             int page,
             int pageSize)
         {
-            var query = _context.Tours.AsQueryable();
+            var query = _context.Tours
+                .Include(t => t.Destination)
+                .AsQueryable();
 
             // Free-text search on Name or Description (case-insensitive)
             if (!string.IsNullOrWhiteSpace(search))
@@ -71,7 +73,9 @@ namespace backend.Services
 
         public async Task<TourDto?> GetByIdAsync(int id)
         {
-            var tour = await _context.Tours.FindAsync(id);
+            var tour = await _context.Tours
+                .Include(t => t.Destination)
+                .SingleOrDefaultAsync(t => t.Id == id);
             return tour is null ? null : ToDto(tour);
         }
 
@@ -105,6 +109,9 @@ namespace backend.Services
 
             _context.Tours.Add(tour);
             await _context.SaveChangesAsync();
+            await _context.Entry(tour)
+                .Reference(t => t.Destination)
+                .LoadAsync();
 
             return ToDto(tour);
         }
@@ -156,6 +163,8 @@ namespace backend.Services
         {
             Id               = t.Id,
             DestinationId    = t.DestinationId,
+            DestinationName  = t.Destination.Name,
+            DestinationCountry = t.Destination.Country,
             Name             = t.Name,
             Category         = t.Category,
             Description      = t.Description,
