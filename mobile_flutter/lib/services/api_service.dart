@@ -198,21 +198,52 @@ class ApiService {
     return {'statusCode': response.statusCode, ...data};
   }
 
-  // ── Customer & Preferences ──
+  // Optional mock delegates for unit and widget tests
+  static Future<Map<String, dynamic>> Function()? mockGetProfile;
+  static Future<http.Response> Function()? mockGetPreferences;
 
   static Future<Map<String, dynamic>> getProfile() async {
-    final userId = await getUserId();
-    final response = await get('customer/$userId');
-    return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
+    if (mockGetProfile != null) {
+      return await mockGetProfile!();
+    }
+    try {
+      var response = await get('customer/me');
+      if (response.statusCode == 200) {
+        return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
+      }
+      final userId = await getUserId();
+      response = await get('customer/$userId');
+      if (response.statusCode == 200) {
+        return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
+      }
+    } catch (_) {}
+    return {'statusCode': 404};
   }
 
   static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
-    final userId = await getUserId();
-    final response = await put('customer/$userId', data);
-    return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
+    try {
+      var response = await put('customer/me', data);
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+        return {'statusCode': response.statusCode, ...body};
+      }
+      final userId = await getUserId();
+      response = await put('customer/$userId', data);
+      final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
+      return {'statusCode': response.statusCode, ...body};
+    } catch (e) {
+      return {'statusCode': 500, 'message': e.toString()};
+    }
   }
 
   static Future<http.Response> getPreferences() async {
+    if (mockGetPreferences != null) {
+      return await mockGetPreferences!();
+    }
+    try {
+      final response = await get('preference');
+      if (response.statusCode == 200) return response;
+    } catch (_) {}
     final userId = await getUserId();
     return await get('preference/$userId');
   }
