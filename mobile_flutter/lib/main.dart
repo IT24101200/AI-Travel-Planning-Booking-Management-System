@@ -14,10 +14,7 @@ import 'screens/accommodation/trip_map_screen.dart';
 import 'screens/booking/checkout_payment_screen.dart';
 import 'screens/booking/booking_status_screen.dart';
 import 'screens/booking/trip_confirmation_screen.dart';
-import 'screens/profile/profile_preferences_screen.dart';
 import 'screens/profile/trip_request_screen.dart';
-import 'screens/profile/trip_history_screen.dart';
-import 'screens/profile/notifications_screen.dart';
 import 'widgets/auth_guard.dart';
 
 void main() {
@@ -126,10 +123,10 @@ class TravelApp extends StatelessWidget {
         '/checkout': (context) => const AuthGuard(child: CheckoutPaymentScreen()),
         '/booking-status': (context) => const AuthGuard(child: BookingStatusScreen()),
         '/trip-confirmation': (context) => const AuthGuard(child: TripConfirmationScreen()),
-        '/profile': (context) => const AuthGuard(child: ProfilePreferencesScreen()),
+        '/profile': (context) => const AuthGuard(child: HomeScreen(initialIndex: 3)),
         '/trip-request': (context) => const AuthGuard(child: TripRequestScreen()),
-        '/trip-history': (context) => const AuthGuard(child: TripHistoryScreen()),
-        '/notifications': (context) => const AuthGuard(child: NotificationsScreen()),
+        '/trip-history': (context) => const AuthGuard(child: HomeScreen(initialIndex: 1)),
+        '/notifications': (context) => const AuthGuard(child: HomeScreen(initialIndex: 2)),
       },
     );
   }

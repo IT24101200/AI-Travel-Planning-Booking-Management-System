@@ -8,19 +8,21 @@ import 'profile/profile_preferences_screen.dart';
 
 /// Main home screen with bottom navigation bar and rich Explore dashboard.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final int initialIndex;
+  const HomeScreen({super.key, this.initialIndex = 0});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   String _userName = '';
 
   @override
   void initState() {
     super.initState();
+    _currentIndex = widget.initialIndex;
     _verifyAccess();
     _loadUserInfo();
   }

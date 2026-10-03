@@ -15,50 +15,79 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   List<dynamic> _bookings = [];
   bool _loading = true;
   String _activeTab = 'Upcoming'; // 'Upcoming', 'Completed', 'Cancelled'
+  String _selectedYear = 'All years';
 
   final List<Map<String, dynamic>> _sampleUpcoming = [
     {
       'id': 101,
-      'title': 'Sri Lanka Discovery',
+      'bookingReference': 'ST-284619',
+      'title': 'Sigiriya & Cultural Triangle Discovery',
+      'destination': 'Sigiriya & Cultural Triangle Discovery',
       'dates': '12–18 Oct 2026 · 7 days',
+      'stops': 'Sigiriya · Dambulla · Polonnaruwa · Kandy',
       'price': 1712,
+      'totalCost': 1712.0,
       'status': 'CONFIRMED',
-      'statusColor': Color(0xFF267A55),
-      'image':
-          'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
+      'statusColor': const Color(0xFF267A55),
+      'image': 'assets/photos/sigiriya-1280.jpg',
     },
     {
       'id': 102,
-      'title': 'Southern Coast & Whales',
+      'bookingReference': 'ST-319502',
+      'title': 'Southern Coast & Whale Safari',
+      'destination': 'Southern Coast & Whale Safari',
       'dates': '24–28 Nov 2026 · 5 days',
+      'stops': 'Galle Fort · Mirissa Beach · Weligama Bay',
       'price': 890,
+      'totalCost': 890.0,
       'status': 'PROCESSING',
-      'statusColor': Color(0xFFB36A16),
-      'image':
-          'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=600&auto=format&fit=crop&q=80',
+      'statusColor': const Color(0xFFB36A16),
+      'image': 'assets/photos/mirissa-1280.jpg',
     },
   ];
 
   final List<Map<String, dynamic>> _sampleCompleted = [
     {
       'id': 98,
-      'title': 'Ella Mountain & Tea Trails',
+      'bookingReference': 'ST-194820',
+      'title': 'Ella Mountain & Nine Arch Tea Trails',
+      'destination': 'Ella Mountain & Nine Arch Tea Trails',
       'dates': '15–20 Mar 2026 · 6 days',
+      'stops': 'Kandy · Nuwara Eliya · Ella · Nine Arches',
       'price': 1240,
+      'totalCost': 1240.0,
       'status': 'COMPLETED',
-      'statusColor': Color(0xFF267A55),
-      'image':
-          'https://images.unsplash.com/photo-1588598198321-9735fd52455b?w=600&auto=format&fit=crop&q=80',
+      'statusColor': const Color(0xFF267A55),
+      'image': 'assets/photos/ella-1280.jpg',
     },
     {
       'id': 95,
-      'title': 'Yala Safari & Wildlife',
+      'bookingReference': 'ST-182390',
+      'title': 'Yala Safari & Wildlife Expedition',
+      'destination': 'Yala Safari & Wildlife Expedition',
       'dates': '02–06 Jan 2026 · 4 days',
+      'stops': 'Tissamaharama · Yala National Park · Bundala',
       'price': 920,
+      'totalCost': 920.0,
       'status': 'COMPLETED',
-      'statusColor': Color(0xFF267A55),
-      'image':
-          'https://images.unsplash.com/photo-1546708973-b339540b5162?w=600&auto=format&fit=crop&q=80',
+      'statusColor': const Color(0xFF267A55),
+      'image': 'assets/photos/yala-1280.jpg',
+    },
+  ];
+
+  final List<Map<String, dynamic>> _sampleCancelled = [
+    {
+      'id': 88,
+      'bookingReference': 'ST-147321',
+      'title': 'Trincomalee & Pigeon Island Snorkel',
+      'destination': 'Trincomalee & Pigeon Island Snorkel',
+      'dates': '05–09 Aug 2026 · 5 days',
+      'stops': 'Trincomalee · Pigeon Island · Nilaveli',
+      'price': 640,
+      'totalCost': 640.0,
+      'status': 'CANCELLED',
+      'statusColor': const Color(0xFFDC2626),
+      'image': 'assets/photos/trincomalee-1280.jpg',
     },
   ];
 
@@ -83,6 +112,29 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     }
   }
 
+  Widget _buildTripImage(String imagePath) {
+    if (imagePath.startsWith('assets/')) {
+      return Image.asset(
+        imagePath,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: const Color(0xFF1E3A2F),
+          alignment: Alignment.center,
+          child: const Icon(Icons.landscape, color: Colors.white54),
+        ),
+      );
+    }
+    return Image.network(
+      imagePath,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Container(
+        color: const Color(0xFF1E3A2F),
+        alignment: Alignment.center,
+        child: const Icon(Icons.landscape, color: Colors.white54),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -98,23 +150,46 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     if (_activeTab == 'Upcoming') {
       currentList = _bookings.isNotEmpty
           ? _bookings.map((b) {
+              final destination = b['destination'] ??
+                  (b['bookingItems'] is List && (b['bookingItems'] as List).isNotEmpty
+                      ? b['bookingItems'][0]['tourName']
+                      : null) ??
+                  'Sigiriya & Cultural Triangle Discovery';
+              final image = b['imageUrl'] ?? AppDestinations.getImageForDestination(destination.toString());
+              final status = (b['status']?.toString() ?? 'CONFIRMED').toUpperCase();
+              Color statusColor = const Color(0xFF267A55);
+              if (status.contains('PROCESS')) statusColor = const Color(0xFFB36A16);
+              if (status.contains('CANCEL')) statusColor = const Color(0xFFDC2626);
+
               return {
                 'id': b['id'],
-                'title': b['destination'] ?? 'Sri Lanka Discovery',
+                'bookingReference': b['bookingReference'] ?? 'ST-${b['id']}',
+                'title': destination,
+                'destination': destination,
                 'dates': b['dates'] ?? '12–18 Oct 2026 · 7 days',
+                'stops': b['stops'] ?? 'Sigiriya · Kandy · Ella',
                 'price': (b['totalCost'] ?? 1712).toInt(),
-                'status': 'CONFIRMED',
-                'statusColor': const Color(0xFF267A55),
-                'image':
-                    'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
+                'totalCost': (b['totalCost'] ?? 1712).toDouble(),
+                'status': status,
+                'statusColor': statusColor,
+                'image': image,
               };
             }).toList()
           : _sampleUpcoming;
     } else if (_activeTab == 'Completed') {
       currentList = _sampleCompleted;
     } else {
-      currentList = [];
+      currentList = _sampleCancelled;
     }
+
+    final filteredList = _selectedYear == 'All years'
+        ? currentList
+        : currentList
+            .where((t) => (t['dates'] as String? ?? '').contains(_selectedYear))
+            .toList();
+
+    final upcomingCount = _bookings.isNotEmpty ? _bookings.length : _sampleUpcoming.length;
+    final completedCount = _sampleCompleted.length;
 
     return Scaffold(
       backgroundColor: AppColors.figmaSurface,
@@ -258,28 +333,46 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_sampleUpcoming.length} upcoming · ${_sampleCompleted.length} completed',
+                    '$upcomingCount upcoming · $completedCount completed',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
                       color: const Color(0xFF17211D),
                     ),
                   ),
-                  Row(
-                    children: [
-                      Text(
-                        'All years',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF2F7057),
+                  PopupMenuButton<String>(
+                    initialValue: _selectedYear,
+                    onSelected: (val) => setState(() => _selectedYear = val),
+                    child: Row(
+                      children: [
+                        Text(
+                          _selectedYear,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2F7057),
+                          ),
                         ),
+                        const SizedBox(width: 2),
+                        const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 14,
+                          color: Color(0xFF2F7057),
+                        ),
+                      ],
+                    ),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'All years',
+                        child: Text('All years'),
                       ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.keyboard_arrow_down,
-                        size: 14,
-                        color: Color(0xFF2F7057),
+                      const PopupMenuItem(
+                        value: '2026',
+                        child: Text('2026'),
+                      ),
+                      const PopupMenuItem(
+                        value: '2025',
+                        child: Text('2025'),
                       ),
                     ],
                   ),
@@ -289,31 +382,78 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
               const SizedBox(height: 12),
 
               // ── Trip Cards ──
-              if (currentList.isEmpty)
+              if (filteredList.isEmpty)
                 Container(
-                  padding: const EdgeInsets.all(32),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
                   alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE4E7E2)),
+                  ),
                   child: Column(
                     children: [
-                      const Icon(
-                        Icons.luggage_outlined,
-                        size: 48,
-                        color: Color(0xFF9CA3AF),
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFF1F5F3),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.luggage_outlined,
+                          size: 28,
+                          color: Color(0xFF6E7772),
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         'No ${_activeTab.toLowerCase()} trips found',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF17211D),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Browse our handpicked tours across Sri Lanka to start planning.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
                           color: const Color(0xFF6E7772),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      ElevatedButton(
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/tour-search'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF123F32),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 8,
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Explore Tours',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 )
               else
-                ...currentList.map((trip) {
+                ...filteredList.map((trip) {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
@@ -334,26 +474,15 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                         Stack(
                           children: [
                             SizedBox(
-                              height: 82,
+                              height: 100,
                               width: double.infinity,
-                              child: Image.network(
-                                trip['image'] as String,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Container(
-                                  color: const Color(0xFF374151),
-                                  child: const Icon(
-                                    Icons.landscape,
-                                    color: Colors.white54,
-                                  ),
-                                ),
-                              ),
+                              child: _buildTripImage(trip['image'] as String),
                             ),
                             // Tint overlay
                             Positioned.fill(
                               child: Container(
                                 color: const Color(0xFF08271E)
-                                    .withValues(alpha: 0.25),
+                                    .withValues(alpha: 0.18),
                               ),
                             ),
                             // Status Badge
@@ -511,45 +640,6 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
           ),
         ),
       ),
-
-      // ── Bottom Navigation Bar ──
-      bottomNavigationBar: Container(
-        height: 68,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE4E7E2))),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              icon: Icons.explore_outlined,
-              label: 'Explore',
-              isActive: false,
-              onTap: () => Navigator.pushReplacementNamed(context, '/home'),
-            ),
-            _buildNavItem(
-              icon: Icons.luggage_outlined,
-              label: 'My Trips',
-              isActive: true,
-              onTap: () {},
-            ),
-            _buildNavItem(
-              icon: Icons.notifications_none_outlined,
-              label: 'Alerts',
-              isActive: false,
-              onTap: () => Navigator.pushNamed(context, '/notifications'),
-            ),
-            _buildNavItem(
-              icon: Icons.person_outline,
-              label: 'Profile',
-              isActive: false,
-              onTap: () =>
-                  Navigator.pushReplacementNamed(context, '/profile'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -573,46 +663,6 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-            decoration: BoxDecoration(
-              color: isActive ? const Color(0xFFE5F1EA) : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              size: 20,
-              color:
-                  isActive ? const Color(0xFF123F32) : const Color(0xFF6E7772),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
-              color:
-                  isActive ? const Color(0xFF123F32) : const Color(0xFF6E7772),
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -569,45 +569,6 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
           ],
         ),
       ),
-
-      // ── Bottom Navigation Bar ──
-      bottomNavigationBar: Container(
-        height: 68,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Color(0xFFE4E7E2))),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildNavItem(
-              icon: Icons.explore_outlined,
-              label: 'Explore',
-              isActive: false,
-              onTap: () => Navigator.pushReplacementNamed(context, '/home'),
-            ),
-            _buildNavItem(
-              icon: Icons.luggage_outlined,
-              label: 'My Trips',
-              isActive: false,
-              onTap: () =>
-                  Navigator.pushReplacementNamed(context, '/trip-history'),
-            ),
-            _buildNavItem(
-              icon: Icons.notifications_none_outlined,
-              label: 'Alerts',
-              isActive: false,
-              onTap: () => Navigator.pushNamed(context, '/notifications'),
-            ),
-            _buildNavItem(
-              icon: Icons.person_outline,
-              label: 'Profile',
-              isActive: true,
-              onTap: () {},
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -655,45 +616,6 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
     );
   }
 
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
-            decoration: BoxDecoration(
-              color: isActive ? const Color(0xFFE5F1EA) : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(
-              icon,
-              size: 20,
-              color:
-                  isActive ? const Color(0xFF123F32) : const Color(0xFF6B7280),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
-              color:
-                  isActive ? const Color(0xFF123F32) : const Color(0xFF6B7280),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showEditProfileModal() {
     showModalBottomSheet(
