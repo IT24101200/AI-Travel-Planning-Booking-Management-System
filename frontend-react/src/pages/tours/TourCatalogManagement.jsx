@@ -18,6 +18,7 @@ import {
   TrashIcon,
   CheckIcon
 } from '../../components/ui/Icons.jsx'
+import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
 
 const CATEGORIES = ['All', 'Heritage', 'Wildlife', 'Cultural', 'Marine', 'Scenic', 'Adventure']
 
@@ -58,10 +59,9 @@ export default function TourCatalogManagement() {
     durationHours: 8,
     category: 'Heritage',
     defaultStartTime: '05:15',
-    description: ''
+    description: '',
+    imageUrl: ''
   })
-  const [imageFile, setImageFile] = useState(null)
-  const [imagePreview, setImagePreview] = useState('')
   const [busy, setBusy] = useState(false)
 
   usePageTitle('Tour Catalog · Serendib Trails')
@@ -160,10 +160,9 @@ export default function TourCatalogManagement() {
       durationHours: tour.durationHours,
       category: tour.category,
       defaultStartTime: tour.defaultStartTime,
-      description: tour.description
+      description: tour.description,
+      imageUrl: tour.imageUrl || ''
     })
-    setImageFile(null)
-    setImagePreview(tour.imageUrl || '')
   }
 
   function startCreateTour() {
@@ -176,19 +175,9 @@ export default function TourCatalogManagement() {
       durationHours: 4,
       category: 'Heritage',
       defaultStartTime: '08:00',
-      description: 'Exclusive guided experience operated by certified naturalists and historians.'
+      description: 'Exclusive guided experience operated by certified naturalists and historians.',
+      imageUrl: ''
     })
-    setImageFile(null)
-    setImagePreview('')
-  }
-
-  function onImageChange(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setImageFile(file)
-    const reader = new FileReader()
-    reader.onload = () => setImagePreview(String(reader.result))
-    reader.readAsDataURL(file)
   }
 
   async function handleSaveTour(e) {
@@ -198,7 +187,7 @@ export default function TourCatalogManagement() {
     try {
       if (drawerMode === 'create') {
         const fallbackBlob = await fetch(FALLBACK_TOUR_IMAGES.default).then(r => r.blob())
-        const fileToSend = imageFile || new File([fallbackBlob], 'tour.jpg', { type: 'image/jpeg' })
+        const fileToSend = new File([fallbackBlob], 'tour.jpg', { type: 'image/jpeg' })
         const res = await createTour({
           destinationId: Number(formData.destinationId),
           name: formData.name,
@@ -208,6 +197,7 @@ export default function TourCatalogManagement() {
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
+          imageUrl: formData.imageUrl || '',
           status: 'Active'
         }, fileToSend)
         setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
@@ -221,6 +211,7 @@ export default function TourCatalogManagement() {
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
+          imageUrl: formData.imageUrl || selectedTour.imageUrl || '',
           status: selectedTour.status
         })
         setNotice({ type: 'success', message: `Tour "${formData.name}" updated successfully.` })
@@ -601,39 +592,14 @@ export default function TourCatalogManagement() {
                 </div>
               </div>
 
-              {/* Cover Image Upload Box matching Figma */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Cover image
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.75rem', border: '1px solid #dde3e5', borderRadius: '8px', background: '#f8fafa' }}>
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      style={{ width: '64px', height: '48px', objectFit: 'cover', borderRadius: '6px' }}
-                    />
-                  ) : (
-                    <div style={{ width: '64px', height: '48px', background: '#e2e8f0', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6875rem', color: '#64748b' }}>
-                      No img
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: '0.75rem', fontWeight: 600, color: '#182126', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {imageFile ? imageFile.name : (selectedTour?.name ? `${selectedTour.name.toLowerCase().replace(/\s+/g, '-')}.jpg` : 'experience.jpg')}
-                    </p>
-                    <label style={{ fontSize: '0.75rem', color: '#166b4f', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
-                      Replace image
-                      <input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        style={{ display: 'none' }}
-                        onChange={onImageChange}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
+              {/* Cover Image Upload & Media Library Selector */}
+              <ImageUploadWidget
+                value={formData.imageUrl}
+                onChange={(url) => setFormData((prev) => ({ ...prev, imageUrl: url }))}
+                category="tours"
+                label="Cover Image"
+              />
+
 
               {/* Description Textarea */}
               <div>

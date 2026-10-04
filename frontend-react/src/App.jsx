@@ -29,6 +29,7 @@ import HotelVendorManagement from './pages/hotels/HotelVendorManagement.jsx'
 import TransportFleetManagement from './pages/hotels/TransportFleetManagement.jsx'
 import BookingApprovalDashboard from './pages/bookings/BookingApprovalDashboard.jsx'
 import PaymentsRevenueReport from './pages/bookings/PaymentsRevenueReport.jsx'
+import MediaLibrary from './pages/media/MediaLibrary.jsx'
 
 /**
  * Public marketing site + staff console.
@@ -109,6 +110,7 @@ export default function App() {
                 <Route path="itineraries" element={<ItineraryReview />} />
                 <Route path="hotels" element={<HotelVendorManagement />} />
                 <Route path="transport" element={<TransportFleetManagement />} />
+                <Route path="media" element={<MediaLibrary />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

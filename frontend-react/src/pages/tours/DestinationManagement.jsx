@@ -18,6 +18,7 @@ import {
   CloseIcon,
   CheckIcon
 } from '../../components/ui/Icons.jsx'
+import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
 
 // Province mapping for Sri Lankan destinations
 const REGIONS = {
@@ -54,7 +55,8 @@ export default function DestinationManagement() {
     country: 'Sri Lanka',
     description: '',
     latitude: '',
-    longitude: ''
+    longitude: '',
+    imageUrl: ''
   })
   const [busy, setBusy] = useState(false)
 
@@ -99,6 +101,7 @@ export default function DestinationManagement() {
               name: d.name,
               country: d.country || 'Sri Lanka',
               region,
+              imageUrl: d.imageUrl || '',
               description: d.description || `Ancient fortress and UNESCO heritage site surrounded by gardens and forest in ${d.name}.`,
               latitude: Number(d.latitude) || 7.9570,
               longitude: Number(d.longitude) || 80.7603,
@@ -135,7 +138,8 @@ export default function DestinationManagement() {
       country: dest.country,
       description: dest.description,
       latitude: dest.latitude,
-      longitude: dest.longitude
+      longitude: dest.longitude,
+      imageUrl: dest.imageUrl || ''
     })
   }
 
@@ -147,7 +151,8 @@ export default function DestinationManagement() {
       country: 'Sri Lanka',
       description: '',
       latitude: '7.957032',
-      longitude: '80.760261'
+      longitude: '80.760261',
+      imageUrl: ''
     })
   }
 
@@ -180,6 +185,7 @@ export default function DestinationManagement() {
           name: formData.name.trim(),
           country: formData.country.trim(),
           description: formData.description.trim() || null,
+          imageUrl: formData.imageUrl?.trim() || null,
           latitude: Number(formData.latitude) || 0,
           longitude: Number(formData.longitude) || 0,
         })
@@ -189,6 +195,7 @@ export default function DestinationManagement() {
           name: formData.name.trim(),
           country: formData.country.trim(),
           description: formData.description.trim() || null,
+          imageUrl: formData.imageUrl?.trim() || null,
           latitude: Number(formData.latitude) || 0,
           longitude: Number(formData.longitude) || 0,
         })
@@ -318,20 +325,37 @@ export default function DestinationManagement() {
                       >
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '50%',
-                                backgroundColor: '#e0f2fe',
-                                color: '#0369a1',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center'
-                              }}
-                            >
-                              <MapPinIcon size={16} />
-                            </div>
+                            {d.imageUrl ? (
+                              <img
+                                src={d.imageUrl.startsWith('http') ? d.imageUrl : `http://localhost:5138${d.imageUrl.startsWith('/') ? '' : '/'}${d.imageUrl}`}
+                                alt={d.name}
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  objectFit: 'cover'
+                                }}
+                                onError={(e) => {
+                                  e.target.onerror = null
+                                  e.target.style.display = 'none'
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#e0f2fe',
+                                  color: '#0369a1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <MapPinIcon size={16} />
+                              </div>
+                            )}
                             <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{d.name}</strong>
                           </div>
                         </td>
@@ -466,6 +490,15 @@ export default function DestinationManagement() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 />
               </div>
+
+              {/* Cover Image Upload & Media Library Selector */}
+              <ImageUploadWidget
+                value={formData.imageUrl}
+                onChange={(url) => setFormData((prev) => ({ ...prev, imageUrl: url }))}
+                category="destinations"
+                label="Destination Cover Image"
+              />
+
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>

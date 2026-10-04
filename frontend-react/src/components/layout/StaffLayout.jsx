@@ -13,6 +13,7 @@ import {
   RouteIcon,
   BuildingIcon,
   BusFrontIcon,
+  ImageIcon,
   LogOutIcon,
 } from '../ui/Icons.jsx'
 
@@ -26,6 +27,7 @@ const links = [
   { to: '/staff/itineraries', label: 'Itineraries', icon: RouteIcon },
   { to: '/staff/hotels', label: 'Hotels', icon: BuildingIcon },
   { to: '/staff/transport', label: 'Transport', icon: BusFrontIcon },
+  { to: '/staff/media', label: 'Media Library', icon: ImageIcon },
 ]
 
 /**
