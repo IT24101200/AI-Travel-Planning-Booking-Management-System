@@ -318,6 +318,34 @@ app.MapPost("/seed-db", async (IServiceProvider services) =>
     }
 });
 
+app.MapPost("/setup-supabase-storage", async (AppDbContext db) =>
+{
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            INSERT INTO storage.buckets (id, name, public) 
+            VALUES ('catalog-images', 'catalog-images', true) 
+            ON CONFLICT (id) DO UPDATE SET public = true;
+            
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public Access for catalog-images'
+                ) THEN
+                    CREATE POLICY ""Public Access for catalog-images"" ON storage.objects FOR ALL USING (bucket_id = 'catalog-images') WITH CHECK (bucket_id = 'catalog-images');
+                END IF;
+            END
+            $$;
+        ");
+        return Results.Ok(new { success = true, message = "Supabase storage bucket and policy created successfully." });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(title: "Storage setup error", detail: ex.Message);
+    }
+});
+
+
 app.MapGet("/supabasehealth", async () =>
 {
     var url = builder.Configuration["NEXT_PUBLIC_SUPABASE_URL"]
