@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../widgets/common_widgets.dart';
+import 'package:intl/intl.dart';
 
 /// Trip history screen matching Figma frame 16 · Trip History / My Trips (node 7:11390)
 class TripHistoryScreen extends StatefulWidget {
@@ -12,84 +14,19 @@ class TripHistoryScreen extends StatefulWidget {
 }
 
 class _TripHistoryScreenState extends State<TripHistoryScreen> {
-  List<dynamic> _bookings = [];
+  List<Map<String, dynamic>> _trips = [];
+  String? _error;
   bool _loading = true;
   String _activeTab = 'Upcoming'; // 'Upcoming', 'Completed', 'Cancelled'
   String _selectedYear = 'All years';
 
-  final List<Map<String, dynamic>> _sampleUpcoming = [
-    {
-      'id': 101,
-      'bookingReference': 'ST-284619',
-      'title': 'Sigiriya & Cultural Triangle Discovery',
-      'destination': 'Sigiriya & Cultural Triangle Discovery',
-      'dates': '12–18 Oct 2026 · 7 days',
-      'stops': 'Sigiriya · Dambulla · Polonnaruwa · Kandy',
-      'price': 1712,
-      'totalCost': 1712.0,
-      'status': 'CONFIRMED',
-      'statusColor': const Color(0xFF267A55),
-      'image': 'assets/photos/sigiriya-1280.jpg',
-    },
-    {
-      'id': 102,
-      'bookingReference': 'ST-319502',
-      'title': 'Southern Coast & Whale Safari',
-      'destination': 'Southern Coast & Whale Safari',
-      'dates': '24–28 Nov 2026 · 5 days',
-      'stops': 'Galle Fort · Mirissa Beach · Weligama Bay',
-      'price': 890,
-      'totalCost': 890.0,
-      'status': 'PROCESSING',
-      'statusColor': const Color(0xFFB36A16),
-      'image': 'assets/photos/mirissa-1280.jpg',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _sampleCompleted = [
-    {
-      'id': 98,
-      'bookingReference': 'ST-194820',
-      'title': 'Ella Mountain & Nine Arch Tea Trails',
-      'destination': 'Ella Mountain & Nine Arch Tea Trails',
-      'dates': '15–20 Mar 2026 · 6 days',
-      'stops': 'Kandy · Nuwara Eliya · Ella · Nine Arches',
-      'price': 1240,
-      'totalCost': 1240.0,
-      'status': 'COMPLETED',
-      'statusColor': const Color(0xFF267A55),
-      'image': 'assets/photos/ella-1280.jpg',
-    },
-    {
-      'id': 95,
-      'bookingReference': 'ST-182390',
-      'title': 'Yala Safari & Wildlife Expedition',
-      'destination': 'Yala Safari & Wildlife Expedition',
-      'dates': '02–06 Jan 2026 · 4 days',
-      'stops': 'Tissamaharama · Yala National Park · Bundala',
-      'price': 920,
-      'totalCost': 920.0,
-      'status': 'COMPLETED',
-      'statusColor': const Color(0xFF267A55),
-      'image': 'assets/photos/yala-1280.jpg',
-    },
-  ];
-
-  final List<Map<String, dynamic>> _sampleCancelled = [
-    {
-      'id': 88,
-      'bookingReference': 'ST-147321',
-      'title': 'Trincomalee & Pigeon Island Snorkel',
-      'destination': 'Trincomalee & Pigeon Island Snorkel',
-      'dates': '05–09 Aug 2026 · 5 days',
-      'stops': 'Trincomalee · Pigeon Island · Nilaveli',
-      'price': 640,
-      'totalCost': 640.0,
-      'status': 'CANCELLED',
-      'statusColor': const Color(0xFFDC2626),
-      'image': 'assets/photos/trincomalee-1280.jpg',
-    },
-  ];
+  static const _historyStatuses = {
+    'Planning',
+    'AwaitingApproval',
+    'Confirmed',
+    'Completed',
+    'Cancelled',
+  };
 
   @override
   void initState() {
@@ -97,19 +34,95 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     _loadData();
   }
 
+  String? _status(dynamic value, {required bool booking}) {
+    const bookingStatuses = ['Draft', 'AwaitingApproval', 'Confirmed', 'Rejected', 'Cancelled', 'Completed'];
+    const requestStatuses = ['Pending', 'Planning', 'Planned', 'Failed', 'Cancelled', 'AwaitingApproval', 'Approved', 'Rejected'];
+    final statuses = booking ? bookingStatuses : requestStatuses;
+    final index = int.tryParse(value?.toString() ?? '');
+    final raw = index != null && index >= 0 && index < statuses.length
+        ? statuses[index] : value?.toString() ?? 'Unknown';
+    final normalized = raw.replaceAll(' ', '').toLowerCase();
+    switch (normalized) {
+      case 'draft':
+      case 'pending':
+      case 'planning':
+      case 'planned':
+        return 'Planning';
+      case 'awaitingapproval':
+        return 'AwaitingApproval';
+      case 'confirmed':
+        return 'Confirmed';
+      case 'completed':
+        return 'Completed';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return null;
+    }
+  }
+
   Future<void> _loadData() async {
-    setState(() => _loading = true);
+    setState(() { _loading = true; _error = null; });
     try {
-      final bookings = await ApiService.getMyBookings();
-      if (mounted) {
-        setState(() {
-          _bookings = bookings;
-          _loading = false;
-        });
+      final results = await Future.wait([ApiService.getMyBookings(), ApiService.getMyTripRequests()]);
+      final bookings = results[0].map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      final requests = results[1].map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      final requestsById = {for (final request in requests) request['id'].toString(): request};
+      final bookedRequestIds = bookings.map((booking) => booking['tripRequestId']?.toString()).toSet();
+      final records = <Map<String, dynamic>>[];
+      for (final booking in bookings) {
+        final record = _tripCard(booking, requestsById[booking['tripRequestId']?.toString()], booking: true);
+        if (_historyStatuses.contains(record['status'])) records.add(record);
       }
-    } catch (_) {
+      for (final request in requests) {
+        if (!bookedRequestIds.contains(request['id'].toString())) {
+          final record = _tripCard(request, request, booking: false);
+          if (_historyStatuses.contains(record['status'])) records.add(record);
+        }
+      }
+      if (mounted) setState(() => _trips = records);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Map<String, dynamic> _tripCard(Map<String, dynamic> record, Map<String, dynamic>? request, {required bool booking}) {
+    final status = _status(record['status'], booking: booking);
+    final items = record['bookingItems'];
+    final tourNames = items is List ? items.whereType<Map>().map((item) => item['tourName']).whereType<String>().toList() : <String>[];
+    final title = request?['destinationName']?.toString() ??
+        (tourNames.isNotEmpty ? tourNames.join(', ') : booking ? 'Booking ${record['bookingReference'] ?? record['id']}' : 'Trip request #${record['id']}');
+    final start = DateTime.tryParse(request?['startDate']?.toString() ?? '');
+    final end = DateTime.tryParse(request?['endDate']?.toString() ?? '');
+    final created = DateTime.tryParse(record['createdAt']?.toString() ?? '');
+    final dates = start != null && end != null
+        ? '${DateFormat.yMMMd().format(start)} - ${DateFormat.yMMMd().format(end)}'
+        : created != null ? 'Created ${DateFormat.yMMMd().format(created)}' : 'Dates unavailable';
+    final amount = booking ? record['totalCost'] : record['budgetCeiling'];
+    final currency = record['currency']?.toString() ?? '';
+    return {
+      ...record,
+      'isBooking': booking,
+      'source': record,
+      'title': title,
+      'dates': dates,
+      'year': (start ?? created)?.year.toString(),
+      'priceLabel': amount is num ? '${booking ? '' : 'Budget '}$currency ${NumberFormat('#,##0.##').format(amount)}'.trim() : 'Cost unavailable',
+      'status': status,
+      'statusColor': status == 'Cancelled' || status == 'Rejected' || status == 'Failed'
+          ? const Color(0xFFDC2626) : status == 'Confirmed' || status == 'Completed'
+          ? const Color(0xFF267A55) : const Color(0xFFB36A16),
+      'image': AppDestinations.getImageForDestination(title),
+    };
+  }
+
+  bool _inTab(Map<String, dynamic> trip, String tab) {
+    final status = trip['status'];
+    if (tab == 'Completed') return status == 'Completed';
+    if (tab == 'Cancelled') return status == 'Cancelled';
+    return status == 'Planning' || status == 'AwaitingApproval' || status == 'Confirmed';
   }
 
   Widget _buildTripImage(String imagePath) {
@@ -146,51 +159,16 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
       );
     }
 
-    final List<Map<String, dynamic>> currentList;
-    if (_activeTab == 'Upcoming') {
-      currentList = _bookings.isNotEmpty
-          ? _bookings.map((b) {
-              final destination = b['destination'] ??
-                  (b['bookingItems'] is List && (b['bookingItems'] as List).isNotEmpty
-                      ? b['bookingItems'][0]['tourName']
-                      : null) ??
-                  'Sigiriya & Cultural Triangle Discovery';
-              final image = b['imageUrl'] ?? AppDestinations.getImageForDestination(destination.toString());
-              final status = (b['status']?.toString() ?? 'CONFIRMED').toUpperCase();
-              Color statusColor = const Color(0xFF267A55);
-              if (status.contains('PROCESS')) statusColor = const Color(0xFFB36A16);
-              if (status.contains('CANCEL')) statusColor = const Color(0xFFDC2626);
-
-              return {
-                'id': b['id'],
-                'bookingReference': b['bookingReference'] ?? 'ST-${b['id']}',
-                'title': destination,
-                'destination': destination,
-                'dates': b['dates'] ?? '12–18 Oct 2026 · 7 days',
-                'stops': b['stops'] ?? 'Sigiriya · Kandy · Ella',
-                'price': (b['totalCost'] ?? 1712).toInt(),
-                'totalCost': (b['totalCost'] ?? 1712).toDouble(),
-                'status': status,
-                'statusColor': statusColor,
-                'image': image,
-              };
-            }).toList()
-          : _sampleUpcoming;
-    } else if (_activeTab == 'Completed') {
-      currentList = _sampleCompleted;
-    } else {
-      currentList = _sampleCancelled;
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('My Trips')),
+        body: ErrorMessage(message: _error!, onRetry: _loadData),
+      );
     }
-
-    final filteredList = _selectedYear == 'All years'
-        ? currentList
-        : currentList
-            .where((t) => (t['dates'] as String? ?? '').contains(_selectedYear))
-            .toList();
-
-    final upcomingCount = _bookings.isNotEmpty ? _bookings.length : _sampleUpcoming.length;
-    final completedCount = _sampleCompleted.length;
-
+    final currentList = _trips.where((trip) => _inTab(trip, _activeTab)).toList();
+    final filteredList = currentList.where((trip) => _selectedYear == 'All years' || trip['year'] == _selectedYear).toList();
+    final upcomingCount = _trips.where((trip) => _inTab(trip, 'Upcoming')).length;
+    final completedCount = _trips.where((trip) => _inTab(trip, 'Completed')).length;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -369,14 +347,8 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                         value: 'All years',
                         child: Text('All years'),
                       ),
-                      const PopupMenuItem(
-                        value: '2026',
-                        child: Text('2026'),
-                      ),
-                      const PopupMenuItem(
-                        value: '2025',
-                        child: Text('2025'),
-                      ),
+                      ...(_trips.map((trip) => trip['year']).whereType<String>().toSet().toList()..sort((a, b) => b.compareTo(a)))
+                          .map((year) => PopupMenuItem(value: year, child: Text(year))),
                     ],
                   ),
                 ],
@@ -549,7 +521,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                     ],
                                   ),
                                   Text(
-                                    '\$${trip['price']}',
+                                    trip['priceLabel'] as String,
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
@@ -570,7 +542,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                           Navigator.pushNamed(
                                             context,
                                             '/itinerary',
-                                            arguments: trip,
+                                            arguments: trip['isBooking'] == true
+                                                ? {'itineraryId': trip['itineraryId']}
+                                                : {'tripRequestId': trip['id']},
                                           );
                                         },
                                         style: ElevatedButton.styleFrom(
@@ -599,11 +573,11 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                     child: SizedBox(
                                       height: 38,
                                       child: OutlinedButton(
-                                        onPressed: () {
+                                        onPressed: trip['isBooking'] != true ? null : () {
                                           Navigator.pushNamed(
                                             context,
                                             '/booking-status',
-                                            arguments: trip,
+                                            arguments: trip['source'],
                                           );
                                         },
                                         style: OutlinedButton.styleFrom(

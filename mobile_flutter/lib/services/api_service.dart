@@ -2,6 +2,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'app_navigation.dart';
+
+// Override: flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5000
+// Both a server root and a URL ending in /api are accepted.
+const String kApiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: kIsWeb ? 'http://localhost:5138/api' : 'http://192.168.1.4:5138/api',
+);
 
 class ApiException implements Exception {
   const ApiException(this.message, {this.statusCode});
@@ -17,18 +25,9 @@ class ApiException implements Exception {
 /// Stores JWT token via flutter_secure_storage and attaches it to every request.
 class ApiService {
   // ── Backend URLs ──
-  // Web (Chrome): runs on localhost
-  static const String _webUrl = 'http://localhost:5138/api';
-  // Mobile (Physical phone / Emulator): PC's local Wi-Fi IP (192.168.1.4) or emulator 10.0.2.2
-  static const String _mobileUrl = 'http://192.168.1.4:5138/api';
-
   static String get baseUrl {
-    // When running in Chrome (Flutter Web):
-    if (kIsWeb) {
-      return _webUrl;
-    }
-    // When running on a physical Android phone (or change to 10.0.2.2 for emulator):
-    return _mobileUrl;
+    final url = kApiBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    return url.endsWith('/api') ? url : '$url/api';
   }
 
   /// Convert backend-relative media paths into URLs reachable by this client.
@@ -73,7 +72,69 @@ class ApiService {
   }
 
   static Future<void> logout() async {
-    await _storage.deleteAll();
+    await Future.wait([
+      _storage.delete(key: 'jwt_token'),
+      _storage.delete(key: 'user_id'),
+      _storage.delete(key: 'user_name'),
+    ]);
+  }
+
+
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockUpdateProfile;
+  static Future<http.Response> Function(Map<String, dynamic>)? mockUpdatePreferences;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateTripRequest;
+  static Future<List<dynamic>> Function()? mockGetMyTripRequests;
+  static Future<List<dynamic>> Function()? mockGetMyBookings;
+
+  static void _requireSuccess(http.Response response) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_responseError(response, 'Request failed'), statusCode: response.statusCode);
+    }
+  }
+
+  static dynamic _decode(http.Response response) {
+    _requireSuccess(response);
+    if (response.statusCode == 204) return null;
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      throw const ApiException('The server returned an invalid response. Please retry.');
+    }
+  }
+
+  static List<dynamic> _list(http.Response response) {
+    final decoded = _decode(response);
+    if (decoded == null) return [];
+    if (decoded is List) return decoded;
+    if (decoded is Map && decoded['data'] is List) return decoded['data'] as List<dynamic>;
+    throw const ApiException('The server returned an invalid list. Please retry.');
+  }
+
+  static Map<String, dynamic>? _object(http.Response response) {
+    final decoded = _decode(response);
+    if (decoded == null) return null;
+    if (decoded is Map<String, dynamic>) return decoded.isEmpty ? null : decoded;
+    throw const ApiException('The server returned an invalid record. Please retry.');
+  }
+
+  static Future<void>? _sessionExpiry;
+
+  static Future<void> _expireSession() async {
+    await logout();
+    navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
+  }
+
+  static Future<http.Response> _handleResponse(http.Response response) async {
+    if (response.statusCode == 401) {
+      final expiry = _sessionExpiry ??= _expireSession();
+      try {
+        await expiry;
+      } finally {
+        if (identical(_sessionExpiry, expiry)) _sessionExpiry = null;
+      }
+      throw ApiException(_responseError(response, 'Please sign in again'), statusCode: 401);
+    }
+    return response;
   }
 
   static Future<bool> isLoggedIn() async {
@@ -120,37 +181,37 @@ class ApiService {
   /// Generic GET request
   static Future<http.Response> get(String endpoint) async {
     final headers = await _headers();
-    return await http.get(Uri.parse('$baseUrl/$endpoint'), headers: headers);
+    return _handleResponse(await http.get(Uri.parse('$baseUrl/$endpoint'), headers: headers));
   }
 
   /// Generic POST request
   static Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
     final headers = await _headers();
-    return await http.post(
+    return _handleResponse(await http.post(
       Uri.parse('$baseUrl/$endpoint'),
       headers: headers,
       body: jsonEncode(body),
-    );
+    ));
   }
 
   /// Generic PUT request
   static Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
     final headers = await _headers();
-    return await http.put(
+    return _handleResponse(await http.put(
       Uri.parse('$baseUrl/$endpoint'),
       headers: headers,
       body: jsonEncode(body),
-    );
+    ));
   }
 
   /// Generic PATCH request
   static Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
     final headers = await _headers();
-    return await http.patch(
+    return _handleResponse(await http.patch(
       Uri.parse('$baseUrl/$endpoint'),
       headers: headers,
       body: jsonEncode(body),
-    );
+    ));
   }
 
   // ── Auth endpoints ──
@@ -203,71 +264,38 @@ class ApiService {
   static Future<http.Response> Function()? mockGetPreferences;
 
   static Future<Map<String, dynamic>> getProfile() async {
-    if (mockGetProfile != null) {
-      return await mockGetProfile!();
-    }
-    try {
-      var response = await get('customer/me');
-      if (response.statusCode == 200) {
-        return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
-      }
-      final userId = await getUserId();
-      response = await get('customer/$userId');
-      if (response.statusCode == 200) {
-        return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
-      }
-    } catch (_) {}
-    return {'statusCode': 404};
+    if (mockGetProfile != null) return mockGetProfile!();
+    final response = await get('customer/me');
+    _requireSuccess(response);
+    final data = _object(response);
+    return {'statusCode': data == null ? 204 : response.statusCode, ...?data};
   }
 
   static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
-    try {
-      var response = await put('customer/me', data);
-      if (response.statusCode == 200 || response.statusCode == 204) {
-        final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-        return {'statusCode': response.statusCode, ...body};
-      }
-      final userId = await getUserId();
-      response = await put('customer/$userId', data);
-      final body = response.body.isNotEmpty ? jsonDecode(response.body) : {};
-      return {'statusCode': response.statusCode, ...body};
-    } catch (e) {
-      return {'statusCode': 500, 'message': e.toString()};
-    }
+    if (mockUpdateProfile != null) return mockUpdateProfile!(data);
+    final response = await put('customer/me', data);
+    _requireSuccess(response);
+    return {...?_object(response), 'statusCode': response.statusCode};
   }
 
   static Future<http.Response> getPreferences() async {
-    if (mockGetPreferences != null) {
-      return await mockGetPreferences!();
-    }
-    try {
-      final response = await get('preference');
-      if (response.statusCode == 200) return response;
-    } catch (_) {}
-    final userId = await getUserId();
-    return await get('preference/$userId');
+    if (mockGetPreferences != null) return mockGetPreferences!();
+    final response = await get('preference');
+    // The controller explicitly returns 404 when preferences have not been created.
+    if (response.statusCode != 404) _requireSuccess(response);
+    return response;
   }
 
   static Future<http.Response> updatePreferences(Map<String, dynamic> data) async {
-    final headers = await _headers();
-    return await http.put(
-      Uri.parse('$baseUrl/preference'),
-      headers: headers,
-      body: jsonEncode(data),
-    );
+    if (mockUpdatePreferences != null) return mockUpdatePreferences!(data);
+    final response = await put('preference', data);
+    _requireSuccess(response);
+    return response;
   }
-
-  // ── Destinations ──
 
   static Future<List<dynamic>> getDestinations() async {
-    final response = await get('destination');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
-    return [];
+    return _list(await get('destination'));
   }
-
-  // ── Tours ──
 
   static Future<List<dynamic>> Function({String? search, String? sortBy})? mockGetTours;
 
@@ -296,11 +324,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>?> getTour(int id) async {
-    final response = await get('tour/$id');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    }
-    return null;
+    return _object(await get('tour/$id'));
   }
 
   static Future<Map<String, dynamic>> getTourOrThrow(int id) async {
@@ -324,98 +348,55 @@ class ApiService {
   static Future<bool> Function(int itineraryId, String comment)? mockRequestItineraryChanges;
 
   static Future<List<dynamic>> getMyItineraries() async {
-    if (mockGetMyItineraries != null) {
-      return await mockGetMyItineraries!();
-    }
-    try {
-      final userId = await getUserId();
-      if (userId == null || userId.isEmpty) return [];
-      final response = await get('itinerary/customer/$userId');
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) return decoded;
-        if (decoded is Map && decoded['data'] is List) return decoded['data'] as List<dynamic>;
-      }
-    } catch (_) {}
-    return [];
-  }
-
-  /// Strict itinerary loader for screens that must distinguish an empty list
-  /// from authentication and server failures.
-  static Future<List<dynamic>> getMyItinerariesOrThrow() async {
+    if (mockGetMyItineraries != null) return mockGetMyItineraries!();
     final userId = await getUserId();
-    if (userId == null || userId.trim().isEmpty) {
+    if (userId == null || userId.isEmpty) {
       throw const ApiException('Your session is missing a customer ID. Please sign in again.');
     }
-
-    final response = await get('itinerary/customer/$userId');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
-
-    throw ApiException(
-      _responseError(response, 'Failed to load itineraries'),
-      statusCode: response.statusCode,
-    );
+    return _list(await get('itinerary/customer/$userId'));
   }
+
+  static Future<List<dynamic>> getMyItinerariesOrThrow() => getMyItineraries();
 
   static Future<Map<String, dynamic>?> getItinerary(int id) async {
-    if (mockGetItinerary != null) {
-      return await mockGetItinerary!(id);
-    }
-    try {
-      final response = await get('itinerary/$id');
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-    } catch (_) {}
-    return null;
+    if (mockGetItinerary != null) return mockGetItinerary!(id);
+    return _object(await get('itinerary/$id'));
   }
 
-  /// Creates a new Itinerary record in the database linked to a trip request: POST api/itinerary
   static Future<Map<String, dynamic>?> createItinerary({
     required int tripRequestId,
     required DateTime startDate,
     required DateTime endDate,
     String currency = 'LKR',
   }) async {
-    try {
-      final userId = await getUserId();
-      if (userId == null || userId.isEmpty) return null;
-      final body = {
-        'customerId': userId,
-        'tripRequestId': tripRequestId,
-        'startDate': startDate.toIso8601String(),
-        'endDate': endDate.toIso8601String(),
-        'currency': currency,
-      };
-      final response = await post('itinerary', body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Updates itinerary status (e.g. Accepted, Draft, Discarded) with optional notes
-  static Future<bool> updateItineraryStatus(int itineraryId, String status, {String? notes}) async {
-    try {
-      final body = <String, dynamic>{
-        'status': status,
-        if (notes != null && notes.isNotEmpty) 'notes': notes,
-      };
-      final response = await patch('itinerary/$itineraryId/status', body);
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
+    final userId = await getUserId();
+    if (userId == null || userId.isEmpty) {
+      throw const ApiException('Please sign in again.');
     }
+    return _object(await post('itinerary', {
+      'customerId': userId,
+      'tripRequestId': tripRequestId,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'currency': currency,
+    }));
   }
 
-  /// Accepts an itinerary proposal (sets status to Accepted)
+  static Future<bool> updateItineraryStatus(int itineraryId, String status, {String? notes}) async {
+    final response = await patch('itinerary/$itineraryId/status', {
+      'status': status,
+      if (notes != null && notes.isNotEmpty) 'notes': notes,
+    });
+    _requireSuccess(response);
+    return true;
+  }
+
   static Future<bool> acceptItinerary(int itineraryId) async {
     if (mockAcceptItinerary != null) {
       return await mockAcceptItinerary!(itineraryId);
     }
+    // TODO(backend): Customer approval is forbidden by ItineraryController.
+    // Keep the server error visible until a customer acceptance contract exists.
     return await updateItineraryStatus(itineraryId, 'Accepted');
   }
 
@@ -424,7 +405,9 @@ class ApiService {
     if (mockRequestItineraryChanges != null) {
       return await mockRequestItineraryChanges!(itineraryId, comment);
     }
-    return await updateItineraryStatus(itineraryId, 'Draft', notes: comment.isNotEmpty ? comment : null);
+    // TODO(backend): No customer revision endpoint persists notes. The status
+    // controller only permits customers to set Discarded and ignores Notes.
+    throw const ApiException('Change requests are not supported by the API yet. Please contact your travel agent.');
   }
 
   static Future<Map<String, dynamic>> addItineraryItem(
@@ -455,99 +438,42 @@ class ApiService {
   // ── Hotels ──
 
   static Future<List<dynamic>> getHotels() async {
-    final response = await get('hotel');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
-    return [];
+    return _list(await get('hotel'));
   }
-
-  // ── Transport ──
 
   static Future<List<dynamic>> getTransportOptions() async {
-    final response = await get('transport');
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body) as List<dynamic>;
-    }
-    return [];
+    return _list(await get('transport'));
   }
 
-  // ── Trip Requests ──
-
   static Future<Map<String, dynamic>> createTripRequest(Map<String, dynamic> data) async {
+    if (mockCreateTripRequest != null) return mockCreateTripRequest!(data);
     final response = await post('triprequest', data);
-    return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
+    final result = _object(response);
+    if (result == null) throw const ApiException('The server returned no trip request. Please retry.');
+    return {...result, 'statusCode': response.statusCode};
   }
 
   static Future<List<dynamic>> getMyTripRequests() async {
-    try {
-      final response = await get('triprequest/my');
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          return decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          return decoded['data'] as List<dynamic>;
-        }
-      }
-    } catch (_) {}
-    return [];
+    if (mockGetMyTripRequests != null) return mockGetMyTripRequests!();
+    return _list(await get('triprequest/my'));
   }
 
   static Future<Map<String, dynamic>?> getTripRequest(int id) async {
-    try {
-      final response = await get('triprequest/$id');
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
-      }
-    } catch (_) {}
-    return null;
+    return _object(await get('triprequest/$id'));
   }
 
-  /// Get AI agent execution audit logs for a trip request
   static Future<List<dynamic>> getAgentLogs(int tripRequestId) async {
-    try {
-      final response = await get('triprequest/$tripRequestId/logs');
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          return decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          return decoded['data'] as List<dynamic>;
-        }
-      }
-    } catch (_) {}
-    return [];
+    return _list(await get('triprequest/$tripRequestId/logs'));
   }
-
-  // ── Bookings ──
 
   static Future<List<dynamic>> getMyBookings() async {
-    try {
-      final response = await get('booking/my');
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          return decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          return decoded['data'] as List<dynamic>;
-        }
-      }
-    } catch (_) {}
-    return [];
+    if (mockGetMyBookings != null) return mockGetMyBookings!();
+    return _list(await get('booking/my'));
   }
 
   static Future<Map<String, dynamic>?> getBooking(int id) async {
-    try {
-      final response = await get('booking/$id');
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
-    } catch (_) {}
-    return null;
+    return _object(await get('booking/$id'));
   }
-
-  // ── Payments ──
 
   static Future<Map<String, dynamic>> createPayment(Map<String, dynamic> data) async {
     final response = await post('payment', data);
@@ -563,41 +489,28 @@ class ApiService {
   static Future<void> Function()? mockMarkAllNotificationsRead;
 
   static Future<List<dynamic>> getMyNotifications() async {
-    if (mockGetMyNotifications != null) {
-      return await mockGetMyNotifications!();
-    }
-    try {
-      final response = await get('notification/my');
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded is List) {
-          return decoded;
-        } else if (decoded is Map && decoded['data'] is List) {
-          return decoded['data'] as List<dynamic>;
-        }
-      }
-    } catch (_) {}
-    return [];
+    if (mockGetMyNotifications != null) return mockGetMyNotifications!();
+    return _list(await get('notification/my'));
   }
 
   static Future<void> markNotificationRead(String id) async {
     if (mockMarkNotificationRead != null) {
       return await mockMarkNotificationRead!(id);
     }
-    await patch('notification/$id/read', {});
+    _requireSuccess(await patch('notification/$id/read', {}));
   }
 
   static Future<void> markNotificationUnread(String id) async {
     if (mockMarkNotificationUnread != null) {
       return await mockMarkNotificationUnread!(id);
     }
-    await patch('notification/$id/unread', {});
+    _requireSuccess(await patch('notification/$id/unread', {}));
   }
 
   static Future<void> markAllNotificationsRead() async {
     if (mockMarkAllNotificationsRead != null) {
       return await mockMarkAllNotificationsRead!();
     }
-    await post('notification/mark-all-read', {});
+    _requireSuccess(await post('notification/mark-all-read', {}));
   }
 }

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../widgets/common_widgets.dart';
 import '../../main.dart' show themeNotifier;
 
 /// Profile & Preferences screen matching Figma frame 14 · Profile & Preferences
@@ -24,13 +25,17 @@ class ProfilePreferencesScreen extends StatefulWidget {
 class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
   bool _loading = true;
   bool _isSaving = false;
+  String? _loadError;
+  bool _profileMissing = false;
+  bool _preferencesMissing = false;
+  final _editFormKey = GlobalKey<FormState>();
 
   // Profile fields
-  final _nameCtrl = TextEditingController(text: 'user');
-  final _emailCtrl = TextEditingController(text: 'user@gmail.com');
-  final _phoneCtrl = TextEditingController(text: '0776543876');
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
   final String _homeCountry = 'Sri Lanka';
-  int _tripCount = 6;
+  int _tripCount = 0;
 
   // Travel preferences: Budget range (in LKR)
   double _budgetMin = 75000;
@@ -97,152 +102,113 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
     super.dispose();
   }
 
-  /// Load profile and preferences from backend API
-  Future<void> _loadData() async {
-    setState(() => _loading = true);
-    try {
-      // 1. Fetch customer profile
-      final profile = await ApiService.getProfile();
-      if (profile['statusCode'] == 200) {
-        if ((profile['fullName'] ?? '').toString().isNotEmpty) {
-          _nameCtrl.text = profile['fullName'];
-        }
-        if ((profile['email'] ?? '').toString().isNotEmpty) {
-          _emailCtrl.text = profile['email'];
-        }
-        if ((profile['phone'] ?? '').toString().isNotEmpty) {
-          _phoneCtrl.text = profile['phone'];
-        }
-        if (profile['tripCount'] != null) {
-          _tripCount = (profile['tripCount'] as num).toInt();
-        }
-      }
-
-      // 2. Fetch customer travel preferences
-      final prefResponse = await ApiService.getPreferences();
-      if (prefResponse.statusCode == 200) {
-        final pref = jsonDecode(prefResponse.body);
-        if (pref is Map) {
-          // Budget Min & Max
-          if (pref['budgetMin'] != null && (pref['budgetMin'] as num) > 0) {
-            _budgetMin = (pref['budgetMin'] as num).toDouble();
-          }
-          if (pref['budgetMax'] != null && (pref['budgetMax'] as num) > 0) {
-            _budgetMax = (pref['budgetMax'] as num).toDouble();
-          }
-          // Ensure min <= max
-          if (_budgetMax < _budgetMin) {
-            _budgetMax = _budgetMin + 100000;
-          }
-
-          // Preferred Activities
-          final acts = pref['preferredActivities']?.toString() ?? '';
-          if (acts.isNotEmpty) {
-            final parts = acts.split(',').map((e) => e.trim()).toSet();
-            if (parts.isNotEmpty) {
-              _selectedInterests.clear();
-              _selectedInterests.addAll(parts);
-            }
-          }
-
-          // Dietary notes
-          final diet = pref['dietaryNotes']?.toString() ?? '';
-          if (diet.isNotEmpty) {
-            if (_dietaryOptions.contains(diet)) {
-              _selectedDietary = diet;
-            } else {
-              _selectedDietary = 'Custom';
-              _dietaryCustomCtrl.text = diet;
-            }
-          }
-
-          // Accessibility notes
-          final access = pref['accessibilityNotes']?.toString() ?? '';
-          if (access.isNotEmpty) {
-            if (_accessibilityOptions.contains(access)) {
-              _selectedAccessibility = access;
-            } else {
-              _selectedAccessibility = 'Custom';
-              _accessibilityCustomCtrl.text = access;
-            }
-          }
-        }
-      }
-    } catch (_) {
-      // Gracefully use local defaults if network is offline
-    }
-    if (mounted) setState(() => _loading = false);
+  void _normalizeBudget() {
+    _budgetMin = _budgetMin.isFinite ? _budgetMin.clamp(25000, 1000000).toDouble() : 25000;
+    _budgetMax = _budgetMax.isFinite ? _budgetMax.clamp(25000, 1000000).toDouble() : 1000000;
+    if (_budgetMax < _budgetMin) _budgetMax = _budgetMin;
   }
 
-  /// Save profile and travel preferences to backend with validation
+  String? _validateName(String? value) => value == null || value.trim().isEmpty ? 'Full name is required' : null;
+
+  String? _validatePhone(String? value) {
+    if (value == null || value.trim().isEmpty) return 'Phone number is required';
+    if (value.trim().length != 10) return 'Must be exactly 10 digits';
+    if (!RegExp(r'^\d{10}$').hasMatch(value.trim())) return 'Only digits allowed';
+    return null;
+  }
+
+  Future<void> _loadData() async {
+    setState(() { _loading = true; _loadError = null; _profileMissing = false; });
+    try {
+      final profile = await ApiService.getProfile();
+      if (!mounted) return;
+      if (profile['statusCode'] == 204 || profile['statusCode'] == 404) {
+        _profileMissing = true;
+        return;
+      }
+      if (profile['statusCode'] != 200) throw ApiException(profile['message']?.toString() ?? 'Could not load your profile.');
+      final prefResponse = await ApiService.getPreferences();
+      if (!mounted) return;
+      _nameCtrl.text = profile['fullName']?.toString() ?? '';
+      _emailCtrl.text = profile['email']?.toString() ?? '';
+      _phoneCtrl.text = profile['phone']?.toString() ?? '';
+      _tripCount = (profile['tripCount'] as num?)?.toInt() ?? 0;
+      _preferencesMissing = prefResponse.statusCode == 404 || prefResponse.statusCode == 204;
+      if (!_preferencesMissing) {
+        if (prefResponse.statusCode != 200) throw const ApiException('Could not load your preferences.');
+        final pref = jsonDecode(prefResponse.body);
+        if (pref == null || (pref is Map && pref.isEmpty)) {
+          _preferencesMissing = true;
+        } else if (pref is Map) {
+          _budgetMin = (pref['budgetMin'] as num?)?.toDouble() ?? 75000;
+          _budgetMax = (pref['budgetMax'] as num?)?.toDouble() ?? 350000;
+          _selectedInterests..clear()..addAll((pref['preferredActivities']?.toString() ?? '').split(',').map((value) => value.trim()).where((value) => value.isNotEmpty));
+          final diet = pref['dietaryNotes']?.toString() ?? '';
+          _selectedDietary = diet.isEmpty ? 'No restrictions' : _dietaryOptions.contains(diet) ? diet : 'Custom';
+          _dietaryCustomCtrl.text = _selectedDietary == 'Custom' ? diet : '';
+          final access = pref['accessibilityNotes']?.toString() ?? '';
+          _selectedAccessibility = access.isEmpty ? 'None' : _accessibilityOptions.contains(access) ? access : 'Custom';
+          _accessibilityCustomCtrl.text = _selectedAccessibility == 'Custom' ? access : '';
+        } else {
+          throw const ApiException('The server returned invalid preferences.');
+        }
+      }
+      _normalizeBudget();
+    } catch (error) {
+      if (mounted) {
+        if (error is ApiException && error.statusCode == 404) {
+          _profileMissing = true;
+        } else {
+          _loadError = error.toString();
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   Future<void> _saveAllPreferences() async {
-    if (_budgetMax < _budgetMin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Maximum budget must be greater than or equal to minimum budget.'),
-          backgroundColor: Color(0xFF9C4726),
-        ),
-      );
+    if (_isSaving) return;
+    final validationError = _validateName(_nameCtrl.text) ?? _validatePhone(_phoneCtrl.text);
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
-
+    _normalizeBudget();
     setState(() => _isSaving = true);
-
+    bool profileSaved = false;
     try {
-      // 1. Update customer profile details
-      await ApiService.updateProfile({
+      final profile = await ApiService.updateProfile({
         'fullName': _nameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
       });
-
-      // 2. Resolve dietary and accessibility strings
-      final resolvedDietary = _selectedDietary == 'Custom'
-          ? _dietaryCustomCtrl.text.trim()
-          : _selectedDietary;
-      final resolvedAccessibility = _selectedAccessibility == 'Custom'
-          ? _accessibilityCustomCtrl.text.trim()
-          : _selectedAccessibility;
-
-      // 3. Update travel preferences via PUT /api/preference
-      final prefPayload = {
+      if (profile['statusCode'] != 200 && profile['statusCode'] != 204) {
+        throw ApiException(profile['message']?.toString() ?? 'Could not save your profile.');
+      }
+      profileSaved = true;
+      final prefRes = await ApiService.updatePreferences({
         'budgetMin': _budgetMin,
         'budgetMax': _budgetMax,
         'currency': 'LKR',
         'preferredActivities': _selectedInterests.join(', '),
-        'dietaryNotes': resolvedDietary,
-        'accessibilityNotes': resolvedAccessibility,
-      };
-
-      final prefRes = await ApiService.updatePreferences(prefPayload);
-
-      if (mounted) {
-        setState(() => _isSaving = false);
-        if (prefRes.statusCode == 200 || prefRes.statusCode == 204) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Travel preferences saved successfully!'),
-              backgroundColor: Color(0xFF267A55),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Preferences saved locally.'),
-              backgroundColor: Color(0xFF267A55),
-            ),
-          );
-        }
+        'dietaryNotes': _selectedDietary == 'Custom' ? _dietaryCustomCtrl.text.trim() : _selectedDietary,
+        'accessibilityNotes': _selectedAccessibility == 'Custom' ? _accessibilityCustomCtrl.text.trim() : _selectedAccessibility,
+      });
+      if (prefRes.statusCode != 200 && prefRes.statusCode != 204) {
+        throw const ApiException('Could not save your preferences.');
       }
-    } catch (e) {
+      if (!mounted) return;
+      setState(() => _preferencesMissing = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile and travel preferences saved successfully!')));
+    } catch (error) {
       if (mounted) {
-        setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saved locally. Backend will sync when online.'),
-            backgroundColor: Color(0xFF267A55),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${profileSaved ? 'Profile saved, but preferences were not saved. ' : ''}$error'),
+        action: SnackBarAction(label: 'Retry', onPressed: _saveAllPreferences),
+        ));
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -298,6 +264,13 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
       );
     }
 
+    if (_loadError != null) {
+      return Scaffold(body: ErrorMessage(message: _loadError!, onRetry: _loadData));
+    }
+    if (_profileMissing) {
+      return Scaffold(body: EmptyState(icon: Icons.person_outline, message: 'No customer profile found.', actionLabel: 'Retry', onAction: _loadData));
+    }
+
     final currencyFmt = NumberFormat('#,##0', 'en_US');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -306,6 +279,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            if (_preferencesMissing)
+              const Padding(padding: EdgeInsets.all(16), child: Text('No saved preferences yet. Choose your preferences below.')),
             // ── Deep Green Profile Header Banner ──
             Container(
               padding: EdgeInsets.fromLTRB(
@@ -682,8 +657,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           ),
                           child: RangeSlider(
                             values: RangeValues(
-                              _budgetMin.clamp(25000, 950000),
-                              _budgetMax.clamp(_budgetMin + 10000, 1000000),
+                              _budgetMin,
+                              _budgetMax,
                             ),
                             min: 25000,
                             max: 1000000,
@@ -1483,7 +1458,9 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
           20,
           MediaQuery.of(ctx).viewInsets.bottom + 20,
         ),
-        child: Column(
+        child: Form(
+          key: _editFormKey,
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1496,7 +1473,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            TextField(
+            TextFormField(
+              validator: _validateName,
               controller: _nameCtrl,
               style: TextStyle(
                 color: isDark ? Colors.white : const Color(0xFF111827),
@@ -1510,7 +1488,9 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            TextField(
+            TextFormField(
+              validator: _validatePhone,
+              keyboardType: TextInputType.phone,
               controller: _phoneCtrl,
               style: TextStyle(
                 color: isDark ? Colors.white : const Color(0xFF111827),
@@ -1529,6 +1509,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
               height: 48,
               child: ElevatedButton(
                 onPressed: () {
+                  if (!_editFormKey.currentState!.validate()) return;
                   Navigator.pop(ctx);
                   _saveAllPreferences();
                 },
@@ -1543,6 +1524,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

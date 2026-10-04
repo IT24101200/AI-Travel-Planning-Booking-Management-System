@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../widgets/common_widgets.dart';
 
 /// AI Trip Request screen matching Figma frame 15 · AI Trip Request
 /// Aligned with SE3090 Project Plan & Student A Component A specifications:
@@ -79,10 +80,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     {'name': 'Wellness', 'icon': Icons.spa_outlined},
   ];
 
-  // Agent execution simulation step during generation
-  // 0: Idle, 1: Coordinator Agent, 2: Itinerary Agent, 3: Booking Agent, 4: Validation Agent, 5: Done
-  int _agentProgressStep = 0;
   bool _isGenerating = false;
+  String? _submissionError;
+  String? _preferencesError;
 
   @override
   void initState() {
@@ -118,6 +118,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   /// Load user preference defaults to ensure budget ceiling is consistent
   Future<void> _loadUserPreferences() async {
+    if (mounted) setState(() => _preferencesError = null);
     try {
       final response = await ApiService.getPreferences();
       if (response.statusCode == 200) {
@@ -131,8 +132,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           }
         }
       }
-    } catch (_) {
-      // Gracefully use default LKR 250,000 if offline
+    } catch (error) {
+      if (mounted) setState(() => _preferencesError = error.toString());
     }
   }
 
@@ -226,109 +227,33 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       return;
     }
 
+    if (_isGenerating) return;
     setState(() {
       _isGenerating = true;
-      _agentProgressStep = 1; // Coordinator Agent starts
+      _submissionError = null;
     });
-
-    final destId = _resolveDestinationId(destination);
-    final promptText =
-        'Destination: $destination. Interests: ${_selectedInterests.join(", ")}. '
-        'Preferences: ${_specialRequestsCtrl.text.trim()}';
-
-    Map<String, dynamic>? createResponse;
-    String? backendErrorMessage;
-
     try {
-      // 1. Coordinator Agent begins processing
-      await Future.delayed(const Duration(milliseconds: 400));
-      if (mounted) setState(() => _agentProgressStep = 2); // Itinerary Agent
-
-      // 2. Call backend API to create TripRequest
-      final apiFuture = ApiService.createTripRequest({
-        'destinationId': destId,
-        'rawRequestText': promptText,
+      final response = await ApiService.createTripRequest({
+        'destinationId': _resolveDestinationId(destination),
+        'rawRequestText': 'Destination: $destination. Interests: ${_selectedInterests.join(", ")}. '
+            'Preferences: ${_specialRequestsCtrl.text.trim()}',
         'startDate': _startDate.toIso8601String(),
         'endDate': _endDate.toIso8601String(),
         'travellerCount': _travelers,
         'budgetCeiling': _budgetCeiling,
         'currency': 'LKR',
       });
-
-      // 3. Booking Agent checks inventory
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted) setState(() => _agentProgressStep = 3); // Booking Agent
-
-      // 4. Validation Agent performs checks
-      await Future.delayed(const Duration(milliseconds: 500));
-      if (mounted) setState(() => _agentProgressStep = 4); // Validation Agent
-
-      createResponse = await apiFuture;
-      if (createResponse['statusCode'] != null &&
-          createResponse['statusCode'] >= 400) {
-        backendErrorMessage =
-            createResponse['message'] ?? 'Could not create trip request.';
+      final id = int.tryParse(response['id']?.toString() ?? '');
+      if (response['statusCode'] != 201 || id == null || id <= 0) {
+        throw ApiException(response['message']?.toString() ?? 'The server did not create a trip request. Please retry.');
       }
-    } catch (e) {
-      // Offline or network error handled gracefully
-      backendErrorMessage = null;
+      if (!mounted) return;
+      Navigator.pushNamed(context, '/itinerary', arguments: {'tripRequestId': id});
+    } catch (error) {
+      if (mounted) setState(() => _submissionError = error.toString());
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
     }
-
-    if (mounted) setState(() => _agentProgressStep = 5); // Finished
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    if (!mounted) return;
-
-    setState(() {
-      _isGenerating = false;
-      _agentProgressStep = 0;
-    });
-
-    // If backend returned a clear validation error (e.g. budget ceiling below preference)
-    if (backendErrorMessage != null) {
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text(
-            'Trip Request Notice',
-            style: GoogleFonts.plusJakartaSans(
-              fontWeight: FontWeight.w800,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          content: Text(
-            backendErrorMessage!,
-            style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.4),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.pop(ctx),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF123F32),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // Pass created trip details or generated itinerary to MyItineraryScreen
-    final navArgs = {
-      'destination': destination,
-      'destinationId': destId,
-      'startDate': _startDate.toIso8601String(),
-      'endDate': _endDate.toIso8601String(),
-      'travellerCount': _travelers,
-      'budgetCeiling': _budgetCeiling,
-      'currency': 'LKR',
-      'id': createResponse?['id'] ?? createResponse?['tripRequestId'],
-      'tripRequestId': createResponse?['id'] ?? createResponse?['tripRequestId'],
-    };
-
-    Navigator.pushNamed(context, '/itinerary', arguments: navArgs);
   }
 
   @override
@@ -344,6 +269,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_preferencesError != null)
+                ErrorMessage(message: _preferencesError!, onRetry: _loadUserPreferences),
+              if (_submissionError != null)
+                ErrorMessage(message: _submissionError!, onRetry: _isGenerating ? null : _generateItinerary),
               // ── App Bar ──
               Row(
                 children: [
@@ -1033,49 +962,12 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     );
   }
 
-  /// Status string helper for active generation banner
-  String get _agentStepStatusTitle {
-    switch (_agentProgressStep) {
-      case 1:
-        return 'Coordinator: Allocating budget...';
-      case 2:
-        return 'Itinerary: Assembling route...';
-      case 3:
-        return 'Booking: Checking availability...';
-      case 4:
-        return 'Validation: Verifying rules...';
-      default:
-        return 'Finalizing itinerary...';
-    }
-  }
+  // The create endpoint acknowledges submission, not agent completion.
+  String get _agentStepStatusTitle => 'Submitting trip request...';
 
-  /// Dynamic agent card status based on multi-agent execution step
-  String _getAgentStatus(int agentNumber) {
-    if (!_isGenerating) {
-      return agentNumber == 1 ? 'Ready' : 'Queued';
-    }
-    if (_agentProgressStep == agentNumber) {
-      return 'Working';
-    } else if (_agentProgressStep > agentNumber) {
-      return 'Completed';
-    } else {
-      return 'Queued';
-    }
-  }
+  String _getAgentStatus(int agentNumber) => _isGenerating ? 'Awaiting submission' : 'Not started';
 
-  /// Color coding for agent cards
-  Color _getAgentColor(int agentNumber) {
-    if (!_isGenerating) {
-      return agentNumber == 1 ? const Color(0xFF267A55) : const Color(0xFF6E7772);
-    }
-    if (_agentProgressStep == agentNumber) {
-      return const Color(0xFF3676A8); // Blue working
-    } else if (_agentProgressStep > agentNumber) {
-      return const Color(0xFF267A55); // Green completed
-    } else {
-      return const Color(0xFF6E7772); // Grey queued
-    }
-  }
+  Color _getAgentColor(int agentNumber) => const Color(0xFF6E7772);
 
   Widget _buildAgentCard({
     required IconData icon,

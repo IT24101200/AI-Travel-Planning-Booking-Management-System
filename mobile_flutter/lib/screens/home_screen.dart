@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _verifyAccess() async {
     final loggedIn = await ApiService.isLoggedIn();
     if (!loggedIn && mounted) {
-      Navigator.pushNamedAndRemoveUntil(context, '/landing', (route) => false);
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 
@@ -269,7 +269,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                             ],
                           ),
                           GestureDetector(
-                            onTap: () => Navigator.pushNamed(context, '/profile-preferences'),
+                            onTap: () => Navigator.pushNamed(context, '/profile'),
                             child: Container(
                               width: 38,
                               height: 38,

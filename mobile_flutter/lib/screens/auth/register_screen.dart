@@ -75,6 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       }
     } catch (e) {
+      if (!mounted) return;
       setState(
         () => _error = 'Connection error. Check backend server on port 5138.',
       );

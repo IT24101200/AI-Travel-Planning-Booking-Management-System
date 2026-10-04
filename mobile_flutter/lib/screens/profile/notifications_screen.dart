@@ -17,6 +17,7 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _isLoading = true;
   String? _errorMessage;
+  bool _updatingRead = false;
   String _selectedCategory = 'All';
   final List<String> _categories = ['All', 'Unread', 'Bookings', 'Payments', 'Info'];
 
@@ -31,7 +32,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   /// Fetch notifications from the backend database (GET /api/notification/my)
   Future<void> _loadDatabaseNotifications() async {
-    if (!mounted) return;
+    if (!mounted || _updatingRead) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -143,11 +144,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         });
       }
 
-      // If database is empty (e.g. offline/initial), fallback to project sample alerts
-      if (parsedList.isEmpty) {
-        parsedList.addAll(_getSampleNotifications());
-      }
-
       if (mounted) {
         setState(() {
           _alerts = parsedList;
@@ -155,72 +151,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         });
       }
     } catch (e) {
-      // Graceful fallback with samples if network fails
       if (mounted) {
         setState(() {
-          _alerts = _getSampleNotifications();
+          _alerts = [];
+          _errorMessage = e.toString();
           _isLoading = false;
         });
       }
     }
-  }
-
-  /// Default sample alerts matching the database seed and project plan
-  List<Map<String, dynamic>> _getSampleNotifications() {
-    final now = DateTime.now();
-    return [
-      {
-        'id': 'sample-1',
-        'channel': 'SMS',
-        'messageType': 'Reminder',
-        'tag': 'TRANSIT',
-        'tagColor': const Color(0xFF0E382C),
-        'sentAt': now.subtract(const Duration(days: 5)),
-        'readAt': now.subtract(const Duration(days: 5, hours: 2)),
-        'time': '5 days ago',
-        'isUnread': false,
-        'status': 'Read',
-        'icon': Icons.directions_subway_outlined,
-        'iconColor': const Color(0xFF0E382C),
-        'title': 'Serendib Trails',
-        'body': 'Chauffeur guide pickup confirmed for user. Contact: +94 77 123 4567.',
-        'category': 'Bookings',
-      },
-      {
-        'id': 'sample-2',
-        'channel': 'InApp',
-        'messageType': 'TripUpdate',
-        'tag': 'AI TRIP',
-        'tagColor': const Color(0xFFD4A346),
-        'sentAt': now.subtract(const Duration(days: 5)),
-        'readAt': now.subtract(const Duration(days: 5, hours: 1)),
-        'time': '5 days ago',
-        'isUnread': false,
-        'status': 'Read',
-        'icon': Icons.auto_awesome,
-        'iconColor': const Color(0xFFD4A346),
-        'title': 'Itinerary Update',
-        'body': 'Day-by-day itinerary excursion details updated for user.',
-        'category': 'Info',
-      },
-      {
-        'id': 'sample-3',
-        'channel': 'Email',
-        'messageType': 'BookingConfirmation',
-        'tag': 'BOOKING',
-        'tagColor': const Color(0xFF13684B),
-        'sentAt': DateTime(2026, 9, 26, 14, 30),
-        'readAt': DateTime(2026, 9, 26, 16, 0),
-        'time': '26/9/2026',
-        'isUnread': false,
-        'status': 'Read',
-        'icon': Icons.check_circle_outline,
-        'iconColor': const Color(0xFF13684B),
-        'title': 'Booking Confirmed',
-        'body': 'Dear user, your bespoke Sri Lanka travel booking has been confirmed by Serendib Trails. Full travel documents are ready.',
-        'category': 'Bookings',
-      },
-    ];
   }
 
   /// Friendly relative time formatting
@@ -249,95 +187,74 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return '${dt.day} $month ${dt.year} at $hour:$minute $period';
   }
 
-  /// Mark all alerts as read in database and UI
   Future<void> _markAllAsRead() async {
-    final hadUnread = _alerts.any((a) => a['isUnread'] == true);
-    if (!hadUnread) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('All alerts are already marked as read.'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-      return;
-    }
-
+    if (_updatingRead || _isLoading) return;
+    if (!_alerts.any((item) => item['isUnread'] == true)) return;
+    final snapshots = {for (final item in _alerts) item['id']: Map<String, dynamic>.from(item)};
     setState(() {
-      for (final a in _alerts) {
-        a['isUnread'] = false;
-        a['status'] = 'Read';
-      }
-    });
-
-    try {
-      await ApiService.markAllNotificationsRead();
-      if (mounted) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('All alerts marked as read.'),
-            backgroundColor: isDark ? const Color(0xFF1E3A2F) : const Color(0xFF0E382C),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (_) {}
-  }
-
-  /// Toggle read/unread status for an individual alert
-  Future<void> _toggleReadStatus(Map<String, dynamic> item) async {
-    final wasUnread = item['isUnread'] == true;
-    final newUnread = !wasUnread;
-
-    setState(() {
-      item['isUnread'] = newUnread;
-      item['status'] = newUnread ? 'Sent' : 'Read';
-      if (!newUnread) {
-        item['readAt'] = DateTime.now();
-      }
-    });
-
-    final id = item['id']?.toString() ?? '';
-    if (id.isNotEmpty && !id.startsWith('sample-')) {
-      try {
-        if (newUnread) {
-          await ApiService.markNotificationUnread(id);
-        } else {
-          await ApiService.markNotificationRead(id);
-        }
-      } catch (_) {}
-    }
-
-    if (mounted) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            newUnread ? 'Alert marked as unread.' : 'Alert marked as read.',
-          ),
-          backgroundColor: isDark ? const Color(0xFF1E3A2F) : const Color(0xFF0E382C),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  /// Open bottom sheet with complete notification details and action options
-  void _openAlertDetails(Map<String, dynamic> item) {
-    // If opening an unread alert, mark as read
-    if (item['isUnread'] == true) {
-      setState(() {
+      _updatingRead = true;
+      for (final item in _alerts) {
         item['isUnread'] = false;
         item['status'] = 'Read';
         item['readAt'] = DateTime.now();
-      });
-
-      final id = item['id']?.toString() ?? '';
-      if (id.isNotEmpty && !id.startsWith('sample-')) {
-        ApiService.markNotificationRead(id).catchError((_) {});
       }
+    });
+    try {
+      await ApiService.markAllNotificationsRead();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All alerts marked as read.')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        for (final item in _alerts) {
+          final previous = snapshots[item['id']];
+          if (previous != null) item..clear()..addAll(previous);
+        }
+      });
+      _showReadError(error, _markAllAsRead);
+    } finally {
+      if (mounted) setState(() => _updatingRead = false);
     }
+  }
 
+  void _showReadError(Object error, VoidCallback retry) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(error.toString()),
+      action: SnackBarAction(label: 'Retry', onPressed: retry),
+    ));
+  }
+
+  Future<void> _toggleReadStatus(Map<String, dynamic> item) async {
+    if (_updatingRead || _isLoading) return;
+    final previous = Map<String, dynamic>.from(item);
+    final unread = item['isUnread'] != true;
+    setState(() {
+      _updatingRead = true;
+      item['isUnread'] = unread;
+      item['status'] = unread ? 'Sent' : 'Read';
+      item['readAt'] = unread ? null : DateTime.now();
+    });
+    try {
+      final id = item['id']?.toString() ?? '';
+      if (id.isEmpty) throw const ApiException('This notification has no ID.');
+      if (unread) {
+        await ApiService.markNotificationUnread(id);
+      } else {
+        await ApiService.markNotificationRead(id);
+      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(unread ? 'Alert marked as unread.' : 'Alert marked as read.')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => item..clear()..addAll(previous));
+      _showReadError(error, () => _toggleReadStatus(item));
+    } finally {
+      if (mounted) setState(() => _updatingRead = false);
+    }
+  }
+
+  Future<void> _openAlertDetails(Map<String, dynamic> item) async {
+    if (_updatingRead) return;
+    if (item['isUnread'] == true) await _toggleReadStatus(item);
+    if (!mounted) return;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -569,7 +486,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ElevatedButton.icon(
                 onPressed: _loadDatabaseNotifications,
                 icon: const Icon(Icons.refresh, size: 16),
-                label: const Text('Try Again'),
+                label: const Text('Retry'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isDark ? const Color(0xFF1E3A2F) : const Color(0xFF0E382C),
                   foregroundColor: Colors.white,
@@ -583,7 +500,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     if (displayList.isEmpty) {
-      String emptyTitle = 'No alerts in database';
+      String emptyTitle = 'No notifications yet';
       String emptySubtitle = 'Live notifications, booking approvals, payment receipts, and travel notices will show up here.';
 
       if (_selectedCategory == 'Unread') {

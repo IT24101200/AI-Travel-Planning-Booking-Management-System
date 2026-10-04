@@ -3,7 +3,7 @@ import '../app_constants.dart';
 import '../services/api_service.dart';
 
 /// Simple route guard that prevents unauthenticated users from seeing inside app data.
-/// If user is not logged in, immediately redirects them to the landing page.
+/// If user is not logged in, immediately redirects them to login.
 class AuthGuard extends StatefulWidget {
   final Widget child;
   const AuthGuard({super.key, required this.child});
@@ -27,10 +27,10 @@ class _AuthGuardState extends State<AuthGuard> {
     if (!mounted) return;
 
     if (!loggedIn) {
-      // User is not signed in: block access and redirect to landing page
+      // User is not signed in: block access and redirect to login.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          Navigator.of(context).pushNamedAndRemoveUntil('/landing', (route) => false);
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Access restricted. Please sign in to view inside app data.'),
