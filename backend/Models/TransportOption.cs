@@ -65,6 +65,12 @@ namespace backend.Models
         [MaxLength(10)]
         public string Currency { get; set; } = "USD";
 
+        /// <summary>
+        /// Cover image URL for vehicle/transport fleet option.
+        /// </summary>
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
         // ── Soft delete ──
         [Required]
         public TransportStatus Status { get; set; } = TransportStatus.Active;

@@ -149,6 +149,7 @@ namespace backend.Services
                 Capacity           = dto.Capacity,
                 Price              = dto.Price,
                 Currency           = dto.Currency,
+                ImageUrl           = dto.ImageUrl,
                 Status             = TransportStatus.Active
             };
 
@@ -176,6 +177,8 @@ namespace backend.Services
             transport.Capacity           = dto.Capacity;
             transport.Price              = dto.Price;
             transport.Currency           = dto.Currency;
+            if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
+                transport.ImageUrl = dto.ImageUrl;
 
             await _context.SaveChangesAsync();
             return true;
@@ -208,6 +211,7 @@ namespace backend.Services
             Capacity           = t.Capacity,
             Price              = t.Price,
             Currency           = t.Currency,
+            ImageUrl           = t.ImageUrl,
             Status             = t.Status.ToString()
         };
     }

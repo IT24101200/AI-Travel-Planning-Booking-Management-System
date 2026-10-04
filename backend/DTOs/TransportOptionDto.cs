@@ -22,6 +22,7 @@ namespace backend.DTOs
         public int Capacity { get; set; }
         public decimal Price { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public string? ImageUrl { get; set; }
         public string Status { get; set; } = string.Empty;
     }
 
@@ -63,6 +64,9 @@ namespace backend.DTOs
 
         [MaxLength(10, ErrorMessage = "Currency code cannot exceed 10 characters.")]
         public string Currency { get; set; } = "USD";
+
+        [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
+        public string? ImageUrl { get; set; }
     }
 
     // ── Availability response ──
