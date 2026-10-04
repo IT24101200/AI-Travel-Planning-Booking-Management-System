@@ -269,3 +269,30 @@ export async function fetchAgentLogs(tripRequestId) {
     return data
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Staff Media Management API endpoints
+// Note: Strictly manages catalog images (Tours, Destinations, Hotels, Fleet).
+// User profile images are not managed or retrieved here.
+// ─────────────────────────────────────────────────────────────
+
+export async function uploadMedia(file, category = 'general') {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post(`/Media/upload?category=${encodeURIComponent(category)}`, formData)
+  return data
+}
+
+export async function fetchMedia(category, search) {
+  const params = {}
+  if (category && category !== 'all') params.category = category
+  if (search) params.search = search
+  const { data } = await api.get('/Media', { params })
+  return data
+}
+
+export async function deleteMedia(url) {
+  const { data } = await api.delete('/Media', { params: { url } })
+  return data
+}
+
