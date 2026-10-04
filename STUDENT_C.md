@@ -11,13 +11,7 @@
 
 Student C owns **Component C: Accommodation, Transport & Bookings**, which acts as the logistics core of the system. This component manages hotels, rooms, transport options, availability checking, and finally packaging the draft itinerary into a fully priced, concrete booking package.
 
-### Key Responsibilities
-1. **Catalog Management:** Full CRUD for Hotels, Rooms, and Transport Options (flights, trains, buses), including soft-delete and capacity management.
-2. **Booking Engine & Availability:** Checking room and transport availability across specific dates to prevent double-booking. Assembling the final priced booking package.
-3. **Multi-Platform UI:**
-   - **React (Staff/Admin):** Hotel and Transport Management, availability dashboards.
-   - **Flutter (Customer):** Booking review, payment simulation, hotel/transport selection views.
-4. **Agentic AI Workflow (Booking Agent):** An autonomous agent powered by LangGraph that accepts a draft itinerary, queries backend tools to find available hotels and transports, selects the best options, and outputs a concrete priced package.
+
 
 ---
 
