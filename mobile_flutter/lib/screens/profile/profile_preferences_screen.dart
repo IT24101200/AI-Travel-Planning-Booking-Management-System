@@ -290,18 +290,19 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
 
     final currencyFmt = NumberFormat('#,##0', 'en_US');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -466,7 +467,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF17211D),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       GestureDetector(
@@ -476,7 +477,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF2F7057),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ),
@@ -488,9 +489,9 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE4E7E2)),
+                      border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                     ),
                     child: Column(
                       children: [
@@ -499,19 +500,19 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           label: 'Full name',
                           value: _nameCtrl.text,
                         ),
-                        const Divider(height: 16, color: Color(0xFFE4E7E2)),
+                        Divider(height: 16, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         _buildAccountField(
                           icon: Icons.mail_outline,
                           label: 'Email',
                           value: _emailCtrl.text,
                         ),
-                        const Divider(height: 16, color: Color(0xFFE4E7E2)),
+                        Divider(height: 16, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         _buildAccountField(
                           icon: Icons.phone_outlined,
                           label: 'Mobile',
                           value: _phoneCtrl.text,
                         ),
-                        const Divider(height: 16, color: Color(0xFFE4E7E2)),
+                        Divider(height: 16, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         _buildAccountField(
                           icon: Icons.public_outlined,
                           label: 'Home country',
@@ -530,17 +531,27 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                       Text(
                         'Budget range',
                         style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF17211D),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      Text(
-                        'LKR ${currencyFmt.format(_budgetMin)} – ${currencyFmt.format(_budgetMax)}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: const Color(0xFF123F32),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          'LKR ${currencyFmt.format(_budgetMin)} – ${currencyFmt.format(_budgetMax)}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                          ),
                         ),
                       ),
                     ],
@@ -549,44 +560,219 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                   Text(
                     'Target spending comfort zone per traveler in Sri Lankan Rupees',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      color: const Color(0xFF6E7772),
+                      fontSize: 11,
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
 
-                  // RangeSlider in LKR
+                  // Enhanced Customer-Visible Budget Container
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE4E7E2)),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                      ),
                     ),
-                    child: SliderTheme(
-                      data: SliderTheme.of(context).copyWith(
-                        activeTrackColor: AppColors.figmaGold,
-                        inactiveTrackColor: const Color(0xFFE4E7E2),
-                        thumbColor: const Color(0xFF123F32),
-                        overlayColor: const Color(0xFF123F32).withValues(alpha: 0.1),
-                        trackHeight: 6,
-                        rangeThumbShape: const RoundRangeSliderThumbShape(enabledThumbRadius: 8),
-                      ),
-                      child: RangeSlider(
-                        values: RangeValues(
-                          _budgetMin.clamp(25000, 950000),
-                          _budgetMax.clamp(_budgetMin + 10000, 1000000),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Min & Max Highlight Value Cards
+                        Row(
+                          children: [
+                            // Minimum Value Card
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'MINIMUM',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.5,
+                                        color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'LKR ${currencyFmt.format(_budgetMin)}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              child: Icon(
+                                Icons.arrow_forward_rounded,
+                                size: 16,
+                                color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                              ),
+                            ),
+                            // Maximum Value Card
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF3F4F6),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'MAXIMUM',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.5,
+                                        color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      'LKR ${currencyFmt.format(_budgetMax)}',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        min: 25000,
-                        max: 1000000,
-                        divisions: 39,
-                        onChanged: (RangeValues values) {
-                          setState(() {
-                            _budgetMin = values.start;
-                            _budgetMax = values.end;
-                          });
-                        },
-                      ),
+                        const SizedBox(height: 14),
+
+                        // High-Contrast Interactive RangeSlider
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            inactiveTrackColor: isDark ? const Color(0xFF2A3C34) : const Color(0xFFE2E8F0),
+                            thumbColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            overlayColor: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.15),
+                            trackHeight: 8,
+                            rangeThumbShape: const RoundRangeSliderThumbShape(
+                              enabledThumbRadius: 10,
+                              elevation: 3,
+                            ),
+                            showValueIndicator: ShowValueIndicator.onDrag,
+                          ),
+                          child: RangeSlider(
+                            values: RangeValues(
+                              _budgetMin.clamp(25000, 950000),
+                              _budgetMax.clamp(_budgetMin + 10000, 1000000),
+                            ),
+                            min: 25000,
+                            max: 1000000,
+                            divisions: 39,
+                            labels: RangeLabels(
+                              'LKR ${currencyFmt.format(_budgetMin)}',
+                              'LKR ${currencyFmt.format(_budgetMax)}',
+                            ),
+                            onChanged: (RangeValues values) {
+                              setState(() {
+                                _budgetMin = values.start;
+                                _budgetMax = values.end;
+                              });
+                            },
+                          ),
+                        ),
+
+                        // Min & Max Range Boundary Labels
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Min: LKR 25,000',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFF7FA393) : const Color(0xFF6B7280),
+                                ),
+                              ),
+                              Text(
+                                'Max: LKR 1,000,000',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFF7FA393) : const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        // Quick Presets
+                        Text(
+                          'Quick Presets',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _buildPresetChip(
+                                title: 'Backpacker (25k–100k)',
+                                minVal: 25000,
+                                maxVal: 100000,
+                                isDark: isDark,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                title: 'Standard (100k–350k)',
+                                minVal: 100000,
+                                maxVal: 350000,
+                                isDark: isDark,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                title: 'Premium (350k–700k)',
+                                minVal: 350000,
+                                maxVal: 700000,
+                                isDark: isDark,
+                              ),
+                              const SizedBox(width: 8),
+                              _buildPresetChip(
+                                title: 'Luxury (700k–1M)',
+                                minVal: 700000,
+                                maxVal: 1000000,
+                                isDark: isDark,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
@@ -601,7 +787,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF17211D),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       Text(
@@ -609,7 +795,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF2F7057),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -644,13 +830,13 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF123F32)
-                                : Colors.white,
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).cardColor,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF123F32)
-                                  : const Color(0xFFE4E7E2),
+                                  ? Theme.of(context).colorScheme.primary
+                                  : (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                             ),
                           ),
                           child: Row(
@@ -661,7 +847,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                                 size: 14,
                                 color: isSelected
                                     ? Colors.white
-                                    : const Color(0xFF17211D),
+                                    : Theme.of(context).colorScheme.onSurface,
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -671,7 +857,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                                   fontWeight: FontWeight.w600,
                                   color: isSelected
                                       ? Colors.white
-                                      : const Color(0xFF17211D),
+                                      : Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                             ],
@@ -689,7 +875,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF17211D),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -713,14 +899,14 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected ? Colors.white : const Color(0xFF17211D),
+                            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF123F32),
-                        backgroundColor: Colors.white,
+                        selectedColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: Theme.of(context).cardColor,
                         side: BorderSide(
-                          color: isSelected ? const Color(0xFF123F32) : const Color(0xFFE4E7E2),
+                          color: isSelected ? Theme.of(context).colorScheme.primary : (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         ),
                         onSelected: (val) {
                           if (val) setState(() => _selectedDietary = opt);
@@ -737,7 +923,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF17211D),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -761,14 +947,14 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                            color: isSelected ? Colors.white : const Color(0xFF17211D),
+                            color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         selected: isSelected,
-                        selectedColor: const Color(0xFF123F32),
-                        backgroundColor: Colors.white,
+                        selectedColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: Theme.of(context).cardColor,
                         side: BorderSide(
-                          color: isSelected ? const Color(0xFF123F32) : const Color(0xFFE4E7E2),
+                          color: isSelected ? Theme.of(context).colorScheme.primary : (Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         ),
                         onSelected: (val) {
                           if (val) setState(() => _selectedAccessibility = opt);
@@ -781,11 +967,13 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
 
                   // ── 6. Trip Notifications Card ──
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE4E7E2)),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -793,7 +981,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           width: 36,
                           height: 36,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF6EBCB),
+                            color: isDark ? const Color(0xFF2C2411) : const Color(0xFFF6EBCB),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
@@ -810,17 +998,17 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                               Text(
                                 'Trip notifications',
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF17211D),
+                                  color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
                                 'Booking, weather and departure updates',
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  color: const Color(0xFF6B7280),
+                                  fontSize: 11,
+                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                 ),
                               ),
                             ],
@@ -831,7 +1019,10 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           onChanged: (val) {
                             setState(() => _tripNotifications = val);
                           },
-                          activeTrackColor: const Color(0xFF123F32),
+                          activeThumbColor: isDark ? const Color(0xFF06231B) : Colors.white,
+                          activeTrackColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                          inactiveThumbColor: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                          inactiveTrackColor: isDark ? const Color(0xFF23332B) : const Color(0xFFE5E7EB),
                         ),
                       ],
                     ),
@@ -843,17 +1034,19 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE4E7E2)),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                      ),
                     ),
                     child: Row(
                       children: [
                         Container(
-                          width: 32,
-                          height: 32,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF5F0E3),
+                            color: isDark ? const Color(0xFF2C2411) : const Color(0xFFF5F0E3),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: const Icon(
@@ -870,9 +1063,9 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                               Text(
                                 'Appearance',
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF17211D),
+                                  color: Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -887,8 +1080,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                                   return Text(
                                     label,
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      color: const Color(0xFF6B7280),
+                                      fontSize: 11,
+                                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                     ),
                                   );
                                 },
@@ -900,19 +1093,22 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           onTap: () => _showThemePicker(),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
+                              horizontal: 14,
+                              vertical: 7,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE5F1EA),
+                              color: isDark ? const Color(0xFF1D2B25) : const Color(0xFFE5F1EA),
                               borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFC3D8CE),
+                              ),
                             ),
                             child: Text(
                               'Change',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF123F32),
+                                color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                               ),
                             ),
                           ),
@@ -930,32 +1126,37 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                     child: ElevatedButton(
                       onPressed: _isSaving ? null : _saveAllPreferences,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF123F32),
-                        foregroundColor: Colors.white,
+                        backgroundColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(25),
                         ),
                         elevation: 0,
                       ),
                       child: _isSaving
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(
-                                color: Colors.white,
+                                color: isDark ? const Color(0xFF06231B) : Colors.white,
                                 strokeWidth: 2,
                               ),
                             )
                           : Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.check_circle_outline, size: 18),
+                                Icon(
+                                  Icons.check_circle_outline,
+                                  size: 18,
+                                  color: isDark ? const Color(0xFF06231B) : Colors.white,
+                                ),
                                 const SizedBox(width: 8),
                                 Text(
                                   'Save Travel Preferences',
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
+                                    color: isDark ? const Color(0xFF06231B) : Colors.white,
                                   ),
                                 ),
                               ],
@@ -972,8 +1173,10 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                     child: OutlinedButton(
                       onPressed: _logout,
                       style: OutlinedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFFE4E7E2)),
+                        backgroundColor: isDark ? const Color(0xFF141F1B) : Colors.white,
+                        side: BorderSide(
+                          color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(25),
                         ),
@@ -982,10 +1185,10 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.logout_outlined,
                             size: 18,
-                            color: Color(0xFF123F32),
+                            color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -993,7 +1196,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFF123F32),
+                              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                             ),
                           ),
                         ],
@@ -1045,7 +1248,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: const Color(0xFF17211D),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ],
@@ -1057,73 +1260,160 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
     );
   }
 
+  /// Quick preset chip for budget range selection
+  Widget _buildPresetChip({
+    required String title,
+    required double minVal,
+    required double maxVal,
+    required bool isDark,
+  }) {
+    final isSelected = (_budgetMin == minVal && _budgetMax == maxVal);
+    final activeBg = isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen;
+    final activeFg = isDark ? const Color(0xFF06231B) : Colors.white;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _budgetMin = minVal;
+          _budgetMax = maxVal;
+        });
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? activeBg
+              : (isDark ? const Color(0xFF1D2B25) : const Color(0xFFF3F4F6)),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? activeBg
+                : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
+          ),
+        ),
+        child: Text(
+          title,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected
+                ? activeFg
+                : (isDark ? Colors.white : const Color(0xFF374151)),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Bottom sheet to select Light / Dark / System theme
   void _showThemePicker() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Choose Theme',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141F1B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Choose Theme',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: 20,
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 16),
-            // Theme options
-            _buildThemeOption(ctx, Icons.light_mode_outlined, 'Light', ThemeMode.light),
-            const SizedBox(height: 8),
-            _buildThemeOption(ctx, Icons.dark_mode_outlined, 'Dark', ThemeMode.dark),
-            const SizedBox(height: 8),
-            _buildThemeOption(ctx, Icons.settings_suggest_outlined, 'System default', ThemeMode.system),
-          ],
-        ),
-      ),
+              const SizedBox(height: 16),
+              // Theme options
+              _buildThemeOption(ctx, Icons.light_mode_outlined, 'Light', ThemeMode.light),
+              const SizedBox(height: 10),
+              _buildThemeOption(ctx, Icons.dark_mode_outlined, 'Dark', ThemeMode.dark),
+              const SizedBox(height: 10),
+              _buildThemeOption(ctx, Icons.settings_suggest_outlined, 'System default', ThemeMode.system),
+            ],
+          ),
+        );
+      },
     );
   }
 
   /// Single theme option tile for the bottom sheet picker
   Widget _buildThemeOption(BuildContext ctx, IconData icon, String label, ThemeMode mode) {
     final isSelected = themeNotifier.value == mode;
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+    final bgColor = isSelected
+        ? (isDark ? AppColors.leaf400.withValues(alpha: 0.16) : const Color(0xFFE5F1EA))
+        : (isDark ? const Color(0xFF1D2B25) : Colors.transparent);
+
+    final borderColor = isSelected
+        ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+        : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2));
+
+    final textColor = isSelected
+        ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+        : (isDark ? Colors.white : const Color(0xFF1F2937));
+
+    final iconColor = isSelected
+        ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+        : (isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280));
+
     return GestureDetector(
       onTap: () {
         themeNotifier.setThemeMode(mode);
         Navigator.pop(ctx);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFE5F1EA) : Colors.transparent,
+          color: bgColor,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? const Color(0xFF123F32) : const Color(0xFFE4E7E2),
-          ),
+          border: Border.all(color: borderColor, width: isSelected ? 1.5 : 1),
         ),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: isSelected ? const Color(0xFF123F32) : const Color(0xFF6B7280)),
+            Icon(icon, size: 20, color: iconColor),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 label,
                 style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? const Color(0xFF123F32) : const Color(0xFF374151),
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: textColor,
                 ),
               ),
             ),
             if (isSelected)
-              const Icon(Icons.check_circle, size: 20, color: Color(0xFF123F32)),
+              Icon(
+                Icons.check_circle,
+                size: 20,
+                color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+              ),
           ],
         ),
       ),
@@ -1132,15 +1422,17 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
 
   /// Settings and component architecture overview dialog
   void _showSettingsDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF141F1B) : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Customer Preferences',
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
-            color: AppColors.figmaDarkGreen,
+            color: isDark ? Colors.white : AppColors.figmaDarkGreen,
             fontSize: 16,
           ),
         ),
@@ -1149,7 +1441,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
           'Preferences saved here guide the Coordinator AI Agent when assembling your personalized trip.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 12,
-            color: const Color(0xFF4B5563),
+            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
             height: 1.4,
           ),
         ),
@@ -1157,8 +1449,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF123F32),
-              foregroundColor: Colors.white,
+              backgroundColor: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+              foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -1172,14 +1464,19 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
 
   /// Bottom sheet to edit account details (Full Name and Mobile)
   void _showEditProfileModal() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => Padding(
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF141F1B) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         padding: EdgeInsets.fromLTRB(
           20,
           20,
@@ -1195,23 +1492,35 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
-                color: AppColors.figmaDarkGreen,
+                color: isDark ? Colors.white : AppColors.figmaDarkGreen,
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _nameCtrl,
-              decoration: const InputDecoration(
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF111827),
+              ),
+              decoration: InputDecoration(
                 labelText: 'Full Name',
-                border: OutlineInputBorder(),
+                labelStyle: TextStyle(
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                ),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _phoneCtrl,
-              decoration: const InputDecoration(
+              style: TextStyle(
+                color: isDark ? Colors.white : const Color(0xFF111827),
+              ),
+              decoration: InputDecoration(
                 labelText: 'Mobile Phone',
-                border: OutlineInputBorder(),
+                labelStyle: TextStyle(
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                ),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 18),
@@ -1224,8 +1533,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                   _saveAllPreferences();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.figmaDarkGreen,
-                  foregroundColor: Colors.white,
+                  backgroundColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                  foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),

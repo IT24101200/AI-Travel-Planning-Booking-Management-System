@@ -174,13 +174,21 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       lastDate: now.add(const Duration(days: 365)),
       initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
       builder: (context, child) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFF123F32),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF17211D),
-            ),
+            colorScheme: isDark
+                ? const ColorScheme.dark(
+                    primary: AppColors.leaf400,
+                    onPrimary: Color(0xFF121A17),
+                    surface: Color(0xFF1A2722),
+                    onSurface: Colors.white,
+                  )
+                : const ColorScheme.light(
+                    primary: Color(0xFF123F32),
+                    onPrimary: Colors.white,
+                    onSurface: Color(0xFF17211D),
+                  ),
           ),
           child: child!,
         );
@@ -285,7 +293,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
             'Trip Request Notice',
             style: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w800,
-              color: AppColors.figmaDarkGreen,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
           content: Text(
@@ -325,8 +333,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -342,7 +353,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
@@ -352,9 +363,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           ),
                         ],
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
+                        color: isDark ? Colors.white : AppColors.figmaDarkGreen,
                         size: 19,
                       ),
                     ),
@@ -369,7 +380,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFF17211D),
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                         Text(
@@ -386,14 +397,14 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   Container(
                     width: 38,
                     height: 38,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.info_outline,
-                        color: AppColors.figmaDarkGreen,
+                        color: isDark ? Colors.white : AppColors.figmaDarkGreen,
                         size: 19,
                       ),
                       onPressed: _showInfoDialog,
@@ -471,16 +482,18 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                 height: 46,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.place_outlined,
                       size: 18,
-                      color: AppColors.figmaDarkGreen,
+                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -489,12 +502,15 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF17211D),
+                          color: theme.colorScheme.onSurface,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
                           hintText: 'e.g. Sigiriya, Kandy, Ella & Mirissa',
+                          hintStyle: GoogleFonts.plusJakartaSans(
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF9CA3AF),
+                          ),
                         ),
                       ),
                     ),
@@ -517,12 +533,18 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 9,
                             fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                            color: isCurrent ? Colors.white : const Color(0xFF17211D),
+                            color: isCurrent
+                                ? Colors.white
+                                : theme.colorScheme.onSurface,
                           ),
                         ),
-                        backgroundColor: isCurrent ? const Color(0xFF123F32) : Colors.white,
+                        backgroundColor: isCurrent
+                            ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFF123F32))
+                            : theme.cardColor,
                         side: BorderSide(
-                          color: isCurrent ? const Color(0xFF123F32) : const Color(0xFFE4E7E2),
+                          color: isCurrent
+                              ? (isDark ? AppColors.leaf400 : const Color(0xFF123F32))
+                              : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         ),
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         onPressed: () {
@@ -555,7 +577,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF6E7772),
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -566,18 +588,18 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             height: 42,
                             padding: const EdgeInsets.symmetric(horizontal: 10),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: theme.cardColor,
                               borderRadius: BorderRadius.circular(11),
                               border: Border.all(
-                                color: const Color(0xFFE4E7E2),
+                                color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
                               ),
                             ),
                             child: Row(
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.calendar_today_outlined,
                                   size: 15,
-                                  color: AppColors.figmaDarkGreen,
+                                  color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
@@ -586,7 +608,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
-                                      color: const Color(0xFF17211D),
+                                      color: theme.colorScheme.onSurface,
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
@@ -610,7 +632,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFF6E7772),
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -619,10 +641,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           height: 42,
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: theme.cardColor,
                             borderRadius: BorderRadius.circular(11),
                             border: Border.all(
-                              color: const Color(0xFFE4E7E2),
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
                             ),
                           ),
                           child: Row(
@@ -636,10 +658,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.remove,
                                     size: 16,
-                                    color: AppColors.figmaDarkGreen,
+                                    color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                                   ),
                                 ),
                               ),
@@ -648,7 +670,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF17211D),
+                                  color: theme.colorScheme.onSurface,
                                 ),
                               ),
                               GestureDetector(
@@ -659,10 +681,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.all(4),
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.add,
                                     size: 16,
-                                    color: AppColors.figmaDarkGreen,
+                                    color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                                   ),
                                 ),
                               ),
@@ -686,7 +708,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF6E7772),
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -695,7 +717,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF123F32),
+                      color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                     ),
                   ),
                 ],
@@ -706,9 +728,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
               SliderTheme(
                 data: SliderTheme.of(context).copyWith(
                   activeTrackColor: AppColors.figmaGold,
-                  inactiveTrackColor: const Color(0xFFE4E7E2),
-                  thumbColor: const Color(0xFF123F32),
-                  overlayColor: const Color(0xFF123F32).withValues(alpha: 0.12),
+                  inactiveTrackColor: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                  thumbColor: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+                  overlayColor: (isDark ? AppColors.leaf400 : const Color(0xFF123F32)).withValues(alpha: 0.12),
                   trackHeight: 6,
                   thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
                 ),
@@ -731,7 +753,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF6E7772),
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                   letterSpacing: 0.5,
                 ),
               ),
@@ -759,13 +781,13 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? const Color(0xFF123F32)
-                            : Colors.white,
+                            ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFF123F32))
+                            : theme.cardColor,
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isSelected
-                              ? const Color(0xFF123F32)
-                              : const Color(0xFFE4E7E2),
+                              ? (isDark ? AppColors.leaf400 : const Color(0xFF123F32))
+                              : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                         ),
                       ),
                       child: Row(
@@ -775,8 +797,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             icon,
                             size: 13,
                             color: isSelected
-                                ? Colors.white
-                                : const Color(0xFF17211D),
+                                ? (isDark ? AppColors.leaf400 : Colors.white)
+                                : theme.colorScheme.onSurface,
                           ),
                           const SizedBox(width: 6),
                           Text(
@@ -785,8 +807,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                               color: isSelected
-                                  ? Colors.white
-                                  : const Color(0xFF17211D),
+                                  ? (isDark ? AppColors.leaf400 : Colors.white)
+                                  : theme.colorScheme.onSurface,
                             ),
                           ),
                         ],
@@ -804,7 +826,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF6E7772),
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                 ),
               ),
               const SizedBox(height: 5),
@@ -812,16 +834,18 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                 height: 44,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.chat_bubble_outline,
                       size: 16,
-                      color: AppColors.figmaDarkGreen,
+                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                     ),
                     const SizedBox(width: 9),
                     Expanded(
@@ -829,12 +853,15 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                         controller: _specialRequestsCtrl,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
-                          color: const Color(0xFF17211D),
+                          color: theme.colorScheme.onSurface,
                         ),
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           border: InputBorder.none,
                           isDense: true,
                           hintText: 'e.g. Vegetarian meals, mountain view',
+                          hintStyle: GoogleFonts.plusJakartaSans(
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF9CA3AF),
+                          ),
                         ),
                       ),
                     ),
@@ -903,9 +930,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -918,7 +947,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFF17211D),
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                         Container(
@@ -1055,10 +1084,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     required String status,
     required Color statusColor,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F5EF),
+        color: isDark ? const Color(0xFF16221D) : const Color(0xFFF7F5EF),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -1067,10 +1097,14 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: const Color(0xFFE5F1EA),
+              color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, size: 14, color: const Color(0xFF123F32)),
+            child: Icon(
+              icon,
+              size: 14,
+              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1082,7 +1116,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 9,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF17211D),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1091,7 +1125,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   desc,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 7,
-                    color: const Color(0xFF6E7772),
+                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1113,6 +1147,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   }
 
   void _showInfoDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1125,7 +1160,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
               'Multi-Agent System',
               style: GoogleFonts.plusJakartaSans(
                 fontWeight: FontWeight.w800,
-                color: AppColors.figmaDarkGreen,
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 16,
               ),
             ),
@@ -1140,7 +1175,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                 'Our travel planner orchestrates 4 specialized AI agents working together in a pipeline:',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
-                  color: const Color(0xFF4B5563),
+                  color: isDark ? const Color(0xFFE4E7E2) : const Color(0xFF4B5563),
                   height: 1.4,
                 ),
               ),
@@ -1185,6 +1220,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   }
 
   Widget _buildDialogAgentRow(String title, String desc) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1193,7 +1229,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           style: GoogleFonts.plusJakartaSans(
             fontSize: 11,
             fontWeight: FontWeight.w800,
-            color: const Color(0xFF123F32),
+            color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
           ),
         ),
         const SizedBox(height: 2),
@@ -1201,7 +1237,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           desc,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 10,
-            color: const Color(0xFF6E7772),
+            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
             height: 1.3,
           ),
         ),

@@ -326,10 +326,10 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
@@ -337,10 +337,10 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
     if (_error != null || _tour == null) {
       final tourId = ModalRoute.of(context)?.settings.arguments;
       return Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: AppColors.figmaSurface,
-          foregroundColor: AppColors.figmaDarkGreen,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+          foregroundColor: Theme.of(context).colorScheme.primary,
           title: const Text('Tour Details'),
         ),
         body: Center(
@@ -376,7 +376,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
         : 'Unknown destination';
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -419,7 +419,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                   Text(
                     name,
                     style: GoogleFonts.plusJakartaSans(
-                      color: AppColors.figmaDarkGreen,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 25,
                       fontWeight: FontWeight.w800,
                     ),
@@ -428,16 +428,16 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                   Text(
                     destination,
                     style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF6B7280),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                     ),
                   ),
                   const SizedBox(height: 20),
                   Container(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: Theme.of(context).cardColor,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.figmaCardBorder),
+                      border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                     ),
                     child: Row(
                       children: [
@@ -469,7 +469,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                   Text(
                     'About this experience',
                     style: GoogleFonts.plusJakartaSans(
-                      color: AppColors.figmaDarkGreen,
+                      color: Theme.of(context).colorScheme.onSurface,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
@@ -480,7 +480,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                         ? description!
                         : 'No description is available for this tour.',
                     style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF6B7280),
+                      color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                       height: 1.5,
                     ),
                   ),
@@ -493,9 +493,15 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.fromLTRB(18, 10, 18, 12),
-          decoration: const BoxDecoration(
-            color: AppColors.figmaSurface,
-            border: Border(top: BorderSide(color: AppColors.figmaCardBorder)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            border: Border(
+              top: BorderSide(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? const Color(0xFF2E3D36)
+                    : AppColors.figmaCardBorder,
+              ),
+            ),
           ),
           child: Row(
             children: [
@@ -514,7 +520,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                     Text(
                       _formatPrice(tour['price'], currency),
                       style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.figmaDarkGreen,
+                        color: Theme.of(context).brightness == Brightness.dark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                         fontSize: 18,
                         fontWeight: FontWeight.w800,
                       ),
@@ -578,13 +584,13 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.figmaDarkGreen, size: 21),
+          Icon(icon, color: Theme.of(context).brightness == Brightness.dark ? AppColors.leaf400 : AppColors.figmaDarkGreen, size: 21),
           const SizedBox(height: 6),
           Text(
             value,
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
-              color: AppColors.figmaDarkGreen,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),

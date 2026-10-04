@@ -83,19 +83,19 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
 
     if (_error != null && _options.isEmpty && _curatedVehicles.isEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: AppColors.figmaSurface,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
@@ -113,8 +113,11 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
       );
     }
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -131,13 +134,16 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                        ),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                         size: 20,
                       ),
                     ),
@@ -150,7 +156,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.figmaDarkGreen,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -158,7 +164,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                         'Compare verified island travel',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -172,13 +178,16 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                        ),
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.help_outline,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                         size: 20,
                       ),
                     ),
@@ -209,13 +218,13 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.figmaDarkGreen
-                                : Colors.white,
+                                ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                                : theme.cardColor,
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
                               color: isSelected
-                                  ? AppColors.figmaDarkGreen
-                                  : AppColors.figmaCardBorder,
+                                  ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                                  : (isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                             ),
                           ),
                           child: Text(
@@ -224,8 +233,8 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                               color: isSelected
-                                  ? Colors.white
-                                  : AppColors.figmaDarkGreen,
+                                  ? (isDark ? const Color(0xFF0F1713) : Colors.white)
+                                  : theme.colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -326,12 +335,12 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                   margin: const EdgeInsets.only(bottom: 14),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.cardColor,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isBestMatch
                           ? AppColors.figmaGold
-                          : AppColors.figmaCardBorder,
+                          : (isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                       width: isBestMatch ? 1.5 : 1.0,
                     ),
                   ),
@@ -353,10 +362,10 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                                   Container(
                                 width: 100,
                                 height: 75,
-                                color: const Color(0xFFE5E7EB),
-                                child: const Icon(
+                                color: isDark ? const Color(0xFF26332D) : const Color(0xFFE5E7EB),
+                                child: Icon(
                                   Icons.directions_car,
-                                  color: Color(0xFF9CA3AF),
+                                  color: isDark ? const Color(0xFF6B7A73) : const Color(0xFF9CA3AF),
                                 ),
                               ),
                             ),
@@ -381,7 +390,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.figmaDarkGreen,
+                                    color: theme.colorScheme.onSurface,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -389,37 +398,37 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                                   vehicle['provider'] as String,
                                   style: GoogleFonts.plusJakartaSans(
                                     fontSize: 11,
-                                    color: const Color(0xFF6B7280),
+                                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    const Icon(
+                                    Icon(
                                       Icons.person_outline,
                                       size: 14,
-                                      color: Color(0xFF6B7280),
+                                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       '${vehicle['guests']} guests',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 11,
-                                        color: const Color(0xFF374151),
+                                        color: isDark ? const Color(0xFFC7D0CB) : const Color(0xFF374151),
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    const Icon(
+                                    Icon(
                                       Icons.luggage_outlined,
                                       size: 14,
-                                      color: Color(0xFF6B7280),
+                                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                     ),
                                     const SizedBox(width: 3),
                                     Text(
                                       '${vehicle['bags']} bags',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 11,
-                                        color: const Color(0xFF374151),
+                                        color: isDark ? const Color(0xFFC7D0CB) : const Color(0xFF374151),
                                       ),
                                     ),
                                   ],
@@ -437,16 +446,16 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                         vehicle['amenities'] as String,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
-                          color: const Color(0xFF0F766E),
+                          color: isDark ? AppColors.leaf400 : const Color(0xFF0F766E),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
 
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 10),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
                         child: Divider(
                           height: 1,
-                          color: AppColors.figmaCardBorder,
+                          color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
                         ),
                       ),
 
@@ -463,14 +472,14 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.figmaDarkGreen,
+                                  color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                                 ),
                               ),
                               Text(
                                 'total · all inclusive',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 10,
-                                  color: const Color(0xFF6B7280),
+                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                 ),
                               ),
                             ],
@@ -484,7 +493,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                               );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.figmaDarkGreen,
+                              backgroundColor: isDark ? const Color(0xFF1E3A2F) : AppColors.figmaDarkGreen,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
@@ -525,7 +534,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                     vertical: 14,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6EED8),
+                    color: isDark ? const Color(0xFF221F18) : const Color(0xFFF6EED8),
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Row(
@@ -542,13 +551,13 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.figmaDarkGreen,
+                            color: isDark ? const Color(0xFFE5D7B5) : AppColors.figmaDarkGreen,
                           ),
                         ),
                       ),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right,
-                        color: AppColors.figmaDarkGreen,
+                        color: isDark ? const Color(0xFFE5D7B5) : AppColors.figmaDarkGreen,
                         size: 20,
                       ),
                     ],
@@ -565,6 +574,9 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   }
 
   void _showTransportHelp(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -572,14 +584,14 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
           'Transport in Sri Lanka',
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
-            color: AppColors.figmaDarkGreen,
+            color: theme.colorScheme.onSurface,
           ),
         ),
         content: Text(
           'All private vehicles include dedicated air-conditioned comfort, luggage space, certified English-speaking chauffeur-guide, toll fees, and island fuel.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
-            color: const Color(0xFF4B5563),
+            color: isDark ? const Color(0xFFE4E7E2) : const Color(0xFF4B5563),
             height: 1.4,
           ),
         ),
@@ -590,7 +602,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
               'Understood',
               style: GoogleFonts.plusJakartaSans(
                 fontWeight: FontWeight.w700,
-                color: AppColors.figmaDarkGreen,
+                color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
               ),
             ),
           ),
