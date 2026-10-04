@@ -40,7 +40,17 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     }
   }
 
-  /// Load latest booking or sample Ceylon pass
+  String _normalizeBookingStatus(dynamic status) {
+    if (status == 0 || status == '0' || status == 'Draft' || status == 'draft') return 'Draft';
+    if (status == 1 || status == '1' || status == 'AwaitingApproval' || status == 'awaiting_approval') return 'AwaitingApproval';
+    if (status == 2 || status == '2' || status == 'Confirmed' || status == 'confirmed') return 'Confirmed';
+    if (status == 3 || status == '3' || status == 'Rejected' || status == 'rejected') return 'Rejected';
+    if (status == 4 || status == '4' || status == 'Cancelled' || status == 'cancelled') return 'Cancelled';
+    if (status == 5 || status == '5' || status == 'Completed' || status == 'completed') return 'Completed';
+    return status?.toString() ?? 'Draft';
+  }
+
+  /// Load latest booking
   Future<void> _loadDefaultOrLatestBooking() async {
     setState(() {
       _loading = true;
@@ -60,22 +70,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         }
       }
     } catch (_) {
-      // Fallback below
+      // Fall through to error
     }
 
     if (mounted) {
       setState(() {
-        _booking = {
-          'id': 101,
-          'bookingReference': 'ST-284619',
-          'status': 'Confirmed',
-          'destination': 'Sri Lanka Discovery',
-          'dates': '12–18 Oct · 2 travelers',
-          'stops': 'Sigiriya · Kandy · Ella · Mirissa',
-          'totalCost': 1712.0,
-          'currency': 'USD',
-          'customerName': 'Maya Fernando',
-        };
+        _booking = null;
+        _error = 'No bookings found. Please plan and request a trip first.';
         _loading = false;
       });
     }
@@ -106,59 +107,36 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
   }
 
   Future<void> _cancelBooking() async {
-    final confirmed = await showDialog<bool>(
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          'Cancel Booking?',
+          'Booking Cancellation',
           style: GoogleFonts.plusJakartaSans(
             fontWeight: FontWeight.w800,
             color: AppColors.figmaDarkGreen,
           ),
         ),
         content: Text(
-          'Are you sure you want to cancel this booking? Free cancellation is available until 8 October.',
+          'To cancel this booking or request a refund, please contact your assigned travel agent at support@serendibtrails.com or call +94 11 234 5678.',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             color: const Color(0xFF4B5563),
+            height: 1.4,
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Keep Booking',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF6B7280),
-              ),
-            ),
-          ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () => Navigator.pop(ctx),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: AppColors.figmaDarkGreen,
               foregroundColor: Colors.white,
             ),
-            child: Text(
-              'Yes, Cancel',
-              style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+            child: const Text('Understood'),
           ),
         ],
       ),
     );
-
-    if (confirmed == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Booking cancelled. Refund initiated to original payment method.'),
-        ),
-      );
-      Navigator.pop(context);
-    }
   }
 
   @override
@@ -209,6 +187,78 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     final dates = _booking!['dates'] ?? '12–18 Oct · 2 travelers';
     final stops =
         _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
+
+    final statusKey = _normalizeBookingStatus(_booking!['status']);
+    final isQrEligible = statusKey == 'Confirmed' || statusKey == 'Completed';
+
+    String statusBadgeText;
+    Color statusBadgeColor;
+    Color statusBadgeBg;
+    IconData statusHeroIcon;
+
+    switch (statusKey) {
+      case 'Draft':
+        statusBadgeText = 'DRAFT BOOKING';
+        statusBadgeColor = const Color(0xFF6B7280);
+        statusBadgeBg = const Color(0xFFF3F4F6);
+        statusHeroIcon = Icons.edit_note_outlined;
+        break;
+      case 'AwaitingApproval':
+        statusBadgeText = 'AWAITING AGENT APPROVAL';
+        statusBadgeColor = const Color(0xFFD97706);
+        statusBadgeBg = const Color(0xFFFEF3C7);
+        statusHeroIcon = Icons.hourglass_top_outlined;
+        break;
+      case 'Confirmed':
+        statusBadgeText = 'BOOKING CONFIRMED';
+        statusBadgeColor = const Color(0xFF059669);
+        statusBadgeBg = const Color(0xFFE2F4EB);
+        statusHeroIcon = Icons.check_circle_outline;
+        break;
+      case 'Completed':
+        statusBadgeText = 'TRIP COMPLETED';
+        statusBadgeColor = const Color(0xFF059669);
+        statusBadgeBg = const Color(0xFFE2F4EB);
+        statusHeroIcon = Icons.verified_outlined;
+        break;
+      case 'Cancelled':
+        statusBadgeText = 'BOOKING CANCELLED';
+        statusBadgeColor = const Color(0xFFDC2626);
+        statusBadgeBg = const Color(0xFFFEE2E2);
+        statusHeroIcon = Icons.cancel_outlined;
+        break;
+      case 'Rejected':
+        statusBadgeText = 'BOOKING REJECTED';
+        statusBadgeColor = const Color(0xFFDC2626);
+        statusBadgeBg = const Color(0xFFFEE2E2);
+        statusHeroIcon = Icons.highlight_off_outlined;
+        break;
+      default:
+        statusBadgeText = statusKey.toUpperCase();
+        statusBadgeColor = const Color(0xFF6B7280);
+        statusBadgeBg = const Color(0xFFF3F4F6);
+        statusHeroIcon = Icons.info_outline;
+    }
+
+    final isDraft = statusKey == 'Draft';
+    final isAwaiting = statusKey == 'AwaitingApproval';
+    final isConfirmed = statusKey == 'Confirmed';
+    final isCompleted = statusKey == 'Completed';
+
+    final s1Completed = isAwaiting || isConfirmed || isCompleted;
+    final s1Active = isDraft;
+
+    final s2Completed = isConfirmed || isCompleted;
+    final s2Active = isAwaiting;
+    final s2Pending = isDraft;
+
+    final s3Completed = isCompleted;
+    final s3Active = isConfirmed;
+    final s3Pending = isDraft || isAwaiting;
+
+    final s4Completed = isCompleted;
+    final s4Active = false;
+    final s4Pending = !isCompleted;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -281,13 +331,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
               Container(
                 width: 56,
                 height: 56,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFE2F4EB),
+                decoration: BoxDecoration(
+                  color: statusBadgeBg,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.check_circle_outline,
-                  color: Color(0xFF059669),
+                child: Icon(
+                  statusHeroIcon,
+                  color: statusBadgeColor,
                   size: 28,
                 ),
               ),
@@ -298,15 +348,15 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE6F5EE),
+                  color: statusBadgeBg,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
-                  'BOOKING CONFIRMED',
+                  statusBadgeText,
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF059669),
+                    color: statusBadgeColor,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -323,7 +373,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Updated today at 10:42 · Ready in approximately 12 minutes',
+                isQrEligible
+                    ? 'All services confirmed · Digital ticket ready'
+                    : 'Awaiting travel desk approval · Updates in real time',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
                   color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
@@ -347,46 +399,50 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 child: Column(
                   children: [
                     _buildStepRow(
-                      icon: Icons.check,
-                      isCompleted: true,
-                      isActive: false,
+                      icon: s1Completed ? Icons.check : null,
+                      isCompleted: s1Completed,
+                      isActive: s1Active,
                       isPending: false,
                       title: 'Submitted',
-                      subtitle: 'Payment received',
-                      time: '10:31',
+                      subtitle: 'Trip request submitted',
+                      time: 'Step 1',
                       showLine: true,
-                      lineColor: const Color(0xFF059669),
+                      lineColor: s2Completed || s2Active ? const Color(0xFF059669) : const Color(0xFFD1D5DB),
                     ),
                     _buildStepRow(
-                      icon: Icons.check,
-                      isCompleted: true,
-                      isActive: false,
-                      isPending: false,
-                      title: 'Processing',
-                      subtitle: 'Partners notified',
-                      time: '10:35',
+                      icon: s2Completed ? Icons.check : null,
+                      isCompleted: s2Completed,
+                      isActive: s2Active,
+                      isPending: s2Pending,
+                      title: 'Agent Review',
+                      subtitle: isAwaiting
+                          ? 'Awaiting agent approval'
+                          : (s2Completed ? 'Approval granted' : 'Pending review'),
+                      time: 'Step 2',
                       showLine: true,
-                      lineColor: const Color(0xFF059669),
+                      lineColor: s3Completed || s3Active ? const Color(0xFF059669) : const Color(0xFFD1D5DB),
                     ),
                     _buildStepRow(
-                      icon: null,
-                      isCompleted: false,
-                      isActive: true,
-                      isPending: false,
+                      icon: s3Completed ? Icons.check : null,
+                      isCompleted: s3Completed,
+                      isActive: s3Active,
+                      isPending: s3Pending,
                       title: 'Confirmed',
-                      subtitle: 'All services secured',
-                      time: '10:42',
+                      subtitle: isConfirmed
+                          ? 'Services secured & confirmed'
+                          : (s3Completed ? 'Confirmed' : 'Pending confirmation'),
+                      time: 'Step 3',
                       showLine: true,
-                      lineColor: const Color(0xFFD1D5DB),
+                      lineColor: s4Completed ? const Color(0xFF059669) : const Color(0xFFD1D5DB),
                     ),
                     _buildStepRow(
-                      icon: null,
-                      isCompleted: false,
-                      isActive: false,
-                      isPending: true,
+                      icon: s4Completed ? Icons.check : null,
+                      isCompleted: s4Completed,
+                      isActive: s4Active,
+                      isPending: s4Pending,
                       title: 'Ready',
-                      subtitle: 'Tickets issued',
-                      time: 'Soon',
+                      subtitle: s4Completed ? 'Tickets issued' : 'Ticket issued upon confirmation',
+                      time: 'Step 4',
                       showLine: false,
                     ),
                   ],
@@ -395,109 +451,178 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
 
               const SizedBox(height: 18),
 
-              // ── Digital Ticket Card (Deep Dark Green) ──
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppColors.figmaDarkGreen,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Row(
-                  children: [
-                    // QR Code Box
-                    Container(
-                      width: 72,
-                      height: 72,
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: QrImageView(
-                        data: reference,
-                        version: QrVersions.auto,
-                        size: 60,
-                        eyeStyle: const QrEyeStyle(
-                          eyeShape: QrEyeShape.square,
-                          color: AppColors.figmaDarkGreen,
+              // ── Digital Ticket Card (Shown ONLY when Confirmed or Completed) ──
+              if (isQrEligible) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.figmaDarkGreen,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      // QR Code Box
+                      Container(
+                        width: 72,
+                        height: 72,
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        dataModuleStyle: const QrDataModuleStyle(
-                          dataModuleShape: QrDataModuleShape.square,
-                          color: AppColors.figmaDarkGreen,
+                        child: QrImageView(
+                          data: reference,
+                          version: QrVersions.auto,
+                          size: 60,
+                          eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.square,
+                            color: AppColors.figmaDarkGreen,
+                          ),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.square,
+                            color: AppColors.figmaDarkGreen,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 14),
-                    // Details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'YOUR DIGITAL TICKET',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.figmaGold,
-                              letterSpacing: 0.5,
+                      const SizedBox(width: 14),
+                      // Details
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'YOUR DIGITAL TICKET',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.figmaGold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            tripTitle,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                            const SizedBox(height: 3),
+                            Text(
+                              tripTitle,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            dates,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: Colors.white.withValues(alpha: 0.75),
+                            const SizedBox(height: 2),
+                            Text(
+                              dates,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: Colors.white.withValues(alpha: 0.75),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            stops,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              color: Colors.white.withValues(alpha: 0.6),
+                            const SizedBox(height: 2),
+                            Text(
+                              stops,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                color: Colors.white.withValues(alpha: 0.6),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Paid · \$${total.toStringAsFixed(0)}',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.figmaGold,
+                            const SizedBox(height: 4),
+                            Text(
+                              'Paid · \$${total.toStringAsFixed(0)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.figmaGold,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
+              ] else ...[
+                // Ticket Pending Card
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E2822) : const Color(0xFFF3F7F5),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFD4E2DA),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF2C261A) : const Color(0xFFFBF4E4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.pending_actions_outlined,
+                          color: AppColors.figmaGold,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'DIGITAL TICKET PENDING',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.figmaGold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Awaiting Agent Approval',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Your digital QR boarding pass will appear here once approved by our travel desk.',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 18),
 
-              // ── Primary Action: View Confirmation ──
+              // ── Primary Action: View Confirmation or Review Itinerary ──
               SizedBox(
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/trip-confirmation',
-                      arguments: _booking,
-                    );
+                    if (isQrEligible) {
+                      Navigator.pushNamed(
+                        context,
+                        '/trip-confirmation',
+                        arguments: _booking,
+                      );
+                    } else {
+                      Navigator.pushNamed(context, '/my-itinerary');
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.figmaDarkGreen,
@@ -510,13 +635,15 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
-                        Icons.confirmation_number_outlined,
+                      Icon(
+                        isQrEligible
+                            ? Icons.confirmation_number_outlined
+                            : Icons.map_outlined,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'View Confirmation',
+                        isQrEligible ? 'View Confirmation' : 'Review Itinerary',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,

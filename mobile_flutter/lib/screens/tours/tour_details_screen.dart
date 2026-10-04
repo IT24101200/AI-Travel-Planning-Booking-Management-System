@@ -193,10 +193,13 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
     var selectedDay = 1;
     var submitting = false;
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? const Color(0xFF14201B) : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -215,24 +218,89 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Top Drag Handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 14),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
                   Text(
                     'Add to Itinerary',
                     style: GoogleFonts.plusJakartaSans(
-                      color: AppColors.figmaDarkGreen,
+                      color: isDark ? Colors.white : AppColors.figmaDarkGreen,
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 16),
+
+                  // Explicit high-contrast label
+                  Text(
+                    'ITINERARY',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   DropdownButtonFormField<int>(
                     initialValue: _asInt(selectedItinerary['id']),
-                    decoration: const InputDecoration(labelText: 'Itinerary'),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    ),
+                    dropdownColor: isDark ? const Color(0xFF1D2B25) : Colors.white,
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
                     items: itineraries.map((itinerary) {
                       final id = _asInt(itinerary['id'])!;
                       final status = _normalizedStatus(itinerary['status']);
                       return DropdownMenuItem(
                         value: id,
-                        child: Text('Itinerary #$id - $status'),
+                        child: Text(
+                          'Itinerary #$id – $status',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF111827),
+                          ),
+                        ),
                       );
                     }).toList(),
                     onChanged: submitting
@@ -248,15 +316,67 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                           },
                   ),
                   const SizedBox(height: 14),
+
+                  // Explicit high-contrast label
+                  Text(
+                    'DAY NUMBER',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   DropdownButtonFormField<int>(
                     key: ValueKey('${selectedItinerary['id']}-$dayCount'),
                     initialValue: selectedDay,
-                    decoration: const InputDecoration(labelText: 'Day number'),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    ),
+                    dropdownColor: isDark ? const Color(0xFF1D2B25) : Colors.white,
+                    icon: Icon(
+                      Icons.arrow_drop_down,
+                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                    ),
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
                     items: List.generate(
                       dayCount,
                       (index) => DropdownMenuItem(
                         value: index + 1,
-                        child: Text('Day ${index + 1}'),
+                        child: Text(
+                          'Day ${index + 1}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF111827),
+                          ),
+                        ),
                       ),
                     ),
                     onChanged: submitting
@@ -267,14 +387,39 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                             }
                           },
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '${_formatTime(startTime)} - ${_formatTime(endTime)}',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: const Color(0xFF6B7280),
+                  const SizedBox(height: 14),
+
+                  // Scheduled time display box
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          size: 16,
+                          color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${_formatTime(startTime)} – ${_formatTime(endTime)}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 18),
+
                   ElevatedButton(
                     onPressed: submitting
                         ? null
@@ -302,11 +447,21 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                             }
                           },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.figmaDarkGreen,
-                      foregroundColor: Colors.white,
+                      backgroundColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                      foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
                       minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
                     ),
-                    child: Text(submitting ? 'Adding...' : 'Add Tour'),
+                    child: Text(
+                      submitting ? 'Adding...' : 'Add Tour',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ],
               ),

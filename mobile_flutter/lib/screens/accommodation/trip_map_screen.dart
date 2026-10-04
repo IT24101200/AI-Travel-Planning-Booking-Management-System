@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../../app_constants.dart';
+import '../../services/trip_selection_service.dart';
 
 /// Model representing an interactive stop on the Sri Lankan itinerary route map
 class MapStopItem {
@@ -176,6 +177,56 @@ class _TripMapScreenState extends State<TripMapScreen> {
           });
         }
       }
+    }
+
+    final selectedHotel = TripSelectionService.selectedHotel;
+    final selectedTransport = TripSelectionService.selectedTransport;
+    if (selectedHotel != null || selectedTransport != null) {
+      final updatedStops = _stops.map((stop) {
+        if (stop.icon == Icons.hotel_outlined && selectedHotel != null) {
+          final hotelName = selectedHotel['name']?.toString() ?? stop.title;
+          final location = selectedHotel['location']?.toString() ?? stop.location;
+          final rating = (selectedHotel['rating'] is num)
+              ? (selectedHotel['rating'] as num).toDouble()
+              : stop.rating;
+          final image = selectedHotel['image']?.toString() ?? stop.image;
+          return MapStopItem(
+            stopNum: stop.stopNum,
+            location: location.toUpperCase(),
+            title: hotelName,
+            rating: rating,
+            time: stop.time,
+            distance: stop.distance,
+            transit: selectedTransport != null
+                ? selectedTransport['title']?.toString() ?? stop.transit
+                : stop.transit,
+            image: image,
+            latLng: stop.latLng,
+            icon: stop.icon,
+            color: stop.color,
+          );
+        }
+        if (selectedTransport != null && stop.icon == Icons.directions_car_outlined) {
+          return MapStopItem(
+            stopNum: stop.stopNum,
+            location: stop.location,
+            title: stop.title,
+            rating: stop.rating,
+            time: stop.time,
+            distance: stop.distance,
+            transit: selectedTransport['title']?.toString() ?? stop.transit,
+            image: stop.image,
+            latLng: stop.latLng,
+            icon: stop.icon,
+            color: stop.color,
+          );
+        }
+        return stop;
+      }).toList();
+
+      setState(() {
+        _stops = updatedStops;
+      });
     }
   }
 

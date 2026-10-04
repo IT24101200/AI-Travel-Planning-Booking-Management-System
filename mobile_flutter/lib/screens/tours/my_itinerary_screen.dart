@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/api_service.dart';
+import '../../services/trip_selection_service.dart';
 
 /// Normalizes status for external callers if needed
 String normalizeItineraryStatus(dynamic status) {
@@ -274,6 +275,76 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(error.toString()),
           action: SnackBarAction(label: 'Retry', onPressed: _acceptItinerary),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
+  }
+
+  /// Prepares or retrieves a real bookingId and navigates to /checkout
+  Future<void> _continueToCheckout() async {
+    final id = _positiveId(_itinerary?['id']);
+    if (id == null || _isActionLoading) return;
+    setState(() => _isActionLoading = true);
+    TripSelectionService.activeItinerary = _itinerary;
+
+    try {
+      int? bookingId = TripSelectionService.activeBookingId;
+
+      if (bookingId == null) {
+        try {
+          final bookings = await ApiService.getMyBookings();
+          for (final b in bookings) {
+            if (b is Map && _positiveId(b['itineraryId']) == id) {
+              bookingId = _positiveId(b['id']);
+              break;
+            }
+          }
+        } catch (_) {}
+
+        if (bookingId == null) {
+          try {
+            final userId = await ApiService.getUserId() ?? 'customer-1';
+            final cost = (_itinerary!['totalEstimatedCost'] ?? 1712).toDouble();
+            final currency = _itinerary!['currency']?.toString() ?? 'USD';
+            final firstTourId = _itinerary!['items'] is List && _itinerary!['items'].isNotEmpty
+                ? _positiveId(_itinerary!['items'][0]['tourId']) ?? 1
+                : 1;
+
+            final created = await ApiService.createBooking({
+              'customerId': userId,
+              'itineraryId': id,
+              'totalCost': cost,
+              'currency': currency,
+              'items': [
+                {
+                  'itemType': 0, // Tour
+                  'tourId': firstTourId,
+                  'unitPrice': cost,
+                  'quantity': 1,
+                }
+              ],
+            });
+            bookingId = _positiveId(created['id']);
+          } catch (_) {}
+        }
+      }
+
+      if (bookingId != null) {
+        TripSelectionService.activeBookingId = bookingId;
+      }
+
+      if (!mounted) return;
+      Navigator.pushNamed(
+        context,
+        '/checkout',
+        arguments: bookingId ?? id,
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Could not prepare booking for checkout: $error'),
         ));
       }
     } finally {
@@ -1287,7 +1358,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, '/checkout', arguments: _itinerary),
+              onPressed: _isActionLoading ? null : _continueToCheckout,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF0E382C),
                 foregroundColor: Colors.white,

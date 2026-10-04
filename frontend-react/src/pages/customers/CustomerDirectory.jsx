@@ -101,9 +101,6 @@ export default function CustomerDirectory() {
           }
         })
         setDataList(mapped)
-        if (mapped.length > 0 && !selectedUser) {
-          setSelectedUser(mapped[0])
-        }
       }
     } catch (err) {
       if (!cancelled) {
@@ -148,12 +145,12 @@ export default function CustomerDirectory() {
   const pages = Math.max(1, Math.ceil(rows.length / pageSize))
   const view = rows.slice((page - 1) * pageSize, page * pageSize)
 
-  // Keep selection valid
+  // Clear selection if the selected user is filtered out or removed
   useEffect(() => {
-    if (view.length > 0 && (!selectedUser || !rows.find(r => r.id === selectedUser.id))) {
-      setSelectedUser(view[0])
+    if (selectedUser && !rows.find((r) => r.id === selectedUser.id)) {
+      setSelectedUser(null)
     }
-  }, [view, selectedUser, rows])
+  }, [rows, selectedUser])
 
   function onCategoryChange(cat) {
     setCategory(cat)
@@ -351,8 +348,14 @@ export default function CustomerDirectory() {
         </button>
       </div>
 
-      {/* ── Split Workspace matching Figma Master-Detail Layout ── */}
-      <div className="split-workspace">
+      {/* ── Dynamic Layout: Full width when no user is selected, Split Master-Detail when clicked ── */}
+      <div
+        className="split-workspace"
+        style={{
+          gridTemplateColumns: selectedUser ? 'minmax(0, 1fr) 420px' : '1fr',
+          transition: 'grid-template-columns 0.2s ease'
+        }}
+      >
         {/* Left Table Card */}
         <div className="staff-card">
           <div className="staff-card__head">
@@ -408,7 +411,7 @@ export default function CustomerDirectory() {
                         key={u.id}
                         className={isSelected ? 'is-selected' : ''}
                         style={{ cursor: 'pointer' }}
-                        onClick={() => setSelectedUser(u)}
+                        onClick={() => setSelectedUser((prev) => (prev?.id === u.id ? null : u))}
                       >
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -416,7 +419,35 @@ export default function CustomerDirectory() {
                               {u.initials}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{u.name}</strong>
+                              <button
+                                type="button"
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  padding: 0,
+                                  font: 'inherit',
+                                  textAlign: 'left',
+                                  color: isSelected ? '#1b4d3e' : '#182126',
+                                  fontWeight: 700,
+                                  fontSize: '0.8125rem',
+                                  cursor: 'pointer'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#1b4d3e'
+                                  e.currentTarget.style.textDecoration = 'underline'
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = isSelected ? '#1b4d3e' : '#182126'
+                                  e.currentTarget.style.textDecoration = 'none'
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedUser((prev) => (prev?.id === u.id ? null : u))
+                                }}
+                                title="Click to view customer details"
+                              >
+                                {u.name}
+                              </button>
                               <span style={{ color: '#66747b', fontSize: '0.75rem' }}>{u.email}</span>
                             </div>
                           </div>
@@ -491,8 +522,8 @@ export default function CustomerDirectory() {
           </div>
         </div>
 
-        {/* Right Detail Pane matching Figma 2:27047 */}
-        {selectedUser ? (
+        {/* Right Detail Pane: Shown only when a customer is clicked */}
+        {selectedUser && (
           <aside className="detail-pane">
             <div className="detail-pane__head">
               <div>
@@ -503,15 +534,38 @@ export default function CustomerDirectory() {
                   {selectedUser.isStaff ? 'Staff member' : 'Customer'} since {selectedUser.joinedAt}
                 </span>
               </div>
-              <button
-                type="button"
-                className="btn-outline"
-                style={{ height: '32px', padding: '0 0.625rem' }}
-                onClick={() => handleOpenEdit(selectedUser)}
-              >
-                <EditIcon size={14} />
-                <span>Edit profile</span>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{ height: '32px', padding: '0 0.625rem' }}
+                  onClick={() => handleOpenEdit(selectedUser)}
+                >
+                  <EditIcon size={14} />
+                  <span>Edit profile</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{
+                    height: '32px',
+                    width: '32px',
+                    padding: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: '#66747b',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setSelectedUser(null)}
+                  title="Close customer details"
+                  aria-label="Close customer details"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Profile Identity Card */}
@@ -617,10 +671,6 @@ export default function CustomerDirectory() {
                   : `View ${selectedUser.trips} trip records`}
               </span>
             </button>
-          </aside>
-        ) : (
-          <aside className="detail-pane" style={{ justifyContent: 'center', alignItems: 'center', color: '#66747b', minHeight: '300px' }}>
-            <p>Select a user to view full profile details.</p>
           </aside>
         )}
       </div>

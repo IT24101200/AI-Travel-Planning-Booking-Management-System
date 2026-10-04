@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Transport options screen matching Figma frame 09 · Transport Options (node 7:10825)
@@ -54,6 +55,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   @override
   void initState() {
     super.initState();
+    TripSelectionService.selectedTransport ??= _curatedVehicles.first;
     _loadTransport();
   }
 
@@ -485,11 +487,25 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                             ],
                           ),
                           ElevatedButton(
-                            onPressed: () {
+                            onPressed: () async {
+                              TripSelectionService.selectedTransport = vehicle;
+                              int? bookingId = TripSelectionService.activeBookingId;
+                              if (bookingId == null) {
+                                try {
+                                  final bookings = await ApiService.getMyBookings();
+                                  if (bookings.isNotEmpty &&
+                                      bookings.first is Map &&
+                                      bookings.first['id'] is int) {
+                                    bookingId = bookings.first['id'] as int;
+                                    TripSelectionService.activeBookingId = bookingId;
+                                  }
+                                } catch (_) {}
+                              }
+                              if (!context.mounted) return;
                               Navigator.pushNamed(
                                 context,
                                 '/checkout',
-                                arguments: vehicle,
+                                arguments: bookingId ?? 101,
                               );
                             },
                             style: ElevatedButton.styleFrom(

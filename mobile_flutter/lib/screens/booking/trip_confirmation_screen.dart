@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
+import '../../services/ticket_pdf_service.dart';
+import '../../services/trip_selection_service.dart';
 
 /// Trip confirmation screen matching Figma frame 13 · Trip Confirmation (node 7:11118)
 class TripConfirmationScreen extends StatelessWidget {
@@ -9,16 +11,46 @@ class TripConfirmationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final booking =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final args = ModalRoute.of(context)?.settings.arguments;
+    final Map<String, dynamic> booking = args is Map<String, dynamic>
+        ? args
+        : {
+            'id': 101,
+            'bookingReference': 'ST-2026-98214',
+            'destination': 'Sri Lanka Discovery',
+            'dates': '12–18 October 2026 · 7 days / 6 nights',
+            'customerName': 'Maya Fernando',
+            'totalCost': 1712.0,
+            'status': 'Confirmed',
+          };
+
     final bookingRef =
-        booking?['bookingReference']?.toString() ?? 'ST-284619';
+        booking['bookingReference']?.toString() ??
+        (booking['id'] != null ? 'ST-2026-${booking['id']}' : 'ST-2026-98214');
     final customerName =
-        booking?['customerName']?.toString() ?? 'Maya Fernando';
+        booking['customerName']?.toString() ?? 'Maya Fernando';
     final tripTitle =
-        booking?['destination'] ?? 'Sri Lanka Discovery';
+        booking['destination']?.toString() ??
+        TripSelectionService.activeItinerary?['title'] ??
+        'Sri Lanka Discovery';
     final dates =
-        booking?['dates'] ?? '12–18 October 2026 · 7 days / 6 nights';
+        booking['dates']?.toString() ??
+        TripSelectionService.activeItinerary?['dates'] ??
+        '12–18 October 2026 · 7 days / 6 nights';
+
+    // Dynamic hotel name from shared holder or booking
+    final hotelName = TripSelectionService.selectedHotel != null
+        ? TripSelectionService.selectedHotel!['name']?.toString() ?? 'Selected Hotel'
+        : (booking['hotelName']?.toString() ?? 'Heritance Kandalama + 2 stays');
+
+    // Dynamic transport name from shared holder or booking
+    final transportName = TripSelectionService.selectedTransport != null
+        ? '${TripSelectionService.selectedTransport!['name'] ?? TripSelectionService.selectedTransport!['type']} (${TripSelectionService.selectedTransport!['route'] ?? 'Private'})'
+        : (booking['transportName']?.toString() ?? 'Private car + scenic train');
+
+    final destinations = booking['stops']?.toString() ??
+        'Sigiriya · Kandy · Ella · Mirissa';
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -203,33 +235,33 @@ class TripConfirmationScreen extends StatelessWidget {
                       ),
                     ),
 
-                    // 4 Recap Rows
+                    // 4 Dynamic Recap Rows
                     _buildRecapRow(
                       context,
                       icon: Icons.place_outlined,
                       label: 'Destinations',
-                      value: 'Sigiriya · Kandy · Ella · Mirissa',
+                      value: destinations,
                     ),
                     const SizedBox(height: 10),
                     _buildRecapRow(
                       context,
                       icon: Icons.hotel_outlined,
-                      label: 'Hotel',
-                      value: 'Heritance Kandalama + 2 stays',
+                      label: 'Accommodation',
+                      value: hotelName,
                     ),
                     const SizedBox(height: 10),
                     _buildRecapRow(
                       context,
                       icon: Icons.directions_car_outlined,
                       label: 'Transport',
-                      value: 'Private car + reserved train',
+                      value: transportName,
                     ),
                     const SizedBox(height: 10),
                     _buildRecapRow(
                       context,
                       icon: Icons.people_outline,
                       label: 'Travelers',
-                      value: '$customerName + 1 guest',
+                      value: '$customerName · 2 Travelers',
                     ),
                   ],
                 ),
@@ -245,8 +277,24 @@ class TripConfirmationScreen extends StatelessWidget {
                       height: 50,
                       child: OutlinedButton(
                         onPressed: () {
+                          // Real clipboard share implementation
+                          final shareText = '''
+Serendib Trails - Confirmed Trip Itinerary
+Reference: $bookingRef
+Customer: $customerName
+Destination: $tripTitle
+Dates: $dates
+Hotel: $hotelName
+Transport: $transportName
+Stops: $destinations
+'''.trim();
+                          Clipboard.setData(ClipboardData(text: shareText));
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Trip itinerary shared!')),
+                            const SnackBar(
+                              content: Text('Trip itinerary copied to clipboard!'),
+                              duration: Duration(seconds: 2),
+                            ),
                           );
                         },
                         style: OutlinedButton.styleFrom(
@@ -287,9 +335,19 @@ class TripConfirmationScreen extends StatelessWidget {
                       height: 50,
                       child: OutlinedButton(
                         onPressed: () {
+                          // Real pure-Dart PDF ticket generation
+                          final pdfBytes = TicketPdfService.generateTicketPdf(
+                            booking: booking,
+                            hotel: TripSelectionService.selectedHotel,
+                            transport: TripSelectionService.selectedTransport,
+                          );
+                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Offline ticket PDF downloaded to storage.'),
+                            SnackBar(
+                              content: Text(
+                                'Ticket PDF generated (${pdfBytes.length} bytes ready offline).',
+                              ),
+                              duration: const Duration(seconds: 3),
                             ),
                           );
                         },
@@ -313,7 +371,7 @@ class TripConfirmationScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'Download',
+                              'Download PDF',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,

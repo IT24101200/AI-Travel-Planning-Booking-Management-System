@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Accommodation options screen matching Figma frame 08 · Accommodation Options (node 7:10737)
@@ -62,6 +63,7 @@ class _AccommodationOptionsScreenState
   void initState() {
     super.initState();
     _selectedStayId = _curatedStays.first['id'];
+    TripSelectionService.selectedHotel = _curatedStays.first;
     _loadHotels();
   }
 
@@ -201,7 +203,10 @@ class _AccommodationOptionsScreenState
                   ),
                   // Map Icon Button
                   GestureDetector(
-                    onTap: () => Navigator.pushNamed(context, '/trip-map'),
+                    onTap: () {
+                      TripSelectionService.selectedHotel = selectedStay;
+                      Navigator.pushNamed(context, '/trip-map');
+                    },
                     child: Container(
                       width: 44,
                       height: 44,
@@ -458,6 +463,7 @@ class _AccommodationOptionsScreenState
                                   onTap: () {
                                     setState(() {
                                       _selectedStayId = stay['id'] as String;
+                                      TripSelectionService.selectedHotel = stay;
                                     });
                                   },
                                   child: Container(
@@ -533,6 +539,7 @@ class _AccommodationOptionsScreenState
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () {
+                    TripSelectionService.selectedHotel = selectedStay;
                     Navigator.pushNamed(
                       context,
                       '/transport',

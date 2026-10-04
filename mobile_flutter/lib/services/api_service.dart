@@ -85,6 +85,16 @@ class ApiService {
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateTripRequest;
   static Future<List<dynamic>> Function()? mockGetMyTripRequests;
   static Future<List<dynamic>> Function()? mockGetMyBookings;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateBooking;
+  static Future<Map<String, dynamic>?> Function(int id)? mockGetBooking;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreatePayment;
+  static Future<Map<String, dynamic>> Function({required String email, required String password})? mockLogin;
+  static Future<Map<String, dynamic>> Function({
+    required String email,
+    required String password,
+    required String fullName,
+    required String phone,
+  })? mockRegister;
 
   static void _requireSuccess(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -223,6 +233,14 @@ class ApiService {
     required String fullName,
     required String phone,
   }) async {
+    if (mockRegister != null) {
+      return await mockRegister!(
+        email: email,
+        password: password,
+        fullName: fullName,
+        phone: phone,
+      );
+    }
     final response = await post('auth/register', {
       'email': email,
       'password': password,
@@ -245,6 +263,9 @@ class ApiService {
     required String email,
     required String password,
   }) async {
+    if (mockLogin != null) {
+      return await mockLogin!(email: email, password: password);
+    }
     final response = await post('auth/login', {
       'email': email,
       'password': password,
@@ -471,13 +492,29 @@ class ApiService {
     return _list(await get('booking/my'));
   }
 
+  static Future<Map<String, dynamic>> createBooking(Map<String, dynamic> data) async {
+    if (mockCreateBooking != null) return mockCreateBooking!(data);
+    final response = await post('booking', data);
+    _requireSuccess(response);
+    final result = _object(response);
+    return {'statusCode': response.statusCode, ...?result};
+  }
+
   static Future<Map<String, dynamic>?> getBooking(int id) async {
+    if (mockGetBooking != null) return mockGetBooking!(id);
     return _object(await get('booking/$id'));
   }
 
   static Future<Map<String, dynamic>> createPayment(Map<String, dynamic> data) async {
+    if (mockCreatePayment != null) return mockCreatePayment!(data);
     final response = await post('payment', data);
-    return {'statusCode': response.statusCode, ...jsonDecode(response.body)};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return {'statusCode': response.statusCode, ...decoded};
+      }
+    } catch (_) {}
+    return {'statusCode': response.statusCode};
   }
 
   // ── Notifications ──

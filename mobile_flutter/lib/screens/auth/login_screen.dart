@@ -357,9 +357,53 @@ class _LoginScreenState extends State<LoginScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Password reset link sent to registered email.'),
+                            showDialog(
+                              context: context,
+                              builder: (dialogCtx) => AlertDialog(
+                                backgroundColor: isDark
+                                    ? const Color(0xFF1D2B25)
+                                    : Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                title: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.lock_reset,
+                                      color: AppColors.figmaGold,
+                                      size: 24,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Password Recovery',
+                                      style: GoogleFonts.plusJakartaSans(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                content: Text(
+                                  'Password reset is managed through Serendib Support. Please contact support@serendibtrails.lk or your travel coordinator for credential recovery.',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(dialogCtx),
+                                    child: Text(
+                                      'Understood',
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? AppColors.leaf400
+                                            : AppColors.figmaDarkGreen,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             );
                           },
