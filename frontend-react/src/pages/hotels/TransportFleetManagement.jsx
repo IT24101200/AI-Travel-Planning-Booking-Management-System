@@ -15,6 +15,7 @@ import {
   PlaneIcon,
   TrashIcon
 } from '../../components/ui/Icons.jsx'
+import ImageUploadWidget from '../../components/common/ImageUploadWidget.jsx'
 
 const TRANSPORT_TYPES = ['Car', 'Train', 'Bus', 'Flight']
 const MODES = ['All', 'Car', 'Train', 'Bus', 'Flight']
@@ -55,6 +56,7 @@ export default function TransportFleetManagement() {
     capacity: 6,
     departureTime: '2026-11-12T08:30',
     arrivalTime: '2026-11-12T12:45',
+    imageUrl: '',
     status: 'Active'
   })
   const [busy, setBusy] = useState(false)
@@ -97,6 +99,7 @@ export default function TransportFleetManagement() {
             arrivalRaw: t.arrivalTime || '2026-11-12T12:45:00',
             departureFormatted: formatDateTimeFigma(t.departureTime),
             arrivalFormatted: formatDateTimeFigma(t.arrivalTime),
+            imageUrl: t.imageUrl || '',
             status: idx === 4 ? 'Decommissioned' : 'Active'
           }
         })
@@ -133,6 +136,7 @@ export default function TransportFleetManagement() {
       capacity: sch.capacity,
       departureTime: sch.departureRaw ? sch.departureRaw.substring(0, 16) : '2026-11-12T08:30',
       arrivalTime: sch.arrivalRaw ? sch.arrivalRaw.substring(0, 16) : '2026-11-12T12:45',
+      imageUrl: sch.imageUrl || '',
       status: sch.status
     })
   }
@@ -149,6 +153,7 @@ export default function TransportFleetManagement() {
       capacity: 6,
       departureTime: '2026-11-12T08:30',
       arrivalTime: '2026-11-12T12:45',
+      imageUrl: '',
       status: 'Active'
     })
   }
@@ -188,6 +193,7 @@ export default function TransportFleetManagement() {
           capacity: Number(formData.capacity) || 6,
           departureTime: depDate.toISOString(),
           arrivalTime: arrDate.toISOString(),
+          imageUrl: formData.imageUrl || '',
         })
         setNotice(`Schedule "${formData.provider.trim()}" created successfully.`)
       } else if (drawerMode === 'edit' && selectedSchedule) {
@@ -200,6 +206,7 @@ export default function TransportFleetManagement() {
           capacity: Number(formData.capacity) || 6,
           departureTime: depDate.toISOString(),
           arrivalTime: arrDate.toISOString(),
+          imageUrl: formData.imageUrl || '',
         })
         setNotice(`Schedule #${selectedSchedule.id} updated successfully.`)
       }
@@ -366,25 +373,41 @@ export default function TransportFleetManagement() {
                         onClick={() => selectForEdit(sch)}
                       >
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <div
-                              style={{
-                                width: '32px',
-                                height: '32px',
-                                borderRadius: '6px',
-                                backgroundColor: '#e0f2fe',
-                                color: '#0369a1',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0
-                              }}
-                            >
-                              {renderModeIcon(sch.type)}
-                            </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                            {sch.imageUrl ? (
+                              <img
+                                src={sch.imageUrl}
+                                alt={sch.provider}
+                                style={{
+                                  width: '48px',
+                                  height: '36px',
+                                  borderRadius: '5px',
+                                  objectFit: 'cover',
+                                  border: '1px solid #d0d7de',
+                                  flexShrink: 0
+                                }}
+                                onError={(e) => { e.target.style.display = 'none' }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '36px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#e0f2fe',
+                                  color: '#0369a1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  flexShrink: 0
+                                }}
+                              >
+                                {renderModeIcon(sch.type)}
+                              </div>
+                            )}
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{sch.provider}</strong>
-                              <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>{sch.code}</span>
+                              <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>{sch.code} · {sch.type}</span>
                             </div>
                           </div>
                         </td>
@@ -491,6 +514,17 @@ export default function TransportFleetManagement() {
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.provider}
                   onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                />
+              </div>
+
+              {/* Cover Image Upload & Media Selection */}
+              <div>
+                <ImageUploadWidget
+                  value={formData.imageUrl}
+                  onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                  category="transport"
+                  title="Fleet Vehicle Cover Image"
+                  description="Upload a photo to Supabase Cloud or pick from the media library."
                 />
               </div>
 

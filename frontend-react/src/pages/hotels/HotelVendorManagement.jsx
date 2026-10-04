@@ -10,6 +10,7 @@ import {
   CloseIcon,
   CheckIcon
 } from '../../components/ui/Icons.jsx'
+import ImageUploadWidget from '../../components/common/ImageUploadWidget.jsx'
 
 /**
  * Serendib Trails — Hotel Vendor Console
@@ -36,6 +37,7 @@ export default function HotelVendorManagement() {
     roomCount: 36,
     email: '',
     phone: '',
+    imageUrl: '',
     status: 'Active'
   })
   const [busy, setBusy] = useState(false)
@@ -81,6 +83,7 @@ export default function HotelVendorManagement() {
               priceRange,
               email: h.email || `reservations.${h.name.toLowerCase().replace(/[^a-z]/g, '')}@serendib.lk`,
               phone: h.phone || '+94 66 228 6000',
+              imageUrl: h.imageUrl || '',
               status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || (idx === 4 ? 'Inactive' : 'Active')),
             }
           })
@@ -118,6 +121,7 @@ export default function HotelVendorManagement() {
       roomCount: hotel.roomCount,
       email: hotel.email,
       phone: hotel.phone,
+      imageUrl: hotel.imageUrl || '',
       status: hotel.status
     })
   }
@@ -134,6 +138,7 @@ export default function HotelVendorManagement() {
       roomCount: 24,
       email: 'reservations@hotel.lk',
       phone: '+94 11 234 5678',
+      imageUrl: '',
       status: 'Active'
     })
   }
@@ -169,6 +174,7 @@ export default function HotelVendorManagement() {
           name: formData.name.trim(),
           destinationId: destId,
           address: formData.address.trim(),
+          imageUrl: formData.imageUrl || '',
           starRating: Number(formData.starRating) || 5,
         })
         setNotice(`Hotel "${formData.name.trim()}" created successfully.`)
@@ -177,6 +183,7 @@ export default function HotelVendorManagement() {
           name: formData.name.trim(),
           destinationId: destId,
           address: formData.address.trim(),
+          imageUrl: formData.imageUrl || '',
           starRating: Number(formData.starRating) || 5,
           status: formData.status
         })
@@ -332,18 +339,53 @@ export default function HotelVendorManagement() {
                         onClick={() => selectForEdit(h)}
                       >
                         <td>
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{h.name}</strong>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '4px' }}>
-                              <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>
-                                Occupancy {h.occupancy}%
-                              </span>
-                            </div>
-                            <div className="progress-bar-wrap" style={{ maxWidth: '140px' }}>
-                              <div
-                                className={`progress-bar-fill ${fillClass}`}
-                                style={{ width: `${Math.min(100, h.occupancy)}%` }}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            {h.imageUrl ? (
+                              <img
+                                src={h.imageUrl}
+                                alt={h.name}
+                                style={{
+                                  width: '48px',
+                                  height: '38px',
+                                  objectFit: 'cover',
+                                  borderRadius: '5px',
+                                  border: '1px solid #d0d7de',
+                                  flexShrink: 0
+                                }}
+                                onError={(e) => { e.target.style.display = 'none' }}
                               />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '48px',
+                                  height: '38px',
+                                  background: '#f1f5f9',
+                                  borderRadius: '5px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: '#64748b',
+                                  fontSize: '0.625rem',
+                                  fontWeight: 700,
+                                  flexShrink: 0
+                                }}
+                              >
+                                HOTEL
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{h.name}</strong>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '4px' }}>
+                                <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>
+                                  Occupancy {h.occupancy}%
+                                </span>
+                              </div>
+                              <div className="progress-bar-wrap" style={{ maxWidth: '140px' }}>
+                                <div
+                                  className={`progress-bar-fill ${fillClass}`}
+                                  style={{ width: `${Math.min(100, h.occupancy)}%` }}
+                                />
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -446,6 +488,17 @@ export default function HotelVendorManagement() {
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+
+              {/* Cover Image Upload & Media Selection */}
+              <div>
+                <ImageUploadWidget
+                  value={formData.imageUrl}
+                  onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+                  category="hotels"
+                  title="Hotel Cover Image"
+                  description="Upload a photo to Supabase Cloud or pick from the media library."
                 />
               </div>
 
