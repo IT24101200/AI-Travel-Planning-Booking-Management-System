@@ -148,28 +148,29 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
 
     if (_error != null && _booking == null) {
+      final theme = Theme.of(context);
       return Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: AppColors.figmaSurface,
+          backgroundColor: theme.scaffoldBackgroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
+            icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
             'Checkout',
             style: GoogleFonts.plusJakartaSans(
-              color: AppColors.figmaDarkGreen,
+              color: theme.colorScheme.onSurface,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -178,6 +179,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       );
     }
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final total = (_booking!['totalCost'] ??
             _booking!['totalEstimatedCost'] ??
             1712)
@@ -193,7 +196,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -209,13 +212,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                         size: 20,
                       ),
                     ),
@@ -227,7 +230,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.figmaDarkGreen,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -235,7 +238,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         'Secure payment · Step 3 of 3',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -244,13 +247,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.lock_outline,
-                      color: AppColors.figmaDarkGreen,
+                      color: theme.colorScheme.onSurface,
                       size: 20,
                     ),
                   ),
@@ -263,9 +266,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.figmaCardBorder),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,7 +318,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w800,
-                                  color: AppColors.figmaDarkGreen,
+                                  color: theme.colorScheme.onSurface,
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -321,7 +326,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                 dates,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11,
-                                  color: const Color(0xFF6B7280),
+                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                 ),
                               ),
                               const SizedBox(height: 2),
@@ -329,7 +334,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                 stops,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11,
-                                  color: const Color(0xFF0F766E),
+                                  color: isDark ? AppColors.leaf400 : const Color(0xFF0F766E),
                                   fontWeight: FontWeight.w600,
                                 ),
                                 maxLines: 1,
@@ -341,11 +346,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       ],
                     ),
 
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Divider(
                         height: 1,
-                        color: AppColors.figmaCardBorder,
+                        color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
                       ),
                     ),
 
@@ -358,11 +363,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     const SizedBox(height: 8),
                     _buildCostItem('Taxes & partner fees', taxesCost),
 
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 14),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Divider(
                         height: 1,
-                        color: AppColors.figmaCardBorder,
+                        color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
                       ),
                     ),
 
@@ -380,14 +385,14 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.figmaDarkGreen,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                             Text(
                               'USD · taxes included',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
-                                color: const Color(0xFF6B7280),
+                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                               ),
                             ),
                           ],
@@ -397,7 +402,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.figmaDarkGreen,
+                            color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                           ),
                         ),
                       ],
@@ -414,7 +419,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.figmaDarkGreen,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 12),
@@ -432,13 +437,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: _paymentMethod == 'Card'
-                              ? const Color(0xFFEAF2EC)
-                              : Colors.white,
+                              ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEAF2EC))
+                              : theme.cardColor,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: _paymentMethod == 'Card'
-                                ? AppColors.figmaDarkGreen
-                                : AppColors.figmaCardBorder,
+                                ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                                : (isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                             width: 1.5,
                           ),
                         ),
@@ -450,18 +455,18 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: _paymentMethod == 'Card'
-                                    ? AppColors.figmaDarkGreen
+                                    ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
                                     : Colors.transparent,
                                 border: Border.all(
-                                  color: AppColors.figmaDarkGreen,
+                                  color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                                   width: 2,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 10),
-                            const Icon(
+                            Icon(
                               Icons.credit_card,
-                              color: AppColors.figmaDarkGreen,
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
@@ -470,7 +475,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.figmaDarkGreen,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -489,13 +494,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         ),
                         decoration: BoxDecoration(
                           color: _paymentMethod == 'Wallet'
-                              ? const Color(0xFFEAF2EC)
-                              : Colors.white,
+                              ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEAF2EC))
+                              : theme.cardColor,
                           borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color: _paymentMethod == 'Wallet'
-                                ? AppColors.figmaDarkGreen
-                                : AppColors.figmaCardBorder,
+                                ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                                : (isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                             width: 1.5,
                           ),
                         ),
@@ -507,18 +512,18 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: _paymentMethod == 'Wallet'
-                                    ? AppColors.figmaDarkGreen
+                                    ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
                                     : Colors.transparent,
                                 border: Border.all(
-                                  color: const Color(0xFF9CA3AF),
+                                  color: isDark ? const Color(0xFF6E7772) : const Color(0xFF9CA3AF),
                                   width: 2,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 10),
-                            const Icon(
+                            Icon(
                               Icons.account_balance_wallet_outlined,
-                              color: Color(0xFF6B7280),
+                              color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                               size: 18,
                             ),
                             const SizedBox(width: 8),
@@ -527,7 +532,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF374151),
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
                           ],
@@ -606,19 +611,19 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       height: 20,
                       decoration: BoxDecoration(
                         color: _saveCard
-                            ? AppColors.figmaDarkGreen
-                            : Colors.white,
+                            ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                            : theme.cardColor,
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                           color: _saveCard
-                              ? AppColors.figmaDarkGreen
-                              : const Color(0xFF9CA3AF),
+                              ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                              : (isDark ? const Color(0xFF2E3D36) : const Color(0xFF9CA3AF)),
                         ),
                       ),
                       child: _saveCard
-                          ? const Icon(
+                          ? Icon(
                               Icons.check,
-                              color: Colors.white,
+                              color: isDark ? const Color(0xFF121A17) : Colors.white,
                               size: 14,
                             )
                           : null,
@@ -629,7 +634,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     'Save this card securely for future bookings',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
-                      color: const Color(0xFF6B7280),
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -645,7 +650,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6EED8),
+                  color: isDark ? const Color(0xFF221F18) : const Color(0xFFF6EED8),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -661,7 +666,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         'Protected payment. Free cancellation on eligible items until 8 October.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
-                          color: const Color(0xFF4B5563),
+                          color: isDark ? const Color(0xFFE5D7B5) : const Color(0xFF4B5563),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -740,7 +745,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           label,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
-            color: const Color(0xFF6B7280),
+            color: Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF9EABA4)
+                : const Color(0xFF6B7280),
           ),
         ),
         Text(
@@ -748,7 +755,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: AppColors.figmaDarkGreen,
+            color: Theme.of(context).brightness == Brightness.dark
+                ? AppColors.leaf400
+                : AppColors.figmaDarkGreen,
           ),
         ),
       ],
@@ -761,7 +770,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       style: GoogleFonts.plusJakartaSans(
         fontSize: 10,
         fontWeight: FontWeight.w800,
-        color: const Color(0xFF6B7280),
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF9EABA4)
+            : const Color(0xFF6B7280),
         letterSpacing: 0.5,
       ),
     );
@@ -772,11 +783,14 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     IconData? icon,
     bool isPassword = false,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.figmaCardBorder),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+        ),
       ),
       child: TextField(
         controller: controller,
@@ -784,11 +798,15 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         style: GoogleFonts.plusJakartaSans(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: AppColors.figmaDarkGreen,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
         decoration: InputDecoration(
           prefixIcon: icon != null
-              ? Icon(icon, color: const Color(0xFF6B7280), size: 18)
+              ? Icon(
+                  icon,
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                  size: 18,
+                )
               : null,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,

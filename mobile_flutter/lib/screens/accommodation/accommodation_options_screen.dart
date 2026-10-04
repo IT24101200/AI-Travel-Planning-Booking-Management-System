@@ -91,19 +91,19 @@ class _AccommodationOptionsScreenState
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
 
     if (_error != null && _hotels.isEmpty && _curatedStays.isEmpty) {
       return Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: AppColors.figmaSurface,
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
@@ -145,9 +145,11 @@ class _AccommodationOptionsScreenState
       (s) => s['id'] == _selectedStayId,
       orElse: () => displayStays.first,
     );
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -164,13 +166,13 @@ class _AccommodationOptionsScreenState
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                         size: 20,
                       ),
                     ),
@@ -183,7 +185,7 @@ class _AccommodationOptionsScreenState
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.figmaDarkGreen,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -191,7 +193,7 @@ class _AccommodationOptionsScreenState
                         '12–18 Oct · 2 guests',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -203,13 +205,13 @@ class _AccommodationOptionsScreenState
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.map_outlined,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                         size: 20,
                       ),
                     ),
@@ -240,13 +242,13 @@ class _AccommodationOptionsScreenState
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.figmaDarkGreen
-                                : Colors.white,
+                                ? (isDark ? const Color(0xFF1E3A2F) : AppColors.figmaDarkGreen)
+                                : theme.cardColor,
                             borderRadius: BorderRadius.circular(24),
                             border: Border.all(
                               color: isSelected
-                                  ? AppColors.figmaDarkGreen
-                                  : AppColors.figmaCardBorder,
+                                  ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                                  : (isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                             ),
                           ),
                           child: Text(
@@ -256,7 +258,7 @@ class _AccommodationOptionsScreenState
                               fontWeight: FontWeight.w700,
                               color: isSelected
                                   ? Colors.white
-                                  : AppColors.figmaDarkGreen,
+                                  : theme.colorScheme.onSurface,
                             ),
                           ),
                         ),
@@ -277,7 +279,7 @@ class _AccommodationOptionsScreenState
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: AppColors.figmaDarkGreen,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   Row(
@@ -287,14 +289,14 @@ class _AccommodationOptionsScreenState
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0F766E),
+                          color: isDark ? AppColors.leaf400 : const Color(0xFF0F766E),
                         ),
                       ),
                       const SizedBox(width: 4),
-                      const Icon(
+                      Icon(
                         Icons.arrow_downward,
                         size: 14,
-                        color: Color(0xFF0F766E),
+                        color: isDark ? AppColors.leaf400 : const Color(0xFF0F766E),
                       ),
                     ],
                   ),
@@ -310,12 +312,12 @@ class _AccommodationOptionsScreenState
                   margin: const EdgeInsets.only(bottom: 14),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.cardColor,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: isSelected
                           ? AppColors.figmaGold
-                          : AppColors.figmaCardBorder,
+                          : (isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
                       width: isSelected ? 1.5 : 1.0,
                     ),
                   ),
@@ -333,7 +335,7 @@ class _AccommodationOptionsScreenState
                           errorBuilder: (context, error, stackTrace) => Container(
                             width: 110,
                             height: 125,
-                            color: const Color(0xFFE5E7EB),
+                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
                             child: const Icon(
                               Icons.hotel,
                               color: Color(0xFF9CA3AF),
@@ -364,7 +366,7 @@ class _AccommodationOptionsScreenState
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w800,
-                                        color: AppColors.figmaDarkGreen,
+                                        color: theme.colorScheme.onSurface,
                                       ),
                                     ),
                                   ],
@@ -376,7 +378,7 @@ class _AccommodationOptionsScreenState
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFBF4E4),
+                                      color: isDark ? const Color(0xFF2C261A) : const Color(0xFFFBF4E4),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
@@ -398,7 +400,7 @@ class _AccommodationOptionsScreenState
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.figmaDarkGreen,
+                                color: theme.colorScheme.onSurface,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -409,7 +411,7 @@ class _AccommodationOptionsScreenState
                               stay['location'] as String,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11,
-                                color: const Color(0xFF6B7280),
+                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -420,7 +422,7 @@ class _AccommodationOptionsScreenState
                               stay['amenities'] as String,
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11,
-                                color: const Color(0xFF0F766E),
+                                color: isDark ? AppColors.leaf400 : const Color(0xFF0F766E),
                                 fontWeight: FontWeight.w500,
                               ),
                               maxLines: 1,
@@ -440,14 +442,14 @@ class _AccommodationOptionsScreenState
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,
-                                        color: AppColors.figmaDarkGreen,
+                                        color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                                       ),
                                     ),
                                     Text(
                                       'per night',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 10,
-                                        color: const Color(0xFF6B7280),
+                                        color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                                       ),
                                     ),
                                   ],
@@ -466,7 +468,7 @@ class _AccommodationOptionsScreenState
                                     decoration: BoxDecoration(
                                       color: isSelected
                                           ? AppColors.figmaGold
-                                          : AppColors.figmaDarkGreen,
+                                          : (isDark ? const Color(0xFF1E3A2F) : AppColors.figmaDarkGreen),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
@@ -498,7 +500,7 @@ class _AccommodationOptionsScreenState
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF2EC),
+                  color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEAF2EC),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -514,7 +516,7 @@ class _AccommodationOptionsScreenState
                         'Rates include taxes and free cancellation until 8 October.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
-                          color: const Color(0xFF064E3B),
+                          color: isDark ? const Color(0xFFD1FAE5) : const Color(0xFF064E3B),
                           fontWeight: FontWeight.w500,
                         ),
                       ),

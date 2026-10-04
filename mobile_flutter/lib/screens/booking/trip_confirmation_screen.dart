@@ -19,9 +19,11 @@ class TripConfirmationScreen extends StatelessWidget {
         booking?['destination'] ?? 'Sri Lanka Discovery';
     final dates =
         booking?['dates'] ?? '12–18 October 2026 · 7 days / 6 nights';
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -36,10 +38,10 @@ class TripConfirmationScreen extends StatelessWidget {
                   width: 92,
                   height: 92,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFE5F1EA),
+                    color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: const Color(0xFFC8E4D4),
+                      color: isDark ? const Color(0xFF2E5E4B) : const Color(0xFFC8E4D4),
                       width: 8,
                     ),
                   ),
@@ -68,7 +70,7 @@ class TripConfirmationScreen extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 24,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.figmaDarkGreen,
+                  color: theme.colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
@@ -78,7 +80,7 @@ class TripConfirmationScreen extends StatelessWidget {
                   'Your Sri Lankan journey is secured. Tickets and partner contacts are now available offline.',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
-                    color: const Color(0xFF6B7280),
+                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                     height: 1.4,
                   ),
                   textAlign: TextAlign.center,
@@ -101,7 +103,7 @@ class TripConfirmationScreen extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF6EBCB),
+                    color: isDark ? const Color(0xFF2C261A) : const Color(0xFFF6EBCB),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -112,7 +114,7 @@ class TripConfirmationScreen extends StatelessWidget {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFFE5D7B5) : const Color(0xFF6B7280),
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -122,7 +124,7 @@ class TripConfirmationScreen extends StatelessWidget {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF123F32),
+                          color: isDark ? AppColors.figmaGold : const Color(0xFF123F32),
                         ),
                       ),
                     ],
@@ -136,8 +138,11 @@ class TripConfirmationScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF10291F).withValues(alpha: 0.08),
@@ -178,7 +183,7 @@ class TripConfirmationScreen extends StatelessWidget {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -186,38 +191,42 @@ class TripConfirmationScreen extends StatelessWidget {
                       dates,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
-                        color: const Color(0xFF6B7280),
+                        color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                       ),
                     ),
 
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Divider(
                         height: 1,
-                        color: Color(0xFFE4E7E2),
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
                       ),
                     ),
 
                     // 4 Recap Rows
                     _buildRecapRow(
+                      context,
                       icon: Icons.place_outlined,
                       label: 'Destinations',
                       value: 'Sigiriya · Kandy · Ella · Mirissa',
                     ),
                     const SizedBox(height: 10),
                     _buildRecapRow(
+                      context,
                       icon: Icons.hotel_outlined,
                       label: 'Hotel',
                       value: 'Heritance Kandalama + 2 stays',
                     ),
                     const SizedBox(height: 10),
                     _buildRecapRow(
+                      context,
                       icon: Icons.directions_car_outlined,
                       label: 'Transport',
                       value: 'Private car + reserved train',
                     ),
                     const SizedBox(height: 10),
                     _buildRecapRow(
+                      context,
                       icon: Icons.people_outline,
                       label: 'Travelers',
                       value: '$customerName + 1 guest',
@@ -241,8 +250,10 @@ class TripConfirmationScreen extends StatelessWidget {
                           );
                         },
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: Color(0xFFE4E7E2)),
+                          backgroundColor: theme.cardColor,
+                          side: BorderSide(
+                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -251,10 +262,10 @@ class TripConfirmationScreen extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.share_outlined,
                               size: 16,
-                              color: Color(0xFF123F32),
+                              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -262,7 +273,7 @@ class TripConfirmationScreen extends StatelessWidget {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF123F32),
+                                color: isDark ? Colors.white : const Color(0xFF123F32),
                               ),
                             ),
                           ],
@@ -283,8 +294,10 @@ class TripConfirmationScreen extends StatelessWidget {
                           );
                         },
                         style: OutlinedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          side: const BorderSide(color: Color(0xFFE4E7E2)),
+                          backgroundColor: theme.cardColor,
+                          side: BorderSide(
+                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -293,10 +306,10 @@ class TripConfirmationScreen extends StatelessWidget {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.download_outlined,
                               size: 16,
-                              color: Color(0xFF123F32),
+                              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -304,7 +317,7 @@ class TripConfirmationScreen extends StatelessWidget {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF123F32),
+                                color: isDark ? Colors.white : const Color(0xFF123F32),
                               ),
                             ),
                           ],
@@ -324,7 +337,7 @@ class TripConfirmationScreen extends StatelessWidget {
                   vertical: 11,
                 ),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF6EBCB),
+                  color: isDark ? const Color(0xFF221F18) : const Color(0xFFF6EBCB),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Row(
@@ -341,7 +354,7 @@ class TripConfirmationScreen extends StatelessWidget {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: const Color(0xFF17211D),
+                          color: isDark ? const Color(0xFFE5D7B5) : const Color(0xFF17211D),
                         ),
                       ),
                     ),
@@ -396,24 +409,26 @@ class TripConfirmationScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRecapRow({
+  Widget _buildRecapRow(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required String value,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
         Container(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: const Color(0xFFE5F1EA),
+            color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
             borderRadius: BorderRadius.circular(9),
           ),
           child: Icon(
             icon,
             size: 16,
-            color: const Color(0xFF123F32),
+            color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
           ),
         ),
         const SizedBox(width: 10),
@@ -425,7 +440,7 @@ class TripConfirmationScreen extends StatelessWidget {
                 label,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
-                  color: const Color(0xFF6B7280),
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                 ),
               ),
               Text(
@@ -433,7 +448,7 @@ class TripConfirmationScreen extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.figmaDarkGreen,
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

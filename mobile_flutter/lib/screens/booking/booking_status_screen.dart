@@ -164,28 +164,29 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
 
     if (_error != null && _booking == null) {
+      final theme = Theme.of(context);
       return Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+        backgroundColor: theme.scaffoldBackgroundColor,
         appBar: AppBar(
-          backgroundColor: AppColors.figmaSurface,
+          backgroundColor: theme.scaffoldBackgroundColor,
           elevation: 0,
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.figmaDarkGreen),
+            icon: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface),
             onPressed: () => Navigator.pop(context),
           ),
           title: Text(
             'Booking status',
             style: GoogleFonts.plusJakartaSans(
-              color: AppColors.figmaDarkGreen,
+              color: theme.colorScheme.onSurface,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -197,6 +198,8 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
       );
     }
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final reference = _booking!['bookingReference'] ?? 'ST-284619';
     final total = (_booking!['totalCost'] ??
             _booking!['totalEstimatedCost'] ??
@@ -208,7 +211,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -224,13 +227,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                     child: Container(
                       width: 44,
                       height: 44,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
+                        color: theme.colorScheme.onSurface,
                         size: 20,
                       ),
                     ),
@@ -242,7 +245,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.figmaDarkGreen,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -250,7 +253,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         'Reference $reference',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -259,13 +262,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.more_horiz,
-                      color: AppColors.figmaDarkGreen,
+                      color: theme.colorScheme.onSurface,
                       size: 20,
                     ),
                   ),
@@ -314,7 +317,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 26,
                   fontWeight: FontWeight.w800,
-                  color: AppColors.figmaDarkGreen,
+                  color: theme.colorScheme.onSurface,
                   letterSpacing: 0.5,
                 ),
               ),
@@ -323,7 +326,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 'Updated today at 10:42 · Ready in approximately 12 minutes',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
-                  color: const Color(0xFF6B7280),
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -335,9 +338,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.figmaCardBorder),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -531,9 +536,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 child: OutlinedButton(
                   onPressed: _cancelBooking,
                   style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.figmaDarkGreen,
-                    side: const BorderSide(color: AppColors.figmaCardBorder),
+                    backgroundColor: theme.cardColor,
+                    foregroundColor: isDark ? Colors.white : AppColors.figmaDarkGreen,
+                    side: BorderSide(
+                      color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26),
                     ),
@@ -542,14 +549,18 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.cancel_outlined, size: 18),
+                      Icon(
+                        Icons.cancel_outlined,
+                        size: 18,
+                        color: isDark ? Colors.white70 : AppColors.figmaDarkGreen,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Cancel Booking',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.figmaDarkGreen,
+                          color: isDark ? Colors.white : AppColors.figmaDarkGreen,
                         ),
                       ),
                     ],
@@ -564,7 +575,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 'Eligible items can be cancelled without charge until 8 October.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
-                  color: const Color(0xFF6B7280),
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -676,7 +687,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.figmaDarkGreen,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -684,7 +695,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         subtitle,
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
-                          color: const Color(0xFF6B7280),
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF9EABA4)
+                              : const Color(0xFF6B7280),
                         ),
                       ),
                     ],
@@ -694,7 +707,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFF9CA3AF),
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF9EABA4)
+                          : const Color(0xFF9CA3AF),
                     ),
                   ),
                 ],

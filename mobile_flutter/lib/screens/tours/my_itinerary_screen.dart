@@ -661,12 +661,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                     child: const Icon(Icons.edit_note, color: Color(0xFF13684B), size: 22),
                   ),
                   const SizedBox(width: 10),
-                  const Text(
+                  Text(
                     'Request Changes',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF08201A),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -777,8 +777,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFBF9F4),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -793,9 +796,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFEDECE4)),
+                        border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.04),
@@ -804,8 +807,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                           ),
                         ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.arrow_back, color: Color(0xFF1E1E1E), size: 20),
+                      child: Center(
+                        child: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface, size: 20),
                       ),
                     ),
                   ),
@@ -821,7 +824,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                               style: GoogleFonts.poppins(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
-                                color: const Color(0xFF08201A),
+                                color: theme.colorScheme.onSurface,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -834,9 +837,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         const SizedBox(height: 2),
                         Text(
                           _getHeaderSubtitle(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF8A9E96),
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
                             fontWeight: FontWeight.w500,
                           ),
                           maxLines: 1,
@@ -851,9 +854,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFEDECE4)),
+                        border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.04),
@@ -862,8 +865,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                           ),
                         ],
                       ),
-                      child: const Center(
-                        child: Icon(Icons.refresh, color: Color(0xFF1E1E1E), size: 20),
+                      child: Center(
+                        child: Icon(Icons.refresh, color: theme.colorScheme.onSurface, size: 20),
                       ),
                     ),
                   ),
@@ -928,12 +931,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             children: [
               const Icon(Icons.cloud_off_outlined, size: 54, color: Color(0xFFD9534F)),
               const SizedBox(height: 14),
-              const Text(
+              Text(
                 'Unable to load itinerary',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF08201A),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
@@ -976,12 +979,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 child: const Icon(Icons.map_outlined, size: 36, color: Color(0xFF13684B)),
               ),
               const SizedBox(height: 18),
-              const Text(
+              Text(
                 'No itinerary yet',
                 style: TextStyle(
                   fontSize: 19,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF08201A),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
@@ -1112,10 +1115,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       value: id,
                       child: Text(
                         'Itinerary #$id - $itStatus',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF08201A),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     );
@@ -1322,23 +1325,23 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Your journey',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF08201A),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
               if (_isDraft(status) || _isProposed(status))
                 GestureDetector(
                   onTap: _showRequestChangesDialog,
-                  child: const Text(
+                  child: Text(
                     'Edit',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF0E382C),
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ),
@@ -1415,7 +1418,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
-              color: const Color(0xFFF6EED8),
+              color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF232D28) : const Color(0xFFF6EED8),
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -1436,10 +1439,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                     const SizedBox(height: 2),
                     Text(
                       '$durationDays ${durationDays == 1 ? 'day' : 'days'} / ${durationDays > 1 ? durationDays - 1 : 0} nights',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF08201A),
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ],
@@ -1459,10 +1462,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                     const SizedBox(height: 2),
                     Text(
                       formattedCost,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF0E382C),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ],
@@ -1741,10 +1744,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               children: [
                 Text(
                   dayLabel,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFF08201A),
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 Text(
@@ -1786,9 +1789,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: Theme.of(context).cardColor,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: const Color(0xFFEDECE4)),
+                border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.02),
@@ -1826,10 +1829,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         const SizedBox(height: 2),
                         Text(
                           title,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF08201A),
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),

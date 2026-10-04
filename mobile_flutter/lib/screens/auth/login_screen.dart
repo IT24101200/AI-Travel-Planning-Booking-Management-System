@@ -61,8 +61,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.figmaDarkGreen,
+      backgroundColor: isDark ? const Color(0xFF0A120E) : AppColors.figmaDarkGreen,
       body: Stack(
         children: [
           // ── Hero Background Image & Branding ──
@@ -86,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.black.withValues(alpha: 0.35),
-                        AppColors.figmaDarkGreen.withValues(alpha: 0.8),
+                        (isDark ? const Color(0xFF0A120E) : AppColors.figmaDarkGreen).withValues(alpha: 0.8),
                       ],
                     ),
                   ),
@@ -160,13 +163,13 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
 
-          // ── Curved White Content Sheet ──
+          // ── Curved Content Sheet ──
           Positioned.fill(
             top: 230,
             child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF141F1B) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
@@ -180,7 +183,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF111827),
+                          color: isDark ? Colors.white : const Color(0xFF111827),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -188,7 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         'Access your saved journeys, bookings and AI itineraries.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                         ),
                       ),
                       const SizedBox(height: 24),
@@ -198,18 +201,18 @@ class _LoginScreenState extends State<LoginScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: isDark ? const Color(0xFF2C1616) : const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFCA5A5)),
+                            border: Border.all(color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
+                              const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _error!,
-                                  style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12),
+                                  style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
                                 ),
                               ),
                             ],
@@ -224,30 +227,51 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.mail_outline, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.mail_outline,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           hintText: 'maya@serendib.com',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (val) {
@@ -264,38 +288,59 @@ class _LoginScreenState extends State<LoginScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _passwordCtrl,
                         obscureText: _obscurePassword,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.lock_outline,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                              color: const Color(0xFF9CA3AF),
+                              color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
                               size: 20,
                             ),
                             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
                           hintText: '••••••••',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (val) {
@@ -327,7 +372,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFF166B4F),
+                              color: isDark ? AppColors.leaf400 : const Color(0xFF166B4F),
                             ),
                           ),
                         ),
@@ -341,30 +386,37 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: ElevatedButton(
                           onPressed: _loading ? null : _login,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.figmaDarkGreen,
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(26),
                             ),
                           ),
                           child: _loading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: isDark ? const Color(0xFF06231B) : Colors.white,
+                                  ),
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.arrow_forward, size: 18, color: Colors.white),
+                                    Icon(
+                                      Icons.arrow_forward,
+                                      size: 18,
+                                      color: isDark ? const Color(0xFF06231B) : Colors.white,
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Sign In',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                                        color: isDark ? const Color(0xFF06231B) : Colors.white,
                                       ),
                                     ),
                                   ],
@@ -383,15 +435,15 @@ class _LoginScreenState extends State<LoginScreen> {
                             text: TextSpan(
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
-                                color: const Color(0xFF4B5563),
+                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
                               ),
-                              children: const [
-                                TextSpan(text: 'New to Serendib? '),
+                              children: [
+                                const TextSpan(text: 'New to Serendib? '),
                                 TextSpan(
                                   text: 'Create an account',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF111827),
+                                    color: isDark ? AppColors.leaf400 : const Color(0xFF111827),
                                   ),
                                 ),
                               ],
@@ -405,15 +457,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F3EE),
+                          color: isDark ? const Color(0xFF192520) : const Color(0xFFE8F3EE),
                           borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFD1E7DD),
+                          ),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.verified_user_outlined,
-                              color: Color(0xFF166B4F),
+                              color: isDark ? AppColors.leaf400 : const Color(0xFF166B4F),
                               size: 20,
                             ),
                             const SizedBox(width: 12),
@@ -422,7 +477,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 'Secure sign-in protects your preferences, tickets and payment details.',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
-                                  color: const Color(0xFF2D4B3E),
+                                  color: isDark ? const Color(0xFFC7D0CB) : const Color(0xFF2D4B3E),
                                   height: 1.35,
                                 ),
                               ),

@@ -201,6 +201,9 @@ class _ExploreTabState extends State<_ExploreTab> {
         ? widget.userName.split(' ').first.toUpperCase()
         : 'USER';
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +306,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                     height: 48,
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
@@ -428,17 +431,17 @@ class _ExploreTabState extends State<_ExploreTab> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                     decoration: BoxDecoration(
-                      color: isSelected ? AppColors.figmaDarkGreen : Colors.white,
+                      color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(
-                        color: isSelected ? AppColors.figmaDarkGreen : const Color(0xFFE5E7EB),
+                        color: isSelected ? theme.colorScheme.primary : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
                       ),
                     ),
                     child: Center(
                       child: Text(
                         cat,
                         style: GoogleFonts.plusJakartaSans(
-                          color: isSelected ? Colors.white : const Color(0xFF374151),
+                          color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -463,7 +466,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF111827),
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 GestureDetector(
@@ -473,7 +476,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF166B4F),
+                      color: theme.colorScheme.primary,
                     ),
                   ),
                 ),
@@ -635,7 +638,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF111827),
+                    color: theme.colorScheme.onSurface,
                   ),
                 ),
                 GestureDetector(
@@ -645,7 +648,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: const Color(0xFF166B4F),
+                      color: theme.colorScheme.primary,
                     ),
                   ),
                 ),
@@ -657,10 +660,10 @@ class _ExploreTabState extends State<_ExploreTab> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: _loadingTours
-                ? const Center(
+                ? Center(
                     child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: CircularProgressIndicator(color: AppColors.figmaDarkGreen, strokeWidth: 2),
+                      padding: const EdgeInsets.all(16),
+                      child: CircularProgressIndicator(color: theme.colorScheme.primary, strokeWidth: 2),
                     ),
                   )
                 : _buildFeaturedToursList(),
@@ -677,7 +680,7 @@ class _ExploreTabState extends State<_ExploreTab> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pushNamed(context, '/trip-request'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.figmaDarkGreen,
+                  backgroundColor: theme.colorScheme.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   shape: RoundedRectangleBorder(
@@ -738,9 +741,9 @@ class _ExploreTabState extends State<_ExploreTab> {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.02),
@@ -752,14 +755,14 @@ class _ExploreTabState extends State<_ExploreTab> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: AppColors.figmaDarkGreen, size: 22),
+              Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
               const SizedBox(height: 6),
               Text(
                 label,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF111827),
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ],
@@ -883,9 +886,9 @@ class _ExploreTabState extends State<_ExploreTab> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
+          border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
         ),
         child: Row(
           children: [
@@ -939,7 +942,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFF374151),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -947,7 +950,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                         '· $tourDuration hours · from LKR $priceLkr',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
-                          color: const Color(0xFF6B7280),
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                       ),
                     ],

@@ -85,8 +85,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.figmaDarkGreen,
+      backgroundColor: isDark ? const Color(0xFF0A120E) : AppColors.figmaDarkGreen,
       body: Stack(
         children: [
           // ── Hero Background Image & Branding ──
@@ -110,7 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.black.withValues(alpha: 0.35),
-                        AppColors.figmaDarkGreen.withValues(alpha: 0.8),
+                        (isDark ? const Color(0xFF0A120E) : AppColors.figmaDarkGreen).withValues(alpha: 0.8),
                       ],
                     ),
                   ),
@@ -184,13 +187,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
 
-          // ── Curved White Content Sheet ──
+          // ── Curved Content Sheet ──
           Positioned.fill(
             top: 235,
             child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF141F1B) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 26, 24, 30),
@@ -204,7 +207,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF111827),
+                          color: isDark ? Colors.white : const Color(0xFF111827),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -212,7 +215,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         'One account for planning, booking and live trip updates.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
-                          color: const Color(0xFF6B7280),
+                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                         ),
                       ),
                       const SizedBox(height: 22),
@@ -222,18 +225,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
+                            color: isDark ? const Color(0xFF2C1616) : const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFFCA5A5)),
+                            border: Border.all(color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 18),
+                              const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _error!,
-                                  style: const TextStyle(color: Color(0xFFDC2626), fontSize: 12),
+                                  style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
                                 ),
                               ),
                             ],
@@ -248,29 +251,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _nameCtrl,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.person_outline,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           hintText: 'Maya Fernando',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (v) => (v == null || v.trim().isEmpty) ? 'Full name is required' : null,
@@ -283,30 +307,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _emailCtrl,
                         keyboardType: TextInputType.emailAddress,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.mail_outline, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.mail_outline,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           hintText: 'maya@serendib.com',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (v) {
@@ -323,7 +368,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -331,24 +376,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         controller: _phoneCtrl,
                         keyboardType: TextInputType.phone,
                         maxLength: 10,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.phone_outlined, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.phone_outlined,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           hintText: '0771234567',
                           counterText: '',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (v) {
@@ -366,38 +432,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _passwordCtrl,
                         obscureText: _obscurePassword,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.lock_outline,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                              color: const Color(0xFF9CA3AF),
+                              color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
                               size: 20,
                             ),
                             onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                           ),
                           hintText: '••••••••',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (v) {
@@ -414,38 +501,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: const Color(0xFF374151),
+                          color: isDark ? const Color(0xFFE0EDE6) : const Color(0xFF374151),
                         ),
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
                         controller: _confirmPasswordCtrl,
                         obscureText: _obscureConfirmPassword,
-                        style: const TextStyle(fontSize: 14, color: Color(0xFF111827)),
+                        cursorColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: isDark ? Colors.white : const Color(0xFF111827),
+                        ),
                         decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+                          filled: true,
+                          fillColor: isDark ? const Color(0xFF1D2B25) : const Color(0xFFF9FAFB),
+                          prefixIcon: Icon(
+                            Icons.lock_outline,
+                            color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
+                            size: 20,
+                          ),
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscureConfirmPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                              color: const Color(0xFF9CA3AF),
+                              color: isDark ? const Color(0xFF7FA393) : const Color(0xFF9CA3AF),
                               size: 20,
                             ),
                             onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                           ),
                           hintText: '••••••••',
-                          hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
+                          hintStyle: TextStyle(
+                            color: isDark ? const Color(0xFF637C70) : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                            borderSide: BorderSide(
+                              color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.figmaDarkGreen, width: 1.5),
+                            borderSide: BorderSide(
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (v) {
@@ -465,7 +573,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             height: 24,
                             child: Checkbox(
                               value: _agreeTerms,
-                              activeColor: AppColors.figmaDarkGreen,
+                              activeColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              checkColor: isDark ? const Color(0xFF06231B) : Colors.white,
+                              side: BorderSide(color: isDark ? const Color(0xFF4B6055) : const Color(0xFFD1D5DB)),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                               onChanged: (val) => setState(() => _agreeTerms = val ?? false),
                             ),
@@ -476,7 +586,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               'I agree to the Terms and Sri Lanka partner booking policy.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
-                                color: const Color(0xFF4B5563),
+                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
                                 height: 1.4,
                               ),
                             ),
@@ -492,30 +602,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: ElevatedButton(
                           onPressed: _loading ? null : _register,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.figmaDarkGreen,
-                            foregroundColor: Colors.white,
+                            backgroundColor: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(26),
                             ),
                           ),
                           child: _loading
-                              ? const SizedBox(
+                              ? SizedBox(
                                   width: 22,
                                   height: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: isDark ? const Color(0xFF06231B) : Colors.white,
+                                  ),
                                 )
                               : Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Icon(Icons.arrow_forward, size: 18, color: Colors.white),
+                                    Icon(
+                                      Icons.arrow_forward,
+                                      size: 18,
+                                      color: isDark ? const Color(0xFF06231B) : Colors.white,
+                                    ),
                                     const SizedBox(width: 8),
                                     Text(
                                       'Create Account',
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 15,
                                         fontWeight: FontWeight.w700,
-                                        color: Colors.white,
+                                        color: isDark ? const Color(0xFF06231B) : Colors.white,
                                       ),
                                     ),
                                   ],
@@ -534,15 +651,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             text: TextSpan(
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
-                                color: const Color(0xFF4B5563),
+                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
                               ),
-                              children: const [
-                                TextSpan(text: 'Already a member? '),
+                              children: [
+                                const TextSpan(text: 'Already a member? '),
                                 TextSpan(
                                   text: 'Sign in',
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF111827),
+                                    color: isDark ? AppColors.leaf400 : const Color(0xFF111827),
                                   ),
                                 ),
                               ],

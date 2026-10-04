@@ -237,7 +237,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
     final routePoints = _stops.map((s) => s.latLng).toList();
 
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: Stack(
         children: [
           // ── Real OpenStreetMap Interactive Canvas ──
@@ -327,13 +327,13 @@ class _TripMapScreenState extends State<TripMapScreen> {
                     child: Container(
                       width: 36,
                       height: 36,
-                      decoration: const BoxDecoration(
-                        color: AppColors.figmaSurface,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.arrow_back,
-                        color: AppColors.figmaDarkGreen,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 18,
                       ),
                     ),
@@ -348,7 +348,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,
-                            color: AppColors.figmaDarkGreen,
+                            color: Theme.of(context).colorScheme.onSurface,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -379,12 +379,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: _isSatellite ? AppColors.figmaGold : AppColors.figmaSurface,
+                        color: _isSatellite ? AppColors.figmaGold : Theme.of(context).cardColor,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.layers_outlined,
-                        color: _isSatellite ? Colors.white : AppColors.figmaDarkGreen,
+                        color: _isSatellite ? Colors.white : Theme.of(context).colorScheme.primary,
                         size: 18,
                       ),
                     ),

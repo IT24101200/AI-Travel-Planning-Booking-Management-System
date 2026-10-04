@@ -138,10 +138,10 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: AppColors.figmaSurface,
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.figmaDarkGreen),
+          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
         ),
       );
     }
@@ -191,8 +191,11 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     final upcomingCount = _bookings.isNotEmpty ? _bookings.length : _sampleUpcoming.length;
     final completedCount = _sampleCompleted.length;
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.figmaSurface,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -211,7 +214,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF17211D),
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       Text(
@@ -228,7 +231,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.colorScheme.surface,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
@@ -239,9 +242,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                       ],
                     ),
                     child: IconButton(
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.add,
-                        color: AppColors.figmaDarkGreen,
+                        color: isDark ? Colors.white : AppColors.figmaDarkGreen,
                         size: 20,
                       ),
                       onPressed: () {
@@ -266,9 +269,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                       vertical: 14,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFE4E7E2)),
+                      border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                     ),
                     child: Row(
                       children: [
@@ -276,12 +279,12 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                           width: 42,
                           height: 42,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEAF2EC),
+                            color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEAF2EC),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.calendar_month_outlined,
-                            color: AppColors.figmaDarkGreen,
+                            color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -291,14 +294,14 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 14,
                               fontWeight: FontWeight.w800,
-                              color: const Color(0xFF17211D),
+                              color: theme.colorScheme.onSurface,
                             ),
                           ),
                         ),
-                        const Icon(
+                        Icon(
                           Icons.arrow_forward_ios,
                           size: 16,
-                          color: AppColors.figmaDarkGreen,
+                          color: isDark ? Colors.white70 : AppColors.figmaDarkGreen,
                         ),
                       ],
                     ),
@@ -313,9 +316,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                 height: 38,
                 padding: const EdgeInsets.all(3),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: const Color(0xFFE4E7E2)),
+                  border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                 ),
                 child: Row(
                   children: [
@@ -337,7 +340,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF17211D),
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   PopupMenuButton<String>(
@@ -388,9 +391,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE4E7E2)),
+                    border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
                   ),
                   child: Column(
                     children: [
@@ -413,7 +416,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF17211D),
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -457,7 +460,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: theme.colorScheme.surface,
                       borderRadius: BorderRadius.circular(17),
                       boxShadow: [
                         BoxShadow(
@@ -532,7 +535,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 13,
                                           fontWeight: FontWeight.w800,
-                                          color: const Color(0xFF17211D),
+                                          color: theme.colorScheme.onSurface,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
@@ -540,7 +543,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                         trip['dates'] as String,
                                         style: GoogleFonts.plusJakartaSans(
                                           fontSize: 9,
-                                          color: const Color(0xFF6E7772),
+                                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
                                         ),
                                       ),
                                     ],
@@ -550,7 +553,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                     style: GoogleFonts.plusJakartaSans(
                                       fontSize: 15,
                                       fontWeight: FontWeight.w800,
-                                      color: const Color(0xFF123F32),
+                                      color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                                     ),
                                   ),
                                 ],

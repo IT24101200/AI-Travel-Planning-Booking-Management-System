@@ -110,9 +110,11 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   @override
   Widget build(BuildContext context) {
     final displayList = _filteredTours;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F5EF),
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -132,11 +134,12 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                     child: Container(
                       width: 40,
                       height: 40,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
+                        border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
                       ),
-                      child: const Icon(Icons.arrow_back, color: Color(0xFF111827), size: 20),
+                      child: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface, size: 20),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -149,14 +152,14 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 18,
                             fontWeight: FontWeight.w800,
-                            color: const Color(0xFF111827),
+                            color: theme.colorScheme.onSurface,
                           ),
                         ),
                         Text(
                           'Handpicked island experiences',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
-                            color: const Color(0xFF6B7280),
+                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
                           ),
                         ),
                       ],
@@ -165,11 +168,12 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   Container(
                     width: 40,
                     height: 40,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surface,
                       shape: BoxShape.circle,
+                      border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
                     ),
-                    child: const Icon(Icons.favorite_border, color: Color(0xFF111827), size: 20),
+                    child: Icon(Icons.favorite_border, color: theme.colorScheme.onSurface, size: 20),
                   ),
                 ],
               ),
@@ -182,9 +186,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                 height: 48,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
                 ),
                 child: Row(
                   children: [
@@ -193,7 +197,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                     Expanded(
                       child: TextField(
                         controller: _searchCtrl,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: const Color(0xFF111827)),
+                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.colorScheme.onSurface),
                         decoration: const InputDecoration(
                           hintText: 'Search Sigiriya, safari, surf...',
                           hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
@@ -244,10 +248,10 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.figmaDarkGreen : Colors.white,
+                          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isSelected ? AppColors.figmaDarkGreen : const Color(0xFFE5E7EB),
+                            color: isSelected ? theme.colorScheme.primary : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
                           ),
                         ),
                         child: Text(
@@ -255,7 +259,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : const Color(0xFF374151),
+                            color: isSelected ? Colors.white : theme.colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -276,7 +280,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF111827),
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   GestureDetector(
@@ -336,7 +340,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   void _showSortBottomSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -355,7 +359,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: const Color(0xFF111827),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -423,9 +427,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.02),
@@ -485,7 +489,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF111827),
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -499,7 +503,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           const SizedBox(width: 3),
                           Text(
                             location,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: const Color(0xFF6B7280)),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
                           ),
                         ],
                       ),
@@ -509,7 +513,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           const SizedBox(width: 3),
                           Text(
                             '$duration hours',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: const Color(0xFF6B7280)),
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
                           ),
                         ],
                       ),
@@ -533,7 +537,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
-                              color: AppColors.figmaDarkGreen,
+                              color: Theme.of(context).brightness == Brightness.dark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
                             ),
                           ),
                         ],
@@ -541,8 +545,8 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       Container(
                         width: 36,
                         height: 36,
-                        decoration: const BoxDecoration(
-                          color: AppColors.figmaDarkGreen,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.north_east, color: Colors.white, size: 18),
