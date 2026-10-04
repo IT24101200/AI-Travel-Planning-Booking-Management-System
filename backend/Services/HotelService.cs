@@ -132,6 +132,7 @@ namespace backend.Services
                 DestinationId = dto.DestinationId,
                 Name          = dto.Name,
                 Address       = dto.Address,
+                ImageUrl      = dto.ImageUrl,
                 Latitude      = dto.Latitude,
                 Longitude     = dto.Longitude,
                 StarRating    = dto.StarRating,
@@ -155,6 +156,8 @@ namespace backend.Services
             hotel.DestinationId = dto.DestinationId;
             hotel.Name          = dto.Name;
             hotel.Address       = dto.Address;
+            if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
+                hotel.ImageUrl = dto.ImageUrl;
             hotel.Latitude      = dto.Latitude;
             hotel.Longitude     = dto.Longitude;
             hotel.StarRating    = dto.StarRating;
@@ -291,6 +294,7 @@ namespace backend.Services
             DestinationId = h.DestinationId,
             Name          = h.Name,
             Address       = h.Address,
+            ImageUrl      = h.ImageUrl,
             Latitude      = h.Latitude,
             Longitude     = h.Longitude,
             StarRating    = h.StarRating,

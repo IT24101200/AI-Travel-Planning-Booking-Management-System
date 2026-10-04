@@ -25,6 +25,12 @@ namespace backend.Models
         [MaxLength(500)]
         public string? Address { get; set; }
 
+        /// <summary>
+        /// Cover image URL for the hotel (Supabase CDN or static upload).
+        /// </summary>
+        [MaxLength(500)]
+        public string? ImageUrl { get; set; }
+
         // ── Location for the Trip Map ──
         public double Latitude { get; set; }
         public double Longitude { get; set; }
