@@ -26,6 +26,40 @@ namespace backend.Data
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
             // ─────────────────────────────────────────────────────────────
+            // 0. Ensure Catalog ImageUrl columns exist & seed defaults
+            // ─────────────────────────────────────────────────────────────
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    ALTER TABLE ""Hotels"" ADD COLUMN IF NOT EXISTS ""ImageUrl"" character varying(500) NULL;
+                    ALTER TABLE ""TransportOptions"" ADD COLUMN IF NOT EXISTS ""ImageUrl"" character varying(500) NULL;
+                ");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DbInitializer] ALTER TABLE notice: {ex.Message}");
+            }
+
+            try
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    UPDATE ""Hotels"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND ""Name"" ILIKE '%Vil Uyana%';
+                    UPDATE ""Hotels"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND ""Name"" ILIKE '%Santani%';
+                    UPDATE ""Hotels"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND ""Name"" ILIKE '%98 Acres%';
+                    UPDATE ""Hotels"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND ""Name"" ILIKE '%Amangalla%';
+                    UPDATE ""Hotels"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND ""Name"" ILIKE '%Cinnamon Wild%';
+
+                    UPDATE ""TransportOptions"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND (""Type"" = 'Train' OR ""Type"" = '0');
+                    UPDATE ""TransportOptions"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND (""Type"" = 'Car' OR ""Type"" = '2');
+                    UPDATE ""TransportOptions"" SET ""ImageUrl"" = 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1200&q=80' WHERE ""ImageUrl"" IS NULL AND (""Type"" = 'Flight' OR ""Type"" = '1');
+                ");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[DbInitializer] UPDATE ImageUrl notice: {ex.Message}");
+            }
+
+            // ─────────────────────────────────────────────────────────────
             // 1. Roles
             // ─────────────────────────────────────────────────────────────
             string[] roles = ["Customer", "TravelAgent", "Admin"];
