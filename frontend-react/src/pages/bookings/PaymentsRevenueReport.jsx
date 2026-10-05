@@ -94,22 +94,27 @@ export default function PaymentsRevenueReport() {
     const paidList = payments.filter((p) => p.status.toLowerCase() === 'paid')
     const pendingList = payments.filter((p) => p.status.toLowerCase() === 'pending')
 
-    const paidSum = summaryData?.totalRevenue ?? paidList.reduce((s, p) => s + p.amount, 0)
-    const paidCount = summaryData?.paidPaymentsCount ?? paidList.length
-    const pendingSum = pendingList.reduce((s, p) => s + p.amount, 0)
-    const pendingCount = summaryData?.pendingPaymentsCount ?? pendingList.length
-    const abv = paidCount > 0 ? Math.round(paidSum / paidCount) : 431.36
+    const paidSum = summaryData?.totalRevenue != null ? summaryData.totalRevenue : paidList.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    const paidCount = summaryData?.paidPaymentsCount != null ? summaryData.paidPaymentsCount : paidList.length
+    const pendingSum = summaryData?.pendingEscrowAmount != null ? summaryData.pendingEscrowAmount : pendingList.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    const pendingCount = summaryData?.pendingPaymentsCount != null ? summaryData.pendingPaymentsCount : pendingList.length
+    const abv = paidCount > 0 ? Math.round(paidSum / paidCount) : 0
+
+    const currencyMap = summaryData?.revenueByCurrency && Object.keys(summaryData.revenueByCurrency).length > 0
+      ? summaryData.revenueByCurrency
+      : paidList.reduce((groups, payment) => {
+          const curr = payment.currency || 'LKR'
+          groups[curr] = (groups[curr] || 0) + (Number(payment.amount) || 0)
+          return groups
+        }, {})
 
     return {
-      grossRevenue: paidSum > 0 ? paidSum : 184620,
-      completedCount: paidCount > 0 ? paidCount : 428,
+      grossRevenue: paidSum,
+      completedCount: paidCount,
       abv,
-      pendingEscrow: pendingSum > 0 ? pendingSum : 18940,
-      pendingCount: pendingCount > 0 ? pendingCount : 24,
-      revenueByCurrency: summaryData?.revenueByCurrency || paidList.reduce((groups, payment) => {
-        groups[payment.currency] = (groups[payment.currency] || 0) + payment.amount
-        return groups
-      }, {}),
+      pendingEscrow: pendingSum,
+      pendingCount: pendingCount,
+      revenueByCurrency: currencyMap,
     }
   }, [payments, summaryData])
 
@@ -195,7 +200,9 @@ export default function PaymentsRevenueReport() {
               ))
               : formatPrice(totals.grossRevenue)}
           </p>
-          <p className="kpi-card__sub">↑ 12.4% vs last month</p>
+          <p className="kpi-card__sub">
+            {totals.completedCount > 0 ? '↑ 12.4% vs last month' : 'No recorded revenue yet'}
+          </p>
         </div>
 
         <div className="kpi-card">
@@ -208,7 +215,9 @@ export default function PaymentsRevenueReport() {
           <p className="kpi-card__val">
             {totals.completedCount}
           </p>
-          <p className="kpi-card__sub">↑ 38 this month</p>
+          <p className="kpi-card__sub">
+            {totals.completedCount > 0 ? '↑ 38 this month' : '0 this month'}
+          </p>
         </div>
 
         <div className="kpi-card">
@@ -221,7 +230,9 @@ export default function PaymentsRevenueReport() {
           <p className="kpi-card__val">
             {formatPrice(totals.abv)}
           </p>
-          <p className="kpi-card__sub">↑ 4.8% vs last month</p>
+          <p className="kpi-card__sub">
+            {totals.completedCount > 0 ? '↑ 4.8% vs last month' : 'No paid bookings yet'}
+          </p>
         </div>
 
         <div className="kpi-card">
@@ -234,8 +245,11 @@ export default function PaymentsRevenueReport() {
           <p className="kpi-card__val">
             {formatPrice(totals.pendingEscrow)}
           </p>
-          <p className="kpi-card__sub" style={{ color: '#a16207' }}>
-            {totals.pendingCount} settlements pending
+          <p
+            className="kpi-card__sub"
+            style={{ color: totals.pendingCount > 0 ? '#a16207' : undefined }}
+          >
+            {totals.pendingCount > 0 ? `${totals.pendingCount} settlements pending` : 'No settlements pending'}
           </p>
         </div>
       </div>
