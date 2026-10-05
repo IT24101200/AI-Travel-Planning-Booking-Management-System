@@ -203,15 +203,11 @@ namespace backend.Services
                 return new(ItineraryStatusUpdateOutcome.Invalid,
                     $"An itinerary in {itinerary.Status} status cannot be changed.");
 
-            if (isStaff && newStatus == ItineraryStatus.Accepted)
-                return new(ItineraryStatusUpdateOutcome.Forbidden,
-                    "Only the customer can accept a proposed itinerary.");
-
             var allowed = isStaff
                 ? itinerary.Status switch
                 {
-                    ItineraryStatus.Draft => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Discarded,
-                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Draft or ItineraryStatus.Discarded,
+                    ItineraryStatus.Draft => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
+                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
                     _ => false
                 }
                 : itinerary.Status switch
@@ -225,7 +221,7 @@ namespace backend.Services
                 return new(ItineraryStatusUpdateOutcome.Invalid,
                     $"Cannot change itinerary status from {itinerary.Status} to {newStatus}.");
 
-            if (isStaff && itinerary.Status == ItineraryStatus.Draft && newStatus == ItineraryStatus.Proposed &&
+            if (isStaff && (newStatus == ItineraryStatus.Proposed || newStatus == ItineraryStatus.Accepted) && itinerary.Status == ItineraryStatus.Draft &&
                 !await _context.ItineraryItems.AnyAsync(item => item.ItineraryId == itineraryId))
                 return new(ItineraryStatusUpdateOutcome.Invalid,
                     "Cannot approve an itinerary with no activities.");
