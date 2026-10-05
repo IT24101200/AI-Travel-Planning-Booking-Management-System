@@ -116,7 +116,7 @@ class AppDestinations {
       name: 'Mirissa',
       region: 'South Coast',
       tagline: 'Golden crescent bay, whale safari & surf',
-      imageUrl: 'assets/photos/mirissa-1280.jpg',
+      imageUrl: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQSiOr1Ncyl4BU0CGXItN-dlNwsyCb_iOZAa94r0bWs8OljdYu9w4KaAdo&s=10',
       tags: 'Beach • Safari',
       rating: 4.7,
       priceFrom: 168,

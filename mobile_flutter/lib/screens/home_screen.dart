@@ -503,7 +503,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 _buildDestinationCard(
                   name: 'Mirissa',
                   category: 'South coast',
-                  imagePath: 'assets/photos/mirissa-1280.jpg',
+                  imagePath: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQSiOr1Ncyl4BU0CGXItN-dlNwsyCb_iOZAa94r0bWs8OljdYu9w4KaAdo&s=10',
                   onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Mirissa'),
                 ),
                 const SizedBox(width: 12),
