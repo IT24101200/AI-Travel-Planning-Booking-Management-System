@@ -219,7 +219,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/photos/explore-hero.jpg'),
+                    image: AssetImage(AppDestinations.exploreHero),
                     fit: BoxFit.cover,
                   ),
                 ),
