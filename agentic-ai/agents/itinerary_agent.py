@@ -158,7 +158,10 @@ def build_itinerary(trip_request):
 
     # Search the backend for tours belonging to the requested destination.
     try:
-        candidate_tours = search_tours(trip_request["destination_id"])
+        candidate_tours = search_tours(trip_request.get("destination_id"))
+        if not candidate_tours and trip_request.get("destination_id"):
+            # Fallback to searching all active tours if specific destination has none
+            candidate_tours = search_tours(None)
     except Exception as error:
         return {"error": f"Unable to search for tours: {error}"}
 

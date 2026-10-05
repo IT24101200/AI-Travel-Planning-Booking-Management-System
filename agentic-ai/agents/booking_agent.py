@@ -64,7 +64,6 @@ def build_booking_package(state):
                         "price_per_night": room.get("pricePerNight"),
                         "currency": room.get("currency")
                     })
-                    break 
                     
     log_agent_step(
         trip_request_id=trip_id,
