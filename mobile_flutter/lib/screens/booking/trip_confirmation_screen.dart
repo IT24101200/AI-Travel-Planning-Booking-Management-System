@@ -12,8 +12,8 @@ class TripConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
-    final Map<String, dynamic> booking = args is Map<String, dynamic>
-        ? args
+    final Map<String, dynamic> booking = args is Map
+        ? Map<String, dynamic>.from(args)
         : {
             'id': 101,
             'bookingReference': 'ST-2026-98214',
