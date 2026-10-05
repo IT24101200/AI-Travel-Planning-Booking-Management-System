@@ -13,38 +13,10 @@ from langgraph.graph import StateGraph, START, END
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from agents.coordinator_agent import coordinator_plan, coordinator_retry_evaluator
-
-# Downstream agent hooks (Owned and developed by Students B, C, and D in their respective branches)
-# Fallback to pass-through nodes when downstream agents are unmerged or empty
-try:
-    from agents.itinerary_agent import itinerary_node
-except (ImportError, AttributeError):
-    def itinerary_node(state: dict) -> dict:
-        """Placeholder pass-through until Student B merges itinerary_agent.py."""
-        return {"itinerary": state.get("itinerary", {})}
-
-try:
-    from agents.booking_agent import booking_node
-except (ImportError, AttributeError):
-    def booking_node(state: dict) -> dict:
-        """Placeholder pass-through until Student C merges booking_agent.py."""
-        return {"booking_details": state.get("booking_details", {})}
-
-try:
-    from agents.validation_agent import validation_node
-except (ImportError, AttributeError):
-    def validation_node(state: dict) -> dict:
-        """Placeholder pass-through until Student D merges validation_agent.py."""
-        return {
-            "validation_result": {"is_valid": True},
-            "plan_json": {
-                "plan_summary": state.get("plan_summary", {}),
-                "itinerary": state.get("itinerary", {}),
-                "booking_details": state.get("booking_details", {})
-            }
-        }
-
-from logger import log_agent_step, BACKEND_URL
+from agents.itinerary_agent import itinerary_node
+from agents.booking_agent import booking_node
+from agents.validation_agent import validation_node
+from logger import log_agent_step, BACKEND_URL, agent_service_headers
 import httpx
 
 
@@ -140,7 +112,7 @@ def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, ret
     try:
         url = f"{BACKEND_URL}/api/triprequest/{trip_id}/agent-update"
         with httpx.Client(timeout=httpx.Timeout(10.0, connect=3.0)) as client:
-            client.patch(url, json=payload)
+            client.patch(url, json=payload, headers=agent_service_headers())
     except Exception as e:
         print(f"[Warning] Could not push final plan to backend API: {e}")
 

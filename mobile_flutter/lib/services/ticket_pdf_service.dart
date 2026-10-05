@@ -6,7 +6,7 @@ import 'dart:typed_data';
 class TicketPdfService {
   /// Generates a valid PDF 1.4 document containing booking confirmation details.
   static Uint8List generateTicketPdf({
-    String bookingReference = 'ST-2026-98214',
+    required String bookingReference,
     String customerName = 'Maya Fernando',
     String destination = 'Sri Lanka Discovery',
     String dates = '12-18 Oct 2026',
