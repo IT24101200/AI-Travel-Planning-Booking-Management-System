@@ -149,6 +149,7 @@ builder.Services.AddHttpClient();
 // ── DI: Student A Services ──
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
+builder.Services.AddSingleton<ICurrencyConversionService, CurrencyConversionService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
 builder.Services.AddScoped<IAgentProposalPersistenceService, AgentProposalPersistenceService>();

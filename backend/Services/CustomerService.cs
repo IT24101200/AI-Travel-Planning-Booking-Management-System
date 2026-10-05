@@ -203,7 +203,7 @@ namespace backend.Services
                 HasPreference = pref != null,
                 BudgetMin = pref?.BudgetMin,
                 BudgetMax = pref?.BudgetMax,
-                Currency = pref?.Currency ?? "USD",
+                Currency = pref?.Currency ?? "LKR",
                 PreferredActivities = pref?.PreferredActivities,
                 DietaryNotes = pref?.DietaryNotes,
                 AccessibilityNotes = pref?.AccessibilityNotes,

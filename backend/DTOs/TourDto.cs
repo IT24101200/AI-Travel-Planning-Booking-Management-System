@@ -46,7 +46,7 @@ namespace backend.DTOs
         public decimal Price { get; set; }
 
         [MaxLength(10, ErrorMessage = "Currency code cannot exceed 10 characters.")]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         [Range(0.1, 240, ErrorMessage = "Duration must be between 0.1 and 240 hours.")]
         public double DurationHours { get; set; }

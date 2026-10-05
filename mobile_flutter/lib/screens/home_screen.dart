@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../app_constants.dart';
 import '../services/api_service.dart';
+import '../services/currency_notifier.dart';
 import 'profile/trip_history_screen.dart';
 import 'profile/notifications_screen.dart';
 import 'profile/profile_preferences_screen.dart';
+import '../main.dart' show currencyNotifier;
 
 /// Main home screen with bottom navigation bar and rich Explore dashboard.
 class HomeScreen extends StatefulWidget {
@@ -141,7 +143,7 @@ class _ExploreTabState extends State<_ExploreTab> {
 
   Future<void> _fetchTours() async {
     try {
-      final tours = await ApiService.getTours();
+      final tours = await ApiService.getTours(currency: currencyNotifier.value);
       if (mounted) {
         setState(() {
           _tours = tours;
@@ -873,7 +875,7 @@ class _ExploreTabState extends State<_ExploreTab> {
       photoAsset = 'assets/photos/mirissa-1280.jpg';
     }
 
-    final priceLkr = (tourPriceNum * 300).toInt();
+    final tourCurrency = tourMap['currency']?.toString() ?? currencyNotifier.value;
 
     return GestureDetector(
       onTap: () {
@@ -947,7 +949,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '· $tourDuration hours · from LKR $priceLkr',
+                        '· $tourDuration hours · from ${formatMoney(tourPriceNum, tourCurrency)}',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),

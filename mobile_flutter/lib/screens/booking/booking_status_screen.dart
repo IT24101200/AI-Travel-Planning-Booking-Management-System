@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/currency_notifier.dart';
+import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
 
 /// Booking status screen matching Figma frame 12 · Booking Status (node 7:11041)
@@ -536,7 +538,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Paid · \$${total.toStringAsFixed(0)}',
+                              'Paid · ${formatMoney(total, (_booking?['currency']?.toString() ?? currencyNotifier.value))}',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,

@@ -153,7 +153,8 @@ namespace backend.Tests
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddDays(7),
                 Status = ItineraryStatus.Proposed,
-                TotalEstimatedCost = 200
+                TotalEstimatedCost = 200,
+                Currency = "USD"
             });
 
             // Destination (required FK for Hotel)

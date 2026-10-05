@@ -15,7 +15,7 @@ namespace backend.DTOs
 
         [Required]
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         [MaxLength(500)]
         public string? PreferredActivities { get; set; }

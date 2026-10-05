@@ -17,9 +17,11 @@ import 'widgets/auth_guard.dart';
 import 'services/theme_notifier.dart';
 import 'services/app_theme.dart';
 import 'services/app_navigation.dart';
+import 'services/currency_notifier.dart';
 
 /// Global theme notifier — any screen can read or change the theme mode.
 final ThemeNotifier themeNotifier = ThemeNotifier();
+final CurrencyNotifier currencyNotifier = CurrencyNotifier();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

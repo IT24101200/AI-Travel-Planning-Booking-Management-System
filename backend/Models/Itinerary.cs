@@ -31,7 +31,10 @@ namespace backend.Models
         public decimal TotalEstimatedCost { get; set; }
 
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
+
+        [Column(TypeName = "decimal(18,6)")]
+        public decimal ExchangeRateToLkr { get; set; } = 1m;
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

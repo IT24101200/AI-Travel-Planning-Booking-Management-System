@@ -8,10 +8,12 @@ namespace backend.Services
     public class TourService
     {
         private readonly AppDbContext _context;
+        private readonly ICurrencyConversionService _currency;
 
-        public TourService(AppDbContext context)
+        public TourService(AppDbContext context, ICurrencyConversionService? currency = null)
         {
             _context = context;
+            _currency = currency ?? new CurrencyConversionService();
         }
 
         public async Task<List<TourDto>> SearchAsync(
@@ -24,7 +26,8 @@ namespace backend.Services
             string? sortBy,
             bool descending,
             int page,
-            int pageSize)
+            int pageSize,
+            string? currency = null)
         {
             var query = _context.Tours
                 .Include(t => t.Destination)
@@ -68,19 +71,22 @@ namespace backend.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            return tours.Select(t => ToDto(t)).ToList();
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return tours.Select(t => ToDto(t, targetCurrency)).ToList();
         }
 
-        public async Task<TourDto?> GetByIdAsync(int id)
+        public async Task<TourDto?> GetByIdAsync(int id, string? currency = null)
         {
             var tour = await _context.Tours
                 .Include(t => t.Destination)
                 .SingleOrDefaultAsync(t => t.Id == id);
-            return tour is null ? null : ToDto(tour);
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return tour is null ? null : ToDto(tour, targetCurrency);
         }
 
         public async Task<TourDto> CreateAsync(CreateTourDto dto)
         {
+            dto.Currency = _currency.Normalize(dto.Currency, "Tour currency");
             if (!await _context.Destinations.AnyAsync(d => d.Id == dto.DestinationId))
             {
                 throw new ArgumentException(
@@ -118,6 +124,7 @@ namespace backend.Services
 
         public async Task<bool> UpdateAsync(int id, CreateTourDto dto)
         {
+            dto.Currency = _currency.Normalize(dto.Currency, "Tour currency");
             var tour = await _context.Tours.FindAsync(id);
             if (tour is null) return false;
 
@@ -159,7 +166,7 @@ namespace backend.Services
         }
 
         // ── Mapping helper ────────────────────────────────────────────────────
-        private static TourDto ToDto(Tour t) => new TourDto
+        private TourDto ToDto(Tour t, string? targetCurrency = null) => new TourDto
         {
             Id               = t.Id,
             DestinationId    = t.DestinationId,
@@ -169,8 +176,8 @@ namespace backend.Services
             Category         = t.Category,
             Description      = t.Description,
             ImageUrl         = t.ImageUrl,
-            Price            = t.Price,
-            Currency         = t.Currency,
+            Price            = targetCurrency == null ? t.Price : _currency.Convert(t.Price, t.Currency, targetCurrency),
+            Currency         = targetCurrency ?? t.Currency,
             DurationHours    = t.DurationHours,
             DefaultStartTime = t.DefaultStartTime,
             Latitude         = t.Latitude,

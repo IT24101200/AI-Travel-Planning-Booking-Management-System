@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/trip_selection_service.dart';
+import '../../services/currency_notifier.dart';
+import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
 
 /// Checkout and payment screen matching Figma frame 11 · Checkout & Payment (node 7:10956)
@@ -249,6 +251,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final toursCost = (_booking!['toursCost'] ?? 218).toDouble();
     final transfersCost = (_booking!['transfersCost'] ?? 284).toDouble();
     final taxesCost = (_booking!['taxesCost'] ?? 94).toDouble();
+    final transactionCurrency = (_booking!['currency']?.toString().isNotEmpty ?? false)
+        ? _booking!['currency'].toString().toUpperCase()
+        : currencyNotifier.value;
     final tripTitle = _booking!['destination'] ?? 'Sri Lanka Discovery';
     final dates = _booking!['dates'] ?? '12–18 Oct 2026 · 2 travelers';
     final stops = _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
@@ -554,7 +559,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               ),
                             ),
                             Text(
-                              'USD · all taxes included',
+                              '$transactionCurrency · all taxes included',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 color: isDark
@@ -565,7 +570,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           ],
                         ),
                         Text(
-                          '\$${total.toStringAsFixed(0)}',
+                          formatMoney(total, transactionCurrency),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
@@ -851,7 +856,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                             const SizedBox(width: 8),
                             Text(
                               isConfirmed
-                                  ? 'Confirm & Pay \$${total.toStringAsFixed(0)}'
+                                  ? 'Confirm & Pay ${formatMoney(total, transactionCurrency)}'
                                   : 'Payment Locked (Awaiting Approval)',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 15,
@@ -889,7 +894,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          '\$${amount.toStringAsFixed(0)}',
+          formatMoney(amount, (_booking?['currency']?.toString() ?? currencyNotifier.value)),
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w700,

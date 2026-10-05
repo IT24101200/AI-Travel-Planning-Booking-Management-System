@@ -5,7 +5,8 @@ import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
-import '../../main.dart' show themeNotifier;
+import '../../main.dart' show themeNotifier, currencyNotifier;
+import '../../services/currency_notifier.dart';
 
 /// Profile & Preferences screen matching Figma frame 14 · Profile & Preferences
 /// Aligned with SE3090 Master Specification & Student A Component A:
@@ -40,6 +41,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
   // Travel preferences: Budget range (in LKR)
   double _budgetMin = 75000;
   double _budgetMax = 350000;
+  String _currency = 'LKR';
 
   // Travel preferences: Dietary notes
   String _selectedDietary = 'No restrictions';
@@ -142,6 +144,8 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
         } else if (pref is Map) {
           _budgetMin = (pref['budgetMin'] as num?)?.toDouble() ?? 75000;
           _budgetMax = (pref['budgetMax'] as num?)?.toDouble() ?? 350000;
+          _currency = currencyNotifier.normalize(pref['currency']?.toString());
+          currencyNotifier.setCurrency(_currency);
           _selectedInterests..clear()..addAll((pref['preferredActivities']?.toString() ?? '').split(',').map((value) => value.trim()).where((value) => value.isNotEmpty));
           final diet = pref['dietaryNotes']?.toString() ?? '';
           _selectedDietary = diet.isEmpty ? 'No restrictions' : _dietaryOptions.contains(diet) ? diet : 'Custom';
@@ -189,7 +193,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
       final prefRes = await ApiService.updatePreferences({
         'budgetMin': _budgetMin,
         'budgetMax': _budgetMax,
-        'currency': 'LKR',
+        'currency': _currency,
         'preferredActivities': _selectedInterests.join(', '),
         'dietaryNotes': _selectedDietary == 'Custom' ? _dietaryCustomCtrl.text.trim() : _selectedDietary,
         'accessibilityNotes': _selectedAccessibility == 'Custom' ? _accessibilityCustomCtrl.text.trim() : _selectedAccessibility,
@@ -198,6 +202,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
         throw const ApiException('Could not save your preferences.');
       }
       if (!mounted) return;
+      currencyNotifier.setCurrency(_currency);
       setState(() => _preferencesMissing = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile and travel preferences saved successfully!')));
     } catch (error) {
@@ -434,6 +439,26 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── 1. Account Details Section ──
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Currency', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: _currency,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.currency_exchange_outlined),
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(value: 'LKR', child: Text('Sri Lankan Rupee (LKR)')),
+                          DropdownMenuItem(value: 'USD', child: Text('US Dollar (USD)')),
+                        ],
+                        onChanged: (value) => setState(() => _currency = value ?? 'LKR'),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -533,7 +558,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Target spending comfort zone per traveler in Sri Lankan Rupees',
+                    'Target spending comfort zone per traveler in $_currency',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
@@ -582,7 +607,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      'LKR ${currencyFmt.format(_budgetMin)}',
+                                      formatMoney(_budgetMin, _currency),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w800,
@@ -626,7 +651,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      'LKR ${currencyFmt.format(_budgetMax)}',
+                                      formatMoney(_budgetMax, _currency),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w800,

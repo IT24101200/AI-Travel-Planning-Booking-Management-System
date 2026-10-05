@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/currency_notifier.dart';
 import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../../main.dart' show currencyNotifier;
 
 /// Accommodation options screen matching Figma frame 08 · Accommodation Options (node 7:10737)
 class AccommodationOptionsScreen extends StatefulWidget {
@@ -73,7 +75,7 @@ class _AccommodationOptionsScreenState
       _error = null;
     });
     try {
-      final list = await ApiService.getHotels();
+      final list = await ApiService.getHotels(currency: currencyNotifier.value);
       if (mounted) {
         setState(() {
           _hotels = list;
@@ -443,7 +445,7 @@ class _AccommodationOptionsScreenState
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '\$${stay['price']}',
+                                      formatMoney(stay['price'], stay['currency']?.toString() ?? currencyNotifier.value),
                                       style: GoogleFonts.plusJakartaSans(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w800,

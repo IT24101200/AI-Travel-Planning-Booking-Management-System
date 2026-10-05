@@ -58,7 +58,8 @@ namespace backend.Tests
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddDays(5),
                 Status = ItineraryStatus.Proposed,
-                TotalEstimatedCost = 500
+                TotalEstimatedCost = 500,
+                Currency = "USD"
             });
 
             context.Destinations.Add(new Destination

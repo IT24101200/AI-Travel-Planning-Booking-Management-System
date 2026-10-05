@@ -14,7 +14,7 @@ class TicketPdfService {
     String hotelName = 'Heritance Kandalama',
     String transportTitle = 'Private AC Car',
     double totalCost = 1712.0,
-    String currency = 'USD',
+    String currency = 'LKR',
     Map<String, dynamic>? booking,
     Map<String, dynamic>? hotel,
     Map<String, dynamic>? transport,

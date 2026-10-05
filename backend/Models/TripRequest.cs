@@ -38,7 +38,7 @@ namespace backend.Models
         public decimal BudgetCeiling { get; set; }
 
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         [Required]
         public TripRequestStatus Status { get; set; } = TripRequestStatus.Pending;

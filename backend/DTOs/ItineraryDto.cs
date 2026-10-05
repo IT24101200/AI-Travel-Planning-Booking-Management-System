@@ -17,6 +17,7 @@ namespace backend.DTOs
         public ItineraryStatus Status { get; set; }
         public decimal TotalEstimatedCost { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public decimal ExchangeRateToLkr { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<ItineraryItemDto> Items { get; set; } = new();
     }
@@ -34,5 +35,6 @@ namespace backend.DTOs
         public TimeSpan StartTime { get; set; }
         public TimeSpan EndTime { get; set; }
         public decimal PriceAtSelection { get; set; }
+        public string Currency { get; set; } = "LKR";
     }
 }

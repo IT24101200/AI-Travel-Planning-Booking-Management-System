@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/currency_notifier.dart';
 import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../../main.dart' show currencyNotifier;
 
 /// Transport options screen matching Figma frame 09 · Transport Options (node 7:10825)
 class TransportOptionsScreen extends StatefulWidget {
@@ -65,7 +67,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
       _error = null;
     });
     try {
-      final list = await ApiService.getTransportOptions();
+      final list = await ApiService.getTransportOptions(currency: currencyNotifier.value);
       if (mounted) {
         setState(() {
           _options = list;
@@ -470,7 +472,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '\$${vehicle['price']}',
+                                formatMoney(vehicle['price'], vehicle['currency']?.toString() ?? currencyNotifier.value),
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 20,
                                   fontWeight: FontWeight.w800,
