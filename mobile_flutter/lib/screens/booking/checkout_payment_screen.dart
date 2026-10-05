@@ -246,11 +246,70 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
             _booking!['totalEstimatedCost'] ??
             1712)
         .toDouble();
-    final accommodationCost =
-        (_booking!['accommodationCost'] ?? 1116).toDouble();
-    final toursCost = (_booking!['toursCost'] ?? 218).toDouble();
-    final transfersCost = (_booking!['transfersCost'] ?? 284).toDouble();
-    final taxesCost = (_booking!['taxesCost'] ?? 94).toDouble();
+
+    // ── Compute Itemized Costs Dynamically from bookingItems ──
+    final rawBookingItems = _booking!['bookingItems'] as List<dynamic>? ??
+        _booking!['items'] as List<dynamic>? ?? [];
+
+    double accommodationCost = 0;
+    double toursCost = 0;
+    double transfersCost = 0;
+    String accommodationLabel = 'Accommodation';
+    String toursLabel = 'Guided tours & activities';
+    String transportLabel = 'Private transfers & transport';
+
+    if (rawBookingItems.isNotEmpty) {
+      for (final item in rawBookingItems) {
+        if (item is Map) {
+          final subtotal = (item['subtotal'] ??
+                  ((item['unitPrice'] ?? 0) * (item['quantity'] ?? 1)))
+              .toDouble();
+          final type = item['itemType']?.toString().toLowerCase() ?? '';
+
+          if (type.contains('room') || type.contains('hotel') || type == '1') {
+            accommodationCost += subtotal;
+            if (item['checkInDate'] != null && item['checkOutDate'] != null) {
+              try {
+                final dIn = DateTime.parse(item['checkInDate'].toString());
+                final dOut = DateTime.parse(item['checkOutDate'].toString());
+                final nights = dOut.difference(dIn).inDays;
+                if (nights > 0) {
+                  accommodationLabel = '$nights-night accommodation';
+                }
+              } catch (_) {}
+            }
+          } else if (type.contains('tour') || type == '0') {
+            toursCost += subtotal;
+            if (item['tourName'] != null && item['tourName'].toString().isNotEmpty) {
+              toursLabel = item['tourName'].toString();
+            }
+          } else if (type.contains('transport') || type == '2') {
+            transfersCost += subtotal;
+          } else {
+            toursCost += subtotal;
+          }
+        }
+      }
+    }
+
+    final bool hasParsedItems =
+        (accommodationCost + toursCost + transfersCost) > 0;
+
+    // Fallbacks if bookingItems is not populated (e.g., initial draft or mock)
+    if (!hasParsedItems) {
+      accommodationCost = (_booking!['accommodationCost'] ?? 1116).toDouble();
+      toursCost = (_booking!['toursCost'] ?? 218).toDouble();
+      transfersCost = (_booking!['transfersCost'] ?? 284).toDouble();
+      accommodationLabel = '6-night accommodation';
+      toursLabel = 'Sigiriya & Kandy guided tours';
+      transportLabel = 'Private transfers + scenic train';
+    }
+
+    // Taxes/service fees: if total exceeds items, remainder is taxes; if taxes included, 0
+    final double remainder = total - (accommodationCost + toursCost + transfersCost);
+    final double taxesCost = hasParsedItems
+        ? (remainder > 0 ? remainder : 0.0)
+        : (_booking!['taxesCost'] ?? 94).toDouble();
     final transactionCurrency = (_booking!['currency']?.toString().isNotEmpty ?? false)
         ? _booking!['currency'].toString().toUpperCase()
         : currencyNotifier.value;
@@ -516,20 +575,25 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     _buildCostItem(
                       TripSelectionService.selectedHotel != null
                           ? 'Accommodation: ${TripSelectionService.selectedHotel!['name']}'
-                          : '6-night accommodation',
+                          : accommodationLabel,
                       accommodationCost,
                     ),
                     const SizedBox(height: 8),
-                    _buildCostItem('Sigiriya & Kandy guided tours', toursCost),
+                    _buildCostItem(toursLabel, toursCost),
                     const SizedBox(height: 8),
                     _buildCostItem(
                       TripSelectionService.selectedTransport != null
                           ? 'Transport: ${TripSelectionService.selectedTransport!['name'] ?? TripSelectionService.selectedTransport!['type']}'
-                          : 'Private transfers + scenic train',
+                          : transportLabel,
                       transfersCost,
                     ),
                     const SizedBox(height: 8),
-                    _buildCostItem('Taxes & partner service fees', taxesCost),
+                    _buildCostItem(
+                      taxesCost > 0
+                          ? 'Taxes & partner service fees'
+                          : 'Taxes & service fees (included)',
+                      taxesCost,
+                    ),
 
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 14),
@@ -894,7 +958,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          formatMoney(amount, (_booking?['currency']?.toString() ?? currencyNotifier.value)),
+          amount > 0
+              ? formatMoney(amount, (_booking?['currency']?.toString() ?? currencyNotifier.value))
+              : 'Included',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w700,
