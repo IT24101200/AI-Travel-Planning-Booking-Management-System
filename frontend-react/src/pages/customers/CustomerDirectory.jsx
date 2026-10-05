@@ -323,11 +323,21 @@ export default function CustomerDirectory() {
     }
   }
 
+  // Helper to format/sanitize phone numbers
+  function cleanPhone(raw) {
+    if (!raw) return ''
+    let cleaned = raw.trim().replace(/[\s\-()]/g, '')
+    if (cleaned.startsWith('+94')) {
+      cleaned = '0' + cleaned.substring(3)
+    }
+    return cleaned
+  }
+
   function handleOpenEdit(user) {
     if (!user) return
     setEditFormData({
       fullName: user.name || '',
-      phone: user.phone || '',
+      phone: cleanPhone(user.phone) || user.phone || '',
       role: user.role || (user.isStaff ? 'TravelAgent' : 'Customer'),
       department: user.department || 'Tour Operations'
     })
@@ -344,18 +354,19 @@ export default function CustomerDirectory() {
     try {
       // If editing self, preserve current role so admin privileges are not accidentally lost
       const targetRole = isSelectedSelf ? (selectedUser.role || 'Admin') : editFormData.role
+      const targetPhone = cleanPhone(editFormData.phone)
 
       await updateCustomer(selectedUser.id, {
-        fullName: editFormData.fullName,
-        phone: editFormData.phone,
+        fullName: editFormData.fullName.trim(),
+        phone: targetPhone,
         role: targetRole,
         department: editFormData.department
       })
       await loadCustomers()
       setSelectedUser((prev) => ({
         ...prev,
-        name: editFormData.fullName,
-        phone: editFormData.phone,
+        name: editFormData.fullName.trim(),
+        phone: targetPhone,
         role: targetRole,
         department: editFormData.department,
         isStaff: targetRole === 'TravelAgent' || targetRole === 'Admin'
@@ -366,7 +377,16 @@ export default function CustomerDirectory() {
         setEditSuccess('')
       }, 1200)
     } catch (err) {
-      setEditError(err.response?.data?.message || err.message || 'Failed to update customer profile.')
+      const apiErrors = err.response?.data?.errors
+      let errorMsg = ''
+      if (Array.isArray(apiErrors) && apiErrors.length > 0) {
+        errorMsg = apiErrors.join(' ')
+      } else if (apiErrors && typeof apiErrors === 'object') {
+        errorMsg = Object.values(apiErrors).flat().join(' ')
+      } else {
+        errorMsg = err.response?.data?.message || err.message || 'Failed to update customer profile.'
+      }
+      setEditError(errorMsg)
     } finally {
       setEditLoading(false)
     }
@@ -891,7 +911,7 @@ export default function CustomerDirectory() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                      Phone (10 digits) *
+                      Phone Number *
                     </label>
                     <input
                       type="text"
@@ -1240,7 +1260,7 @@ export default function CustomerDirectory() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                    Phone Number (10 digits)
+                    Phone Number
                   </label>
                   <input
                     type="text"
