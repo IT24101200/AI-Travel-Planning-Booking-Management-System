@@ -397,7 +397,12 @@ class ApiService {
     return response;
   }
 
+  static Future<List<dynamic>> Function()? mockGetDestinations;
+
   static Future<List<dynamic>> getDestinations() async {
+    if (mockGetDestinations != null) {
+      return await mockGetDestinations!();
+    }
     return _list(await get('destination'));
   }
 

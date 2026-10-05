@@ -6,10 +6,12 @@ import 'package:mobile_flutter/services/api_service.dart';
 void main() {
   setUp(() {
     ApiService.mockGetTours = null;
+    ApiService.mockGetDestinations = null;
   });
 
   tearDown(() {
     ApiService.mockGetTours = null;
+    ApiService.mockGetDestinations = null;
   });
 
   Widget createTestWidget() {
@@ -38,7 +40,14 @@ void main() {
       },
     ];
 
+    final testDestinations = [
+      {'name': 'Ella', 'country': 'Tea country'},
+      {'name': 'Mirissa', 'country': 'South coast'},
+      {'name': 'Yala', 'country': 'Wild frontier'},
+    ];
+
     ApiService.mockGetTours = ({String? search, String? sortBy}) async => testTours;
+    ApiService.mockGetDestinations = () async => testDestinations;
 
     await tester.pumpWidget(createTestWidget());
     await tester.pumpAndSettle();

@@ -122,6 +122,8 @@ class _ExploreTab extends StatefulWidget {
 class _ExploreTabState extends State<_ExploreTab> {
   List<dynamic> _tours = [];
   bool _loadingTours = true;
+  List<dynamic> _destinations = [];
+  bool _loadingDestinations = true;
   String _selectedCategory = 'All';
 
   // Category filter chips matching the project travel themes
@@ -138,7 +140,14 @@ class _ExploreTabState extends State<_ExploreTab> {
   @override
   void initState() {
     super.initState();
-    _fetchTours();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    await Future.wait([
+      _fetchTours(),
+      _fetchDestinations(),
+    ]);
   }
 
   Future<void> _fetchTours() async {
@@ -155,6 +164,20 @@ class _ExploreTabState extends State<_ExploreTab> {
     }
   }
 
+  Future<void> _fetchDestinations() async {
+    try {
+      final destinations = await ApiService.getDestinations();
+      if (mounted) {
+        setState(() {
+          _destinations = destinations;
+          _loadingDestinations = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _loadingDestinations = false);
+    }
+  }
+
   String _getUserInitials() {
     if (widget.userName.isEmpty) return 'US';
     final parts = widget.userName.trim().split(RegExp(r'\s+'));
@@ -162,39 +185,6 @@ class _ExploreTabState extends State<_ExploreTab> {
       return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
     }
     return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
-  }
-
-  /// Curated fallback tours for rich visual demonstration if API has no tours
-  List<Map<String, dynamic>> _getSampleTours() {
-    return [
-      {
-        'id': 1,
-        'name': 'Kandy Heritage & Sacred Lake Walk',
-        'category': 'CULTURE',
-        'durationHours': 6,
-        'price': 42,
-        'rating': '4.8',
-        'image': 'assets/photos/kandy-1280.jpg',
-      },
-      {
-        'id': 2,
-        'name': 'Sigiriya Lion Rock Fortress Sunrise Climb',
-        'category': 'HERITAGE',
-        'durationHours': 4,
-        'price': 55,
-        'rating': '4.9',
-        'image': 'assets/photos/sigiriya-1280.jpg',
-      },
-      {
-        'id': 3,
-        'name': 'Ella Nine Arches Bridge & Tea Trail',
-        'category': 'HIKING',
-        'durationHours': 3,
-        'price': 38,
-        'rating': '4.9',
-        'image': 'https://www.holidify.com/images/bgImages/ELLA.jpg',
-      },
-    ];
   }
 
   @override
@@ -487,56 +477,95 @@ class _ExploreTabState extends State<_ExploreTab> {
           ),
           const SizedBox(height: 14),
 
-          SizedBox(
-            height: 145,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              children: [
-                _buildDestinationCard(
-                  name: 'Ella',
-                  category: 'Tea country',
-                  imagePath: 'https://www.holidify.com/images/bgImages/ELLA.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Ella'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Mirissa',
-                  category: 'South coast',
-                  imagePath: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQSiOr1Ncyl4BU0CGXItN-dlNwsyCb_iOZAa94r0bWs8OljdYu9w4KaAdo&s=10',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Mirissa'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Yala',
-                  category: 'Wild frontier',
-                  imagePath: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Yala'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Sigiriya',
-                  category: 'Ancient kingdom',
-                  imagePath: 'assets/photos/sigiriya-1280.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Sigiriya'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Kandy',
-                  category: 'Hill capital',
-                  imagePath: 'assets/photos/kandy-1280.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Kandy'),
-                ),
-                const SizedBox(width: 12),
-                _buildDestinationCard(
-                  name: 'Nuwara Eliya',
-                  category: 'Little England',
-                  imagePath: 'assets/photos/nuwara-eliya-1280.jpg',
-                  onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Nuwara Eliya'),
-                ),
-              ],
-            ),
-          ),
+          _loadingDestinations
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: CircularProgressIndicator(color: theme.colorScheme.primary, strokeWidth: 2),
+                  ),
+                )
+              : _destinations.isNotEmpty
+                  ? SizedBox(
+                      height: 145,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: _destinations.length,
+                        separatorBuilder: (context, index) => const SizedBox(width: 12),
+                        itemBuilder: (context, index) {
+                          final d = _destinations[index];
+                          final Map<String, dynamic> destMap = d is Map<String, dynamic>
+                              ? d
+                              : {'name': d.toString()};
+                          final String destName = destMap['name']?.toString() ?? 'Sri Lanka';
+                          final String destCategory = destMap['country']?.toString() ?? 'Sri Lanka';
+                          final String? img = destMap['imageUrl']?.toString();
+
+                          String imagePath = 'assets/photos/sigiriya-1280.jpg';
+                          if (img != null && img.isNotEmpty) {
+                            imagePath = img;
+                          } else if (destName.toLowerCase().contains('ella')) {
+                            imagePath = 'assets/photos/ella-1280.jpg';
+                          } else if (destName.toLowerCase().contains('kandy')) {
+                            imagePath = 'assets/photos/kandy-1280.jpg';
+                          } else if (destName.toLowerCase().contains('yala')) {
+                            imagePath = 'assets/photos/yala-1280.jpg';
+                          } else if (destName.toLowerCase().contains('mirissa')) {
+                            imagePath = 'assets/photos/mirissa-1280.jpg';
+                          } else if (destName.toLowerCase().contains('nuwara')) {
+                            imagePath = 'assets/photos/nuwara-eliya-1280.jpg';
+                          }
+
+                          return _buildDestinationCard(
+                            name: destName,
+                            category: destCategory,
+                            imagePath: imagePath,
+                            onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: destName),
+                          );
+                        },
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 36,
+                              color: theme.colorScheme.primary.withValues(alpha: 0.6),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No destinations available',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Destinations added to the database will appear here.',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
 
           const SizedBox(height: 22),
 
@@ -842,7 +871,49 @@ class _ExploreTabState extends State<_ExploreTab> {
   }
 
   Widget _buildFeaturedToursList() {
-    final list = _tours.isNotEmpty ? _tours.take(3).toList() : _getSampleTours();
+    if (_tours.isEmpty) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              Icons.tour_outlined,
+              size: 36,
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'No featured tours available',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Published tours from the system will appear here.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final list = _tours.take(3).toList();
 
     return Column(
       children: list.map<Widget>((item) {
