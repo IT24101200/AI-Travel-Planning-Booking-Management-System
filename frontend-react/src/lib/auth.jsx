@@ -50,6 +50,8 @@ export function AuthProvider({ children }) {
           : 'customer'
         const next = {
           email,
+          userId: data.userId || null,
+          fullName: data.fullName || null,
           token: data.token || data.accessToken,
           role: normalizedRole,
         }

@@ -29,6 +29,20 @@ export default function CustomerDirectory() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const isAdmin = currentUser?.role?.toLowerCase() === 'admin'
+
+  // Check if a directory user record matches the currently logged-in account
+  const isSelfAccount = (u) => {
+    if (!u) return false
+    const matchEmail = Boolean(
+      currentUser?.email &&
+      u.email &&
+      currentUser.email.trim().toLowerCase() === u.email.trim().toLowerCase()
+    )
+    const matchId = Boolean(currentUser?.userId && u.id && currentUser.userId === u.id)
+    return matchEmail || matchId
+  }
+
+  const isSelectedSelf = isSelfAccount(selectedUser)
   const { isMobile } = useResponsive()
   const [dataList, setDataList] = useState([])
   const [loading, setLoading] = useState(true)
@@ -288,6 +302,12 @@ export default function CustomerDirectory() {
 
   async function handleDeleteAccount(user) {
     if (!user) return
+    // Prevent logged-in admin from deleting their own account
+    if (isSelfAccount(user)) {
+      alert('You cannot delete your own account.')
+      return
+    }
+
     const confirmMsg = `Are you sure you want to remove the account for ${user.name}? This action cannot be undone.`
     if (!window.confirm(confirmMsg)) return
 
@@ -322,10 +342,13 @@ export default function CustomerDirectory() {
     setEditLoading(true)
     setEditError(null)
     try {
+      // If editing self, preserve current role so admin privileges are not accidentally lost
+      const targetRole = isSelectedSelf ? (selectedUser.role || 'Admin') : editFormData.role
+
       await updateCustomer(selectedUser.id, {
         fullName: editFormData.fullName,
         phone: editFormData.phone,
-        role: editFormData.role,
+        role: targetRole,
         department: editFormData.department
       })
       await loadCustomers()
@@ -333,9 +356,9 @@ export default function CustomerDirectory() {
         ...prev,
         name: editFormData.fullName,
         phone: editFormData.phone,
-        role: editFormData.role,
+        role: targetRole,
         department: editFormData.department,
-        isStaff: editFormData.role === 'TravelAgent' || editFormData.role === 'Admin'
+        isStaff: targetRole === 'TravelAgent' || targetRole === 'Admin'
       }))
       setEditSuccess('User profile updated successfully.')
       setTimeout(() => {
@@ -521,7 +544,24 @@ export default function CustomerDirectory() {
                               >
                                 {u.name}
                               </button>
-                              <span style={{ color: '#66747b', fontSize: '0.75rem' }}>{u.email}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '2px' }}>
+                                <span style={{ color: '#66747b', fontSize: '0.75rem' }}>{u.email}</span>
+                                {isSelfAccount(u) && (
+                                  <span
+                                    style={{
+                                      fontSize: '0.625rem',
+                                      fontWeight: 700,
+                                      color: '#0f766e',
+                                      backgroundColor: '#ccfbf1',
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                      lineHeight: 1.2
+                                    }}
+                                  >
+                                    You
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -600,8 +640,23 @@ export default function CustomerDirectory() {
           <aside className="detail-pane">
             <div className="detail-pane__head">
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#182126' }}>
-                  {selectedUser.name}
+                <h3 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#182126', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span>{selectedUser.name}</span>
+                  {isSelectedSelf && (
+                    <span
+                      style={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 700,
+                        color: '#0f766e',
+                        backgroundColor: '#ccfbf1',
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        border: '1px solid #99f6e4'
+                      }}
+                    >
+                      Your Account
+                    </span>
+                  )}
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
                   {selectedUser.isStaff ? 'Staff member' : 'Customer'} since {selectedUser.joinedAt}
@@ -617,7 +672,7 @@ export default function CustomerDirectory() {
                   <EditIcon size={14} />
                   <span>Edit profile</span>
                 </button>
-                {isAdmin && (
+                {isAdmin && !isSelectedSelf && (
                   <button
                     type="button"
                     className="btn-outline"
@@ -1200,12 +1255,20 @@ export default function CustomerDirectory() {
                   <>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                        Role
+                        Role {isSelectedSelf && <span style={{ color: '#0f766e', fontWeight: 500 }}>(Locked for your active account)</span>}
                       </label>
                       <select
                         className="btn-outline"
-                        style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
+                        style={{
+                          width: '100%',
+                          height: '38px',
+                          padding: '0 0.75rem',
+                          backgroundColor: isSelectedSelf ? '#f8fafc' : 'white',
+                          cursor: isSelectedSelf ? 'not-allowed' : 'pointer',
+                          color: isSelectedSelf ? '#64748b' : 'inherit'
+                        }}
                         value={editFormData.role}
+                        disabled={isSelectedSelf}
                         onChange={(e) => setEditFormData(prev => ({ ...prev, role: e.target.value }))}
                       >
                         <option value="Customer">Customer</option>

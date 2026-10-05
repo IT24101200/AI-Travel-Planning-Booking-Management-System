@@ -104,6 +104,14 @@ namespace backend.Controllers
                 dto.Role = null;
             }
 
+            var currentUserId = GetUserId();
+
+            // Prevent logged-in administrator from demoting or altering their own role
+            if (currentUserId == id && !string.IsNullOrWhiteSpace(dto.Role) && dto.Role != "Admin")
+            {
+                return BadRequest(new { message = "You cannot change or demote your own administrator role." });
+            }
+
             var updated = await _customerService.UpdateAsync(id, dto);
             if (updated == null)
                 return NotFound(new { message = "Customer not found." });
