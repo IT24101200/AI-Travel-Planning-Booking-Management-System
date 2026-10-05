@@ -176,21 +176,65 @@ namespace backend.Services
         }
 
         /// <summary>
-        /// Updates the Status of an existing Itinerary to the specified value.
-        /// Returns failure if the Itinerary does not exist.
+        /// Applies the allowed status transitions for staff and the owning customer.
         /// </summary>
-        public async Task<(bool Success, string? ErrorMessage)>
-            UpdateItineraryStatusAsync(int itineraryId, ItineraryStatus newStatus)
+        public async Task<ItineraryStatusUpdateResult> UpdateItineraryStatusAsync(
+            int itineraryId, string? requestedStatus, string? actorCustomerId, bool isStaff)
         {
             var itinerary = await _context.Itineraries.FindAsync(itineraryId);
 
             if (itinerary is null)
-                return (false, $"Itinerary with Id {itineraryId} was not found.");
+                return new(ItineraryStatusUpdateOutcome.NotFound,
+                    $"Itinerary with Id {itineraryId} was not found.");
+
+            if (!isStaff && (string.IsNullOrWhiteSpace(actorCustomerId) || itinerary.CustomerId != actorCustomerId))
+                return new(ItineraryStatusUpdateOutcome.Forbidden,
+                    "You do not have access to this itinerary.");
+
+            var statusName = Enum.GetNames<ItineraryStatus>()
+                .FirstOrDefault(name => string.Equals(name, requestedStatus?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (statusName is null)
+                return new(ItineraryStatusUpdateOutcome.Invalid,
+                    "Invalid itinerary status. Use Draft, Proposed, Accepted, or Discarded.");
+
+            var newStatus = Enum.Parse<ItineraryStatus>(statusName);
+
+            if (itinerary.Status is ItineraryStatus.Accepted or ItineraryStatus.Discarded)
+                return new(ItineraryStatusUpdateOutcome.Invalid,
+                    $"An itinerary in {itinerary.Status} status cannot be changed.");
+
+            if (isStaff && newStatus == ItineraryStatus.Accepted)
+                return new(ItineraryStatusUpdateOutcome.Forbidden,
+                    "Only the customer can accept a proposed itinerary.");
+
+            var allowed = isStaff
+                ? itinerary.Status switch
+                {
+                    ItineraryStatus.Draft => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Discarded,
+                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Draft or ItineraryStatus.Discarded,
+                    _ => false
+                }
+                : itinerary.Status switch
+                {
+                    ItineraryStatus.Draft => newStatus == ItineraryStatus.Discarded,
+                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Accepted or ItineraryStatus.Draft or ItineraryStatus.Discarded,
+                    _ => false
+                };
+
+            if (!allowed)
+                return new(ItineraryStatusUpdateOutcome.Invalid,
+                    $"Cannot change itinerary status from {itinerary.Status} to {newStatus}.");
+
+            if (isStaff && itinerary.Status == ItineraryStatus.Draft && newStatus == ItineraryStatus.Proposed &&
+                !await _context.ItineraryItems.AnyAsync(item => item.ItineraryId == itineraryId))
+                return new(ItineraryStatusUpdateOutcome.Invalid,
+                    "Cannot approve an itinerary with no activities.");
 
             itinerary.Status = newStatus;
             await _context.SaveChangesAsync();
 
-            return (true, null);
+            return new(ItineraryStatusUpdateOutcome.Updated,
+                $"Itinerary status updated to {newStatus}.");
         }
 
         /// <summary>
