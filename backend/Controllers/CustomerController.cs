@@ -96,6 +96,14 @@ namespace backend.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            // Only Administrators can change a user's role
+            var isAdmin = User.IsInRole("Admin");
+            if (!isAdmin && !string.IsNullOrWhiteSpace(dto.Role))
+            {
+                // Disallow role changes by non-admins
+                dto.Role = null;
+            }
+
             var updated = await _customerService.UpdateAsync(id, dto);
             if (updated == null)
                 return NotFound(new { message = "Customer not found." });
@@ -105,10 +113,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Delete/deactivate a user or staff account.
-        /// Only Admin or TravelAgent can delete accounts.
+        /// Strictly restricted to Admin.
         /// </summary>
         [HttpDelete("{id}")]
-        [Authorize(Roles = "TravelAgent,Admin")]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

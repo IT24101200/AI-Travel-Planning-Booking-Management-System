@@ -12,6 +12,7 @@ import { usePageTitle } from '../../lib/hooks.js'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
+import { useAuth } from '../../lib/auth.jsx'
 import {
   SearchIcon,
   UserPlusIcon,
@@ -26,6 +27,8 @@ import {
  */
 export default function CustomerDirectory() {
   const navigate = useNavigate()
+  const { user: currentUser } = useAuth()
+  const isAdmin = currentUser?.role?.toLowerCase() === 'admin'
   const { isMobile } = useResponsive()
   const [dataList, setDataList] = useState([])
   const [loading, setLoading] = useState(true)
@@ -368,14 +371,16 @@ export default function CustomerDirectory() {
             <RefreshIcon size={15} />
             <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
           </button>
-          <button
-            type="button"
-            className="btn-gold"
-            onClick={() => setShowInviteModal(true)}
-          >
-            <UserPlusIcon size={15} />
-            <span>Invite staff member</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              className="btn-gold"
+              onClick={() => setShowInviteModal(true)}
+            >
+              <UserPlusIcon size={15} />
+              <span>Invite staff member</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -612,16 +617,18 @@ export default function CustomerDirectory() {
                   <EditIcon size={14} />
                   <span>Edit profile</span>
                 </button>
-                <button
-                  type="button"
-                  className="btn-outline"
-                  style={{ height: '32px', padding: '0 0.625rem', color: '#dc2626', borderColor: '#fca5a5' }}
-                  disabled={deleteLoading}
-                  onClick={() => handleDeleteAccount(selectedUser)}
-                  title="Remove this user account"
-                >
-                  <span>{deleteLoading ? 'Removing…' : 'Remove'}</span>
-                </button>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    style={{ height: '32px', padding: '0 0.625rem', color: '#dc2626', borderColor: '#fca5a5' }}
+                    disabled={deleteLoading}
+                    onClick={() => handleDeleteAccount(selectedUser)}
+                    title="Remove this user account"
+                  >
+                    <span>{deleteLoading ? 'Removing…' : 'Remove'}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-outline"
@@ -1189,35 +1196,48 @@ export default function CustomerDirectory() {
                   />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                    Role
-                  </label>
-                  <select
-                    className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
-                    value={editFormData.role}
-                    onChange={(e) => setEditFormData(prev => ({ ...prev, role: e.target.value }))}
-                  >
-                    <option value="Customer">Customer</option>
-                    <option value="TravelAgent">Travel Agent</option>
-                    <option value="Admin">Administrator</option>
-                  </select>
-                </div>
+                {isAdmin ? (
+                  <>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                        Role
+                      </label>
+                      <select
+                        className="btn-outline"
+                        style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
+                        value={editFormData.role}
+                        onChange={(e) => setEditFormData(prev => ({ ...prev, role: e.target.value }))}
+                      >
+                        <option value="Customer">Customer</option>
+                        <option value="TravelAgent">Travel Agent</option>
+                        <option value="Admin">Administrator</option>
+                      </select>
+                    </div>
 
-                {(editFormData.role === 'TravelAgent' || editFormData.role === 'Admin') && (
+                    {(editFormData.role === 'TravelAgent' || editFormData.role === 'Admin') && (
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                          Staff Department
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Tour Operations"
+                          value={editFormData.department}
+                          onChange={(e) => setEditFormData(prev => ({ ...prev, department: e.target.value }))}
+                          className="staff-search-box"
+                          style={{ maxWidth: '100%', width: '100%' }}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : (
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                      Staff Department
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#64748b' }}>
+                      Assigned Role
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Tour Operations"
-                      value={editFormData.department}
-                      onChange={(e) => setEditFormData(prev => ({ ...prev, department: e.target.value }))}
-                      className="staff-search-box"
-                      style={{ maxWidth: '100%', width: '100%' }}
-                    />
+                    <span className="badge-pill badge-gray" style={{ display: 'inline-block', marginTop: '0.25rem' }}>
+                      {editFormData.role} {selectedUser.department ? `· ${selectedUser.department}` : ''}
+                    </span>
                   </div>
                 )}
 

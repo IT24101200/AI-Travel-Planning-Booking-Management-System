@@ -127,10 +127,17 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Validation failed.", errors = errors });
             }
 
-            // Allow authenticated staff to invite new staff, or verify the secret code
-            var isStaffCaller = User.Identity?.IsAuthenticated == true && (User.IsInRole("Admin") || User.IsInRole("TravelAgent"));
+            // Only Administrators can invite staff, or unauthenticated initial setup with the secret code
+            var isAuthenticated = User.Identity?.IsAuthenticated == true;
+            var isAdminCaller = isAuthenticated && User.IsInRole("Admin");
+
+            if (isAuthenticated && !isAdminCaller)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only administrators can invite or register new staff accounts." });
+            }
+
             var correctCode = _configuration["StaffSecretCode"] ?? "staff123";
-            if (!isStaffCaller && (string.IsNullOrWhiteSpace(dto.StaffSecretCode) || dto.StaffSecretCode != correctCode))
+            if (!isAdminCaller && (string.IsNullOrWhiteSpace(dto.StaffSecretCode) || dto.StaffSecretCode != correctCode))
                 return BadRequest(new { message = "Invalid staff secret code." });
 
             // Only allow valid roles
