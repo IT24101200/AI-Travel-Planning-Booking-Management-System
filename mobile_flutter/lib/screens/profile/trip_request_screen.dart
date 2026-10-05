@@ -29,16 +29,18 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   );
 
   // Sri Lankan curated destinations mapped to backend database IDs
-  static const Map<String, int> _destinationIds = {
-    'sigiriya': 1,
+  static const Map<String, int> _defaultDestinationIds = {
+    'sigiriya': 4,
     'kandy': 2,
-    'ella': 3,
-    'galle': 4,
-    'yala': 5,
-    'mirissa': 6,
-    'nuwara eliya': 7,
-    'trincomalee': 8,
+    'galle': 3,
+    'ella': 5,
+    'yala': 6,
+    'mirissa': 7,
+    'nuwara eliya': 8,
+    'trincomalee': 9,
+    'badulla': 1,
   };
+  final Map<String, int> _destinationIds = Map.from(_defaultDestinationIds);
 
   // Quick selectable Sri Lankan destination suggestions
   final List<String> _quickDestinations = [
@@ -114,8 +116,26 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     _startDate = DateTime(now.year, now.month, now.day + 7);
     _endDate = DateTime(now.year, now.month, now.day + 13);
 
-    // Read initial preferences if available
+    // Read initial preferences and backend destination catalog
+    _loadDestinations();
     _loadUserPreferences();
+  }
+
+  /// Load destinations dynamically from backend to keep IDs synced
+  Future<void> _loadDestinations() async {
+    try {
+      final list = await ApiService.getDestinations();
+      for (final item in list) {
+        if (item is Map && item['name'] != null && item['id'] != null) {
+          final id = int.tryParse(item['id'].toString());
+          if (id != null && id > 0) {
+            _destinationIds[item['name'].toString().toLowerCase().trim()] = id;
+          }
+        }
+      }
+    } catch (_) {
+      // Keep static fallback mapping
+    }
   }
 
   @override

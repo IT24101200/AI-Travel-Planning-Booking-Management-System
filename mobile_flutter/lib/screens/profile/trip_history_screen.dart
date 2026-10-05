@@ -88,20 +88,84 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     }
   }
 
-  Map<String, dynamic> _tripCard(Map<String, dynamic> record, Map<String, dynamic>? request, {required bool booking}) {
-    final status = _status(record['status'], booking: booking);
+  /// Resolves the human-readable destination title from user request prompt or booking
+  String _parseTripTitle(Map<String, dynamic> record, Map<String, dynamic>? request, bool booking) {
+    final raw = (request?['rawRequestText'] ?? record['rawRequestText'])?.toString() ?? '';
+    if (raw.isNotEmpty) {
+      // 1. Match 'Destination: <destinations>.'
+      final destMatch = RegExp(r'Destination:\s*([^.]+)', caseSensitive: false).firstMatch(raw);
+      if (destMatch != null && destMatch.group(1)?.trim().isNotEmpty == true) {
+        return destMatch.group(1)!.trim();
+      }
+      // 2. Match 'through <destinations> for'
+      final throughMatch = RegExp(r'through\s+([A-Za-z,\s&]+?)(?:\s+for|\s+with|\.|$)', caseSensitive: false).firstMatch(raw);
+      if (throughMatch != null && throughMatch.group(1)?.trim().isNotEmpty == true) {
+        return throughMatch.group(1)!.trim();
+      }
+    }
+
+    // 3. Tour names from booking
     final items = record['bookingItems'];
     final tourNames = items is List ? items.whereType<Map>().map((item) => item['tourName']).whereType<String>().toList() : <String>[];
-    final title = request?['destinationName']?.toString() ??
-        (tourNames.isNotEmpty ? tourNames.join(', ') : booking ? 'Booking ${record['bookingReference'] ?? record['id']}' : 'Trip request #${record['id']}');
+    if (tourNames.isNotEmpty) return tourNames.join(', ');
+
+    // 4. Destination name from relation (if not Badulla or if no other clues exist)
+    final destName = request?['destinationName']?.toString();
+    if (destName != null && destName.isNotEmpty && destName.toLowerCase() != 'badulla') {
+      return destName;
+    }
+
+    if (raw.isNotEmpty) {
+      final firstPart = raw.split('.').first.trim();
+      if (firstPart.length <= 45 && !firstPart.toLowerCase().contains('badulla')) {
+        return firstPart;
+      }
+    }
+
+    if (destName != null && destName.isNotEmpty) return destName;
+    return booking ? 'Booking ${record['bookingReference'] ?? record['id']}' : 'Trip request #${record['id']}';
+  }
+
+  /// Extracts interest tags from raw prompt text
+  List<String> _parseInterests(Map<String, dynamic> record, Map<String, dynamic>? request) {
+    final raw = (request?['rawRequestText'] ?? record['rawRequestText'])?.toString() ?? '';
+    if (raw.isNotEmpty) {
+      final match = RegExp(r'Interests:\s*([^.]+)', caseSensitive: false).firstMatch(raw);
+      if (match != null && match.group(1)?.trim().isNotEmpty == true) {
+        return match.group(1)!.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      }
+    }
+    return [];
+  }
+
+  /// Extracts preferences and notes from raw prompt text
+  String? _parsePreferences(Map<String, dynamic> record, Map<String, dynamic>? request) {
+    final raw = (request?['rawRequestText'] ?? record['rawRequestText'])?.toString() ?? '';
+    if (raw.isNotEmpty) {
+      final match = RegExp(r'(?:Preferences|Notes):\s*([^.]+)', caseSensitive: false).firstMatch(raw);
+      if (match != null && match.group(1)?.trim().isNotEmpty == true) {
+        return match.group(1)!.trim();
+      }
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _tripCard(Map<String, dynamic> record, Map<String, dynamic>? request, {required bool booking}) {
+    final status = _status(record['status'], booking: booking);
+    final title = _parseTripTitle(record, request, booking);
     final start = DateTime.tryParse(request?['startDate']?.toString() ?? '');
     final end = DateTime.tryParse(request?['endDate']?.toString() ?? '');
     final created = DateTime.tryParse(record['createdAt']?.toString() ?? '');
+    final nights = start != null && end != null ? end.difference(start).inDays : null;
     final dates = start != null && end != null
-        ? '${DateFormat.yMMMd().format(start)} - ${DateFormat.yMMMd().format(end)}'
+        ? '${DateFormat.yMMMd().format(start)} - ${DateFormat.yMMMd().format(end)}${nights != null && nights > 0 ? " ($nights nights)" : ""}'
         : created != null ? 'Created ${DateFormat.yMMMd().format(created)}' : 'Dates unavailable';
     final amount = booking ? record['totalCost'] : record['budgetCeiling'];
     final currency = record['currency']?.toString() ?? '';
+    final travellers = request?['travellerCount'] ?? record['travellerCount'];
+    final interests = _parseInterests(record, request);
+    final preferences = _parsePreferences(record, request);
+
     return {
       ...record,
       'isBooking': booking,
@@ -115,6 +179,10 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
           ? const Color(0xFFDC2626) : status == 'Confirmed' || status == 'Completed'
           ? const Color(0xFF267A55) : const Color(0xFFB36A16),
       'image': AppDestinations.getImageForDestination(title),
+      'travellers': travellers,
+      'interests': interests,
+      'preferences': preferences,
+      'nights': nights,
     };
   }
 
@@ -498,38 +566,128 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                     MainAxisAlignment.spaceBetween,
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        trip['title'] as String,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w800,
-                                          color: theme.colorScheme.onSurface,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          trip['title'] as String,
+                                          style: GoogleFonts.plusJakartaSans(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                            color: theme.colorScheme.onSurface,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        trip['dates'] as String,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 9,
-                                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                                        const SizedBox(height: 3),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              Icons.calendar_today_outlined,
+                                              size: 11,
+                                              color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                trip['dates'] as String,
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 9.5,
+                                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                                                ),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ),
-                                    ],
+                                        if (trip['travellers'] != null) ...[
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.people_outline,
+                                                size: 11,
+                                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                '${trip['travellers']} travellers',
+                                                style: GoogleFonts.plusJakartaSans(
+                                                  fontSize: 9.5,
+                                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ),
+                                  const SizedBox(width: 8),
                                   Text(
                                     trip['priceLabel'] as String,
                                     style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 15,
+                                      fontSize: 14,
                                       fontWeight: FontWeight.w800,
                                       color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
                                     ),
                                   ),
                                 ],
                               ),
+                              if ((trip['interests'] as List<String>?)?.isNotEmpty == true) ...[
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  children: (trip['interests'] as List<String>).map((interest) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: isDark ? const Color(0xFF2E4D3E) : const Color(0xFFD0EAE0),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        interest,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                          color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                              if (trip['preferences'] != null && (trip['preferences'] as String).isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.notes,
+                                      size: 11,
+                                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        trip['preferences'] as String,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 9,
+                                          fontStyle: FontStyle.italic,
+                                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 10),
                               Row(
                                 children: [
@@ -573,17 +731,21 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                     child: SizedBox(
                                       height: 38,
                                       child: OutlinedButton(
-                                        onPressed: trip['isBooking'] != true ? null : () {
-                                          Navigator.pushNamed(
-                                            context,
-                                            '/booking-status',
-                                            arguments: trip['source'],
-                                          );
+                                        onPressed: () {
+                                          if (trip['isBooking'] == true) {
+                                            Navigator.pushNamed(
+                                              context,
+                                              '/booking-status',
+                                              arguments: trip['source'],
+                                            );
+                                          } else {
+                                            _showTripDetailsSheet(trip);
+                                          }
                                         },
                                         style: OutlinedButton.styleFrom(
-                                          backgroundColor: Colors.white,
-                                          side: const BorderSide(
-                                            color: Color(0xFFE4E7E2),
+                                          backgroundColor: isDark ? const Color(0xFF1E2824) : Colors.white,
+                                          side: BorderSide(
+                                            color: isDark ? const Color(0xFF3E4D46) : const Color(0xFFE4E7E2),
                                           ),
                                           shape: RoundedRectangleBorder(
                                             borderRadius:
@@ -592,11 +754,11 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                           elevation: 0,
                                         ),
                                         child: Text(
-                                          'Manage Pass',
+                                          trip['isBooking'] == true ? 'Manage Pass' : 'Trip Details',
                                           style: GoogleFonts.plusJakartaSans(
                                             fontSize: 11,
                                             fontWeight: FontWeight.w700,
-                                            color: const Color(0xFF123F32),
+                                            color: isDark ? Colors.white : const Color(0xFF123F32),
                                           ),
                                         ),
                                       ),
@@ -641,6 +803,189 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showTripDetailsSheet(Map<String, dynamic> trip) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final interests = (trip['interests'] as List<String>?) ?? [];
+    final preferences = trip['preferences'] as String?;
+    final travellers = trip['travellers']?.toString() ?? '2';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      trip['title'] as String,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: trip['statusColor'] as Color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      trip['status'] as String,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _buildDetailRow(Icons.confirmation_number_outlined, 'Reference', 'Trip Request #${trip['id']}'),
+              const SizedBox(height: 8),
+              _buildDetailRow(Icons.calendar_today_outlined, 'Dates', trip['dates'] as String),
+              const SizedBox(height: 8),
+              _buildDetailRow(Icons.people_outline, 'Travelers', '$travellers Guests'),
+              const SizedBox(height: 8),
+              _buildDetailRow(Icons.account_balance_wallet_outlined, 'Budget Ceiling', trip['priceLabel'] as String),
+              if (interests.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'TRAVEL INTERESTS',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: interests.map((interest) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        interest,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+              if (preferences != null && preferences.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'PREFERENCES & NOTES',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  preferences,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushNamed(
+                      context,
+                      '/itinerary',
+                      arguments: trip['isBooking'] == true
+                          ? {'itineraryId': trip['itineraryId']}
+                          : {'tripRequestId': trip['id']},
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF123F32),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Open Itinerary'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: isDark ? AppColors.leaf400 : const Color(0xFF123F32)),
+        const SizedBox(width: 8),
+        Text(
+          '$label: ',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
