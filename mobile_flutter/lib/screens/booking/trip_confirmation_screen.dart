@@ -12,12 +12,12 @@ class TripConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is! Map<String, dynamic>) {
+    if (args is! Map) {
       return const Scaffold(
         body: Center(child: Text('No confirmed booking is available.')),
       );
     }
-    final Map<String, dynamic> booking = args;
+    final Map<String, dynamic> booking = Map<String, dynamic>.from(args);
 
     final bookingRef = booking['bookingReference']?.toString();
     if (bookingRef == null || bookingRef.isEmpty) {
