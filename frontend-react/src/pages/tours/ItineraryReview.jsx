@@ -660,15 +660,17 @@ export default function ItineraryReview() {
               </button>
 
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  className="btn-outline"
-                  disabled={busyAction}
-                  onClick={() => handleStatusChange('Draft')}
-                >
-                  <RotateCcwIcon size={14} />
-                  <span>Send for replanning</span>
-                </button>
+                {selectedItinerary.status === 'Proposed' && (
+                  <button
+                    type="button"
+                    className="btn-outline"
+                    disabled={busyAction}
+                    onClick={() => handleStatusChange('Draft')}
+                  >
+                    <RotateCcwIcon size={14} />
+                    <span>Send for replanning</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-gold"
