@@ -211,7 +211,7 @@ namespace backend.Services
                 ? itinerary.Status switch
                 {
                     ItineraryStatus.Draft => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
-                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
+                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Draft or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
                     _ => false
                 }
                 : itinerary.Status switch

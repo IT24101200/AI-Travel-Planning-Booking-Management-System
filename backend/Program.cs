@@ -67,11 +67,20 @@ if (!string.IsNullOrWhiteSpace(envFilePath))
     }
 }
 
-var connectionString = builder.Configuration["SUPERBASE_URL"]
-    ?? Environment.GetEnvironmentVariable("SUPERBASE_URL")
-    ?? builder.Configuration.GetConnectionString("Default")
+var connectionString = builder.Configuration["SUPABASE_DB_CONNECTION"]
+    ?? Environment.GetEnvironmentVariable("SUPABASE_DB_CONNECTION")
     ?? builder.Configuration["DATABASE_URL"]
+    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? builder.Configuration["ConnectionStrings:DefaultConnection"]
+    ?? builder.Configuration.GetConnectionString("Default")
     ?? builder.Configuration["ConnectionStrings:Default"];
+
+if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new InvalidOperationException(
+        "A production PostgreSQL connection string is required. Configure SUPABASE_DB_CONNECTION, DATABASE_URL, or ConnectionStrings__Default.");
+}
 
 // ── Database ──
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -82,7 +91,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     }
     else
     {
-        // Safe local default without sensitive credentials
+        // Development-only local fallback. Production fails closed above.
         options.UseNpgsql("Host=localhost;Port=5432;Database=travel_booking_db;Username=postgres;Password=");
     }
 });
@@ -244,6 +253,20 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
 var app = builder.Build();
 
+app.Logger.LogInformation(
+    "Database provider: PostgreSQL; database connection configured: {Configured}; target is intentionally not logged.",
+    !string.IsNullOrWhiteSpace(connectionString));
+
+var applyMigrationsOnStartup = app.Configuration.GetValue<bool>("ApplyMigrationsOnStartup", false);
+if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
+{
+    await using var migrationScope = app.Services.CreateAsyncScope();
+    var database = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>().Database;
+    app.Logger.LogInformation("Applying EF Core migrations on startup.");
+    await database.MigrateAsync();
+    app.Logger.LogInformation("EF Core migrations completed successfully.");
+}
+
 // ── Database Seeding on Startup (Disabled by default to preserve cleared state) ──
 var seedOnStartup = app.Configuration.GetValue<bool>("SeedDatabaseOnStartup", false);
 if (seedOnStartup && !app.Environment.IsEnvironment("Testing"))
@@ -274,7 +297,7 @@ app.UseExceptionHandler(errorApp =>
         {
             statusCode = 500,
             message = ex?.Message ?? "An unexpected internal server error occurred. Please try again later.",
-            detail = ex?.ToString()
+            detail = app.Environment.IsDevelopment() ? ex?.ToString() : null
         };
         await context.Response.WriteAsJsonAsync(response);
     });
@@ -331,13 +354,15 @@ app.MapGet("/dbhealth", async (AppDbContext db) =>
     try
     {
         var connected = await db.Database.CanConnectAsync();
-        var conn = db.Database.GetDbConnection();
+        var pendingMigrations = connected
+            ? (await db.Database.GetPendingMigrationsAsync()).Count()
+            : -1;
         return Results.Ok(new
         {
             connected,
             message = connected ? "Database connection is OK." : "Database connection failed.",
-            server = conn.DataSource,
-            database = conn.Database
+            provider = db.Database.ProviderName,
+            pendingMigrations
         });
     }
     catch (Exception ex)

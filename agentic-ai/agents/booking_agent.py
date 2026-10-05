@@ -23,11 +23,18 @@ def _remove_markdown_fences(text):
 
 def build_booking_package(state):
     trip_id = state.get("trip_request_id")
-    destination_id = state.get("destination_id", 1)
+    destination_id = state.get("destination_id")
     start_date = state.get("start_date")
     end_date = state.get("end_date")
     traveller_count = state.get("traveller_count", 1)
     currency = str(state.get("currency", "LKR")).upper()
+
+    if not isinstance(destination_id, int) or destination_id <= 0:
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "DESTINATION_REQUIRED",
+            "error": "A real database-backed destination is required before inventory can be selected.",
+        }
 
     itinerary = state.get("itinerary", {})
     if not isinstance(itinerary, dict) or itinerary.get("error"):
@@ -37,10 +44,8 @@ def build_booking_package(state):
             "error": itinerary.get("error", "A valid itinerary proposal is required."),
         }
     
-    # 1. Search Hotels (fallback to all active hotels if destination has no specific hotel)
+    # 1. Search only inventory belonging to the requested destination.
     hotels = search_hotels(destination_id, currency=currency)
-    if not hotels:
-        hotels = search_hotels(None, currency=currency)
     available_rooms = []
     
     for hotel in hotels:

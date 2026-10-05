@@ -23,15 +23,6 @@ import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx
 
 const CATEGORIES = ['All', 'Heritage', 'Wildlife', 'Cultural', 'Marine', 'Scenic', 'Adventure']
 
-const FALLBACK_TOUR_IMAGES = {
-  sigiriya: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
-  yala: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
-  kandy: 'https://images.unsplash.com/photo-1546708973-b339540b5162?w=600&auto=format&fit=crop&q=80',
-  galle: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=600&auto=format&fit=crop&q=80',
-  ella: 'https://images.unsplash.com/photo-1588258524675-c61917a10786?w=600&auto=format&fit=crop&q=80',
-  default: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&auto=format&fit=crop&q=80'
-}
-
 /**
  * Serendib Trails — Tour Catalog Management
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27473)
@@ -97,31 +88,20 @@ export default function TourCatalogManagement() {
         if (tourRes.status === 'fulfilled') {
           const live = Array.isArray(tourRes.value) ? tourRes.value : (tourRes.value?.data || [])
           const mapped = live.map((t) => {
-            const destName = t.destinationName || t.destination?.name || 'Sigiriya'
-            const destKey = destName.toLowerCase()
-            let thumb = t.imageUrl
-            if (!thumb) {
-              if (destKey.includes('sigiriya')) thumb = FALLBACK_TOUR_IMAGES.sigiriya
-              else if (destKey.includes('yala')) thumb = FALLBACK_TOUR_IMAGES.yala
-              else if (destKey.includes('kandy')) thumb = FALLBACK_TOUR_IMAGES.kandy
-              else if (destKey.includes('galle')) thumb = FALLBACK_TOUR_IMAGES.galle
-              else if (destKey.includes('ella')) thumb = FALLBACK_TOUR_IMAGES.ella
-              else thumb = FALLBACK_TOUR_IMAGES.default
-            }
-
+            const destName = t.destinationName || t.destination?.name || 'Destination not provided'
             return {
               apiTour: t,
               id: t.id,
               name: t.name,
               destination: destName,
-              destinationId: t.destinationId || (destList.length > 0 ? destList[0].id : 1),
+              destinationId: t.destinationId || null,
               price: t.price,
               durationHours: t.durationHours || 8,
               category: t.category || 'Heritage',
               defaultStartTime: t.defaultStartTime?.slice(0, 5) || '05:15',
               status: t.status || 'Active',
               description: t.description || `Guided excursion in scenic ${destName}.`,
-              imageUrl: thumb
+              imageUrl: t.imageUrl || ''
             }
           })
           setRows(mapped)
@@ -186,8 +166,6 @@ export default function TourCatalogManagement() {
     setNotice(null)
     try {
       if (drawerMode === 'create') {
-        const fallbackBlob = await fetch(FALLBACK_TOUR_IMAGES.default).then(r => r.blob())
-        const fileToSend = new File([fallbackBlob], 'tour.jpg', { type: 'image/jpeg' })
         const res = await createTour({
           destinationId: Number(formData.destinationId),
           name: formData.name,
@@ -199,7 +177,7 @@ export default function TourCatalogManagement() {
           description: formData.description,
           imageUrl: formData.imageUrl || '',
           status: 'Active'
-        }, fileToSend)
+        })
         setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
       } else if (drawerMode === 'edit' && selectedTour) {
         await updateTour(selectedTour.id, {

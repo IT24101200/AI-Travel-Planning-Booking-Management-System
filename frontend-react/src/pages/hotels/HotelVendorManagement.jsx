@@ -31,8 +31,8 @@ export default function HotelVendorManagement() {
   const [selectedHotel, setSelectedHotel] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
-    destinationId: 1,
-    destinationName: 'Sigiriya',
+    destinationId: null,
+    destinationName: 'Destination not provided',
     address: '',
     starRating: 5,
     roomCount: 36,
@@ -65,27 +65,25 @@ export default function HotelVendorManagement() {
           const live = Array.isArray(hotelRes.value) ? hotelRes.value : (hotelRes.value?.data || [])
           const mapped = live.map((h, idx) => {
             const rooms = Array.isArray(h.rooms) ? h.rooms : []
-            const roomCount = rooms.reduce((acc, r) => acc + (r.totalRooms || 1), 0) || (idx === 0 ? 36 : idx === 1 ? 20 : idx === 2 ? 154 : idx === 3 ? 25 : 60)
-            const occupancy = idx === 0 ? 83 : idx === 1 ? 71 : idx === 2 ? 66 : idx === 3 ? 92 : 0
-            const destName = h.destinationName || h.destination?.name || (idx === 0 ? 'Sigiriya' : idx === 1 ? 'Kandy' : idx === 2 ? 'Nuwara Eliya' : idx === 3 ? 'Ella' : 'Mirissa')
-            const priceRange = idx === 0 ? '$280–$520' : idx === 1 ? '$310–$610' : idx === 2 ? '$140–$290' : idx === 3 ? '$240–$480' : '$120–$260'
-
+            const roomCount = rooms.reduce((acc, r) => acc + (Number(r.totalRooms) || 0), 0)
+            const occupancy = null
+            const destName = h.destinationName || h.destination?.name || 'Destination not provided'
             return {
               id: h.id,
               code: `HTL-01${idx + 4}`,
               name: h.name,
               destination: destName,
-              destinationId: h.destinationId || (destList[0]?.id || 1),
-              address: h.address || `Rangirigama, ${destName}, Sri Lanka`,
-              stars: h.starRating || 5,
+              destinationId: h.destinationId,
+              address: h.address || 'Address not provided',
+              stars: h.starRating,
               roomCount,
               occupancy,
-              committedRooms: Math.round(roomCount * (occupancy / 100)),
-              priceRange,
-              email: h.email || `reservations.${h.name.toLowerCase().replace(/[^a-z]/g, '')}@serendib.lk`,
-              phone: h.phone || '+94 66 228 6000',
+              committedRooms: null,
+              priceRange: null,
+              email: h.email || 'Email not provided',
+              phone: h.phone || 'Phone not provided',
               imageUrl: h.imageUrl || '',
-              status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || (idx === 4 ? 'Inactive' : 'Active')),
+              status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Status not provided'),
             }
           })
           setRows(mapped)
@@ -131,8 +129,8 @@ export default function HotelVendorManagement() {
     setSelectedHotel(null)
     setFormData({
       name: '',
-      destinationId: destinations[0]?.id || 1,
-      destinationName: destinations[0]?.name || 'Sigiriya',
+      destinationId: destinations[0]?.id || null,
+      destinationName: destinations[0]?.name || 'Destination not provided',
       address: '',
       starRating: 5,
       roomCount: 24,
@@ -155,7 +153,7 @@ export default function HotelVendorManagement() {
   const totalRoomsLive = useMemo(() => rows.filter(r => r.status === 'Active').reduce((sum, r) => sum + r.roomCount, 0), [rows])
   const avgOccupancy = useMemo(() => {
     const active = rows.filter(r => r.status === 'Active')
-    if (active.length === 0) return 0
+    if (active.length === 0 || active.some(r => r.occupancy == null)) return null
     return Math.round(active.reduce((sum, r) => sum + r.occupancy, 0) / active.length)
   }, [rows])
 
@@ -168,7 +166,12 @@ export default function HotelVendorManagement() {
     setBusy(true)
     setNotice('')
     try {
-      const destId = Number(formData.destinationId) || destinations[0]?.id || 1
+      const destId = Number(formData.destinationId)
+      if (!Number.isInteger(destId) || destId <= 0) {
+        setNotice('Please select a destination from the database.')
+        setBusy(false)
+        return
+      }
       if (drawerMode === 'create') {
         await createHotel({
           name: formData.name.trim(),
@@ -270,7 +273,7 @@ export default function HotelVendorManagement() {
             <span className="badge-dot" /> {totalRoomsLive} rooms live
           </span>
           <span className="badge-pill badge-amber" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
-            <span className="badge-dot" /> {avgOccupancy}% average occupancy
+            <span className="badge-dot" /> {avgOccupancy == null ? 'Occupancy unavailable' : `${avgOccupancy}% average occupancy`}
           </span>
         </div>
       </div>
@@ -326,12 +329,6 @@ export default function HotelVendorManagement() {
                 ) : view.length > 0 ? (
                   view.map((h) => {
                     const isSelected = selectedHotel?.id === h.id && drawerMode === 'edit'
-                    const fillClass = h.occupancy >= 90
-                      ? 'progress-bar-fill--red'
-                      : h.occupancy >= 75
-                      ? 'progress-bar-fill--amber'
-                      : 'progress-bar-fill--green'
-
                     return (
                       <tr
                         key={h.id}
@@ -378,14 +375,8 @@ export default function HotelVendorManagement() {
                               <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{h.name}</strong>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '4px' }}>
                                 <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>
-                                  Occupancy {h.occupancy}%
+                                  Occupancy unavailable
                                 </span>
-                              </div>
-                              <div className="progress-bar-wrap" style={{ maxWidth: '140px' }}>
-                                <div
-                                  className={`progress-bar-fill ${fillClass}`}
-                                  style={{ width: `${Math.min(100, h.occupancy)}%` }}
-                                />
                               </div>
                             </div>
                           </div>
@@ -397,7 +388,7 @@ export default function HotelVendorManagement() {
                           </span>
                         </td>
                         <td style={{ fontWeight: 600, color: '#182126' }}>{h.roomCount}</td>
-                        <td style={{ fontWeight: 700, color: '#182126' }}>{h.priceRange}</td>
+                        <td style={{ fontWeight: 700, color: '#182126' }}>Not provided</td>
                         <td>
                           <span className={`badge-pill ${h.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
                             <span className="badge-dot" /> {h.status}
@@ -527,7 +518,7 @@ export default function HotelVendorManagement() {
                     setFormData({
                       ...formData,
                       destinationId: e.target.value,
-                      destinationName: sel?.name || 'Sigiriya'
+                      destinationName: sel?.name || 'Destination not provided'
                     })
                   }}
                 >

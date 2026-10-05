@@ -224,13 +224,8 @@ export default function TransportFleetManagement() {
       await deleteTransport(sch.id)
       setNotice(`Schedule ${sch.code} decommissioned.`)
       await loadFleet()
-    } catch {
-      // Set to decommissioned locally
-      setRows(prev => prev.map(r => r.id === sch.id ? { ...r, status: 'Decommissioned' } : r))
-      if (selectedSchedule?.id === sch.id) {
-        setSelectedSchedule(prev => ({ ...prev, status: 'Decommissioned' }))
-      }
-      setNotice(`Schedule marked as Decommissioned.`)
+    } catch (err) {
+      setNotice(`Failed to decommission schedule: ${err.response?.data?.message || err.message || 'The server rejected the request.'}`)
     }
   }
 

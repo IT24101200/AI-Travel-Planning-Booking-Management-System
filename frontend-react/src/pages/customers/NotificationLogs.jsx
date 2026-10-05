@@ -98,9 +98,9 @@ export default function NotificationLogs() {
           let recipient = n.recipient
           if (!recipient) {
             if (rawChannel === 'SMS') {
-              recipient = customerPhone || customerEmail || '+94 77 123 4567'
+              recipient = customerPhone || customerEmail || 'Recipient not provided'
             } else {
-              recipient = customerEmail || customerPhone || 'customer@serendib.lk'
+              recipient = customerEmail || customerPhone || 'Recipient not provided'
             }
           }
 

@@ -479,6 +479,7 @@ namespace backend.Data
 
             foreach (var d in destinationData)
             {
+                d.NormalizedName = d.Name.Trim().ToUpperInvariant();
                 var existingDest = await context.Destinations.FirstOrDefaultAsync(x => x.Name == d.Name);
                 if (existingDest == null)
                 {
@@ -486,6 +487,7 @@ namespace backend.Data
                 }
                 else
                 {
+                    existingDest.NormalizedName = d.NormalizedName;
                     existingDest.Description = d.Description;
                     existingDest.ImageUrl = d.ImageUrl;
                     existingDest.Latitude = d.Latitude;

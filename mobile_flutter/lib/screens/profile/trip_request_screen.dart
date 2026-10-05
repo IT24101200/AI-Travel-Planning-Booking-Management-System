@@ -21,42 +21,17 @@ class TripRequestScreen extends StatefulWidget {
 
 class _TripRequestScreenState extends State<TripRequestScreen> {
   // Destination text controller
-  final _destinationCtrl =
-      TextEditingController(text: 'Sigiriya, Kandy, Ella & Mirissa');
+  final _destinationCtrl = TextEditingController();
 
   // Special requests / preferences text controller
   final _specialRequestsCtrl = TextEditingController(
     text: 'Quiet stays, vegetarian meals, easy-paced mornings',
   );
 
-  // Sri Lankan curated destinations mapped to backend database IDs
-  static const Map<String, int> _defaultDestinationIds = {
-    'sigiriya': 4,
-    'kandy': 2,
-    'galle': 3,
-    'ella': 5,
-    'yala': 6,
-    'mirissa': 7,
-    'nuwara eliya': 8,
-    'trincomalee': 9,
-    'badulla': 1,
-  };
-  final Map<String, int> _destinationIds = Map.from(_defaultDestinationIds);
+  final Map<String, int> _destinationIds = {};
 
-  // Curated fallback Sri Lankan destination suggestions
-  static const List<String> _fallbackQuickDestinations = [
-    'Sigiriya',
-    'Kandy',
-    'Ella',
-    'Galle',
-    'Mirissa',
-    'Yala',
-    'Nuwara Eliya',
-    'All Island',
-  ];
-
-  // Quick selectable Sri Lankan destination suggestions (updated dynamically from backend)
-  List<String> _quickDestinations = List.from(_fallbackQuickDestinations);
+  // Quick selectable Sri Lankan destination suggestions
+  List<String> _quickDestinations = [];
 
   // Date range state
   late DateTime _startDate;
@@ -88,24 +63,17 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   ];
 
   // Selected destinations set (tracks checked states directly)
-  final Set<String> _selectedDestinations = {
-    'Sigiriya',
-    'Kandy',
-    'Ella',
-    'Mirissa',
-  };
+  final Set<String> _selectedDestinations = {};
 
   bool _isGenerating = false;
   String? _submissionError;
   String? _preferencesError;
 
   void _onDestinationChanged() {
-    final parsed = _parseDestinations(_destinationCtrl.text)
-        .map((d) => d.toLowerCase().trim())
-        .toSet();
+    final text = _destinationCtrl.text.toLowerCase();
     for (final dest in _quickDestinations) {
       if (dest == 'All Island') continue;
-      if (parsed.contains(dest.toLowerCase().trim())) {
+      if (text.contains(dest.toLowerCase())) {
         _selectedDestinations.add(dest);
       } else {
         _selectedDestinations.removeWhere((d) => d.toLowerCase() == dest.toLowerCase());
@@ -128,64 +96,30 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     _loadUserPreferences();
   }
 
-  /// Load destinations dynamically from backend to keep chips and IDs synced with added records
+  /// Load destinations dynamically from backend to keep IDs synced
   Future<void> _loadDestinations() async {
     try {
       final list = await ApiService.getDestinations();
-      final loadedNames = <String>[];
       for (final item in list) {
-        if (item is Map && item['name'] != null) {
-          final name = item['name'].toString().trim();
-          if (name.isNotEmpty && !loadedNames.any((n) => n.toLowerCase() == name.toLowerCase())) {
-            loadedNames.add(name);
-          }
-          final id = int.tryParse(item['id']?.toString() ?? '');
+        if (item is Map && item['name'] != null && item['id'] != null) {
+          final id = int.tryParse(item['id'].toString());
           if (id != null && id > 0) {
-            _destinationIds[name.toLowerCase()] = id;
+            _destinationIds[item['name'].toString().toLowerCase().trim()] = id;
           }
         }
       }
-
-      if (loadedNames.isNotEmpty && mounted) {
-        setState(() {
-          // Dynamic destination suggestions reflecting added records
-          final updated = List<String>.from(loadedNames);
-          // If 3 or more destinations are available, offer 'All Island' convenience chip
-          if (loadedNames.length >= 3 && !updated.contains('All Island')) {
-            updated.add('All Island');
-          }
-          _quickDestinations = updated;
-
-          // If current destination input is still default, align with the loaded catalog
-          final isDefault = _destinationCtrl.text.trim().isEmpty ||
-              _destinationCtrl.text.trim() == 'Sigiriya, Kandy, Ella & Mirissa';
-
-          if (isDefault) {
-            final matching = _selectedDestinations
-                .where((s) => loadedNames.any((n) => n.toLowerCase() == s.toLowerCase()))
-                .toList();
-
-            if (matching.isNotEmpty) {
-              _selectedDestinations
-                ..clear()
-                ..addAll(matching);
-              _destinationCtrl.text = _formatDestinations(matching);
-            } else {
-              // Default to the first available added destination
-              final first = loadedNames.first;
-              _selectedDestinations
-                ..clear()
-                ..add(first);
-              _destinationCtrl.text = first;
-            }
-          } else {
-            // Re-sync selected chips with whatever text is already in the controller
-            _onDestinationChanged();
-          }
-        });
-      }
     } catch (_) {
-      // Keep static fallback mapping
+      if (mounted) setState(() => _submissionError = 'Unable to load destinations from the database.');
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _quickDestinations = list
+            .whereType<Map>()
+            .map((item) => item['name']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toList();
+      });
     }
   }
 
@@ -231,16 +165,13 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   /// Checks if a specific destination is present in selected list or text
   bool _isDestSelected(String dest) {
     if (dest == 'All Island') {
-      final nonAllIsland = _quickDestinations.where((d) => d != 'All Island').toList();
-      return nonAllIsland.isNotEmpty && nonAllIsland.every((h) => _isDestSelected(h));
+      final destinations = _quickDestinations.where((item) => item != 'All Island');
+      return destinations.isNotEmpty && destinations.every(_isDestSelected);
     }
     if (_selectedDestinations.any((d) => d.toLowerCase() == dest.toLowerCase())) {
       return true;
     }
-    final parsed = _parseDestinations(_destinationCtrl.text)
-        .map((d) => d.toLowerCase().trim())
-        .toSet();
-    return parsed.contains(dest.toLowerCase().trim());
+    return _destinationCtrl.text.toLowerCase().contains(dest.toLowerCase());
   }
 
   /// Total count of active destinations
@@ -256,16 +187,13 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   void _toggleDestination(String dest) {
     setState(() {
       if (dest == 'All Island') {
-        final nonAllIsland = _quickDestinations.where((d) => d != 'All Island').toList();
+        final destinations = _quickDestinations.where((item) => item != 'All Island').toList();
         if (_isDestSelected('All Island')) {
-          // Reset to single iconic destination
+          // Clear the database-backed selection.
           _selectedDestinations.clear();
-          if (nonAllIsland.isNotEmpty) {
-            _selectedDestinations.add(nonAllIsland.first);
-          }
         } else {
-          // Select all key island highlights
-          _selectedDestinations.addAll(nonAllIsland);
+          // Select all currently loaded database destinations.
+          _selectedDestinations.addAll(destinations);
         }
       } else {
         final isCurrentlySelected = _isDestSelected(dest);
@@ -436,16 +364,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: RefreshIndicator(
-          color: theme.colorScheme.primary,
-          onRefresh: () async {
-            await _loadDestinations();
-            await _loadUserPreferences();
-          },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_preferencesError != null)
@@ -638,9 +559,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
                                   isDense: true,
-                                  hintText: _quickDestinations.isNotEmpty
-                                      ? 'e.g. ${_quickDestinations.where((d) => d != "All Island").take(3).join(", ")}'
-                                      : 'e.g. Sigiriya, Kandy, Ella & Mirissa',
+                                  hintText: 'e.g. Sigiriya, Kandy, Ella & Mirissa',
                                   hintStyle: GoogleFonts.plusJakartaSans(
                                     color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF9CA3AF),
                                   ),
@@ -1179,7 +1098,6 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
               const SizedBox(height: 24),
             ],
-            ),
           ),
         ),
       ),
