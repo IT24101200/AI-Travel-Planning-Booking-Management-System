@@ -334,6 +334,13 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         throw ApiException(response['message']?.toString() ?? 'The server did not create a trip request. Please retry.');
       }
       if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Trip Request #$id submitted! AI agents are planning your itinerary.'),
+          backgroundColor: const Color(0xFF123F32),
+          duration: const Duration(seconds: 4),
+        ),
+      );
       Navigator.pushNamed(context, '/itinerary', arguments: {'tripRequestId': id});
     } catch (error) {
       if (mounted) setState(() => _submissionError = error.toString());

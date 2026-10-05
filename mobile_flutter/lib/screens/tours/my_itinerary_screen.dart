@@ -668,6 +668,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
 
     if (_itinerary == null) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(28.0),
@@ -677,13 +678,39 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               Container(
                 width: 72,
                 height: 72,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEEFAF4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.map_outlined, size: 36, color: Color(0xFF13684B)),
+                child: Icon(
+                  _pending ? Icons.auto_awesome_outlined : Icons.map_outlined,
+                  size: 36,
+                  color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
+                ),
               ),
               const SizedBox(height: 18),
+              if (_pending) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF81C784) : const Color(0xFF81C784),
+                    ),
+                  ),
+                  child: Text(
+                    'AI PLANNING IN PROGRESS',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? const Color(0xFF81C784) : const Color(0xFF1B5E20),
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               Text(
                 _pending ? 'Your itinerary is pending' : 'No itinerary yet',
                 style: TextStyle(
@@ -694,22 +721,44 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                _pending ? 'Your trip request was submitted. Check again once planning is complete.' : 'You do not have any travel itineraries yet.',
+                _pending
+                    ? 'Your trip request was submitted. Our 4 AI agents (Coordinator, Itinerary, Booking & Validation) are analyzing destinations and availability. Check again once planning is complete.'
+                    : 'You do not have any travel itineraries yet.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Color(0xFF8A9E96), height: 1.4),
+                style: const TextStyle(fontSize: 13, color: Color(0xFF8A9E96), height: 1.4),
               ),
               const SizedBox(height: 22),
-              TextButton(onPressed: _fetchItinerary, child: const Text('Retry')),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, '/tour-search'),
-                icon: const Icon(Icons.explore_outlined, size: 18),
-                label: const Text('Explore Tours'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0E382C),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              if (_pending) ...[
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/trip-history'),
+                  icon: const Icon(Icons.history, size: 18),
+                  label: const Text('View in Trip History'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E382C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
                 ),
-              ),
+                const SizedBox(height: 10),
+                TextButton.icon(
+                  onPressed: _fetchItinerary,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Retry'),
+                ),
+              ] else ...[
+                TextButton(onPressed: _fetchItinerary, child: const Text('Retry')),
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.pushNamed(context, '/tour-search'),
+                  icon: const Icon(Icons.explore_outlined, size: 18),
+                  label: const Text('Explore Tours'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0E382C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
