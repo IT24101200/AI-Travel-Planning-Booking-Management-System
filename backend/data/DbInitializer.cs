@@ -167,7 +167,7 @@ namespace backend.Data
                             FullName = staff.Name,
                             Phone = staff.Phone,
                             Role = staff.Role,
-                            JoinedAt = DateTime.UtcNow.AddMonths(-6),
+                            JoinedAt = DateTime.UtcNow,
                             LastActiveAt = DateTime.UtcNow
                         });
                     }
@@ -305,7 +305,7 @@ namespace backend.Data
                             FullName = c.Name,
                             Phone = c.Phone,
                             Role = "Customer",
-                            JoinedAt = DateTime.UtcNow.AddDays(-28),
+                            JoinedAt = DateTime.UtcNow,
                             LastActiveAt = DateTime.UtcNow.AddHours(-1)
                         };
                         context.Customers.Add(custRecord);
