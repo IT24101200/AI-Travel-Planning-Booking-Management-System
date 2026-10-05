@@ -244,8 +244,9 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
 var app = builder.Build();
 
-// ── Database Seeding on Startup ──
-if (!app.Environment.IsEnvironment("Testing"))
+// ── Database Seeding on Startup (Disabled by default to preserve cleared state) ──
+var seedOnStartup = app.Configuration.GetValue<bool>("SeedDatabaseOnStartup", false);
+if (seedOnStartup && !app.Environment.IsEnvironment("Testing"))
 {
     try
     {
