@@ -311,21 +311,61 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(
-                            Icons.settings_outlined,
-                            color: Colors.white,
-                            size: 18,
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Currency Selector Badge in Top Bar
+                          InkWell(
+                            onTap: _showCurrencyPicker,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.currency_exchange,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '$_currency ▾',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          onPressed: _showSettingsDialog,
-                        ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.settings_outlined,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              onPressed: _showSettingsDialog,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -498,6 +538,13 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           label: 'Home country',
                           value: _homeCountry,
                         ),
+                        Divider(height: 16, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
+                        _buildAccountField(
+                          icon: Icons.currency_exchange,
+                          label: 'Preferred currency',
+                          value: _currency == 'USD' ? 'US Dollar (USD · \$)' : 'Sri Lankan Rupee (LKR · Rs)',
+                          onTap: _showCurrencyPicker,
+                        ),
                       ],
                     ),
                   ),
@@ -516,29 +563,70 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.3),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Interactive Currency Switcher Chip
+                          InkWell(
+                            onTap: _showCurrencyPicker,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.4),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.currency_exchange,
+                                    size: 12,
+                                    color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '$_currency ▾',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          'LKR ${currencyFmt.format(_budgetMin)} – ${currencyFmt.format(_budgetMax)}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                          const SizedBox(width: 8),
+                          // Range Display Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen).withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Text(
+                              '$_currency ${currencyFmt.format(_budgetMin)} – ${currencyFmt.format(_budgetMax)}',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Target spending comfort zone per traveler in $_currency',
+                    'Target spending comfort zone per traveler in ${_currency == 'USD' ? 'US Dollars' : 'Sri Lankan Rupees'}',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
@@ -1277,9 +1365,11 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
     required IconData icon,
     required String label,
     required String value,
+    VoidCallback? onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
-      onTap: _showEditProfileModal,
+      onTap: onTap ?? _showEditProfileModal,
       behavior: HitTestBehavior.opaque,
       child: Row(
         children: [
@@ -1287,10 +1377,14 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
             width: 30,
             height: 30,
             decoration: BoxDecoration(
-              color: const Color(0xFFE5F1EA),
+              color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
               borderRadius: BorderRadius.circular(9),
             ),
-            child: Icon(icon, size: 16, color: const Color(0xFF123F32)),
+            child: Icon(
+              icon,
+              size: 16,
+              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
