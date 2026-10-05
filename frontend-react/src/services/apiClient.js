@@ -99,6 +99,16 @@ export async function updateCustomer(id, data) {
   return res
 }
 
+export async function registerStaff(staffData) {
+  const { data } = await api.post('/auth/register-staff', staffData)
+  return data
+}
+
+export async function deleteCustomer(id) {
+  const { data } = await api.delete(`/Customer/${id}`)
+  return data
+}
+
 export async function fetchNotifications() {
   const { data } = await api.get('/Notification', { params: { pageSize: 100 } })
   return data

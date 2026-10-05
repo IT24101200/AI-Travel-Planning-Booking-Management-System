@@ -10,5 +10,6 @@ namespace backend.Services
         Task<CustomerDto?> UpdateAsync(string customerId, CustomerUpdateDto dto);
         Task<bool> ExistsAsync(string customerId);
         Task UpdateLastActiveAsync(string customerId);
+        Task<bool> DeleteAsync(string customerId);
     }
 }
