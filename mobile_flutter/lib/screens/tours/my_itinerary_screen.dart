@@ -967,33 +967,42 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                     Positioned(
                       top: 12,
                       left: 14,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.15),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.alt_route, size: 15, color: Color(0xFF0E382C)),
-                            SizedBox(width: 6),
-                            Text(
-                              'VIEW FULL ROUTE',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.6,
-                                color: Color(0xFF0E382C),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/trip-map',
+                            arguments: _itinerary,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.alt_route, size: 15, color: Color(0xFF0E382C)),
+                              SizedBox(width: 6),
+                              Text(
+                                'VIEW FULL ROUTE',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.6,
+                                  color: Color(0xFF0E382C),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),

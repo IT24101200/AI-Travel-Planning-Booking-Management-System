@@ -96,11 +96,51 @@ namespace backend.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            // Only Administrators can change a user's role
+            var isAdmin = User.IsInRole("Admin");
+            if (!isAdmin && !string.IsNullOrWhiteSpace(dto.Role))
+            {
+                // Disallow role changes by non-admins
+                dto.Role = null;
+            }
+
             var updated = await _customerService.UpdateAsync(id, dto);
             if (updated == null)
                 return NotFound(new { message = "Customer not found." });
 
             return Ok(updated);
+        }
+
+        /// <summary>
+        /// Delete/deactivate a user or staff account.
+        /// Strictly restricted to Admin.
+        /// </summary>
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteCustomer(string id)
+        {
+            var currentUserId = GetUserId();
+            if (currentUserId == id)
+            {
+                return BadRequest(new { message = "You cannot delete your own account." });
+            }
+
+            var exists = await _customerService.ExistsAsync(id);
+            if (!exists)
+            {
+                return NotFound(new { message = "User not found." });
+            }
+
+            var deleted = await _customerService.DeleteAsync(id);
+            if (!deleted)
+            {
+                return BadRequest(new { message = "Unable to delete user account." });
+            }
+
+            return Ok(new { message = "User account deleted successfully." });
         }
 
         /// <summary>

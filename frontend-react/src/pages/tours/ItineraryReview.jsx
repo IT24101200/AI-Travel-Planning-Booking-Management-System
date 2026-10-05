@@ -108,12 +108,10 @@ export default function ItineraryReview() {
         return {
           ...it,
           code: `ITN-${it.id}`,
-          customerName: it.customerName ?? null,
           title: `Itinerary #${it.id}`,
           totalCost: it.totalEstimatedCost ?? 0,
           status: statusStr,
           durationDays,
-          travellers: it.travellerCount ?? null,
           items: it.items ?? [],
         }
       })
@@ -448,7 +446,7 @@ export default function ItineraryReview() {
                         {item.title}
                       </h4>
                       <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#66747b' }}>
-                        {item.customerName || 'Guest unavailable'} · {item.travellers != null ? `${item.travellers} travellers` : 'Traveller count unavailable'} · {item.durationDays != null ? `${item.durationDays} days` : 'Duration unavailable'}
+                        {item.customerName ?? 'Guest unavailable'} · {item.travellerCount != null ? `${item.travellerCount} travellers` : 'Traveller count unavailable'} · {item.durationDays != null ? `${item.durationDays} days` : 'Duration unavailable'}
                       </p>
                       <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#66747b' }}>
                         Created: {formatDate(item.createdAt)}
@@ -538,7 +536,7 @@ export default function ItineraryReview() {
                   {selectedItinerary.title}
                 </h2>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: '#66747b' }}>
-                  <strong>{selectedItinerary.customerName || 'Guest unavailable'}</strong> · {selectedItinerary.travellers != null ? `${selectedItinerary.travellers} travellers` : 'Traveller count unavailable'} · {selectedItinerary.durationDays != null ? `${selectedItinerary.durationDays} days` : 'Duration unavailable'}
+                  <strong>{selectedItinerary.customerName ?? 'Guest unavailable'}</strong> · {selectedItinerary.travellerCount != null ? `${selectedItinerary.travellerCount} travellers` : 'Traveller count unavailable'} · {selectedItinerary.durationDays != null ? `${selectedItinerary.durationDays} days` : 'Duration unavailable'}
                 </p>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: '#66747b' }}>
                   Created: {formatDate(selectedItinerary.createdAt)}

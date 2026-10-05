@@ -37,7 +37,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is int) {
       _loadBooking(args);
-    } else if (args is Map<String, dynamic>) {
+    } else if (args is Map) {
       setState(() {
         _booking = Map<String, dynamic>.from(args);
         _loading = false;

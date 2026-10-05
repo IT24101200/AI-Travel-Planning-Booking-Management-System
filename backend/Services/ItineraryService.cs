@@ -41,7 +41,7 @@ namespace backend.Services
             _context.Itineraries.Add(itinerary);
             await _context.SaveChangesAsync();
 
-            return ToDto(itinerary);
+            return (await GetItineraryByIdAsync(itinerary.Id))!;
         }
 
         /// <summary>
@@ -51,12 +51,8 @@ namespace backend.Services
         /// </summary>
         public async Task<ItineraryDto?> GetItineraryByIdAsync(int itineraryId)
         {
-            var itinerary = await _context.Itineraries
-                .Include(i => i.ItineraryItems)
-                    .ThenInclude(item => item.Tour)
+            return await ReadItineraries()
                 .FirstOrDefaultAsync(i => i.Id == itineraryId);
-
-            return itinerary is null ? null : ToDto(itinerary);
         }
 
         /// <summary>
@@ -65,14 +61,10 @@ namespace backend.Services
         /// </summary>
         public async Task<List<ItineraryDto>> GetItinerariesByCustomerAsync(string customerId)
         {
-            var itineraries = await _context.Itineraries
+            return await ReadItineraries()
                 .Where(i => i.CustomerId == customerId)
-                .Include(i => i.ItineraryItems)
-                    .ThenInclude(item => item.Tour)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
-
-            return itineraries.Select(i => ToDto(i)).ToList();
         }
 
         /// <summary>
@@ -150,13 +142,7 @@ namespace backend.Services
 
             await _context.SaveChangesAsync();
 
-            // Reload with Tour navigation for the response DTO
-            var updated = await _context.Itineraries
-                .Include(i => i.ItineraryItems)
-                    .ThenInclude(item => item.Tour)
-                .FirstAsync(i => i.Id == itineraryId);
-
-            return (true, null, ToDto(updated));
+            return (true, null, await GetItineraryByIdAsync(itineraryId));
         }
 
         /// <summary>
@@ -212,42 +198,43 @@ namespace backend.Services
         /// </summary>
         public async Task<List<ItineraryDto>> GetAllItinerariesAsync()
         {
-            var itineraries = await _context.Itineraries
-                .Include(i => i.ItineraryItems)
-                    .ThenInclude(item => item.Tour)
+            return await ReadItineraries()
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
-
-            return itineraries.Select(i => ToDto(i)).ToList();
         }
 
-        // ── Mapping helpers ──────────────────────────────────────────────────
+        // Read-only projection shared by the list and detail endpoints.
 
-        private static ItineraryDto ToDto(Itinerary i) => new ItineraryDto
-        {
-            Id                 = i.Id,
-            CustomerId         = i.CustomerId,
-            TripRequestId      = i.TripRequestId,
-            StartDate          = i.StartDate,
-            EndDate            = i.EndDate,
-            Status             = i.Status,
-            TotalEstimatedCost = i.TotalEstimatedCost,
-            Currency           = i.Currency,
-            CreatedAt          = i.CreatedAt,
-            Items              = i.ItineraryItems?.Select(item => ToItemDto(item)).ToList()
-                                 ?? new List<ItineraryItemDto>()
-        };
-
-        private static ItineraryItemDto ToItemDto(ItineraryItem item) => new ItineraryItemDto
-        {
-            Id               = item.Id,
-            TourId           = item.TourId,
-            TourName         = item.Tour?.Name ?? string.Empty,
-            DayNumber        = item.DayNumber,
-            SequenceOrder    = item.SequenceOrder,
-            StartTime        = item.StartTime,
-            EndTime          = item.EndTime,
-            PriceAtSelection = item.PriceAtSelection
-        };
+        private IQueryable<ItineraryDto> ReadItineraries() =>
+            from itinerary in _context.Itineraries.AsNoTracking()
+            join customer in _context.Customers on itinerary.CustomerId equals customer.Id into customers
+            from customer in customers.DefaultIfEmpty()
+            join tripRequest in _context.TripRequests on itinerary.TripRequestId equals tripRequest.Id into tripRequests
+            from tripRequest in tripRequests.DefaultIfEmpty()
+            select new ItineraryDto
+            {
+                Id = itinerary.Id,
+                CustomerId = itinerary.CustomerId,
+                CustomerName = customer == null ? null : customer.FullName,
+                TripRequestId = itinerary.TripRequestId,
+                TravellerCount = tripRequest == null ? null : (int?)tripRequest.TravellerCount,
+                StartDate = itinerary.StartDate,
+                EndDate = itinerary.EndDate,
+                Status = itinerary.Status,
+                TotalEstimatedCost = itinerary.TotalEstimatedCost,
+                Currency = itinerary.Currency,
+                CreatedAt = itinerary.CreatedAt,
+                Items = itinerary.ItineraryItems.Select(item => new ItineraryItemDto
+                {
+                    Id = item.Id,
+                    TourId = item.TourId,
+                    TourName = item.Tour == null ? string.Empty : item.Tour.Name,
+                    DayNumber = item.DayNumber,
+                    SequenceOrder = item.SequenceOrder,
+                    StartTime = item.StartTime,
+                    EndTime = item.EndTime,
+                    PriceAtSelection = item.PriceAtSelection
+                }).ToList()
+            };
     }
 }

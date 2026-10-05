@@ -12,9 +12,10 @@ void main() {
     ApiService.mockRequestItineraryChanges = null;
   });
 
-  Widget buildTestWidget() {
-    return const MaterialApp(
-      home: MyItineraryScreen(),
+  Widget buildTestWidget({Map<String, WidgetBuilder>? routes}) {
+    return MaterialApp(
+      routes: routes ?? const {},
+      home: const MyItineraryScreen(),
     );
   }
 
@@ -273,5 +274,30 @@ void main() {
     expect(find.text('Approval denied'), findsOneWidget);
     expect(find.text('Continue to Checkout'), findsNothing);
     expect(itinerary['status'], 1);
+  });
+
+  testWidgets('11. VIEW FULL ROUTE button is tappable and navigates to /trip-map', (tester) async {
+    final itinerary = createSampleItinerary();
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    bool navigatedToMap = false;
+
+    await tester.pumpWidget(buildTestWidget(
+      routes: {
+        '/trip-map': (context) {
+          navigatedToMap = true;
+          return const Scaffold(body: Text('Mock Trip Map'));
+        },
+      },
+    ));
+    await tester.pumpAndSettle();
+
+    final viewRouteBtn = find.text('VIEW FULL ROUTE');
+    expect(viewRouteBtn, findsOneWidget);
+    await tester.tap(viewRouteBtn);
+    await tester.pumpAndSettle();
+
+    expect(navigatedToMap, isTrue);
+    expect(find.text('Mock Trip Map'), findsOneWidget);
   });
 }
