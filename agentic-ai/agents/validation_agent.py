@@ -53,10 +53,8 @@ def _positive_int(value: Any, field: str) -> int:
 
 def _currency(value: Any, field: str) -> str:
     result = str(value or "").strip().upper()
-    if len(result) != 3 or not result.isalpha():
-        raise PackageValidationError(
-            "INVALID_CURRENCY", f"{field} must be a three-letter currency code."
-        )
+    if result not in {"LKR", "USD"}:
+        raise PackageValidationError("INVALID_CURRENCY", f"{field} must be LKR or USD.")
     return result
 
 

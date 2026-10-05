@@ -1,6 +1,5 @@
 using System.Data;
 using System.Globalization;
-using System.Text.RegularExpressions;
 using backend.Data;
 using backend.DTOs;
 using backend.Models;
@@ -14,11 +13,13 @@ public sealed class PaymentService : IPaymentService
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, SemaphoreSlim> BookingLocks = new();
     private readonly AppDbContext _db;
     private readonly IStripePaymentGateway _stripe;
+    private readonly ICurrencyConversionService _currency;
 
-    public PaymentService(AppDbContext db, IConfiguration configuration, IStripePaymentGateway stripe)
+    public PaymentService(AppDbContext db, IConfiguration configuration, IStripePaymentGateway stripe, ICurrencyConversionService? currency = null)
     {
         _db = db;
         _stripe = stripe;
+        _currency = currency ?? new CurrencyConversionService(configuration);
     }
 
     public async Task<PaymentDto> ProcessPaymentAsync(PaymentCreateDto dto)
@@ -55,9 +56,15 @@ public sealed class PaymentService : IPaymentService
             if (booking.TotalCost <= 0)
                 throw new InvalidOperationException("A confirmed booking must have a positive total cost before payment.");
 
-            var currency = booking.Currency?.Trim().ToUpperInvariant();
-            if (string.IsNullOrWhiteSpace(currency) || !Regex.IsMatch(currency, "^[A-Z]{3}$"))
-                throw new InvalidOperationException("The booking currency is invalid.");
+            string currency;
+            try
+            {
+                currency = _currency.Normalize(booking.Currency, "Booking currency");
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidOperationException(ex.Message, ex);
+            }
 
             if (booking.Payments.Any(p => p.Status == PaymentStatus.Paid))
                 throw new PaymentAlreadyPaidException($"Booking {booking.Id} already has a successful payment.");
@@ -76,12 +83,17 @@ public sealed class PaymentService : IPaymentService
                     BookingId = booking.Id,
                     Amount = booking.TotalCost,
                     Currency = currency,
+                    ExchangeRateToLkr = booking.ExchangeRateToLkr,
                     Status = PaymentStatus.Pending,
                     IdempotencyKey = $"booking-{booking.Id}-payment-{attempt}",
                     PaymentDate = DateTime.UtcNow
                 };
                 _db.Payments.Add(payment);
                 await _db.SaveChangesAsync();
+            }
+            else if (!string.Equals(payment.Currency, currency, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("The pending payment currency does not match the booking currency.");
             }
 
             StripePaymentResult stripeResult;
@@ -147,12 +159,13 @@ public sealed class PaymentService : IPaymentService
     {
         var payments = (await GetAllPaymentsAsync()).ToList();
         var paid = payments.Where(p => p.Status == PaymentStatus.Paid).ToList();
-        var monthly = paid.GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month })
+        var monthly = paid.GroupBy(p => new { p.PaymentDate.Year, p.PaymentDate.Month, p.Currency })
             .Select(g => new MonthlyRevenueDto
             {
                 Year = g.Key.Year,
                 Month = g.Key.Month,
                 MonthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(g.Key.Month),
+                Currency = g.Key.Currency,
                 Revenue = g.Sum(p => p.Amount)
             })
             .OrderByDescending(m => m.Year).ThenByDescending(m => m.Month).ToList();
@@ -160,6 +173,7 @@ public sealed class PaymentService : IPaymentService
         return new RevenueReportDto
         {
             TotalRevenue = paid.Sum(p => p.Amount),
+            RevenueByCurrency = paid.GroupBy(p => p.Currency).ToDictionary(g => g.Key, g => g.Sum(p => p.Amount)),
             PaidPaymentsCount = paid.Count,
             PendingPaymentsCount = payments.Count(p => p.Status == PaymentStatus.Pending),
             FailedPaymentsCount = payments.Count(p => p.Status == PaymentStatus.Failed),
@@ -180,6 +194,7 @@ public sealed class PaymentService : IPaymentService
         Status = payment.Status,
         StripeReference = payment.StripeReference,
         FailureReason = payment.FailureReason,
+        ExchangeRateToLkr = payment.ExchangeRateToLkr,
         PaymentDate = payment.PaymentDate
     };
 

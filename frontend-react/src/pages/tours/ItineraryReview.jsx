@@ -16,7 +16,6 @@ import {
   SparklesIcon,
   RotateCcwIcon,
   RefreshIcon,
-  CloseIcon,
   CheckIcon,
   TrashIcon,
   PlusIcon,
@@ -126,6 +125,8 @@ export default function ItineraryReview() {
   }
 
   useEffect(() => {
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadItineraries()
   }, [])
 
@@ -163,6 +164,8 @@ export default function ItineraryReview() {
   // Keep selection synced
   useEffect(() => {
     if (filteredQueue.length > 0 && (!selectedItinerary || !filteredQueue.find(q => q.id === selectedItinerary.id))) {
+      // Keep the detail panel on a valid item after filtering.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedItinerary(filteredQueue[0])
     }
   }, [filteredQueue, selectedItinerary])
@@ -452,7 +455,7 @@ export default function ItineraryReview() {
                         Created: {formatDate(item.createdAt)}
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <strong style={{ color: '#182126' }}>{formatPrice(item.totalCost)}</strong>
+                        <strong style={{ color: '#182126' }}>{formatPrice(item.totalCost, item.currency)}</strong>
                         <span style={{ color: '#267a55', fontWeight: 600, fontSize: '0.6875rem' }}>
                           {item.items.length === 0 ? 'No activities yet' : `${item.items.length} activities`}
                         </span>
@@ -545,7 +548,7 @@ export default function ItineraryReview() {
 
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: '0.6875rem', color: '#66747b', display: 'block' }}>TOTAL ESTIMATE</span>
-                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>{formatPrice(selectedItinerary.totalCost)}</strong>
+                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>{formatPrice(selectedItinerary.totalCost, selectedItinerary.currency)}</strong>
               </div>
             </div>
 
@@ -566,8 +569,8 @@ export default function ItineraryReview() {
                       <h4 className="day-column__title">Day {day.dayNumber}</h4>
                       <span className="day-column__sub">{day.dateStr}</span>
                     </div>
-                    <span className="badge-pill badge-blue">
-                      <span className="badge-dot" /> {formatPrice(day.subtotal)}
+                      <span className="badge-pill badge-blue">
+                      <span className="badge-dot" /> {formatPrice(day.subtotal, selectedItinerary.currency)}
                     </span>
                   </div>
 
@@ -584,7 +587,7 @@ export default function ItineraryReview() {
                             {act.tourName}
                           </p>
                         </div>
-                        <span className="activity-cost">{formatPrice(act.priceAtSelection ?? 0)}</span>
+                        <span className="activity-cost">{formatPrice(act.priceAtSelection ?? 0, act.currency || selectedItinerary.currency)}</span>
                         <button
                           type="button"
                           style={{

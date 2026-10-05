@@ -285,11 +285,16 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
 
                     b.Property<string>("CustomerId")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<decimal>("ExchangeRateToLkr")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(1m);
 
                     b.Property<int>("ItineraryId")
                         .HasColumnType("integer");
@@ -376,6 +381,13 @@ namespace backend.Migrations
 
                     b.Property<DateTime?>("CheckOutDate")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("LKR");
 
                     b.Property<string>("ItemType")
                         .IsRequired()
@@ -548,7 +560,7 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
 
                     b.Property<string>("CustomerId")
                         .IsRequired()
@@ -556,6 +568,11 @@ namespace backend.Migrations
 
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<decimal>("ExchangeRateToLkr")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(1m);
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("timestamp without time zone");
@@ -589,6 +606,13 @@ namespace backend.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)")
+                        .HasDefaultValue("LKR");
 
                     b.Property<int>("DayNumber")
                         .HasColumnType("integer");
@@ -686,7 +710,12 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
+
+                    b.Property<decimal>("ExchangeRateToLkr")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(1m);
 
                     b.Property<string>("FailureReason")
                         .HasMaxLength(500)
@@ -740,7 +769,7 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
 
                     b.Property<string>("CustomerId")
                         .IsRequired()
@@ -783,7 +812,7 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
 
                     b.Property<int>("HotelId")
                         .HasColumnType("integer");
@@ -892,7 +921,7 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
 
                     b.Property<DateTime>("DepartureTime")
                         .HasColumnType("timestamp without time zone");
@@ -989,7 +1018,7 @@ namespace backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(10)
                         .HasColumnType("character varying(10)")
-                        .HasDefaultValue("USD");
+                        .HasDefaultValue("LKR");
 
                     b.Property<string>("CustomerId")
                         .IsRequired()

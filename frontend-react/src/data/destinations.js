@@ -13,12 +13,8 @@ const ellaImg =
 const ellaThumb = ellaImg
 import nuwaraEliyaImg from '../assets/photos/nuwara-eliya-1280.jpg'
 import nuwaraEliyaThumb from '../assets/photos/nuwara-eliya-500.jpg'
-import mirissaImg from '../assets/photos/mirissa-1280.jpg'
-import mirissaThumb from '../assets/photos/mirissa-500.jpg'
 import yalaImg from '../assets/photos/yala-np.webp'
 import yalaThumb from '../assets/photos/yala-np.webp'
-import kandyImg from '../assets/photos/kandy-1280.jpg'
-import kandyThumb from '../assets/photos/kandy-500.jpg'
 import trincomaleeImg from '../assets/photos/trincomalee-1280.jpg'
 import trincomaleeThumb from '../assets/photos/trincomalee-500.jpg'
 import hortonPlainsImg from '../assets/photos/horton-plains-1280.jpg'

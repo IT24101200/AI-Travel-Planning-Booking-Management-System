@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
 
 /** Guards /staff/* — redirects anonymous users or customers to /login with access denied. */
-export function RequireAuth({ roles = ['staff', 'admin', 'agent', 'travelagent'], children }) {
+export function RequireAuth({ children }) {
   const auth = useAuth()
   const location = useLocation()
 

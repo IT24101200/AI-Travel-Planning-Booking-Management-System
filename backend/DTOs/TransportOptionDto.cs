@@ -63,7 +63,7 @@ namespace backend.DTOs
         public decimal Price { get; set; }
 
         [MaxLength(10, ErrorMessage = "Currency code cannot exceed 10 characters.")]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
         public string? ImageUrl { get; set; }

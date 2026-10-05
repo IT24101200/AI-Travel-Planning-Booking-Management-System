@@ -31,7 +31,7 @@ namespace backend.DTOs
         public decimal PricePerNight { get; set; }
 
         [MaxLength(10, ErrorMessage = "Currency code cannot exceed 10 characters.")]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
     }
 
     // ── Availability response — returned by the availability endpoint ──

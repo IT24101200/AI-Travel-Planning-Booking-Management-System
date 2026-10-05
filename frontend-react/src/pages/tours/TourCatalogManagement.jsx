@@ -45,7 +45,7 @@ export default function TourCatalogManagement() {
   // Filters
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
-  const [statusFilter, setStatusFilter] = useState('All')
+  const [statusFilter] = useState('All')
   const [page, setPage] = useState(1)
   const pageSize = 8
 
@@ -146,8 +146,11 @@ export default function TourCatalogManagement() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadTours(cancelled)
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function selectForEdit(tour) {

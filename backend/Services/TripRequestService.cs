@@ -9,10 +9,12 @@ namespace backend.Services
     public class TripRequestService : ITripRequestService
     {
         private readonly AppDbContext _db;
+        private readonly ICurrencyConversionService _currency;
 
-        public TripRequestService(AppDbContext db)
+        public TripRequestService(AppDbContext db, ICurrencyConversionService? currency = null)
         {
             _db = db;
+            _currency = currency ?? new CurrencyConversionService();
         }
 
         public async Task<TripRequestDto> CreateAsync(string customerId, TripRequestCreateDto dto)
@@ -28,6 +30,8 @@ namespace backend.Services
                 throw new ArgumentException("Budget ceiling must be greater than zero.");
             }
 
+            dto.Currency = _currency.Normalize(dto.Currency);
+
             // ── Preference Validation (Component A) ──
             // Cross-validate the incoming TripRequest against the customer's stored
             // Preference row (if one exists). Failures throw ArgumentException, which
@@ -40,11 +44,12 @@ namespace backend.Services
             {
                 // Reject if the trip's budget ceiling is below the customer's minimum budget.
                 // Only enforced when BudgetMin is a meaningful positive value.
-                if (preference.BudgetMin > 0 && dto.BudgetCeiling < preference.BudgetMin)
+                var preferredMinimum = _currency.Convert(preference.BudgetMin, preference.Currency, dto.Currency);
+                if (preference.BudgetMin > 0 && dto.BudgetCeiling < preferredMinimum)
                 {
                     throw new ArgumentException(
                         $"Budget ceiling ({dto.BudgetCeiling:F2} {dto.Currency}) is below your " +
-                        $"preferred minimum budget ({preference.BudgetMin:F2} {preference.Currency}). " +
+                        $"preferred minimum budget ({preferredMinimum:F2} {dto.Currency}). " +
                         $"Please raise your budget ceiling or update your preferences (BudgetMin).");
                 }
             }

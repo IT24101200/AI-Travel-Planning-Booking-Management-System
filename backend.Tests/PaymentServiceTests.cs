@@ -101,7 +101,7 @@ public sealed class PaymentServiceTests
     public async Task ConfirmedPaymentUsesAuthoritativeBookingAmountAndCurrency()
     {
         await using var context = CreateContext();
-        await SeedBookingAsync(context, 2, BookingStatus.Confirmed, 321.45m, "EUR");
+        await SeedBookingAsync(context, 2, BookingStatus.Confirmed, 321.45m, "USD");
         var gateway = new FakeStripePaymentGateway();
         var service = new PaymentService(context, new ConfigurationBuilder().Build(), gateway);
 
@@ -114,9 +114,9 @@ public sealed class PaymentServiceTests
         });
 
         Assert.Equal(321.45m, result.Amount);
-        Assert.Equal("EUR", result.Currency);
+        Assert.Equal("USD", result.Currency);
         Assert.Equal(321.45m, gateway.Amount);
-        Assert.Equal("EUR", gateway.Currency);
+        Assert.Equal("USD", gateway.Currency);
         Assert.Equal(PaymentStatus.Paid, result.Status);
         Assert.StartsWith("pi_", result.StripeReference);
         Assert.DoesNotContain("ch_sb_", result.StripeReference);

@@ -13,10 +13,12 @@ namespace backend.Services
     public class HotelService : IHotelService
     {
         private readonly AppDbContext _context;
+        private readonly ICurrencyConversionService _currency;
 
-        public HotelService(AppDbContext context)
+        public HotelService(AppDbContext context, ICurrencyConversionService? currency = null)
         {
             _context = context;
+            _currency = currency ?? new CurrencyConversionService();
         }
 
         // ══════════════════════════════════════════════════════════════════
@@ -35,7 +37,8 @@ namespace backend.Services
             string? sortBy,
             bool descending,
             int page,
-            int pageSize)
+            int pageSize,
+            string? currency = null)
         {
             // Start with all hotels
             var query = _context.Hotels
@@ -77,7 +80,8 @@ namespace backend.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            return hotels.Select(h => ToDto(h)).ToList();
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return hotels.Select(h => ToDto(h, targetCurrency)).ToList();
         }
 
         /// <summary>
@@ -113,13 +117,14 @@ namespace backend.Services
         /// <summary>
         /// Get a single hotel by ID, including its rooms.
         /// </summary>
-        public async Task<HotelDto?> GetByIdAsync(int id)
+        public async Task<HotelDto?> GetByIdAsync(int id, string? currency = null)
         {
             var hotel = await _context.Hotels
                 .Include(h => h.Rooms)
                 .FirstOrDefaultAsync(h => h.Id == id);
 
-            return hotel is null ? null : ToDto(hotel);
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return hotel is null ? null : ToDto(hotel, targetCurrency);
         }
 
         /// <summary>
@@ -184,7 +189,7 @@ namespace backend.Services
         //  ROOM CRUD (nested under a hotel)
         // ══════════════════════════════════════════════════════════════════
 
-        public async Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize)
+        public async Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize, string? currency = null)
         {
             var query = _context.Rooms.AsQueryable();
 
@@ -212,28 +217,32 @@ namespace backend.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            return rooms.Select(r => ToRoomDto(r)).ToList();
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return rooms.Select(r => ToRoomDto(r, targetCurrency)).ToList();
         }
 
-        public async Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId)
+        public async Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId, string? currency = null)
         {
             var rooms = await _context.Rooms
                 .Where(r => r.HotelId == hotelId)
                 .ToListAsync();
 
-            return rooms.Select(r => ToRoomDto(r)).ToList();
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return rooms.Select(r => ToRoomDto(r, targetCurrency)).ToList();
         }
 
-        public async Task<RoomDto?> GetRoomByIdAsync(int hotelId, int roomId)
+        public async Task<RoomDto?> GetRoomByIdAsync(int hotelId, int roomId, string? currency = null)
         {
             var room = await _context.Rooms
                 .FirstOrDefaultAsync(r => r.Id == roomId && r.HotelId == hotelId);
 
-            return room is null ? null : ToRoomDto(room);
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return room is null ? null : ToRoomDto(room, targetCurrency);
         }
 
         public async Task<RoomDto?> AddRoomAsync(int hotelId, CreateRoomDto dto)
         {
+            dto.Currency = _currency.Normalize(dto.Currency, "Room currency");
             // Make sure the hotel exists first
             var hotelExists = await _context.Hotels.AnyAsync(h => h.Id == hotelId);
             if (!hotelExists) return null;
@@ -256,6 +265,7 @@ namespace backend.Services
 
         public async Task<bool> UpdateRoomAsync(int hotelId, int roomId, CreateRoomDto dto)
         {
+            dto.Currency = _currency.Normalize(dto.Currency, "Room currency");
             var room = await _context.Rooms
                 .FirstOrDefaultAsync(r => r.Id == roomId && r.HotelId == hotelId);
             if (room is null) return false;
@@ -288,7 +298,7 @@ namespace backend.Services
         /// <summary>
         /// Convert Hotel entity → HotelDto (includes rooms).
         /// </summary>
-        private static HotelDto ToDto(Hotel h) => new HotelDto
+        private HotelDto ToDto(Hotel h, string? targetCurrency = null) => new HotelDto
         {
             Id            = h.Id,
             DestinationId = h.DestinationId,
@@ -299,21 +309,21 @@ namespace backend.Services
             Longitude     = h.Longitude,
             StarRating    = h.StarRating,
             Status        = h.Status.ToString(),
-            Rooms         = h.Rooms?.Select(r => ToRoomDto(r)).ToList() ?? new List<RoomDto>()
+            Rooms         = h.Rooms?.Select(r => ToRoomDto(r, targetCurrency)).ToList() ?? new List<RoomDto>()
         };
 
         /// <summary>
         /// Convert Room entity → RoomDto.
         /// </summary>
-        private static RoomDto ToRoomDto(Room r) => new RoomDto
+        private RoomDto ToRoomDto(Room r, string? targetCurrency = null) => new RoomDto
         {
             Id            = r.Id,
             HotelId       = r.HotelId,
             RoomType      = r.RoomType,
             Capacity      = r.Capacity,
             TotalRooms    = r.TotalRooms,
-            PricePerNight = r.PricePerNight,
-            Currency      = r.Currency
+            PricePerNight = targetCurrency == null ? r.PricePerNight : _currency.Convert(r.PricePerNight, r.Currency, targetCurrency),
+            Currency      = targetCurrency ?? r.Currency
         };
     }
 }

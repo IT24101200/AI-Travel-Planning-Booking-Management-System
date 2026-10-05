@@ -11,21 +11,21 @@ namespace backend.Services
     public interface IHotelService
     {
         // ── Hotel CRUD ──
-        Task<List<HotelDto>> GetAllAsync(string? search, int? destinationId, int? minStarRating, string? status, string? sortBy, bool descending, int page, int pageSize);
+        Task<List<HotelDto>> GetAllAsync(string? search, int? destinationId, int? minStarRating, string? status, string? sortBy, bool descending, int page, int pageSize, string? currency = null);
         Task<int> GetTotalCountAsync(string? search, int? destinationId, int? minStarRating, string? status);
-        Task<HotelDto?> GetByIdAsync(int id);
+        Task<HotelDto?> GetByIdAsync(int id, string? currency = null);
         Task<HotelDto> CreateAsync(CreateHotelDto dto);
         Task<bool> UpdateAsync(int id, CreateHotelDto dto);
         Task<bool> SoftDeleteAsync(int id);
 
         // ── Room CRUD (nested under a hotel) ──
-        Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId);
-        Task<RoomDto?> GetRoomByIdAsync(int hotelId, int roomId);
+        Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId, string? currency = null);
+        Task<RoomDto?> GetRoomByIdAsync(int hotelId, int roomId, string? currency = null);
         Task<RoomDto?> AddRoomAsync(int hotelId, CreateRoomDto dto);
         Task<bool> UpdateRoomAsync(int hotelId, int roomId, CreateRoomDto dto);
         Task<bool> DeleteRoomAsync(int hotelId, int roomId);
 
         // ── Room Search ──
-        Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize);
+        Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize, string? currency = null);
     }
 }

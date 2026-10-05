@@ -73,7 +73,7 @@ def coordinator_plan(state: dict) -> dict:
     end_date = state.get("end_date", "")
     travellers = state.get("traveller_count", 1)
     budget = float(state.get("budget_ceiling", 1000.0))
-    currency = state.get("currency", "USD")
+    currency = str(state.get("currency", "LKR")).upper()
     retry_count = state.get("retry_count", 0)
     revision_feedback = state.get("revision_feedback") or "None"
 

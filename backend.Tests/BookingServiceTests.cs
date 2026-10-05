@@ -29,6 +29,12 @@ namespace backend.Tests
 
         private static async Task SeedDependenciesAsync(AppDbContext context)
         {
+            context.Users.Add(new IdentityUser
+            {
+                Id = "agent-user-1",
+                UserName = "agent-user-1"
+            });
+
             context.Customers.Add(new Customer
             {
                 Id = "cust-1",
@@ -52,7 +58,15 @@ namespace backend.Tests
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddDays(5),
                 Status = ItineraryStatus.Proposed,
-                TotalEstimatedCost = 500
+                TotalEstimatedCost = 500,
+                Currency = "USD"
+            });
+
+            context.Destinations.Add(new Destination
+            {
+                Id = 1,
+                Name = "Paris",
+                Country = "France"
             });
 
             context.Tours.Add(new Tour

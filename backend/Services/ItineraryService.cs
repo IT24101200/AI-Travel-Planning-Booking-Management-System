@@ -13,10 +13,12 @@ namespace backend.Services
     public class ItineraryService : IItineraryService
     {
         private readonly AppDbContext _context;
+        private readonly ICurrencyConversionService _currency;
 
-        public ItineraryService(AppDbContext context)
+        public ItineraryService(AppDbContext context, ICurrencyConversionService? currency = null)
         {
             _context = context;
+            _currency = currency ?? new CurrencyConversionService();
         }
 
         /// <summary>
@@ -34,7 +36,8 @@ namespace backend.Services
                 EndDate          = endDate,
                 Status           = ItineraryStatus.Draft,
                 TotalEstimatedCost = 0,
-                Currency         = currency,
+                Currency         = _currency.Normalize(currency),
+                ExchangeRateToLkr = _currency.ExchangeRateToLkr(currency),
                 CreatedAt        = DateTime.UtcNow
             };
 
@@ -132,7 +135,8 @@ namespace backend.Services
                 SequenceOrder    = dto.SequenceOrder,
                 StartTime        = dto.StartTime,
                 EndTime          = dto.EndTime,
-                PriceAtSelection = tour.Price
+                PriceAtSelection = _currency.Convert(tour.Price, tour.Currency, itinerary.Currency),
+                Currency = itinerary.Currency
             };
 
             _context.ItineraryItems.Add(newItem);
@@ -263,6 +267,7 @@ namespace backend.Services
                 Status = itinerary.Status,
                 TotalEstimatedCost = itinerary.TotalEstimatedCost,
                 Currency = itinerary.Currency,
+                ExchangeRateToLkr = itinerary.ExchangeRateToLkr,
                 CreatedAt = itinerary.CreatedAt,
                 Items = itinerary.ItineraryItems.Select(item => new ItineraryItemDto
                 {
@@ -274,6 +279,7 @@ namespace backend.Services
                     StartTime = item.StartTime,
                     EndTime = item.EndTime,
                     PriceAtSelection = item.PriceAtSelection
+                    ,Currency = item.Currency
                 }).ToList()
             };
     }

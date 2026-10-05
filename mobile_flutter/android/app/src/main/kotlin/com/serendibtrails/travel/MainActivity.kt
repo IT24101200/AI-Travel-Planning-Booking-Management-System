@@ -1,4 +1,4 @@
-package com.example.mobile_flutter
+package com.serendibtrails.travel
 
 import io.flutter.embedding.android.FlutterActivity
 

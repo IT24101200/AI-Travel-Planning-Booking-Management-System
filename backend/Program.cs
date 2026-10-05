@@ -149,6 +149,7 @@ builder.Services.AddHttpClient();
 // ── DI: Student A Services ──
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
+builder.Services.AddSingleton<ICurrencyConversionService, CurrencyConversionService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
 builder.Services.AddScoped<IAgentProposalPersistenceService, AgentProposalPersistenceService>();
@@ -200,13 +201,33 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ── CORS ──
+var configuredOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
+var environmentOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
+    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? Array.Empty<string>();
+var allowedOrigins = environmentOrigins.Length > 0 ? environmentOrigins : configuredOrigins;
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("ConfiguredOrigins", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        }
+        else if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        {
+            policy.AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        }
+        else
+        {
+            policy.SetIsOriginAllowed(_ => false);
+        }
     });
 });
 
@@ -221,14 +242,17 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 var app = builder.Build();
 
 // ── Database Seeding on Startup ──
-try
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    await backend.Data.DbInitializer.SeedAsync(app.Services);
-}
-catch (Exception ex)
-{
-    // Log database connection warning without crashing application startup
-    app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
+    try
+    {
+        await backend.Data.DbInitializer.SeedAsync(app.Services);
+    }
+    catch (Exception ex)
+    {
+        // Log database connection warning without crashing application startup
+        app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
+    }
 }
 
 // ── Global Exception Handling ──
@@ -264,8 +288,11 @@ app.UseSwaggerUI(c =>
 // Root redirect to Swagger UI for instant access when deployed
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// app.UseHttpsRedirection(); // Disabled for mobile HTTP testing
-app.UseCors("AllowAll");
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+app.UseCors("ConfiguredOrigins");
 app.UseStaticFiles();
 
 // Also serve the uploads directory (for tour images, etc.)
@@ -288,6 +315,13 @@ app.MapControllers();
 
 // ── Health Check Endpoints (kept from original scaffold) ──
 
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    service = "AI Travel Planning API",
+    environment = app.Environment.EnvironmentName
+}));
+
 app.MapGet("/dbhealth", async (AppDbContext db) =>
 {
     try
@@ -308,18 +342,22 @@ app.MapGet("/dbhealth", async (AppDbContext db) =>
     }
 });
 
-app.MapPost("/seed-db", async (IServiceProvider services) =>
+if (app.Environment.IsDevelopment())
 {
-    try
+    app.MapPost("/seed-db", async (IServiceProvider services) =>
     {
-        await backend.Data.DbInitializer.SeedAsync(services);
-        return Results.Ok(new { success = true, message = "Database seeded successfully." });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(title: "Seeding error", detail: ex.ToString());
-    }
-});
+        try
+        {
+            await backend.Data.DbInitializer.SeedAsync(services);
+            return Results.Ok(new { success = true, message = "Database seeded successfully." });
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogError(ex, "Development database seeding failed.");
+            return Results.Problem(title: "Seeding error", detail: ex.Message);
+        }
+    });
+}
 
 app.MapPost("/setup-supabase-storage", async (AppDbContext db) =>
 {
@@ -385,16 +423,6 @@ app.MapGet("/supabasehealth", async () =>
         return Results.Problem(title: "Supabase health check failed", detail: ex.Message);
     }
 });
-
-// Seed database with realistic sample data on startup
-try
-{
-    await backend.Data.DbInitializer.SeedAsync(app.Services);
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"[Seeding Notice] Initial seeding encountered: {ex.Message}");
-}
 
 app.Run();
 

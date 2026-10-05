@@ -10,12 +10,14 @@ namespace backend.Services
     public class BookingService : IBookingService
     {
         private readonly AppDbContext _db;
+        private readonly ICurrencyConversionService _currency;
         // True when running against PostgreSQL (production). False for SQLite/InMemory (tests).
         private bool IsPostgres => _db.Database.ProviderName?.Contains("Npgsql") == true;
 
-        public BookingService(AppDbContext db)
+        public BookingService(AppDbContext db, ICurrencyConversionService? currency = null)
         {
             _db = db;
+            _currency = currency ?? new CurrencyConversionService();
         }
 
         public async Task<BookingDto> CreateBookingAsync(BookingCreateDto dto)
@@ -30,6 +32,15 @@ namespace backend.Services
             var itinerary = await _db.Itineraries.FindAsync(dto.ItineraryId);
             if (itinerary == null)
                 throw new KeyNotFoundException($"Itinerary with ID {dto.ItineraryId} not found.");
+
+            var authoritativeCurrency = _currency.Normalize(itinerary.Currency, "Itinerary currency");
+            if (!string.IsNullOrWhiteSpace(dto.Currency) &&
+                !_currency.IsSupported(dto.Currency) ||
+                !string.IsNullOrWhiteSpace(dto.Currency) &&
+                !string.Equals(_currency.Normalize(dto.Currency), authoritativeCurrency, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Booking currency must match the itinerary currency.");
+            }
 
             if (dto.Items == null || !dto.Items.Any())
                 throw new ArgumentException("Booking must contain at least one item.");
@@ -67,7 +78,8 @@ namespace backend.Services
                     CheckOutDate = item.CheckOutDate,
                     Quantity = item.Quantity,
                     UnitPrice = item.UnitPrice,
-                    Subtotal = subtotal
+                    Subtotal = subtotal,
+                    Currency = authoritativeCurrency
                 });
             }
 
@@ -193,7 +205,8 @@ namespace backend.Services
                     ItineraryId      = dto.ItineraryId,
                     Status           = BookingStatus.AwaitingApproval,
                     TotalCost        = totalCost,
-                    Currency         = string.IsNullOrWhiteSpace(dto.Currency) ? "USD" : dto.Currency,
+                    Currency         = authoritativeCurrency,
+                    ExchangeRateToLkr = _currency.ExchangeRateToLkr(authoritativeCurrency),
                     CreatedAt        = DateTime.UtcNow,
                     UpdatedAt        = DateTime.UtcNow,
                     BookingItems     = bookingItems
@@ -374,6 +387,7 @@ namespace backend.Services
                 Status = b.Status,
                 TotalCost = b.TotalCost,
                 Currency = b.Currency,
+                ExchangeRateToLkr = b.ExchangeRateToLkr,
                 CreatedAt = b.CreatedAt,
                 UpdatedAt = b.UpdatedAt,
                 BookingItems = b.BookingItems.Select(bi => new BookingItemDto
@@ -389,7 +403,8 @@ namespace backend.Services
                     CheckOutDate = bi.CheckOutDate,
                     Quantity = bi.Quantity,
                     UnitPrice = bi.UnitPrice,
-                    Subtotal = bi.Subtotal
+                    Subtotal = bi.Subtotal,
+                    Currency = bi.Currency
                 }).ToList(),
                 BookingApprovals = b.BookingApprovals.Select(ba => new ApprovalDto
                 {
@@ -412,6 +427,7 @@ namespace backend.Services
                     Status = p.Status,
                     StripeReference = p.StripeReference,
                     FailureReason = p.FailureReason,
+                    ExchangeRateToLkr = p.ExchangeRateToLkr,
                     PaymentDate = p.PaymentDate
                 }).ToList(),
                 AgentLogs = agentLogs

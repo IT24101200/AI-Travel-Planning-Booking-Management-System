@@ -548,7 +548,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
                   final tourId = _asInt(_tour?['id']);
                   if (tourId == null) return;
                   final nowFav = await ApiService.toggleFavorite(tourId);
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   setState(() => _isFavorite = nowFav);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(

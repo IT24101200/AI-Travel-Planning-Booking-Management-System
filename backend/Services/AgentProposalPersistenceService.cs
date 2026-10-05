@@ -16,10 +16,12 @@ namespace backend.Services;
 public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceService
 {
     private readonly AppDbContext _db;
+    private readonly ICurrencyConversionService _currency;
 
-    public AgentProposalPersistenceService(AppDbContext db)
+    public AgentProposalPersistenceService(AppDbContext db, ICurrencyConversionService? currency = null)
     {
         _db = db;
+        _currency = currency ?? new CurrencyConversionService();
     }
 
     public async Task<AgentProposalPersistenceResult> PersistAsync(
@@ -89,7 +91,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
 
         var itinerary = RequireObject(root, "itinerary");
         var bookingDetails = RequireObject(root, "booking_details");
-        var currency = RequireCurrency(trip.Currency, "TripRequest currency");
+        var currency = _currency.Normalize(trip.Currency, "TripRequest currency");
         var schedule = RequireArray(itinerary, "schedule");
         var tripDays = (trip.EndDate.Date - trip.StartDate.Date).Days + 1;
         var itineraryItems = new List<ItineraryItem>();
@@ -124,9 +126,8 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     throw new ProposalPersistenceException("INVALID_TOUR", $"Tour {tourId} is missing or inactive.");
                 if (trip.DestinationId.HasValue && tour.DestinationId != trip.DestinationId.Value)
                     throw new ProposalPersistenceException("INVALID_TOUR_DESTINATION", $"Tour {tourId} is not in the requested destination.");
-                RequireSameCurrency(currency, tour.Currency, $"Tour {tourId}");
-
-                tourTotal += tour.Price * trip.TravellerCount;
+                var transactionTourPrice = _currency.Convert(tour.Price, tour.Currency, currency);
+                tourTotal += transactionTourPrice * trip.TravellerCount;
                 itineraryItems.Add(new ItineraryItem
                 {
                     TourId = tour.Id,
@@ -134,7 +135,8 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     SequenceOrder = sequence,
                     StartTime = start,
                     EndTime = end,
-                    PriceAtSelection = tour.Price
+                    PriceAtSelection = transactionTourPrice,
+                    Currency = currency
                 });
             }
         }
@@ -147,7 +149,6 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             throw new ProposalPersistenceException("INVALID_ROOM", $"Room {roomId} is missing or inactive.");
         if (roomEntity.Capacity < trip.TravellerCount)
             throw new ProposalPersistenceException("ROOM_CAPACITY", $"Room {roomId} cannot hold all travellers.");
-        RequireSameCurrency(currency, roomEntity.Currency, $"Room {roomId}");
 
         var activeStatuses = new[] { BookingStatus.Draft, BookingStatus.AwaitingApproval, BookingStatus.Confirmed };
         var bookedRooms = await _db.BookingItems
@@ -165,7 +166,6 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             throw new ProposalPersistenceException("INVALID_TRANSPORT", $"Transport {transportId} is missing or inactive.");
         if (transportEntity.Capacity < trip.TravellerCount)
             throw new ProposalPersistenceException("TRANSPORT_CAPACITY", $"Transport {transportId} cannot hold all travellers.");
-        RequireSameCurrency(currency, transportEntity.Currency, $"Transport {transportId}");
         var bookedSeats = await _db.BookingItems
             .Where(item => item.TransportOptionId == transportId && item.ItemType == BookingItemType.Transport &&
                 activeStatuses.Contains(item.Booking.Status))
@@ -173,8 +173,10 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         if (bookedSeats + trip.TravellerCount > transportEntity.Capacity)
             throw new ProposalPersistenceException("TRANSPORT_UNAVAILABLE", $"Transport {transportId} has insufficient capacity.");
 
-        var roomTotal = roomEntity.PricePerNight * nights;
-        var transportTotal = transportEntity.Price * trip.TravellerCount;
+        var roomNightlyPrice = _currency.Convert(roomEntity.PricePerNight, roomEntity.Currency, currency);
+        var transportUnitPrice = _currency.Convert(transportEntity.Price, transportEntity.Currency, currency);
+        var roomTotal = decimal.Round(roomNightlyPrice * nights, 2, MidpointRounding.AwayFromZero);
+        var transportTotal = decimal.Round(transportUnitPrice * trip.TravellerCount, 2, MidpointRounding.AwayFromZero);
         var calculatedTotal = tourTotal + roomTotal + transportTotal;
         var reportedItineraryTotal = OptionalDecimal(itinerary, "total_estimated_cost") ?? OptionalDecimal(itinerary, "total_cost");
         if (reportedItineraryTotal.HasValue && Math.Abs(reportedItineraryTotal.Value - tourTotal) > 0.01m)
@@ -197,6 +199,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             Status = ItineraryStatus.Proposed,
             TotalEstimatedCost = tourTotal,
             Currency = currency,
+            ExchangeRateToLkr = _currency.ExchangeRateToLkr(currency),
             CreatedAt = DateTime.UtcNow,
             ItineraryItems = itineraryItems
         };
@@ -211,6 +214,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             Status = BookingStatus.AwaitingApproval,
             TotalCost = calculatedTotal,
             Currency = currency,
+            ExchangeRateToLkr = _currency.ExchangeRateToLkr(currency),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             BookingItems = itineraryItems.Select(item => new BookingItem
@@ -219,7 +223,8 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     TourId = item.TourId,
                     Quantity = trip.TravellerCount,
                     UnitPrice = item.PriceAtSelection,
-                    Subtotal = item.PriceAtSelection * trip.TravellerCount
+                    Subtotal = item.PriceAtSelection * trip.TravellerCount,
+                    Currency = currency
                 }).Concat(new[]
                 {
                     new BookingItem
@@ -230,15 +235,17 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     CheckOutDate = trip.EndDate,
                     Quantity = 1,
                     UnitPrice = roomTotal,
-                    Subtotal = roomTotal
+                    Subtotal = roomTotal,
+                    Currency = currency
                     },
                     new BookingItem
                     {
                     ItemType = BookingItemType.Transport,
                     TransportOptionId = transportEntity.Id,
                     Quantity = trip.TravellerCount,
-                    UnitPrice = transportEntity.Price,
-                    Subtotal = transportTotal
+                    UnitPrice = transportUnitPrice,
+                    Subtotal = transportTotal,
+                    Currency = currency
                     }
                 }).ToList()
         };
@@ -369,17 +376,10 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         return parsed;
     }
 
-    private static string RequireCurrency(string? value, string field)
+    private void RequireSameCurrency(string expected, string? actual, string field)
     {
-        var currency = value?.Trim().ToUpperInvariant();
-        if (string.IsNullOrWhiteSpace(currency) || currency.Length != 3)
-            throw new ProposalPersistenceException("INVALID_CURRENCY", $"{field} must be a three-letter code.");
-        return currency;
-    }
-
-    private static void RequireSameCurrency(string expected, string? actual, string field)
-    {
-        if (!string.Equals(expected, actual?.Trim(), StringComparison.OrdinalIgnoreCase))
+        var normalized = _currency.Normalize(actual, field);
+        if (!string.Equals(expected, normalized, StringComparison.OrdinalIgnoreCase))
             throw new ProposalPersistenceException("CURRENCY_MISMATCH", $"{field} currency does not match {expected}.");
     }
 }

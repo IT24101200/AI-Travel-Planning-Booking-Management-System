@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../../main.dart' show currencyNotifier;
 
 /// Tour search and browse screen with category chips, search bar, and scenic tour cards.
 class TourSearchBrowseScreen extends StatefulWidget {
@@ -69,7 +70,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
       _error = null;
     });
     try {
-      final results = await ApiService.getTours(search: search);
+      final results = await ApiService.getTours(search: search, currency: currencyNotifier.value);
       if (mounted) {
         setState(() {
           _tours = results;

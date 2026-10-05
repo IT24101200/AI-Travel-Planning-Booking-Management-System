@@ -310,7 +310,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   urlTemplate: _isSatellite
                       ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
                       : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.example.serendib_trails',
+                  userAgentPackageName: 'com.serendibtrails.travel',
                 ),
 
                 // Realistic Polyline Route connecting Sri Lankan stops

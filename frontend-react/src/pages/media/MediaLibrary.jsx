@@ -7,7 +7,6 @@ import {
   TrashIcon,
   RefreshIcon,
   CheckIcon,
-  CloseIcon,
   MapIcon,
   MapPinIcon,
   BuildingIcon,
@@ -121,10 +120,13 @@ export default function MediaLibrary() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadMedia(cancelled)
     return () => {
       cancelled = true
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory])
 
   // Track image load to record resolution dimensions

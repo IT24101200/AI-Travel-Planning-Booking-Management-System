@@ -18,7 +18,7 @@ namespace backend.DTOs
         public decimal TotalCost { get; set; }
 
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Items list cannot be null.")]
         [MinLength(1, ErrorMessage = "Booking must contain at least one item.")]
@@ -54,7 +54,8 @@ namespace backend.DTOs
         public int TripRequestId { get; set; }
         public BookingStatus Status { get; set; }
         public decimal TotalCost { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
+        public decimal ExchangeRateToLkr { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
 
@@ -78,6 +79,7 @@ namespace backend.DTOs
         public int Quantity { get; set; }
         public decimal UnitPrice { get; set; }
         public decimal Subtotal { get; set; }
+        public string Currency { get; set; } = "LKR";
     }
 
     public class BookingStatusUpdateDto
@@ -146,16 +148,18 @@ namespace backend.DTOs
         public string CustomerId { get; set; } = string.Empty;
         public string CustomerName { get; set; } = string.Empty;
         public decimal Amount { get; set; }
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
         public PaymentStatus Status { get; set; }
         public string? StripeReference { get; set; }
         public DateTime PaymentDate { get; set; }
         public string? FailureReason { get; set; }
+        public decimal ExchangeRateToLkr { get; set; }
     }
 
     public class RevenueReportDto
     {
         public decimal TotalRevenue { get; set; }
+        public Dictionary<string, decimal> RevenueByCurrency { get; set; } = new();
         public int PaidPaymentsCount { get; set; }
         public int PendingPaymentsCount { get; set; }
         public int FailedPaymentsCount { get; set; }
@@ -169,5 +173,6 @@ namespace backend.DTOs
         public int Month { get; set; }
         public string MonthName { get; set; } = string.Empty;
         public decimal Revenue { get; set; }
+        public string Currency { get; set; } = "LKR";
     }
 }

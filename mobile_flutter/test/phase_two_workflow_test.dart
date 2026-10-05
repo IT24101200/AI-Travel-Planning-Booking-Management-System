@@ -244,7 +244,7 @@ void main() {
   });
 
   group('CheckoutPaymentScreen Widget Tests', () {
-    testWidgets('Blocks payment when booking is awaiting approval and unlocks on approval', (tester) async {
+    testWidgets('Blocks payment when booking is awaiting approval', (tester) async {
       tester.view.physicalSize = const Size(1080, 2400);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -271,12 +271,9 @@ void main() {
       );
       expect(elevatedBtn.onPressed, isNull);
 
-      // Tap student demo simulate approval
-      await tester.tap(find.text('Simulate Approval'));
-      await tester.pumpAndSettle();
-
-      // Payment is now unlocked
-      expect(find.text('Confirm & Pay \$980'), findsOneWidget);
+      // Approval is performed by the TravelAgent through the backend/React
+      // workflow. The Flutter checkout must not simulate or bypass approval.
+      expect(find.text('Confirm & Pay LKR 980.00'), findsNothing);
     });
 
     testWidgets('Simulated decline keeps user on checkout screen with error message', (tester) async {
@@ -308,7 +305,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap Confirm & Pay
-      final payBtn = find.text('Confirm & Pay \$980');
+      final payBtn = find.text('Confirm & Pay LKR 980.00');
       await tester.ensureVisible(payBtn);
       await tester.tap(payBtn);
       await tester.pumpAndSettle();
@@ -349,7 +346,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Card default is 4242 4242 4242 4242 (valid)
-      final payBtn = find.text('Confirm & Pay \$980');
+      final payBtn = find.text('Confirm & Pay LKR 980.00');
       await tester.ensureVisible(payBtn);
       await tester.tap(payBtn);
       await tester.pumpAndSettle();

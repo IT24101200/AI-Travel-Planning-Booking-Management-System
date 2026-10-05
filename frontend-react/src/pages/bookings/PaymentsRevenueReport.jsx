@@ -74,6 +74,8 @@ export default function PaymentsRevenueReport() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPayments(cancelled)
     return () => { cancelled = true }
   }, [])
@@ -104,6 +106,10 @@ export default function PaymentsRevenueReport() {
       abv,
       pendingEscrow: pendingSum > 0 ? pendingSum : 18940,
       pendingCount: pendingCount > 0 ? pendingCount : 24,
+      revenueByCurrency: summaryData?.revenueByCurrency || paidList.reduce((groups, payment) => {
+        groups[payment.currency] = (groups[payment.currency] || 0) + payment.amount
+        return groups
+      }, {}),
     }
   }, [payments, summaryData])
 
@@ -183,7 +189,11 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            {formatPrice(totals.grossRevenue)}
+            {Object.entries(totals.revenueByCurrency).length > 0
+              ? Object.entries(totals.revenueByCurrency).map(([currency, amount]) => (
+                <span key={currency} style={{ display: 'block' }}>{formatPrice(amount, currency)}</span>
+              ))
+              : formatPrice(totals.grossRevenue)}
           </p>
           <p className="kpi-card__sub">↑ 12.4% vs last month</p>
         </div>
