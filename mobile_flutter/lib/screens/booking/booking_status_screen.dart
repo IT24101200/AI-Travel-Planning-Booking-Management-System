@@ -26,12 +26,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is int) {
       _loadBooking(args);
-    } else if (args is Map<String, dynamic>) {
-      if (args['id'] is int && args['bookingReference'] == null) {
-        _loadBooking(args['id'] as int);
+    } else if (args is Map) {
+      final map = Map<String, dynamic>.from(args);
+      if (map['id'] is int && map['bookingReference'] == null) {
+        _loadBooking(map['id'] as int);
       } else {
         setState(() {
-          _booking = args;
+          _booking = map;
           _loading = false;
         });
       }
@@ -190,6 +191,10 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
 
     final statusKey = _normalizeBookingStatus(_booking!['status']);
     final isQrEligible = statusKey == 'Confirmed' || statusKey == 'Completed';
+
+    final payments = _booking!['payments'];
+    final isPaid = _booking!['paymentStatus'] == 'Paid' ||
+        (payments is List && payments.isNotEmpty);
 
     String statusBadgeText;
     Color statusBadgeColor;
@@ -607,6 +612,46 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
               ],
 
               const SizedBox(height: 18),
+
+              // ── Payment Action: If booking is approved by agent but unpaid ──
+              if (isConfirmed && !isPaid) ...[
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(
+                        context,
+                        '/checkout',
+                        arguments: _booking,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.figmaGold,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.payment_outlined, size: 18),
+                        SizedBox(width: 8),
+                        Text(
+                          'Pay Now with Stripe',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
 
               // ── Primary Action: View Confirmation or Review Itinerary ──
               SizedBox(
