@@ -192,7 +192,7 @@ class _ExploreTabState extends State<_ExploreTab> {
         'durationHours': 3,
         'price': 38,
         'rating': '4.9',
-        'image': 'assets/photos/ella-1280.jpg',
+        'image': 'https://www.holidify.com/images/bgImages/ELLA.jpg',
       },
     ];
   }
@@ -219,7 +219,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/photos/ella-1280.jpg'),
+                    image: NetworkImage('https://www.holidify.com/images/bgImages/ELLA.jpg'),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -496,7 +496,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 _buildDestinationCard(
                   name: 'Ella',
                   category: 'Tea country',
-                  imagePath: 'assets/photos/ella-1280.jpg',
+                  imagePath: 'https://www.holidify.com/images/bgImages/ELLA.jpg',
                   onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Ella'),
                 ),
                 const SizedBox(width: 12),

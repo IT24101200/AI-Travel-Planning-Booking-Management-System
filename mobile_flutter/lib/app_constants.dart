@@ -106,7 +106,7 @@ class AppDestinations {
       name: 'Ella',
       region: 'Hill Country',
       tagline: 'Nine Arches viaduct, mist & mountain trails',
-      imageUrl: 'assets/photos/ella-1280.jpg',
+      imageUrl: 'https://www.holidify.com/images/bgImages/ELLA.jpg',
       tags: 'Hiking • Rail',
       rating: 4.8,
       priceFrom: 145,
