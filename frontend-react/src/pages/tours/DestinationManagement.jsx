@@ -47,8 +47,9 @@ export default function DestinationManagement() {
   const [page, setPage] = useState(1)
 
   // Drawer state
-  const [drawerMode, setDrawerMode] = useState('edit') // 'edit' | 'create' | null
+  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
   const [selectedDest, setSelectedDest] = useState(null)
+  const [drawerNotice, setDrawerNotice] = useState(null) // { type: 'success' | 'error', message: string } | null
   const [formData, setFormData] = useState({
     name: '',
     country: 'Sri Lanka',
@@ -61,7 +62,7 @@ export default function DestinationManagement() {
 
   usePageTitle('Destination Catalog · Serendib Trails')
 
-  async function loadData(cancelled = false) {
+  async function loadData(cancelled = false, selectId = null) {
     setLoading(true)
     setError(null)
     try {
@@ -83,7 +84,7 @@ export default function DestinationManagement() {
         if (destRes.status === 'fulfilled') {
           const live = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           const mapped = live.map((d, idx) => {
-            const nameLower = d.name.toLowerCase()
+            const nameLower = (d.name || '').toLowerCase()
             let region = 'Central Province'
             for (const [key, val] of Object.entries(REGIONS)) {
               if (nameLower.includes(key)) {
@@ -95,19 +96,24 @@ export default function DestinationManagement() {
             return {
               id: d.id,
               code: `DEST-${String(idx + 1).padStart(3, '0')}`,
-              name: d.name,
+              name: d.name || 'Unnamed Destination',
               country: d.country || 'Sri Lanka',
               region,
               imageUrl: d.imageUrl || '',
-              description: d.description || `Ancient fortress and UNESCO heritage site surrounded by gardens and forest in ${d.name}.`,
+              description: d.description || `Ancient fortress and UNESCO heritage site surrounded by gardens and forest in ${d.name || 'Sri Lanka'}.`,
               latitude: Number(d.latitude) || 7.9570,
               longitude: Number(d.longitude) || 80.7603,
-              associatedTours: counts[d.id] || (12 + (idx * 2) % 7)
+              associatedTours: counts[d.id] || 0
             }
           })
           setRows(mapped)
 
-          if (mapped.length > 0 && !selectedDest) {
+          if (selectId) {
+            const target = mapped.find(d => d.id === selectId)
+            if (target) {
+              selectForEdit(target)
+            }
+          } else if (mapped.length > 0 && !selectedDest && drawerMode !== 'create') {
             selectForEdit(mapped[0])
           }
         }
@@ -133,6 +139,7 @@ export default function DestinationManagement() {
   function selectForEdit(dest) {
     setSelectedDest(dest)
     setDrawerMode('edit')
+    setDrawerNotice(null)
     setFormData({
       name: dest.name,
       country: dest.country,
@@ -146,6 +153,7 @@ export default function DestinationManagement() {
   function startCreate() {
     setDrawerMode('create')
     setSelectedDest(null)
+    setDrawerNotice(null)
     setFormData({
       name: '',
       country: 'Sri Lanka',
@@ -174,14 +182,17 @@ export default function DestinationManagement() {
   async function handleSave(e) {
     e.preventDefault()
     if (!formData.name.trim() || !formData.country.trim()) {
-      setNotice('Please provide a destination name and country.')
+      const msg = 'Please provide a destination name and country.'
+      setNotice(msg)
+      setDrawerNotice({ type: 'error', message: msg })
       return
     }
     setBusy(true)
     setNotice('')
+    setDrawerNotice(null)
     try {
       if (drawerMode === 'create') {
-        await createDestination({
+        const created = await createDestination({
           name: formData.name.trim(),
           country: formData.country.trim(),
           description: formData.description.trim() || null,
@@ -189,7 +200,11 @@ export default function DestinationManagement() {
           latitude: Number(formData.latitude) || 0,
           longitude: Number(formData.longitude) || 0,
         })
-        setNotice(`Destination "${formData.name.trim()}" created successfully.`)
+        const displayName = created?.name || formData.name.trim()
+        const msg = `Destination "${displayName}" created successfully.`
+        setNotice(msg)
+        setDrawerNotice({ type: 'success', message: msg })
+        await loadData(false, created?.id)
       } else if (drawerMode === 'edit' && selectedDest) {
         await updateDestination(selectedDest.id, {
           name: formData.name.trim(),
@@ -199,11 +214,15 @@ export default function DestinationManagement() {
           latitude: Number(formData.latitude) || 0,
           longitude: Number(formData.longitude) || 0,
         })
-        setNotice(`Destination #${selectedDest.id} updated successfully.`)
+        const msg = `Destination #${selectedDest.id} updated successfully.`
+        setNotice(msg)
+        setDrawerNotice({ type: 'success', message: msg })
+        await loadData(false, selectedDest.id)
       }
-      await loadData()
     } catch (err) {
-      setNotice(`Failed to save destination: ${err.response?.data?.message || err.message}`)
+      const errMsg = err.response?.data?.message || err.message || 'Failed to save destination.'
+      setNotice(`Failed to save destination: ${errMsg}`)
+      setDrawerNotice({ type: 'error', message: `Failed to save: ${errMsg}` })
     } finally {
       setBusy(false)
     }
@@ -215,6 +234,7 @@ export default function DestinationManagement() {
       await deleteDestination(id)
       setNotice(`Destination #${id} deleted from database.`)
       setDrawerMode(null)
+      setSelectedDest(null)
       await loadData()
     } catch (err) {
       setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
@@ -374,8 +394,21 @@ export default function DestinationManagement() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                      {query ? `No destinations match “${query}”.` : 'No destinations in catalog.'}
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '3rem 2rem', color: '#66747b' }}>
+                      <p style={{ margin: '0 0 0.75rem', fontWeight: 600 }}>
+                        {query ? `No destinations match “${query}”.` : 'No destinations in catalog yet.'}
+                      </p>
+                      {!query && (
+                        <button
+                          type="button"
+                          className="btn-gold"
+                          style={{ margin: '0 auto', fontSize: '0.8125rem' }}
+                          onClick={startCreate}
+                        >
+                          <PlusIcon size={14} />
+                          <span>Create first destination</span>
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )}
@@ -441,6 +474,31 @@ export default function DestinationManagement() {
                 <span>Close</span>
               </button>
             </div>
+
+            {drawerNotice && (
+              <div
+                style={{
+                  padding: '0.625rem 0.875rem',
+                  borderRadius: '6px',
+                  fontSize: '0.8125rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  backgroundColor: drawerNotice.type === 'error' ? '#fef2f2' : '#ecfdf5',
+                  color: drawerNotice.type === 'error' ? '#b91c1c' : '#047857',
+                  border: `1px solid ${drawerNotice.type === 'error' ? '#fecaca' : '#a7f3d0'}`
+                }}
+              >
+                <span>{drawerNotice.message}</span>
+                <button
+                  type="button"
+                  onClick={() => setDrawerNotice(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
               <div>
