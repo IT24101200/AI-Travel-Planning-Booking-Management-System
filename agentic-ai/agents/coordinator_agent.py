@@ -43,14 +43,17 @@ def call_gemini_for_planning(prompt: str) -> str:
         return None
 
     try:
-        from google import genai
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        interaction = client.interactions.create(
-            model="gemini-3.5-flash",
-            input=prompt
-        )
-        if interaction and getattr(interaction, "output_text", None):
-            return interaction.output_text.strip()
+        import httpx
+        url = f"https://generativelanguage.googleapis.com/v1beta/interactions?key={GEMINI_API_KEY}"
+        with httpx.Client(timeout=4.0) as client:
+            resp = client.post(url, json={"model": "gemini-3.8-flash", "input": prompt})
+            if resp.status_code == 200:
+                data = resp.json()
+                text = data.get("output_text") or (data.get("outputs", [{}])[0].get("text") if "outputs" in data else None)
+                if text:
+                    return text.strip()
+            else:
+                logger.warning(f"Gemini API returned HTTP {resp.status_code}, using rule-based planning fallback.")
     except Exception as e:
         logger.warning(f"Gemini API call failed, using rule-based planning fallback: {e}")
 

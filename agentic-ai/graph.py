@@ -139,7 +139,7 @@ def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, ret
 
     try:
         url = f"{BACKEND_URL}/api/triprequest/{trip_id}/agent-update"
-        with httpx.Client(timeout=httpx.Timeout(1.5, connect=0.5)) as client:
+        with httpx.Client(timeout=httpx.Timeout(10.0, connect=3.0)) as client:
             client.patch(url, json=payload)
     except Exception as e:
         print(f"[Warning] Could not push final plan to backend API: {e}")

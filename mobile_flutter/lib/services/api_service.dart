@@ -79,6 +79,44 @@ class ApiService {
     ]);
   }
 
+  // ── Favorite Tours Storage ──
+
+  /// Load set of favorited tour IDs from persistent storage
+  static Future<Set<int>> getFavoriteTourIds() async {
+    try {
+      final raw = await _storage.read(key: 'user_favorite_tours');
+      if (raw == null || raw.trim().isEmpty) return {};
+      final list = jsonDecode(raw) as List;
+      return list.map((e) => int.parse(e.toString())).toSet();
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Toggle favorite status of a tour and save to persistent storage
+  static Future<bool> toggleFavorite(int tourId) async {
+    final favorites = await getFavoriteTourIds();
+    final bool isNowFav;
+    if (favorites.contains(tourId)) {
+      favorites.remove(tourId);
+      isNowFav = false;
+    } else {
+      favorites.add(tourId);
+      isNowFav = true;
+    }
+    await _storage.write(
+      key: 'user_favorite_tours',
+      value: jsonEncode(favorites.toList()),
+    );
+    return isNowFav;
+  }
+
+  /// Check if a tour ID is currently favorited
+  static Future<bool> isFavorite(int tourId) async {
+    final favorites = await getFavoriteTourIds();
+    return favorites.contains(tourId);
+  }
+
 
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockUpdateProfile;
   static Future<http.Response> Function(Map<String, dynamic>)? mockUpdatePreferences;

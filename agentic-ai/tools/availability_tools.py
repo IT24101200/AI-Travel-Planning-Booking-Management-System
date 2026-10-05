@@ -5,10 +5,11 @@ from dotenv import load_dotenv
 load_dotenv()
 BACKEND_BASE_URL = os.getenv("BACKEND_API_URL") or os.getenv("BACKEND_URL", "http://127.0.0.1:5138")
 
-def search_hotels(destination_id):
+def search_hotels(destination_id=None):
     endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/hotel"
     try:
-        response = requests.get(endpoint, params={"destinationId": destination_id}, timeout=10)
+        params = {"destinationId": destination_id} if destination_id else {}
+        response = requests.get(endpoint, params=params, timeout=10)
         response.raise_for_status()
         hotels_data = response.json()
         hotels = hotels_data.get("data", []) if isinstance(hotels_data, dict) else hotels_data
