@@ -9,7 +9,9 @@ namespace backend.DTOs
     {
         public int Id { get; set; }
         public string CustomerId { get; set; } = string.Empty;
+        public string? CustomerName { get; set; }
         public int TripRequestId { get; set; }
+        public int? TravellerCount { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public ItineraryStatus Status { get; set; }
