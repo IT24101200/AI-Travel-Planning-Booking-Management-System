@@ -60,6 +60,9 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
             }
 
+            // Assign Customer role in ASP.NET Identity
+            await _userManager.AddToRoleAsync(user, "Customer");
+
             // Create the Customer profile linked to the Identity user
             var customer = new Customer
             {
@@ -110,7 +113,7 @@ namespace backend.Controllers
 
         /// <summary>
         /// Register a new staff account (TravelAgent or Admin).
-        /// Requires a secret staff code to prevent unauthorised staff sign-ups.
+        /// Requires a secret staff code if unauthenticated, or allows authenticated staff to invite colleagues.
         /// </summary>
         [HttpPost("register-staff")]
         [AllowAnonymous]
@@ -124,9 +127,10 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Validation failed.", errors = errors });
             }
 
-            // Simple secret code check — set "StaffSecretCode" in appsettings.json
+            // Allow authenticated staff to invite new staff, or verify the secret code
+            var isStaffCaller = User.Identity?.IsAuthenticated == true && (User.IsInRole("Admin") || User.IsInRole("TravelAgent"));
             var correctCode = _configuration["StaffSecretCode"] ?? "staff123";
-            if (dto.StaffSecretCode != correctCode)
+            if (!isStaffCaller && (string.IsNullOrWhiteSpace(dto.StaffSecretCode) || dto.StaffSecretCode != correctCode))
                 return BadRequest(new { message = "Invalid staff secret code." });
 
             // Only allow valid roles
@@ -141,12 +145,16 @@ namespace backend.Controllers
             var user = new IdentityUser
             {
                 UserName = dto.Email,
-                Email = dto.Email
+                Email = dto.Email,
+                EmailConfirmed = true
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
             if (!result.Succeeded)
                 return BadRequest(new { message = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
+
+            // Assign role in ASP.NET Identity
+            await _userManager.AddToRoleAsync(user, dto.Role);
 
             var customer = new Customer
             {
@@ -159,6 +167,16 @@ namespace backend.Controllers
             };
 
             _db.Customers.Add(customer);
+
+            // Ensure TravelAgent record exists with department
+            var dept = string.IsNullOrWhiteSpace(dto.Department) ? "Tour Operations" : dto.Department;
+            _db.TravelAgents.Add(new TravelAgent
+            {
+                Id = user.Id,
+                FullName = dto.FullName,
+                Department = dept
+            });
+
             await _db.SaveChangesAsync();
 
             var token = await GenerateJwtTokenAsync(user);
@@ -170,7 +188,8 @@ namespace backend.Controllers
                 userId = user.Id,
                 email = user.Email,
                 fullName = customer.FullName,
-                role = customer.Role
+                role = customer.Role,
+                department = dept
             });
         }
 
@@ -321,8 +340,11 @@ namespace backend.Controllers
         [Required]
         public string Role { get; set; } = "TravelAgent";
 
-        /// <summary>Secret code required to create staff accounts.</summary>
-        [Required]
-        public string StaffSecretCode { get; set; } = string.Empty;
+        /// <summary>Optional department for Travel Agents (defaults to Tour Operations).</summary>
+        [MaxLength(100)]
+        public string? Department { get; set; } = "Tour Operations";
+
+        /// <summary>Secret code required to create staff accounts if unauthenticated.</summary>
+        public string? StaffSecretCode { get; set; }
     }
 }

@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchCustomers, fetchBookings, fetchCustomerTrips, updateCustomer } from '../../services/apiClient.js'
+import {
+  fetchCustomers,
+  fetchBookings,
+  fetchCustomerTrips,
+  updateCustomer,
+  registerStaff,
+  deleteCustomer
+} from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
@@ -30,6 +37,20 @@ export default function CustomerDirectory() {
   const [selectedUser, setSelectedUser] = useState(null)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteError, setInviteError] = useState(null)
+  const [inviteFormData, setInviteFormData] = useState({
+    fullName: '',
+    email: '',
+    phone: '',
+    password: 'Staff@123',
+    role: 'TravelAgent',
+    department: 'Tour Operations',
+    staffSecretCode: 'staff123'
+  })
+
+  // Account deletion state
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   // Trip Records Modal State
   const [showTripsModal, setShowTripsModal] = useState(false)
@@ -39,7 +60,7 @@ export default function CustomerDirectory() {
 
   // Edit Profile Modal State
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editFormData, setEditFormData] = useState({ fullName: '', phone: '' })
+  const [editFormData, setEditFormData] = useState({ fullName: '', phone: '', role: 'Customer', department: 'Tour Operations' })
   const [editLoading, setEditLoading] = useState(false)
   const [editSuccess, setEditSuccess] = useState('')
   const [editError, setEditError] = useState(null)
@@ -157,13 +178,42 @@ export default function CustomerDirectory() {
     setPage(1)
   }
 
-  function handleInviteStaff(e) {
+  async function handleInviteStaff(e) {
     e.preventDefault()
-    setInviteSuccess('Staff invitation sent successfully via corporate email.')
-    setTimeout(() => {
-      setShowInviteModal(false)
-      setInviteSuccess('')
-    }, 2000)
+    setInviteLoading(true)
+    setInviteError(null)
+    setInviteSuccess('')
+    try {
+      await registerStaff({
+        fullName: inviteFormData.fullName.trim(),
+        email: inviteFormData.email.trim(),
+        password: inviteFormData.password || 'Staff@123',
+        phone: inviteFormData.phone.trim() || '0771234567',
+        role: inviteFormData.role,
+        department: inviteFormData.department,
+        staffSecretCode: inviteFormData.staffSecretCode || 'staff123'
+      })
+      setInviteSuccess(`Staff account created for ${inviteFormData.fullName} (${inviteFormData.role}).`)
+      await loadCustomers()
+      setInviteFormData({
+        fullName: '',
+        email: '',
+        phone: '',
+        password: 'Staff@123',
+        role: 'TravelAgent',
+        department: 'Tour Operations',
+        staffSecretCode: 'staff123'
+      })
+      setTimeout(() => {
+        setShowInviteModal(false)
+        setInviteSuccess('')
+      }, 1500)
+    } catch (err) {
+      const msg = err.response?.data?.message || err.response?.data?.errors?.join(', ') || err.message || 'Failed to create staff account.'
+      setInviteError(msg)
+    } finally {
+      setInviteLoading(false)
+    }
   }
 
   async function handleOpenTrips(user) {
@@ -233,11 +283,30 @@ export default function CustomerDirectory() {
     }
   }
 
+  async function handleDeleteAccount(user) {
+    if (!user) return
+    const confirmMsg = `Are you sure you want to remove the account for ${user.name}? This action cannot be undone.`
+    if (!window.confirm(confirmMsg)) return
+
+    setDeleteLoading(true)
+    try {
+      await deleteCustomer(user.id)
+      setSelectedUser(null)
+      await loadCustomers()
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to remove user account.')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
   function handleOpenEdit(user) {
     if (!user) return
     setEditFormData({
       fullName: user.name || '',
-      phone: user.phone || ''
+      phone: user.phone || '',
+      role: user.role || (user.isStaff ? 'TravelAgent' : 'Customer'),
+      department: user.department || 'Tour Operations'
     })
     setEditSuccess('')
     setEditError(null)
@@ -252,25 +321,24 @@ export default function CustomerDirectory() {
     try {
       await updateCustomer(selectedUser.id, {
         fullName: editFormData.fullName,
-        phone: editFormData.phone
+        phone: editFormData.phone,
+        role: editFormData.role,
+        department: editFormData.department
       })
-      setDataList((prev) =>
-        prev.map((u) =>
-          u.id === selectedUser.id
-            ? { ...u, name: editFormData.fullName, phone: editFormData.phone }
-            : u
-        )
-      )
+      await loadCustomers()
       setSelectedUser((prev) => ({
         ...prev,
         name: editFormData.fullName,
-        phone: editFormData.phone
+        phone: editFormData.phone,
+        role: editFormData.role,
+        department: editFormData.department,
+        isStaff: editFormData.role === 'TravelAgent' || editFormData.role === 'Admin'
       }))
-      setEditSuccess('Customer profile updated successfully.')
+      setEditSuccess('User profile updated successfully.')
       setTimeout(() => {
         setShowEditModal(false)
         setEditSuccess('')
-      }, 1500)
+      }, 1200)
     } catch (err) {
       setEditError(err.response?.data?.message || err.message || 'Failed to update customer profile.')
     } finally {
@@ -547,6 +615,16 @@ export default function CustomerDirectory() {
                 <button
                   type="button"
                   className="btn-outline"
+                  style={{ height: '32px', padding: '0 0.625rem', color: '#dc2626', borderColor: '#fca5a5' }}
+                  disabled={deleteLoading}
+                  onClick={() => handleDeleteAccount(selectedUser)}
+                  title="Remove this user account"
+                >
+                  <span>{deleteLoading ? 'Removing…' : 'Remove'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-outline"
                   style={{
                     height: '32px',
                     width: '32px',
@@ -710,6 +788,14 @@ export default function CustomerDirectory() {
               </div>
             ) : (
               <form onSubmit={handleInviteStaff} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {inviteError && (
+                  <AlertBanner
+                    type="error"
+                    message={inviteError}
+                    onDismiss={() => setInviteError(null)}
+                  />
+                )}
+
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
                     Full Name *
@@ -718,6 +804,8 @@ export default function CustomerDirectory() {
                     type="text"
                     required
                     placeholder="e.g. Sahan Perera"
+                    value={inviteFormData.fullName}
+                    onChange={(e) => setInviteFormData(prev => ({ ...prev, fullName: e.target.value }))}
                     className="staff-search-box"
                     style={{ maxWidth: '100%', width: '100%' }}
                   />
@@ -731,23 +819,74 @@ export default function CustomerDirectory() {
                     type="email"
                     required
                     placeholder="s.perera@serendib.lk"
+                    value={inviteFormData.email}
+                    onChange={(e) => setInviteFormData(prev => ({ ...prev, email: e.target.value }))}
                     className="staff-search-box"
                     style={{ maxWidth: '100%', width: '100%' }}
                   />
                 </div>
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                    Assigned Role *
-                  </label>
-                  <select
-                    className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
-                    defaultValue="TravelAgent"
-                  >
-                    <option value="TravelAgent">Travel Agent (Operations)</option>
-                    <option value="Admin">System Administrator</option>
-                  </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Phone (10 digits) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="0771234567"
+                      value={inviteFormData.phone}
+                      onChange={(e) => setInviteFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      className="staff-search-box"
+                      style={{ maxWidth: '100%', width: '100%' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Initial Password *
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      placeholder="Staff@123"
+                      value={inviteFormData.password}
+                      onChange={(e) => setInviteFormData(prev => ({ ...prev, password: e.target.value }))}
+                      className="staff-search-box"
+                      style={{ maxWidth: '100%', width: '100%' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Assigned Role *
+                    </label>
+                    <select
+                      className="btn-outline"
+                      style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
+                      value={inviteFormData.role}
+                      onChange={(e) => setInviteFormData(prev => ({ ...prev, role: e.target.value }))}
+                    >
+                      <option value="TravelAgent">Travel Agent (Operations)</option>
+                      <option value="Admin">System Administrator</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Department
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Tour Operations"
+                      value={inviteFormData.department}
+                      onChange={(e) => setInviteFormData(prev => ({ ...prev, department: e.target.value }))}
+                      className="staff-search-box"
+                      style={{ maxWidth: '100%', width: '100%' }}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
@@ -755,11 +894,12 @@ export default function CustomerDirectory() {
                     type="button"
                     className="btn-outline"
                     onClick={() => setShowInviteModal(false)}
+                    disabled={inviteLoading}
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn-gold">
-                    Send invitation
+                  <button type="submit" className="btn-gold" disabled={inviteLoading}>
+                    {inviteLoading ? 'Creating account…' : 'Create staff account'}
                   </button>
                 </div>
               </form>
@@ -1038,7 +1178,7 @@ export default function CustomerDirectory() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
-                    Phone Number
+                    Phone Number (10 digits)
                   </label>
                   <input
                     type="text"
@@ -1048,6 +1188,38 @@ export default function CustomerDirectory() {
                     style={{ maxWidth: '100%', width: '100%' }}
                   />
                 </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                    Role
+                  </label>
+                  <select
+                    className="btn-outline"
+                    style={{ width: '100%', height: '38px', padding: '0 0.75rem' }}
+                    value={editFormData.role}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, role: e.target.value }))}
+                  >
+                    <option value="Customer">Customer</option>
+                    <option value="TravelAgent">Travel Agent</option>
+                    <option value="Admin">Administrator</option>
+                  </select>
+                </div>
+
+                {(editFormData.role === 'TravelAgent' || editFormData.role === 'Admin') && (
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, marginBottom: '0.35rem', color: '#182126' }}>
+                      Staff Department
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Tour Operations"
+                      value={editFormData.department}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, department: e.target.value }))}
+                      className="staff-search-box"
+                      style={{ maxWidth: '100%', width: '100%' }}
+                    />
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
                   <button

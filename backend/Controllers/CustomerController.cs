@@ -104,6 +104,38 @@ namespace backend.Controllers
         }
 
         /// <summary>
+        /// Delete/deactivate a user or staff account.
+        /// Only Admin or TravelAgent can delete accounts.
+        /// </summary>
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteCustomer(string id)
+        {
+            var currentUserId = GetUserId();
+            if (currentUserId == id)
+            {
+                return BadRequest(new { message = "You cannot delete your own account." });
+            }
+
+            var exists = await _customerService.ExistsAsync(id);
+            if (!exists)
+            {
+                return NotFound(new { message = "User not found." });
+            }
+
+            var deleted = await _customerService.DeleteAsync(id);
+            if (!deleted)
+            {
+                return BadRequest(new { message = "Unable to delete user account." });
+            }
+
+            return Ok(new { message = "User account deleted successfully." });
+        }
+
+        /// <summary>
         /// List all customers with search, sort, and pagination (Staff Customer Directory).
         /// Only TravelAgent or Admin can access the full customer list.
         /// </summary>

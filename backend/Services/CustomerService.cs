@@ -100,10 +100,75 @@ namespace backend.Services
             customer.Phone = dto.Phone;
             customer.LastActiveAt = DateTime.UtcNow;
 
+            var user = await _userManager.FindByIdAsync(customerId);
+
+            // Update role if provided
+            if (!string.IsNullOrWhiteSpace(dto.Role) && dto.Role != customer.Role)
+            {
+                customer.Role = dto.Role;
+                if (user != null)
+                {
+                    var existingRoles = await _userManager.GetRolesAsync(user);
+                    if (existingRoles.Any())
+                    {
+                        await _userManager.RemoveFromRolesAsync(user, existingRoles);
+                    }
+                    await _userManager.AddToRoleAsync(user, dto.Role);
+                }
+            }
+
+            // Sync with TravelAgents table if user is staff
+            var agent = await _db.TravelAgents.FindAsync(customerId);
+            if (customer.Role == "TravelAgent" || customer.Role == "Admin")
+            {
+                var dept = !string.IsNullOrWhiteSpace(dto.Department)
+                    ? dto.Department
+                    : (agent?.Department ?? "Tour Operations");
+
+                if (agent == null)
+                {
+                    agent = new TravelAgent
+                    {
+                        Id = customerId,
+                        FullName = dto.FullName,
+                        Department = dept
+                    };
+                    _db.TravelAgents.Add(agent);
+                }
+                else
+                {
+                    agent.FullName = dto.FullName;
+                    agent.Department = dept;
+                }
+            }
+
             await _db.SaveChangesAsync();
 
+            return MapToDto(customer, user?.Email, agent?.Department);
+        }
+
+        public async Task<bool> DeleteAsync(string customerId)
+        {
+            var customer = await _db.Customers.FindAsync(customerId);
+            if (customer == null) return false;
+
+            // Remove associated travel agent record if any
+            var agent = await _db.TravelAgents.FindAsync(customerId);
+            if (agent != null) _db.TravelAgents.Remove(agent);
+
+            // Remove associated preference if any
+            var pref = await _db.Preferences.FirstOrDefaultAsync(p => p.CustomerId == customerId);
+            if (pref != null) _db.Preferences.Remove(pref);
+
+            // Remove customer record
+            _db.Customers.Remove(customer);
+
+            // Remove ASP.NET Identity user
             var user = await _userManager.FindByIdAsync(customerId);
-            return MapToDto(customer, user?.Email);
+            if (user != null) await _userManager.DeleteAsync(user);
+
+            await _db.SaveChangesAsync();
+            return true;
         }
 
         public async Task<bool> ExistsAsync(string customerId)
