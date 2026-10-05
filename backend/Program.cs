@@ -221,14 +221,17 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 var app = builder.Build();
 
 // ── Database Seeding on Startup ──
-try
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    await backend.Data.DbInitializer.SeedAsync(app.Services);
-}
-catch (Exception ex)
-{
-    // Log database connection warning without crashing application startup
-    app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
+    try
+    {
+        await backend.Data.DbInitializer.SeedAsync(app.Services);
+    }
+    catch (Exception ex)
+    {
+        // Log database connection warning without crashing application startup
+        app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
+    }
 }
 
 // ── Global Exception Handling ──

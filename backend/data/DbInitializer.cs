@@ -22,6 +22,12 @@ namespace backend.Data
         {
             using var scope = serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // SQLite is used only by automated tests. The seed script contains
+            // PostgreSQL-specific SQL and production demo data; test fixtures
+            // own their data and must start from a clean schema.
+            if (context.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+                return;
+
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
