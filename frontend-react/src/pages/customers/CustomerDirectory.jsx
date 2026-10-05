@@ -42,7 +42,6 @@ export default function CustomerDirectory() {
     return matchEmail || matchId
   }
 
-  const isSelectedSelf = isSelfAccount(selectedUser)
   const { isMobile } = useResponsive()
   const [dataList, setDataList] = useState([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +51,7 @@ export default function CustomerDirectory() {
   const [sort, setSort] = useState('name')
   const [page, setPage] = useState(1)
   const [selectedUser, setSelectedUser] = useState(null)
+  const isSelectedSelf = isSelfAccount(selectedUser)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
