@@ -438,27 +438,7 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ── 1. Account Details Section ──
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Currency', style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: _currency,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.currency_exchange_outlined),
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(value: 'LKR', child: Text('Sri Lankan Rupee (LKR)')),
-                          DropdownMenuItem(value: 'USD', child: Text('US Dollar (USD)')),
-                        ],
-                        onChanged: (value) => setState(() => _currency = value ?? 'LKR'),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
+
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -1117,6 +1097,87 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                     ),
                   ),
 
+                  const SizedBox(height: 12),
+
+                  // ── 7b. Preferred Currency Preference ──
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            Icons.currency_exchange,
+                            color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Preferred Currency',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _currency == 'USD'
+                                    ? 'US Dollar (USD · \$)'
+                                    : 'Sri Lankan Rupee (LKR · Rs)',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: _showCurrencyPicker,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark ? const Color(0xFF1D2B25) : const Color(0xFFE5F1EA),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFC3D8CE),
+                              ),
+                            ),
+                            child: Text(
+                              'Change',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 20),
 
                   // ── 8. Save Preferences Button (Component A) ──
@@ -1420,44 +1481,258 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
     );
   }
 
-  /// Settings and component architecture overview dialog
-  void _showSettingsDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showDialog(
+  /// Bottom sheet to select preferred currency (LKR / USD)
+  void _showCurrencyPicker() {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF141F1B) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Customer Preferences',
-          style: GoogleFonts.plusJakartaSans(
-            fontWeight: FontWeight.w800,
-            color: isDark ? Colors.white : AppColors.figmaDarkGreen,
-            fontSize: 16,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        return Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF141F1B) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
-        ),
-        content: Text(
-          'Component A manages customer profiles, budget boundaries, and personalized travel preferences. '
-          'Preferences saved here guide the Coordinator AI Agent when assembling your personalized trip.',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF4B5563),
-            height: 1.4,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Preferred Currency',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: 20,
+                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                    ),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Select your preferred currency for trip pricing, bookings, and payments.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildCurrencyOption(ctx, 'LKR', 'Sri Lankan Rupee (LKR · Rs)'),
+              const SizedBox(height: 10),
+              _buildCurrencyOption(ctx, 'USD', 'US Dollar (USD · \$)'),
+            ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCurrencyOption(BuildContext ctx, String code, String label) {
+    final isSelected = _currency == code;
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+
+    final bgColor = isSelected
+        ? (isDark ? AppColors.leaf400.withValues(alpha: 0.16) : const Color(0xFFE5F1EA))
+        : (isDark ? const Color(0xFF1D2B25) : Colors.transparent);
+
+    final borderColor = isSelected
+        ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+        : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2));
+
+    final textColor = isSelected
+        ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+        : (isDark ? Colors.white : const Color(0xFF1F2937));
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _currency = code;
+        });
+        currencyNotifier.setCurrency(code);
+        Navigator.pop(ctx);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Currency updated to $code'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: AppColors.figmaDarkGreen,
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: borderColor, width: isSelected ? 1.5 : 1),
         ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
-              foregroundColor: isDark ? const Color(0xFF06231B) : Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? (isDark ? AppColors.leaf400.withValues(alpha: 0.2) : const Color(0xFFCEE5D8))
+                    : (isDark ? const Color(0xFF23332B) : const Color(0xFFF3F4F6)),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                code == 'USD' ? '\$' : 'Rs',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected
+                      ? (isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen)
+                      : (isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
+                ),
               ),
             ),
-            child: const Text('Got it'),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  color: textColor,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(
+                Icons.check_circle,
+                size: 20,
+                color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Settings and app configuration dialog with quick Theme and Currency options
+  void _showSettingsDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF141F1B) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'App Settings',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF111827),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.close,
+                    size: 20,
+                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Currency option tile
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.currency_exchange,
+                  color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                'Currency Preference',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                _currency == 'USD' ? 'US Dollar (USD · \$)' : 'Sri Lankan Rupee (LKR · Rs)',
+                style: GoogleFonts.plusJakartaSans(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showCurrencyPicker();
+              },
+            ),
+            const Divider(),
+            // Theme option tile
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF2C2411) : const Color(0xFFF5F0E3),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.brightness_6_outlined,
+                  color: AppColors.figmaGold,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                'Appearance Theme',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              subtitle: Text(
+                themeNotifier.value == ThemeMode.light
+                    ? 'Light'
+                    : themeNotifier.value == ThemeMode.dark
+                        ? 'Dark'
+                        : 'System default',
+                style: GoogleFonts.plusJakartaSans(fontSize: 12),
+              ),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showThemePicker();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
