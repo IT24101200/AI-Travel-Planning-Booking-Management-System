@@ -45,23 +45,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     } else if (TripSelectionService.activeBookingId != null) {
       _loadBooking(TripSelectionService.activeBookingId!);
     } else {
-      // Default initial state for student evaluation
       setState(() {
-        _booking = {
-          'id': 101,
-          'bookingReference': 'ST-2026-98214',
-          'destination': 'Sri Lanka Discovery',
-          'dates': '12–18 Oct 2026 · 2 travelers',
-          'stops': 'Sigiriya · Kandy · Ella · Mirissa',
-          'accommodationCost': 1116.0,
-          'toursCost': 218.0,
-          'transfersCost': 284.0,
-          'taxesCost': 94.0,
-          'totalCost': 1712.0,
-          'currency': 'USD',
-          'status': 2, // Confirmed for sandbox payment demo
-          'bookingStatus': 'Confirmed',
-        };
+        _error = 'No booking is available yet. Wait for the travel agent to prepare the proposal.';
         _loading = false;
       });
     }
@@ -412,40 +397,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFFD97706),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          // Student Demo Helper: Simulate Agent Approval
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _booking!['status'] = 2;
-                                  _booking!['bookingStatus'] = 'Confirmed';
-                                  _paymentMessage = null;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Agent approved booking! Payment unlocked.'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFD97706),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              child: Text(
-                                'Simulate Approval',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),

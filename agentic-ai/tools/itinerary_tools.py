@@ -40,9 +40,7 @@ def persist_itinerary(
 
     token = str(state.get("access_token") or state.get("auth_token") or "").strip()
     if not token:
-        # Server-to-server orchestrator mode: assign trip_request_id as the synthetic itinerary_id.
-        # The ASP.NET Core backend creates the database Itinerary record when receiving /agent-update.
-        return int(state.get("trip_request_id") or 1)
+        raise ItineraryPersistenceError("Itinerary persistence requires an authenticated backend token.")
 
     headers = {"Authorization": f"Bearer {token}"}
     owns_client = client is None

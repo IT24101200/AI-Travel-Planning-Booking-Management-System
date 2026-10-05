@@ -248,19 +248,11 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
         )
 
         token = state.get("access_token") or state.get("auth_token")
-        try:
-            created = create_booking(payload, access_token=token)
-        except BackendToolError:
-            trip_id_val = int(payload.get("itineraryId") or 1)
-            created = {
-                "id": trip_id_val,
-                "bookingReference": f"ST-{trip_id_val}-PROPOSAL",
-                "status": "AwaitingApproval",
-                "totalCost": float(payload.get("totalCost", 0.0)),
-                "currency": payload.get("currency", "USD"),
-            }
+        created = create_booking(payload, access_token=token)
         booking_id = created.get("id")
         reference = created.get("bookingReference") or created.get("booking_reference")
+        if not isinstance(booking_id, int) or booking_id <= 0 or not reference:
+            raise BackendToolError("Booking API did not return a real booking id and reference.")
 
         result = {
             "is_valid": True,

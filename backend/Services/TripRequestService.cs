@@ -275,8 +275,23 @@ namespace backend.Services
 
             if (trip == null) return null;
 
-            if (!string.IsNullOrWhiteSpace(dto.Status) && Enum.TryParse<TripRequestStatus>(dto.Status, true, out var parsedStatus))
+            var parsedStatus = trip.Status;
+            if (!string.IsNullOrWhiteSpace(dto.Status) && !Enum.TryParse<TripRequestStatus>(dto.Status, true, out parsedStatus))
             {
+                throw new ArgumentException($"Unknown TripRequest status '{dto.Status}'.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(dto.Status))
+            {
+                if (!IsAllowedAgentTransition(trip.Status, parsedStatus))
+                    throw new InvalidOperationException($"Agent cannot transition TripRequest from {trip.Status} to {parsedStatus}.");
+
+                if (parsedStatus == TripRequestStatus.Failed && string.IsNullOrWhiteSpace(dto.FailureReason))
+                    throw new ArgumentException("A failure reason is required when an agent marks a request as Failed.");
+
+                if (parsedStatus == TripRequestStatus.AwaitingApproval && !dto.PlanJson.HasValue)
+                    throw new ArgumentException("A plan is required before a request can enter AwaitingApproval.");
+
                 trip.Status = parsedStatus;
             }
 
@@ -297,6 +312,17 @@ namespace backend.Services
 
             await _db.SaveChangesAsync();
             return MapToDto(trip);
+        }
+
+        private static bool IsAllowedAgentTransition(TripRequestStatus current, TripRequestStatus next)
+        {
+            return current switch
+            {
+                TripRequestStatus.Pending => next is TripRequestStatus.Planning or TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
+                TripRequestStatus.Planning => next is TripRequestStatus.Planning or TripRequestStatus.Planned or TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
+                TripRequestStatus.Planned => next is TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
+                _ => false
+            };
         }
 
         private static TripRequestDto MapToDto(TripRequest t)

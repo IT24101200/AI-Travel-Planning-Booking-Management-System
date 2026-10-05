@@ -1,5 +1,6 @@
 using backend.DTOs;
 using backend.Services;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,10 +16,12 @@ namespace backend.Controllers
     public class PaymentController : ControllerBase
     {
         private readonly IPaymentService _paymentService;
+        private readonly IBookingService _bookingService;
 
-        public PaymentController(IPaymentService paymentService)
+        public PaymentController(IPaymentService paymentService, IBookingService bookingService)
         {
             _paymentService = paymentService;
+            _bookingService = bookingService;
         }
 
         /// <summary>
@@ -36,6 +39,12 @@ namespace backend.Controllers
 
             try
             {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+                var booking = await _bookingService.GetBookingByIdAsync(dto.BookingId, userId, isStaff);
+                if (booking == null)
+                    return NotFound(new { message = $"Booking with ID {dto.BookingId} not found." });
+
                 var payment = await _paymentService.ProcessPaymentAsync(dto);
                 return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, payment);
             }
@@ -46,6 +55,10 @@ namespace backend.Controllers
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
         }
 

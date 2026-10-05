@@ -12,21 +12,19 @@ class TripConfirmationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)?.settings.arguments;
-    final Map<String, dynamic> booking = args is Map<String, dynamic>
-        ? args
-        : {
-            'id': 101,
-            'bookingReference': 'ST-2026-98214',
-            'destination': 'Sri Lanka Discovery',
-            'dates': '12–18 October 2026 · 7 days / 6 nights',
-            'customerName': 'Maya Fernando',
-            'totalCost': 1712.0,
-            'status': 'Confirmed',
-          };
+    if (args is! Map<String, dynamic>) {
+      return const Scaffold(
+        body: Center(child: Text('No confirmed booking is available.')),
+      );
+    }
+    final Map<String, dynamic> booking = args;
 
-    final bookingRef =
-        booking['bookingReference']?.toString() ??
-        (booking['id'] != null ? 'ST-2026-${booking['id']}' : 'ST-2026-98214');
+    final bookingRef = booking['bookingReference']?.toString();
+    if (bookingRef == null || bookingRef.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Booking reference is unavailable.')),
+      );
+    }
     final customerName =
         booking['customerName']?.toString() ?? 'Maya Fernando';
     final tripTitle =
@@ -337,6 +335,7 @@ Stops: $destinations
                         onPressed: () {
                           // Real pure-Dart PDF ticket generation
                           final pdfBytes = TicketPdfService.generateTicketPdf(
+                            bookingReference: bookingRef,
                             booking: booking,
                             hotel: TripSelectionService.selectedHotel,
                             transport: TripSelectionService.selectedTransport,

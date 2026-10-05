@@ -64,16 +64,7 @@ def create_booking(
 
     token = _token(access_token)
     if not token:
-        # Server-to-server orchestrator mode: return a proposed booking envelope awaiting approval.
-        # The ASP.NET Core backend creates the database Booking record upon receiving /agent-update.
-        trip_id = int(payload.get("itineraryId") or 1)
-        return {
-            "id": trip_id,
-            "bookingReference": f"ST-{trip_id}-PROPOSAL",
-            "status": "AwaitingApproval",
-            "totalCost": float(payload.get("totalCost", 0.0)),
-            "currency": payload.get("currency", "USD"),
-        }
+        raise BackendToolError("Booking creation requires an authenticated backend token.")
     headers = {"Authorization": f"Bearer {token}"}
     owns_client = client is None
     http = client or httpx.Client(timeout=15.0)
