@@ -166,12 +166,12 @@ def build_itinerary(trip_request):
             # Preserve compatibility with deterministic/offline test providers.
             candidate_tours = search_tours(trip_request.get("destination_id"))
 
-        if not candidate_tours and trip_request.get("destination_id"):
-            # Fallback to searching all active tours if specific destination has none
-            try:
-                candidate_tours = search_tours(None, currency=trip_request.get("currency", "LKR"))
-            except TypeError:
-                candidate_tours = search_tours(None)
+        if not candidate_tours:
+            return {
+                "status": "ItineraryFailed",
+                "error_code": "NO_VALID_TOURS",
+                "error": "No database-backed tours are available for the requested destination.",
+            }
     except Exception as error:
         return {"error": f"Unable to search for tours: {error}"}
 
@@ -427,8 +427,13 @@ def itinerary_node(state: dict) -> dict:
     }
 
     if not trip_request["destination_id"]:
-        # Fallback to default destination ID 1 if not explicitly provided
-        trip_request["destination_id"] = 1
+        return {
+            **state,
+            "itinerary": {
+                "error_code": "DESTINATION_REQUIRED",
+                "error": "A real database-backed destination is required before itinerary planning can start.",
+            },
+        }
 
     result = build_itinerary(trip_request)
     if not isinstance(result, dict):

@@ -1,13 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { normalizeRole } from './roles.js'
 
 const AuthContext = createContext(null)
-
-function roleFromEmail(email) {
-  const e = (email || '').toLowerCase()
-  if (e.includes('admin')) return 'admin'
-  if (e.includes('agent') || e.includes('staff') || e.includes('colombo')) return 'agent'
-  return 'customer'
-}
 
 /**
  * Minimal JWT-style auth for the assignment demo.
@@ -33,7 +27,7 @@ export function AuthProvider({ children }) {
   })
 
   const login = useCallback(async (email, password) => {
-    const base = import.meta.env.VITE_API_BASE_URL ?? 'https://ai-travel-planning-booking-management.onrender.com/api'
+    const base = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:5138/api' : '')
     try {
       const res = await fetch(`${base}/Auth/login`, {
         method: 'POST',
@@ -42,12 +36,7 @@ export function AuthProvider({ children }) {
       })
       if (res.ok) {
         const data = await res.json()
-        const rawRole = (data.role || roleFromEmail(email)).toLowerCase()
-        const normalizedRole = (rawRole === 'travelagent' || rawRole === 'agent' || rawRole === 'staff')
-          ? 'agent'
-          : rawRole === 'admin'
-          ? 'admin'
-          : 'customer'
+        const normalizedRole = normalizeRole(data.role)
         const next = {
           email,
           userId: data.userId || null,

@@ -64,8 +64,8 @@ class _AccommodationOptionsScreenState
   @override
   void initState() {
     super.initState();
-    _selectedStayId = _curatedStays.first['id'];
-    TripSelectionService.selectedHotel = _curatedStays.first;
+    _selectedStayId = '';
+    TripSelectionService.selectedHotel = null;
     _loadHotels();
   }
 
@@ -85,7 +85,7 @@ class _AccommodationOptionsScreenState
     } catch (e) {
       if (mounted) {
         setState(() {
-          // Keep curated fallback on error
+          _error = e.toString();
           _loading = false;
         });
       }
@@ -103,7 +103,7 @@ class _AccommodationOptionsScreenState
       );
     }
 
-    if (_error != null && _hotels.isEmpty && _curatedStays.isEmpty) {
+    if (_error != null) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -130,20 +130,28 @@ class _AccommodationOptionsScreenState
         ? _hotels.map((h) {
             return {
               'id': h['id'].toString(),
-              'name': h['name'] ?? 'Boutique Hotel',
+              'name': h['name'] ?? 'Hotel name not provided',
               'location': h['city'] != null
                   ? '${h['city']} · Central Province'
-                  : 'Sri Lanka',
-              'amenities': h['amenities'] ?? 'Wi-Fi · Breakfast · AC',
-              'rating': 4.8,
-              'price': (h['pricePerNight'] ?? 150).toInt(),
+                  : 'Location not provided',
+              'amenities': h['amenities'] ?? 'Amenities not provided',
+              'rating': h['starRating'],
+              'price': h['pricePerNight'],
               'image': (h['imageUrl'] != null &&
                       h['imageUrl'].toString().isNotEmpty)
                   ? ApiService.resolveMediaUrl(h['imageUrl'])
-                  : 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
+                  : '',
             };
           }).toList()
-        : _curatedStays;
+        : <Map<String, dynamic>>[];
+
+    if (displayStays.isEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(title: const Text('Choose your stay')),
+        body: const Center(child: Text('No accommodation options available.')),
+      );
+    }
 
     final selectedStay = displayStays.firstWhere(
       (s) => s['id'] == _selectedStayId,

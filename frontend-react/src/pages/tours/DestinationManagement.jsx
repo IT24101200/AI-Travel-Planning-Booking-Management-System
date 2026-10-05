@@ -16,8 +16,7 @@ import {
   RefreshIcon,
   TrashIcon,
   CloseIcon,
-  CheckIcon,
-  EditIcon
+  CheckIcon
 } from '../../components/ui/Icons.jsx'
 import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
 
@@ -48,15 +47,8 @@ export default function DestinationManagement() {
   const [page, setPage] = useState(1)
 
   // Drawer state
-  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
+  const [drawerMode, setDrawerMode] = useState('edit') // 'edit' | 'create' | null
   const [selectedDest, setSelectedDest] = useState(null)
-  const [drawerNotice, setDrawerNotice] = useState(null) // { type: 'success' | 'error', message: string } | null
-
-  // Visual Remove Modal State
-  const [destToDelete, setDestToDelete] = useState(null)
-  const [deleteBusy, setDeleteBusy] = useState(false)
-  const [deleteError, setDeleteError] = useState(null)
-
   const [formData, setFormData] = useState({
     name: '',
     country: 'Sri Lanka',
@@ -69,7 +61,7 @@ export default function DestinationManagement() {
 
   usePageTitle('Destination Catalog · Serendib Trails')
 
-  async function loadData(cancelled = false, selectId = null) {
+  async function loadData(cancelled = false) {
     setLoading(true)
     setError(null)
     try {
@@ -79,7 +71,7 @@ export default function DestinationManagement() {
       ])
 
       if (!cancelled) {
-        // Map tour counts per destination
+        const loadErrors = []
         const counts = {}
         if (tourRes.status === 'fulfilled') {
           const tList = Array.isArray(tourRes.value) ? tourRes.value : (tourRes.value?.data || [])
@@ -87,12 +79,14 @@ export default function DestinationManagement() {
             const dId = t.destinationId
             counts[dId] = (counts[dId] || 0) + 1
           })
+        } else {
+          loadErrors.push('Tour associations are unavailable.')
         }
         if (destRes.status === 'fulfilled') {
           const live = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           const mapped = live.map((d, idx) => {
             const nameLower = (d.name || '').toLowerCase()
-            let region = 'Central Province'
+            let region = 'Not provided'
             for (const [key, val] of Object.entries(REGIONS)) {
               if (nameLower.includes(key)) {
                 region = val
@@ -103,27 +97,34 @@ export default function DestinationManagement() {
             return {
               id: d.id,
               code: `DEST-${String(idx + 1).padStart(3, '0')}`,
-              name: d.name || 'Unnamed Destination',
-              country: d.country || 'Sri Lanka',
+              name: d.name,
+              country: d.country || 'Country not provided',
               region,
               imageUrl: d.imageUrl || '',
-              description: d.description || `Ancient fortress and UNESCO heritage site surrounded by gardens and forest in ${d.name || 'Sri Lanka'}.`,
-              latitude: Number(d.latitude) || 7.9570,
-              longitude: Number(d.longitude) || 80.7603,
-              associatedTours: counts[d.id] || 0
+              description: d.description || '',
+              latitude: d.latitude,
+              longitude: d.longitude,
+              associatedTours: Number.isFinite(Number(d.tourCount))
+                ? Number(d.tourCount)
+                : (tourRes.status === 'fulfilled' ? (counts[d.id] || 0) : null),
+              associatedHotels: Number.isFinite(Number(d.hotelCount)) ? Number(d.hotelCount) : null
             }
           })
           setRows(mapped)
 
-          if (selectId) {
-            const target = mapped.find(d => d.id === selectId)
-            if (target) {
-              selectForEdit(target)
-            }
-          } else if (mapped.length > 0 && !selectedDest && drawerMode !== 'create') {
+          if (mapped.length > 0 && !selectedDest) {
             selectForEdit(mapped[0])
+          } else if (mapped.length === 0) {
+            setSelectedDest(null)
+            setDrawerMode(null)
           }
+        } else {
+          setRows([])
+          setSelectedDest(null)
+          setDrawerMode(null)
+          loadErrors.unshift('Unable to load destinations from the database.')
         }
+        setError(loadErrors.length > 0 ? loadErrors.join(' ') : null)
       }
     } catch (err) {
       if (!cancelled) {
@@ -144,9 +145,12 @@ export default function DestinationManagement() {
   }, [])
 
   function selectForEdit(dest) {
-    setSelectedDest(dest)
+    setSelectedDest({
+      ...dest,
+      associatedTours: dest.associatedTours == null ? 'Unavailable' : String(dest.associatedTours),
+      associatedHotels: dest.associatedHotels == null ? 'Unavailable' : String(dest.associatedHotels)
+    })
     setDrawerMode('edit')
-    setDrawerNotice(null)
     setFormData({
       name: dest.name,
       country: dest.country,
@@ -160,13 +164,12 @@ export default function DestinationManagement() {
   function startCreate() {
     setDrawerMode('create')
     setSelectedDest(null)
-    setDrawerNotice(null)
     setFormData({
       name: '',
       country: 'Sri Lanka',
       description: '',
-      latitude: '7.957032',
-      longitude: '80.760261',
+      latitude: '',
+      longitude: '',
       imageUrl: ''
     })
   }
@@ -189,75 +192,50 @@ export default function DestinationManagement() {
   async function handleSave(e) {
     e.preventDefault()
     if (!formData.name.trim() || !formData.country.trim()) {
-      const msg = 'Please provide a destination name and country.'
-      setNotice(msg)
-      setDrawerNotice({ type: 'error', message: msg })
+      setNotice('Please provide a destination name and country.')
       return
     }
     setBusy(true)
     setNotice('')
-    setDrawerNotice(null)
     try {
       if (drawerMode === 'create') {
-        const created = await createDestination({
+        await createDestination({
           name: formData.name.trim(),
           country: formData.country.trim(),
           description: formData.description.trim() || null,
           imageUrl: formData.imageUrl?.trim() || null,
-          latitude: Number(formData.latitude) || 0,
-          longitude: Number(formData.longitude) || 0,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
         })
-        const displayName = created?.name || formData.name.trim()
-        const msg = `Destination "${displayName}" created successfully.`
-        setNotice(msg)
-        setDrawerNotice({ type: 'success', message: msg })
-        await loadData(false, created?.id)
+        setNotice(`Destination "${formData.name.trim()}" created successfully.`)
       } else if (drawerMode === 'edit' && selectedDest) {
         await updateDestination(selectedDest.id, {
           name: formData.name.trim(),
           country: formData.country.trim(),
           description: formData.description.trim() || null,
           imageUrl: formData.imageUrl?.trim() || null,
-          latitude: Number(formData.latitude) || 0,
-          longitude: Number(formData.longitude) || 0,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
         })
-        const msg = `Destination #${selectedDest.id} updated successfully.`
-        setNotice(msg)
-        setDrawerNotice({ type: 'success', message: msg })
-        await loadData(false, selectedDest.id)
+        setNotice(`Destination #${selectedDest.id} updated successfully.`)
       }
+      await loadData()
     } catch (err) {
-      const errMsg = err.response?.data?.message || err.message || 'Failed to save destination.'
-      setNotice(`Failed to save destination: ${errMsg}`)
-      setDrawerNotice({ type: 'error', message: `Failed to save: ${errMsg}` })
+      setNotice(`Failed to save destination: ${err.response?.data?.message || err.message}`)
     } finally {
       setBusy(false)
     }
   }
 
-  function requestRemove(dest) {
-    setDestToDelete(dest)
-    setDeleteError(null)
-  }
-
-  async function confirmRemove() {
-    if (!destToDelete) return
-    setDeleteBusy(true)
-    setDeleteError(null)
+  async function handleRemove(id) {
+    if (!window.confirm(`Delete destination #${id}? Warning: this record may be referenced by existing tours.`)) return
     try {
-      await deleteDestination(destToDelete.id)
-      const name = destToDelete.name || `#${destToDelete.id}`
-      setNotice(`Destination "${name}" was permanently removed.`)
-      setDestToDelete(null)
-      if (selectedDest?.id === destToDelete.id) {
-        setDrawerMode(null)
-        setSelectedDest(null)
-      }
+      await deleteDestination(id)
+      setNotice(`Destination #${id} deleted from database.`)
+      setDrawerMode(null)
       await loadData()
     } catch (err) {
-      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete destination.')
-    } finally {
-      setDeleteBusy(false)
+      setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
     }
   }
 
@@ -344,13 +322,12 @@ export default function DestinationManagement() {
                   <th>REGION</th>
                   <th>LATITUDE / LONGITUDE</th>
                   <th>ASSOCIATED TOURS</th>
-                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem' }}>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '2.5rem' }}>
                       <LoadingState message="Loading destination records from database…" />
                     </td>
                   </tr>
@@ -368,7 +345,7 @@ export default function DestinationManagement() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             {d.imageUrl ? (
                               <img
-                                src={d.imageUrl.startsWith('http') ? d.imageUrl : `${(import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '') : 'https://ai-travel-planning-booking-management.onrender.com')}${d.imageUrl.startsWith('/') ? '' : '/'}${d.imageUrl}`}
+                                src={d.imageUrl}
                                 alt={d.name}
                                 style={{
                                   width: '32px',
@@ -403,57 +380,22 @@ export default function DestinationManagement() {
                         <td style={{ color: '#182126' }}>{d.country}</td>
                         <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{d.region}</td>
                         <td style={{ color: '#475569', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                          {Number(d.latitude).toFixed(4)}, {Number(d.longitude).toFixed(4)}
+                          {Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))
+                            ? `${Number(d.latitude).toFixed(4)}, ${Number(d.longitude).toFixed(4)}`
+                            : 'Coordinates not provided'}
                         </td>
                         <td>
                           <span className="badge-pill badge-blue">
                             <span className="badge-dot" /> {d.associatedTours} tours
                           </span>
                         </td>
-                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
-                            <button
-                              type="button"
-                              className="btn-outline"
-                              style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem', gap: '0.25rem' }}
-                              onClick={() => selectForEdit(d)}
-                              title="Edit destination"
-                            >
-                              <EditIcon size={12} />
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              type="button"
-                              className="btn-danger-soft"
-                              style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem', gap: '0.25rem' }}
-                              onClick={() => requestRemove(d)}
-                              title="Delete destination"
-                            >
-                              <TrashIcon size={12} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        </td>
                       </tr>
                     )
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '3rem 2rem', color: '#66747b' }}>
-                      <p style={{ margin: '0 0 0.75rem', fontWeight: 600 }}>
-                        {query ? `No destinations match “${query}”.` : 'No destinations in catalog yet.'}
-                      </p>
-                      {!query && (
-                        <button
-                          type="button"
-                          className="btn-gold"
-                          style={{ margin: '0 auto', fontSize: '0.8125rem' }}
-                          onClick={startCreate}
-                        >
-                          <PlusIcon size={14} />
-                          <span>Create first destination</span>
-                        </button>
-                      )}
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
+                      {query ? `No destinations match “${query}”.` : 'No destinations in catalog.'}
                     </td>
                   </tr>
                 )}
@@ -520,31 +462,6 @@ export default function DestinationManagement() {
               </button>
             </div>
 
-            {drawerNotice && (
-              <div
-                style={{
-                  padding: '0.625rem 0.875rem',
-                  borderRadius: '6px',
-                  fontSize: '0.8125rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  backgroundColor: drawerNotice.type === 'error' ? '#fef2f2' : '#ecfdf5',
-                  color: drawerNotice.type === 'error' ? '#b91c1c' : '#047857',
-                  border: `1px solid ${drawerNotice.type === 'error' ? '#fecaca' : '#a7f3d0'}`
-                }}
-              >
-                <span>{drawerNotice.message}</span>
-                <button
-                  type="button"
-                  onClick={() => setDrawerNotice(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: '0 4px', fontSize: '1rem', lineHeight: 1 }}
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
             <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
@@ -602,6 +519,7 @@ export default function DestinationManagement() {
                 label="Destination Cover Image"
               />
 
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
@@ -648,7 +566,7 @@ export default function DestinationManagement() {
               >
                 <MapPinIcon size={24} />
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace' }}>
-                  {formData.latitude || '7.957032'}, {formData.longitude || '80.760261'}
+                  {formData.latitude || 'Latitude not provided'}, {formData.longitude || 'Longitude not provided'}
                 </span>
               </div>
 
@@ -657,7 +575,7 @@ export default function DestinationManagement() {
                 <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
                   <span>⚠️</span>
                   <span>
-                    <strong>Removal guarded</strong> — {formData.name || 'This place'} is referenced by {selectedDest?.associatedTours || 0} active tours, hotels, and future itineraries.
+                    <strong>Removal guarded</strong> — {formData.name || 'This place'} has {selectedDest?.associatedTours ?? 'unavailable'} tour references and {selectedDest?.associatedHotels ?? 'unavailable'} hotel references.
                   </span>
                 </div>
               )}
@@ -668,7 +586,7 @@ export default function DestinationManagement() {
                   <button
                     type="button"
                     className="btn-danger-soft"
-                    onClick={() => requestRemove(selectedDest)}
+                    onClick={() => handleRemove(selectedDest.id)}
                   >
                     <TrashIcon size={14} />
                     <span>Remove destination</span>
@@ -687,220 +605,6 @@ export default function DestinationManagement() {
           </aside>
         )}
       </div>
-
-      {/* ── Visual Remove Destination Dialog Box ── */}
-      {destToDelete && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 27, 0.65)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget && !deleteBusy) setDestToDelete(null)
-          }}
-        >
-          <div
-            className="staff-card"
-            style={{
-              width: '100%',
-              maxWidth: '460px',
-              padding: '1.75rem',
-              borderRadius: '16px',
-              boxShadow: '0 20px 40px -15px rgba(0,0,0,0.3)',
-              border: '1px solid #e2e8f0',
-              backgroundColor: '#ffffff'
-            }}
-          >
-            {/* Dialog Header with Trash Icon Badge */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.25rem' }}>
-              <div
-                style={{
-                  width: '44px',
-                  height: '44px',
-                  borderRadius: '12px',
-                  backgroundColor: '#fee2e2',
-                  color: '#dc2626',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                <TrashIcon size={22} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.125rem', fontWeight: 700, color: '#182126' }}>
-                  Remove destination?
-                </h3>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b', lineHeight: 1.4 }}>
-                  Are you sure you want to permanently delete this location from the catalog database?
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn-outline"
-                style={{ height: '30px', width: '30px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={() => !deleteBusy && setDestToDelete(null)}
-                disabled={deleteBusy}
-              >
-                <CloseIcon size={14} />
-              </button>
-            </div>
-
-            {/* Visual Destination Card Preview */}
-            <div
-              style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '10px',
-                padding: '1rem',
-                marginBottom: '1.25rem',
-                display: 'flex',
-                gap: '0.875rem',
-                alignItems: 'center'
-              }}
-            >
-              {destToDelete.imageUrl ? (
-                <img
-                  src={destToDelete.imageUrl.startsWith('http') ? destToDelete.imageUrl : `${(import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '') : 'https://ai-travel-planning-booking-management.onrender.com')}${destToDelete.imageUrl.startsWith('/') ? '' : '/'}${destToDelete.imageUrl}`}
-                  alt={destToDelete.name}
-                  style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
-                  onError={(e) => { e.target.style.display = 'none' }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: '48px',
-                    height: '48px',
-                    borderRadius: '8px',
-                    backgroundColor: '#e0f2fe',
-                    color: '#0369a1',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <MapPinIcon size={22} />
-                </div>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                  <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, color: '#0f172a' }}>
-                    {destToDelete.name}
-                  </h4>
-                  <span style={{ fontSize: '0.6875rem', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: 600 }}>
-                    {destToDelete.code || `DEST-${String(destToDelete.id).padStart(3, '0')}`}
-                  </span>
-                </div>
-                <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
-                  {destToDelete.country} · {destToDelete.region}
-                </p>
-                <p style={{ margin: '0.2rem 0 0', fontSize: '0.6875rem', color: '#94a3b8', fontFamily: 'monospace' }}>
-                  GPS: {Number(destToDelete.latitude).toFixed(4)}, {Number(destToDelete.longitude).toFixed(4)}
-                </p>
-              </div>
-            </div>
-
-            {/* Warning about associated records */}
-            {destToDelete.associatedTours > 0 ? (
-              <div
-                style={{
-                  backgroundColor: '#fffbeb',
-                  border: '1px solid #fef3c7',
-                  borderRadius: '8px',
-                  padding: '0.75rem 0.875rem',
-                  marginBottom: '1.25rem',
-                  display: 'flex',
-                  gap: '0.625rem',
-                  alignItems: 'flex-start',
-                  fontSize: '0.8125rem',
-                  color: '#92400e'
-                }}
-              >
-                <span style={{ fontSize: '1rem', lineHeight: 1 }}>⚠️</span>
-                <div>
-                  <strong>Linked records detected:</strong> This destination is referenced by <strong>{destToDelete.associatedTours} active tour(s)</strong>. Deleting it may impact itineraries and booking schedules.
-                </div>
-              </div>
-            ) : (
-              <div
-                style={{
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  padding: '0.625rem 0.875rem',
-                  marginBottom: '1.25rem',
-                  fontSize: '0.75rem',
-                  color: '#64748b'
-                }}
-              >
-                ℹ️ This destination currently has <strong>0 associated tours</strong>. It can be safely removed.
-              </div>
-            )}
-
-            {/* Error Alert inside modal */}
-            {deleteError && (
-              <div
-                style={{
-                  backgroundColor: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  color: '#b91c1c',
-                  padding: '0.625rem 0.875rem',
-                  borderRadius: '8px',
-                  fontSize: '0.8125rem',
-                  marginBottom: '1.25rem'
-                }}
-              >
-                {deleteError}
-              </div>
-            )}
-
-            {/* Modal Footer Actions */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.625rem' }}>
-              <button
-                type="button"
-                className="btn-outline"
-                onClick={() => setDestToDelete(null)}
-                disabled={deleteBusy}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                style={{
-                  backgroundColor: '#dc2626',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '0 1rem',
-                  height: '38px',
-                  fontSize: '0.8125rem',
-                  fontWeight: 700,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: deleteBusy ? 'not-allowed' : 'pointer',
-                  opacity: deleteBusy ? 0.7 : 1,
-                  transition: 'background-color 0.15s ease'
-                }}
-                onClick={confirmRemove}
-                disabled={deleteBusy}
-              >
-                <TrashIcon size={15} />
-                <span>{deleteBusy ? 'Deleting destination…' : 'Delete destination'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
-
