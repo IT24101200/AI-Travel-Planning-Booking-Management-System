@@ -1086,7 +1086,7 @@
 }
 .login-brand-col {
   position: relative;
-  background-image: linear-gradient(rgba(15, 23, 27, 0.5), rgba(15, 23, 27, 0.85)), url('/images/tea-plantation.jpg');
+  background-image: linear-gradient(rgba(15, 23, 27, 0.5), rgba(15, 23, 27, 0.85)), url('../assets/photos/nuwara-eliya-1280.jpg');
   background-size: cover;
   background-position: center;
   padding: 3rem;

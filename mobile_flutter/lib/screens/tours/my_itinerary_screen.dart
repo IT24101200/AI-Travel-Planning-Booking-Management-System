@@ -922,7 +922,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         children: [
                           TileLayer(
                             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.example.serendib_trails',
+                            userAgentPackageName: 'com.serendibtrails.travel',
                           ),
                           PolylineLayer(
                             polylines: [

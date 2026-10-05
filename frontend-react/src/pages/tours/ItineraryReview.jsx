@@ -16,7 +16,6 @@ import {
   SparklesIcon,
   RotateCcwIcon,
   RefreshIcon,
-  CloseIcon,
   CheckIcon,
   TrashIcon,
   PlusIcon,
@@ -126,6 +125,8 @@ export default function ItineraryReview() {
   }
 
   useEffect(() => {
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadItineraries()
   }, [])
 
@@ -163,6 +164,8 @@ export default function ItineraryReview() {
   // Keep selection synced
   useEffect(() => {
     if (filteredQueue.length > 0 && (!selectedItinerary || !filteredQueue.find(q => q.id === selectedItinerary.id))) {
+      // Keep the detail panel on a valid item after filtering.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedItinerary(filteredQueue[0])
     }
   }, [filteredQueue, selectedItinerary])

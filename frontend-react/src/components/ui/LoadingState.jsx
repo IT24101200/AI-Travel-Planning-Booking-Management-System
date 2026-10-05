@@ -1,5 +1,3 @@
-import React from 'react'
-
 /**
  * Standardized Loading State component for async data fetching.
  * Features accessible ARIA attributes and smooth spinner animation.

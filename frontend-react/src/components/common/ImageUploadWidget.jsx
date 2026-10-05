@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { uploadMedia, fetchMedia } from '../../services/apiClient.js'
-import { ImageIcon, UploadIcon, CloseIcon, SearchIcon, CheckIcon } from '../ui/Icons.jsx'
+import { ImageIcon, UploadIcon, SearchIcon, CheckIcon } from '../ui/Icons.jsx'
 
 /**
  * Reusable Image Upload & Media Picker Widget for Staff Forms.
@@ -24,6 +24,8 @@ export function ImageUploadWidget({
 
   // Keep urlInput in sync if value changes externally
   useEffect(() => {
+    // This effect mirrors a controlled prop into the URL editing buffer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrlInput(value || '')
   }, [value])
 

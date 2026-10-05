@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createHotel, deleteHotel, fetchHotels, updateHotel, fetchDestinations } from '../../services/apiClient.js'
+import { createHotel, fetchHotels, updateHotel, fetchDestinations } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
@@ -105,8 +105,11 @@ export default function HotelVendorManagement() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData(cancelled)
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function selectForEdit(hotel) {
