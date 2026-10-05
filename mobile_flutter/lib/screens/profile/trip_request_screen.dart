@@ -84,9 +84,14 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   String? _submissionError;
   String? _preferencesError;
 
+  void _onDestinationChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
+    _destinationCtrl.addListener(_onDestinationChanged);
     // Default dates: 7 days from today, lasting 6 nights
     final now = DateTime.now();
     _startDate = DateTime(now.year, now.month, now.day + 7);
@@ -111,9 +116,68 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   @override
   void dispose() {
+    _destinationCtrl.removeListener(_onDestinationChanged);
     _destinationCtrl.dispose();
     _specialRequestsCtrl.dispose();
     super.dispose();
+  }
+
+  /// Parses comma, ampersand, or plus separated destinations from text
+  List<String> _parseDestinations(String text) {
+    if (text.trim().isEmpty) return [];
+    return text
+        .split(RegExp(r'[,&+]|\band\b', caseSensitive: false))
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  /// Formats multiple destinations nicely for the text input
+  String _formatDestinations(List<String> dests) {
+    if (dests.isEmpty) return '';
+    if (dests.length == 1) return dests.first;
+    if (dests.length == 2) return '${dests[0]} & ${dests[1]}';
+    return '${dests.sublist(0, dests.length - 1).join(", ")} & ${dests.last}';
+  }
+
+  /// Checks if all main iconic highlights are selected
+  bool _isAllIslandSelected(List<String> currentDests) {
+    const highlights = ['Sigiriya', 'Kandy', 'Ella', 'Mirissa'];
+    return highlights.every(
+      (h) => currentDests.any((d) => d.toLowerCase() == h.toLowerCase()),
+    );
+  }
+
+  /// Checks if a specific destination is present in selected list
+  bool _isDestSelected(String dest, List<String> currentDests) {
+    return currentDests.any((d) => d.toLowerCase() == dest.toLowerCase());
+  }
+
+  /// Toggles a destination chip in/out of the selected destinations (allows 1 or more)
+  void _toggleDestination(String dest) {
+    final currentDests = _parseDestinations(_destinationCtrl.text);
+
+    if (dest == 'All Island') {
+      if (_isAllIslandSelected(currentDests)) {
+        // Reset to single iconic destination
+        _destinationCtrl.text = 'Sigiriya';
+      } else {
+        // Select all key island highlights
+        _destinationCtrl.text = 'Sigiriya, Kandy, Ella & Mirissa';
+      }
+    } else {
+      final existingIndex = currentDests.indexWhere(
+        (d) => d.toLowerCase() == dest.toLowerCase(),
+      );
+      if (existingIndex >= 0) {
+        // Deselect destination
+        currentDests.removeAt(existingIndex);
+      } else {
+        // Select / add destination
+        currentDests.add(dest);
+      }
+      _destinationCtrl.text = _formatDestinations(currentDests);
+    }
   }
 
   /// Load user preference defaults to ensure budget ceiling is consistent
@@ -154,13 +218,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   /// Resolves destination string to optional database ID
   int? _resolveDestinationId(String input) {
-    final clean = input.trim().toLowerCase();
-    for (final entry in _destinationIds.entries) {
-      if (clean == entry.key || clean.contains(entry.key)) {
-        // If it's a specific single destination, return its ID
-        if (!clean.contains(',')) {
-          return entry.value;
-        }
+    final dests = _parseDestinations(input);
+    for (final dest in dests) {
+      final key = dest.trim().toLowerCase();
+      if (_destinationIds.containsKey(key)) {
+        return _destinationIds[key];
       }
     }
     return null;
@@ -397,98 +459,142 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
               const SizedBox(height: 14),
 
               // ── Destination Input ──
-              Text(
-                'DESTINATION',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF6E7772),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Container(
-                height: 46,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(
-                  color: theme.cardColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.place_outlined,
-                      size: 18,
-                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _destinationCtrl,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                        decoration: InputDecoration(
-                          border: InputBorder.none,
-                          isDense: true,
-                          hintText: 'e.g. Sigiriya, Kandy, Ella & Mirissa',
-                          hintStyle: GoogleFonts.plusJakartaSans(
-                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF9CA3AF),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              Builder(
+                builder: (context) {
+                  final currentDests = _parseDestinations(_destinationCtrl.text);
+                  final destCount = currentDests.length;
 
-              // Quick Sri Lankan destination chips
-              const SizedBox(height: 6),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: _quickDestinations.map((dest) {
-                    final isCurrent = _destinationCtrl.text.toLowerCase().contains(dest.toLowerCase());
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: ActionChip(
-                        label: Text(
-                          dest,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9,
-                            fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                            color: isCurrent
-                                ? Colors.white
-                                : theme.colorScheme.onSurface,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'DESTINATION',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          if (destCount > 0)
+                            Text(
+                              destCount == 1
+                                  ? '1 destination selected'
+                                  : '$destCount destinations selected',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 5),
+                      Container(
+                        height: 46,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: theme.cardColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
                           ),
                         ),
-                        backgroundColor: isCurrent
-                            ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFF123F32))
-                            : theme.cardColor,
-                        side: BorderSide(
-                          color: isCurrent
-                              ? (isDark ? AppColors.leaf400 : const Color(0xFF123F32))
-                              : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.place_outlined,
+                              size: 18,
+                              color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _destinationCtrl,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                                decoration: InputDecoration(
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  hintText: 'e.g. Sigiriya, Kandy, Ella & Mirissa',
+                                  hintStyle: GoogleFonts.plusJakartaSans(
+                                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (_destinationCtrl.text.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  _destinationCtrl.clear();
+                                  setState(() {});
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 6),
+                                  child: Icon(
+                                    Icons.close,
+                                    size: 16,
+                                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF9CA3AF),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        onPressed: () {
-                          setState(() {
-                            if (dest == 'All Island') {
-                              _destinationCtrl.text = 'Sigiriya, Kandy, Ella & Mirissa';
-                            } else {
-                              _destinationCtrl.text = dest;
-                            }
-                          });
-                        },
                       ),
-                    );
-                  }).toList(),
-                ),
+
+                      // Quick Sri Lankan destination chips (select 1 or more)
+                      const SizedBox(height: 6),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: _quickDestinations.map((dest) {
+                            final isCurrent = dest == 'All Island'
+                                ? _isAllIslandSelected(currentDests)
+                                : _isDestSelected(dest, currentDests);
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: ActionChip(
+                                avatar: isCurrent
+                                    ? const Icon(
+                                        Icons.check,
+                                        size: 12,
+                                        color: Colors.white,
+                                      )
+                                    : null,
+                                label: Text(
+                                  dest,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 9,
+                                    fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
+                                    color: isCurrent
+                                        ? Colors.white
+                                        : theme.colorScheme.onSurface,
+                                  ),
+                                ),
+                                backgroundColor: isCurrent
+                                    ? (isDark ? const Color(0xFF1E3A2F) : const Color(0xFF123F32))
+                                    : theme.cardColor,
+                                side: BorderSide(
+                                  color: isCurrent
+                                      ? (isDark ? AppColors.leaf400 : const Color(0xFF123F32))
+                                      : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                onPressed: () => _toggleDestination(dest),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
 
               const SizedBox(height: 12),

@@ -44,4 +44,41 @@ void main() {
     // Verify Generate Button
     expect(find.text('Generate AI Itinerary'), findsOneWidget);
   });
+
+  testWidgets('TripRequestScreen supports selecting 1 or more destinations via toggle chips',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: TripRequestScreen(),
+      ),
+    );
+    await tester.pump();
+
+    // Initial state has 4 destinations
+    expect(find.text('4 destinations selected'), findsOneWidget);
+
+    // Tap Galle to add it (now 5 destinations)
+    await tester.tap(find.widgetWithText(ActionChip, 'Galle'));
+    await tester.pump();
+    expect(find.text('5 destinations selected'), findsOneWidget);
+
+    // Tap Ella to remove it
+    await tester.tap(find.widgetWithText(ActionChip, 'Ella'));
+    await tester.pump();
+    expect(find.text('4 destinations selected'), findsOneWidget);
+
+    // Tap clear button (X icon)
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pump();
+
+    // Tap Kandy (1 destination selected)
+    await tester.tap(find.widgetWithText(ActionChip, 'Kandy'));
+    await tester.pump();
+    expect(find.text('1 destination selected'), findsOneWidget);
+
+    // Tap Nuwara Eliya (2 destinations selected)
+    await tester.tap(find.widgetWithText(ActionChip, 'Nuwara Eliya'));
+    await tester.pump();
+    expect(find.text('2 destinations selected'), findsOneWidget);
+  });
 }
