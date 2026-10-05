@@ -43,8 +43,10 @@ def build_booking_package(state):
             "error": "A persisted itinerary ID is required before inventory selection.",
         }
     
-    # 1. Search Hotels
+    # 1. Search Hotels (fallback to all active hotels if destination has no specific hotel)
     hotels = search_hotels(destination_id)
+    if not hotels:
+        hotels = search_hotels(None)
     available_rooms = []
     
     for hotel in hotels:
@@ -52,7 +54,8 @@ def build_booking_package(state):
         for room in rooms:
             if room.get("capacity", 1) >= traveller_count:
                 avail = check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date)
-                if avail and avail.get("isAvailable"):
+                is_room_avail = avail and (avail.get("isAvailable") is True or avail.get("availableRooms", 0) > 0)
+                if is_room_avail:
                     available_rooms.append({
                         "hotel_id": hotel.get("id"),
                         "hotel_name": hotel.get("name"),
@@ -78,7 +81,8 @@ def build_booking_package(state):
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
             avail = check_transport_availability(t.get("id"))
-            if avail and avail.get("isAvailable"):
+            is_trans_avail = avail and (avail.get("isAvailable") is True or avail.get("availableSeats", 0) >= traveller_count)
+            if is_trans_avail:
                 available_transports.append({
                     "transport_id": t.get("id"),
                     "type": t.get("type"),
@@ -109,22 +113,39 @@ def build_booking_package(state):
             "error": "No database-backed transport option is available.",
         }
 
-    matching_rooms = [
-        room for room in available_rooms
-        if str(room.get("currency", currency)).upper() == currency
-    ]
-    matching_transports = [
-        option for option in available_transports
-        if str(option.get("currency", currency)).upper() == currency
-    ]
-    if not matching_rooms or not matching_transports:
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "CURRENCY_MISMATCH",
-            "error": f"Inventory currency does not match requested currency {currency}.",
-        }
-    available_rooms = matching_rooms
-    available_transports = matching_transports
+    # Normalize available rooms and transports to the requested currency (1 USD = 300 LKR)
+    normalized_rooms = []
+    for room in available_rooms:
+        r_copy = dict(room)
+        r_curr = str(room.get("currency") or "USD").upper()
+        p = float(room.get("price_per_night") or 0.0)
+        if r_curr == "USD" and currency == "LKR":
+            r_copy["price_per_night"] = round(p * 300.0, 2)
+            r_copy["currency"] = "LKR"
+        elif r_curr == "LKR" and currency == "USD":
+            r_copy["price_per_night"] = round(p / 300.0, 2)
+            r_copy["currency"] = "USD"
+        else:
+            r_copy["currency"] = currency
+        normalized_rooms.append(r_copy)
+
+    normalized_transports = []
+    for option in available_transports:
+        t_copy = dict(option)
+        t_curr = str(option.get("currency") or "USD").upper()
+        p = float(option.get("price") or 0.0)
+        if t_curr == "USD" and currency == "LKR":
+            t_copy["price"] = round(p * 300.0, 2)
+            t_copy["currency"] = "LKR"
+        elif t_curr == "LKR" and currency == "USD":
+            t_copy["price"] = round(p / 300.0, 2)
+            t_copy["currency"] = "USD"
+        else:
+            t_copy["currency"] = currency
+        normalized_transports.append(t_copy)
+
+    available_rooms = normalized_rooms
+    available_transports = normalized_transports
 
     itinerary_json = json.dumps(itinerary, indent=2, default=str)
     rooms_json = json.dumps(available_rooms, indent=2, default=str)
@@ -168,6 +189,16 @@ Rules:
 }}
 """
 
+    nights = 1
+    try:
+        from datetime import datetime
+        d1 = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).date()
+        d2 = datetime.fromisoformat(str(end_date).replace("Z", "+00:00")).date()
+        nights = max(1, (d2 - d1).days)
+    except Exception:
+        nights = 1
+
+    parsed_result = None
     try:
         if aiml_api_key:
             response = requests.post(
@@ -184,25 +215,50 @@ Rules:
             )
             response.raise_for_status()
             response_text = _remove_markdown_fences(response.json()["choices"][0]["message"]["content"])
+            parsed_result = json.loads(response_text)
         else:
-            from google import genai
             api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-            client = genai.Client(api_key=api_key)
-            interaction = client.interactions.create(
-                model="gemini-3.5-flash",
-                input=prompt.strip(),
-            )
-            response_text = _remove_markdown_fences(interaction.output_text)
-            
-        parsed_result = json.loads(response_text)
+            if api_key:
+                import httpx
+                url = f"https://generativelanguage.googleapis.com/v1beta/interactions?key={api_key}"
+                with httpx.Client(timeout=4.0) as client:
+                    resp = client.post(url, json={"model": "gemini-3.8-flash", "input": prompt.strip()})
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        raw_text = data.get("output_text") or (data.get("outputs", [{}])[0].get("text") if "outputs" in data else None)
+                        if raw_text:
+                            response_text = _remove_markdown_fences(raw_text)
+                            parsed_result = json.loads(response_text)
+                    else:
+                        print(f"[Warning] Booking Agent Gemini API returned HTTP {resp.status_code}, using deterministic selection fallback.")
     except Exception as error:
-        return {"error": f"LLM request failed: {error}"}
+        print(f"[Warning] Booking Agent LLM request failed ({error}), using deterministic selection fallback.")
 
-    if not isinstance(parsed_result, dict):
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "INVALID_BOOKING_OUTPUT",
-            "error": "Booking Agent returned an invalid package.",
+    if not isinstance(parsed_result, dict) or not parsed_result.get("selected_room"):
+        # Deterministic fallback: pick cheapest available room and transport
+        best_room = min(available_rooms, key=lambda r: float(r.get("price_per_night", 0)))
+        best_transport = min(available_transports, key=lambda t: float(t.get("price", 0)))
+        itinerary_cost = float(itinerary.get("total_cost", 0.0))
+        room_cost = float(best_room.get("price_per_night", 0.0)) * nights
+        transport_cost = float(best_transport.get("price", 0.0)) * traveller_count
+        total_pkg_cost = itinerary_cost + room_cost + transport_cost
+        parsed_result = {
+            "booking_package_id": None,
+            "total_package_cost": round(total_pkg_cost, 2),
+            "currency": currency,
+            "itinerary": itinerary,
+            "selected_room": {
+                "hotel_id": best_room.get("hotel_id"),
+                "room_id": best_room.get("room_id"),
+                "hotel_name": best_room.get("hotel_name"),
+                "price_per_night": best_room.get("price_per_night")
+            },
+            "selected_transport": {
+                "transport_id": best_transport.get("transport_id"),
+                "type": best_transport.get("type"),
+                "provider": best_transport.get("provider"),
+                "price": best_transport.get("price")
+            }
         }
 
     selected_room = parsed_result.get("selected_room") or {}

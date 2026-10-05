@@ -44,9 +44,11 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
 
     try {
       final data = await ApiService.getTourOrThrow(id);
+      final fav = await ApiService.isFavorite(id);
       if (!mounted) return;
       setState(() {
         _tour = data;
+        _isFavorite = fav;
         _loading = false;
       });
     } catch (error) {
@@ -541,9 +543,29 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
             foregroundColor: Colors.white,
             actions: [
               IconButton(
-                tooltip: 'Favorite',
-                onPressed: () => setState(() => _isFavorite = !_isFavorite),
-                icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border),
+                tooltip: _isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                onPressed: () async {
+                  final tourId = _asInt(_tour?['id']);
+                  if (tourId == null) return;
+                  final nowFav = await ApiService.toggleFavorite(tourId);
+                  if (!mounted) return;
+                  setState(() => _isFavorite = nowFav);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        nowFav
+                            ? 'Saved to your favorites!'
+                            : 'Removed from favorites.',
+                      ),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                icon: Icon(
+                  _isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: _isFavorite ? const Color(0xFFE11D48) : Colors.white,
+                ),
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(

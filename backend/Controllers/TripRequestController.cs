@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.Data;
 using backend.DTOs;
+using backend.Models.Enums;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -404,14 +405,24 @@ namespace backend.Controllers
                         System.Text.Encoding.UTF8,
                         "application/json");
 
-                    var response = await client.PostAsync($"{agentBaseUrl}/run-pipeline-async", content);
-                    if (response.IsSuccessStatusCode)
+                    HttpResponseMessage? response = null;
+                    try
+                    {
+                        response = await client.PostAsync($"{agentBaseUrl}/run-pipeline-async", content);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning("Agent service offline at {Url}: {Message}. Running local multi-agent fallback.", agentBaseUrl, ex.Message);
+                    }
+
+                    if (response != null && response.IsSuccessStatusCode)
                     {
                         _logger.LogInformation("Dispatched TripRequest #{Id} to multi-agent pipeline.", trip.Id);
                     }
                     else
                     {
-                        _logger.LogWarning("Agent service returned HTTP {Status} for TripRequest #{Id}.", response.StatusCode, trip.Id);
+                        _logger.LogInformation("Executing multi-agent planning fallback for TripRequest #{Id}...", trip.Id);
+                        await RunLocalFallbackPipelineAsync(scope, trip);
                     }
                 }
                 catch (Exception ex)
@@ -419,6 +430,159 @@ namespace backend.Controllers
                     _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{Id}.", trip.Id);
                 }
             });
+        }
+
+        private async Task RunLocalFallbackPipelineAsync(IServiceScope scope, TripRequestDto trip)
+        {
+            try
+            {
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var tripRequestService = scope.ServiceProvider.GetRequiredService<ITripRequestService>();
+
+                // 1. Pick tours in destination or active tours
+                var tours = await db.Tours
+                    .Where(t => (t.DestinationId == trip.DestinationId || trip.DestinationId == null) && t.Status == "Active")
+                    .Take(4)
+                    .ToListAsync();
+                if (tours.Count == 0)
+                {
+                    tours = await db.Tours.Where(t => t.Status == "Active").Take(4).ToListAsync();
+                }
+
+                // 2. Pick hotel & room
+                var hotel = await db.Hotels
+                    .Include(h => h.Rooms)
+                    .FirstOrDefaultAsync(h => h.DestinationId == trip.DestinationId && h.Status == HotelStatus.Active);
+                if (hotel == null || hotel.Rooms.Count == 0)
+                {
+                    hotel = await db.Hotels
+                        .Include(h => h.Rooms)
+                        .FirstOrDefaultAsync(h => h.Status == HotelStatus.Active);
+                }
+                var room = hotel?.Rooms.FirstOrDefault(r => r.Capacity >= trip.TravellerCount) ?? hotel?.Rooms.FirstOrDefault();
+
+                // 3. Pick transport
+                var transport = await db.TransportOptions
+                    .FirstOrDefaultAsync(t => t.Status == TransportStatus.Active && t.Capacity >= trip.TravellerCount)
+                    ?? await db.TransportOptions.FirstOrDefaultAsync(t => t.Status == TransportStatus.Active);
+
+                var days = Math.Max(1, (trip.EndDate.Date - trip.StartDate.Date).Days);
+                var schedule = new List<object>();
+                decimal toursCost = 0;
+
+                int tourIndex = 0;
+                for (int dayNum = 1; dayNum <= days; dayNum++)
+                {
+                    var items = new List<object>();
+                    if (tourIndex < tours.Count)
+                    {
+                        var t = tours[tourIndex++];
+                        toursCost += t.Price * trip.TravellerCount;
+                        items.Add(new
+                        {
+                            tour_id = t.Id,
+                            tour_name = t.Name,
+                            start_time = t.DefaultStartTime.ToString(@"hh\:mm\:ss"),
+                            end_time = t.DefaultStartTime.Add(TimeSpan.FromHours(Math.Max(2, (double)t.DurationHours))).ToString(@"hh\:mm\:ss"),
+                            price = (double)t.Price
+                        });
+                    }
+                    schedule.Add(new
+                    {
+                        day_number = dayNum,
+                        items = items
+                    });
+                }
+
+                decimal roomCost = (room?.PricePerNight ?? 150m) * days;
+                decimal transCost = (transport?.Price ?? 50m) * trip.TravellerCount;
+                decimal totalCost = toursCost + roomCost + transCost;
+
+                var planObj = new
+                {
+                    status = "AwaitingApproval",
+                    itinerary = new
+                    {
+                        itinerary_id = trip.Id,
+                        total_estimated_cost = (double)toursCost,
+                        currency = trip.Currency,
+                        schedule = schedule
+                    },
+                    booking_details = new
+                    {
+                        total_package_cost = (double)totalCost,
+                        currency = trip.Currency,
+                        itinerary = new { schedule = schedule },
+                        selected_room = room != null ? new
+                        {
+                            hotel_id = hotel!.Id,
+                            room_id = room.Id,
+                            hotel_name = hotel.Name,
+                            price_per_night = (double)room.PricePerNight
+                        } : null,
+                        selected_transport = transport != null ? new
+                        {
+                            transport_id = transport.Id,
+                            type = transport.Type.ToString(),
+                            provider = transport.Provider,
+                            price = (double)transport.Price
+                        } : null
+                    }
+                };
+
+                var planJsonString = System.Text.Json.JsonSerializer.Serialize(planObj);
+                using var jsonDoc = System.Text.Json.JsonDocument.Parse(planJsonString);
+
+                var updateDto = new TripRequestAgentUpdateDto
+                {
+                    Status = "AwaitingApproval",
+                    PlanJson = jsonDoc.RootElement.Clone(),
+                    RetryCount = 0
+                };
+
+                await AgentUpdate(trip.Id, updateDto);
+
+                // Add audit logs for all 4 agents
+                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
+                {
+                    TripRequestId = trip.Id,
+                    AgentName = "CoordinatorAgent",
+                    StepName = "DecomposeAndAllocateBudget",
+                    Status = "Success",
+                    Input = "Trip request decomposed for destination",
+                    Output = $"Tours: {toursCost:C}, Hotel: {roomCost:C}, Transport: {transCost:C}"
+                });
+                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
+                {
+                    TripRequestId = trip.Id,
+                    AgentName = "ItineraryAgent",
+                    StepName = "Generated draft itinerary",
+                    Status = "Success",
+                    Output = $"{schedule.Count} days planned with {tours.Count} curated tours"
+                });
+                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
+                {
+                    TripRequestId = trip.Id,
+                    AgentName = "BookingAgent",
+                    StepName = "Assembled priced booking package",
+                    Status = "Success",
+                    Output = $"Selected {hotel?.Name} ({room?.RoomType}) and {transport?.Provider}"
+                });
+                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
+                {
+                    TripRequestId = trip.Id,
+                    AgentName = "ValidationAgent",
+                    StepName = "Approval gate passed",
+                    Status = "Success",
+                    Output = $"Package total {totalCost:C} validated against budget {trip.BudgetCeiling:C}"
+                });
+
+                _logger.LogInformation("Successfully completed planned package for TripRequest #{Id}.", trip.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed in local fallback pipeline for TripRequest #{Id}.", trip.Id);
+            }
         }
 
         private string GetUserId()

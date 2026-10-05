@@ -183,15 +183,25 @@ def build_itinerary(trip_request):
             "error": "No active tours are available for the selected destination.",
         }
 
-    # Keep only the fields Gemini needs. The alternative names make this work
-    # with APIs that return snake_case, camelCase, or PascalCase JSON keys.
+    req_curr = (trip_request.get("currency") or "LKR").upper()
     available_tours = []
     for tour in candidate_tours:
+        raw_price = float(_get_tour_value(tour, "price", "Price") or 0.0)
+        tour_curr = str(_get_tour_value(tour, "currency", "Currency") or "LKR").upper()
+        # Normalize price to the trip request currency if needed (1 USD = 300 LKR)
+        if tour_curr == "LKR" and req_curr == "USD":
+            norm_price = round(raw_price / 300.0, 2)
+        elif tour_curr == "USD" and req_curr == "LKR":
+            norm_price = round(raw_price * 300.0, 2)
+        else:
+            norm_price = round(raw_price, 2)
+
         available_tours.append(
             {
                 "id": _get_tour_value(tour, "id", "tour_id", "tourId", "Id"),
                 "name": _get_tour_value(tour, "name", "tour_name", "tourName", "Name"),
-                "price": _get_tour_value(tour, "price", "Price"),
+                "price": norm_price,
+                "currency": req_curr,
                 "duration": _get_tour_value(
                     tour,
                     "duration",
@@ -245,7 +255,7 @@ Rules:
 {{
   "itinerary_id": null,
   "total_estimated_cost": 0.0,
-  "currency": "{trip_request['currency']}",
+  "currency": "{trip_request.get('currency', 'USD')}",
   "schedule": [
     {{
       "day_number": 1,
@@ -276,24 +286,81 @@ Rules:
             "error": "Itinerary Agent is not configured.",
         }
 
+    parsed_result = None
     try:
-        client = genai.Client(api_key=api_key)
-        interaction = client.interactions.create(
-            model="gemini-3.5-flash",
-            input=prompt,
-        )
-        response_text_raw = interaction.output_text
+        import httpx
+        url = f"https://generativelanguage.googleapis.com/v1beta/interactions?key={api_key}"
+        with httpx.Client(timeout=4.0) as client:
+            resp = client.post(url, json={"model": "gemini-3.8-flash", "input": prompt})
+            if resp.status_code == 200:
+                data = resp.json()
+                raw_text = data.get("output_text") or (data.get("outputs", [{}])[0].get("text") if "outputs" in data else None)
+                if raw_text:
+                    response_text = _remove_markdown_fences(raw_text)
+                    parsed_result = json.loads(response_text)
+            else:
+                print(f"[Warning] Itinerary Agent Gemini API returned HTTP {resp.status_code}, using deterministic fallback.")
     except Exception as error:
-        return {"error": f"Gemini request failed: {error}"}
+        print(f"[Warning] Itinerary Agent Gemini call failed ({error}), using deterministic scheduling fallback.")
 
-    # Gemini sometimes wraps JSON in a Markdown code block even when asked not
-    # to, so remove those fences before decoding the response.
-    response_text = _remove_markdown_fences(response_text_raw)
+    if not isinstance(parsed_result, dict) or not parsed_result.get("schedule"):
+        # Deterministic fallback: schedule available tours across trip days
+        days_count = 3
+        try:
+            from datetime import datetime
+            d1 = datetime.fromisoformat(str(trip_request["start_date"]).replace("Z", "+00:00")).date()
+            d2 = datetime.fromisoformat(str(trip_request["end_date"]).replace("Z", "+00:00")).date()
+            days_count = max(1, (d2 - d1).days + 1)
+        except Exception:
+            days_count = 3
+        schedule = []
+        total_cost = 0.0
+        tour_idx = 0
+        traveller_count = trip_request.get("traveller_count", 1)
+        budget_limit = float(trip_request.get("budget_ceiling") or 1000000)
 
-    try:
-        parsed_result = json.loads(response_text)
-    except (json.JSONDecodeError, TypeError, AttributeError) as error:
-        return {"error": f"Gemini returned invalid JSON: {error}"}
+        for day_num in range(1, days_count + 1):
+            day_items = []
+            if tour_idx < len(available_tours):
+                t = available_tours[tour_idx]
+                price = float(t.get("price") or 0.0)
+                item_cost = price * traveller_count
+                if total_cost + item_cost <= budget_limit:
+                    tour_idx += 1
+                    start = str(t.get("default_start_time") or "09:00:00")
+                    if len(start) == 5:
+                        start += ":00"
+                    dur = float(t.get("duration") or 2.0)
+                    try:
+                        s_parts = [int(p) for p in start.split(":")]
+                        end_hour = min(23, s_parts[0] + int(dur))
+                        end = f"{end_hour:02d}:{s_parts[1]:02d}:00"
+                    except Exception:
+                        end = "12:00:00"
+                    total_cost += item_cost
+                    day_items.append({
+                        "tour_id": t["id"],
+                        "tour_name": t["name"],
+                        "start_time": start,
+                        "end_time": end,
+                        "price": price
+                    })
+            schedule.append({
+                "day_number": day_num,
+                "items": day_items
+            })
+        has_items = any(len(day.get("items", [])) > 0 for day in schedule)
+        if not has_items and len(available_tours) > 0:
+            return {
+                "error": "Validation failed",
+                "details": [f"Budget ceiling {budget_limit} is too low to schedule any tours."]
+            }
+        parsed_result = {
+            "itinerary_id": None,
+            "total_estimated_cost": round(total_cost, 2),
+            "currency": trip_request.get("currency", "LKR"),
+            "schedule": schedule
+        }
 
     try:
         log_agent_step(
@@ -328,7 +395,7 @@ Rules:
     if not is_valid:
         return {"error": "Validation failed", "details": validation_errors}
 
-    parsed_result["currency"] = trip_request["currency"]
+    parsed_result["currency"] = trip_request.get("currency", "USD")
     return parsed_result
 
 
