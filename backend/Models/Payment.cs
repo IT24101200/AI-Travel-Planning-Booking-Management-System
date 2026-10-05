@@ -24,6 +24,12 @@ namespace backend.Models
         [MaxLength(100)]
         public string? StripeReference { get; set; }
 
+        [MaxLength(120)]
+        public string? IdempotencyKey { get; set; }
+
+        [MaxLength(500)]
+        public string? FailureReason { get; set; }
+
         public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
 
         // ── Navigation Properties ──

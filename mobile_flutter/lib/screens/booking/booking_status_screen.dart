@@ -190,11 +190,14 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
 
     final statusKey = _normalizeBookingStatus(_booking!['status']);
-    final isQrEligible = statusKey == 'Confirmed' || statusKey == 'Completed';
-
     final payments = _booking!['payments'];
     final isPaid = _booking!['paymentStatus'] == 'Paid' ||
-        (payments is List && payments.isNotEmpty);
+        (payments is List && payments.any((payment) {
+          return payment is Map &&
+              payment['status']?.toString().toLowerCase() == 'paid';
+        }));
+    final isQrEligible =
+        (statusKey == 'Confirmed' || statusKey == 'Completed') && isPaid;
 
     String statusBadgeText;
     Color statusBadgeColor;

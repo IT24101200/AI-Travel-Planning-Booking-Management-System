@@ -120,16 +120,22 @@ namespace backend.DTOs
         [Range(1, int.MaxValue, ErrorMessage = "BookingId must be a valid positive integer.")]
         public int BookingId { get; set; }
 
-        [Range(0, double.MaxValue, ErrorMessage = "Amount cannot be negative.")]
+        /// <summary>
+        /// Stripe PaymentMethod identifier created by Stripe.js/Stripe SDK.
+        /// For the academic TEST-mode flow, Stripe's documented pm_card_* test
+        /// PaymentMethods may be used. Amount and currency are never client-owned.
+        /// </summary>
+        [MaxLength(100)]
+        public string? PaymentMethodId { get; set; }
+
+        // Retained for wire compatibility with older clients. PaymentService
+        // deliberately ignores both values and derives them from Booking.
+        [Obsolete("Amount is server-derived and is ignored.")]
         public decimal Amount { get; set; }
 
+        [Obsolete("Currency is server-derived and is ignored.")]
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
-
-        /// <summary>
-        /// Stripe Sandbox test card token (default: tok_visa).
-        /// </summary>
-        public string StripeToken { get; set; } = "tok_visa";
+        public string? Currency { get; set; }
     }
 
     public class PaymentDto
@@ -144,6 +150,7 @@ namespace backend.DTOs
         public PaymentStatus Status { get; set; }
         public string? StripeReference { get; set; }
         public DateTime PaymentDate { get; set; }
+        public string? FailureReason { get; set; }
     }
 
     public class RevenueReportDto

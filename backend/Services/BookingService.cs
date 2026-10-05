@@ -411,6 +411,7 @@ namespace backend.Services
                     Currency = p.Currency,
                     Status = p.Status,
                     StripeReference = p.StripeReference,
+                    FailureReason = p.FailureReason,
                     PaymentDate = p.PaymentDate
                 }).ToList(),
                 AgentLogs = agentLogs

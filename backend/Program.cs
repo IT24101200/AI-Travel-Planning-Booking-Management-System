@@ -159,6 +159,7 @@ builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IApprovalService, ApprovalService>();
 builder.Services.AddScoped<IRevisionPlanningService, RevisionPlanningService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
 
 // ── Swagger / OpenAPI ──
 builder.Services.AddEndpointsApiExplorer();

@@ -268,6 +268,8 @@ namespace backend.Data
                 entity.Property(p => p.Amount).HasColumnType("decimal(18,2)");
                 entity.Property(p => p.Currency).HasMaxLength(10).HasDefaultValue("USD");
                 entity.Property(p => p.StripeReference).HasMaxLength(100);
+                entity.Property(p => p.IdempotencyKey).HasMaxLength(120);
+                entity.Property(p => p.FailureReason).HasMaxLength(500);
                 entity.Property(p => p.PaymentDate).HasDefaultValueSql("NOW()");
 
                 entity.HasOne(p => p.Booking)

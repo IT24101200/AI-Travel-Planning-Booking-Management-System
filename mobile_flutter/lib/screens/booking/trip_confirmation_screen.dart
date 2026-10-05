@@ -19,6 +19,20 @@ class TripConfirmationScreen extends StatelessWidget {
     }
     final Map<String, dynamic> booking = Map<String, dynamic>.from(args);
 
+    final bookingStatus = booking['status']?.toString().toLowerCase();
+    final isConfirmed = bookingStatus == 'confirmed' || bookingStatus == '2';
+    final payments = booking['payments'];
+    final isPaid = booking['paymentStatus']?.toString().toLowerCase() == 'paid' ||
+        (payments is List && payments.any((payment) {
+          return payment is Map &&
+              payment['status']?.toString().toLowerCase() == 'paid';
+        }));
+    if (!isConfirmed || !isPaid) {
+      return const Scaffold(
+        body: Center(child: Text('Payment is required before the ticket is available.')),
+      );
+    }
+
     final bookingRef = booking['bookingReference']?.toString();
     if (bookingRef == null || bookingRef.isEmpty) {
       return const Scaffold(
