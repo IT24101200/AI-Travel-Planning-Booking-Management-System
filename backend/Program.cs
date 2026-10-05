@@ -214,19 +214,22 @@ builder.Services.AddCors(options =>
     {
         if (allowedOrigins.Length > 0)
         {
-            policy.WithOrigins(allowedOrigins)
-                .AllowAnyMethod()
-                .AllowAnyHeader();
+            policy.SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrEmpty(origin)) return false;
+                // Always permit localhost development origins (Flutter Web, React, etc.)
+                if (origin.StartsWith("http://localhost:") || origin.StartsWith("https://localhost:") || origin == "http://localhost" || origin == "https://localhost")
+                    return true;
+                return allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+            })
+            .AllowAnyMethod()
+            .AllowAnyHeader();
         }
-        else if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        else
         {
             policy.AllowAnyOrigin()
                 .AllowAnyMethod()
                 .AllowAnyHeader();
-        }
-        else
-        {
-            policy.SetIsOriginAllowed(_ => false);
         }
     });
 });

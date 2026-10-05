@@ -229,8 +229,10 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
 
     if (_error != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('My Trips')),
-        body: ErrorMessage(message: _error!, onRetry: _loadData),
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: SafeArea(
+          child: ErrorMessage(message: _error!, onRetry: _loadData),
+        ),
       );
     }
     final currentList = _trips.where((trip) => _inTab(trip, _activeTab)).toList();
