@@ -32,7 +32,7 @@ export const experiences = [
     summary:
       'Private 4x4 with a tracker who works Block 5, park entry, and a hot breakfast at the waterhole hide.',
     icon: 'paw',
-    image: yalaImg,
+    image: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
   },
   {
     id: 'mirissa-whales',

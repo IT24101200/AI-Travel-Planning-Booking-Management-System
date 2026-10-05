@@ -510,7 +510,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 _buildDestinationCard(
                   name: 'Yala',
                   category: 'Wild frontier',
-                  imagePath: 'assets/photos/yala-1280.jpg',
+                  imagePath: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
                   onTap: () => Navigator.pushNamed(context, '/tour-search', arguments: 'Yala'),
                 ),
                 const SizedBox(width: 12),
@@ -780,6 +780,10 @@ class _ExploreTabState extends State<_ExploreTab> {
     required String imagePath,
     required VoidCallback onTap,
   }) {
+    final ImageProvider imageProvider = imagePath.startsWith('http')
+        ? NetworkImage(imagePath)
+        : AssetImage(imagePath) as ImageProvider;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -787,7 +791,7 @@ class _ExploreTabState extends State<_ExploreTab> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(18),
           image: DecorationImage(
-            image: AssetImage(imagePath),
+            image: imageProvider,
             fit: BoxFit.cover,
           ),
         ),

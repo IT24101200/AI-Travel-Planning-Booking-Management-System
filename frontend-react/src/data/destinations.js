@@ -159,8 +159,8 @@ export const destinations = [
     currency: 'USD',
     coords: { lat: 6.3728, lng: 81.5019 },
     tags: ['Safari', 'Wildlife'],
-    image: yalaImg,
-    thumb: yalaThumb,
+    image: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
+    thumb: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
     palette: {
       skyTop: '#2a2340',
       skyBottom: '#eaa15c',

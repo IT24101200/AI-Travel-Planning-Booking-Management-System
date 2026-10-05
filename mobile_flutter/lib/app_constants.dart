@@ -136,7 +136,7 @@ class AppDestinations {
       name: 'Yala',
       region: 'Deep South',
       tagline: 'World-famous leopard density & safari adventures',
-      imageUrl: 'assets/photos/yala-1280.jpg',
+      imageUrl: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
       tags: 'Wildlife • Safari',
       rating: 4.9,
       priceFrom: 210,

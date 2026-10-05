@@ -446,7 +446,7 @@ namespace backend.Data
                     Description = "Premier national park celebrated for high leopard density, herds of wild Asian elephants, and coastal scrub lagoons.",
                     Latitude = 6.3725,
                     Longitude = 81.5204,
-                    ImageUrl = "https://images.unsplash.com/photo-1561731216-c3a4d99437d5?auto=format&fit=crop&w=1200&q=80"
+                    ImageUrl = "https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg"
                 },
                 new Destination
                 {
@@ -569,7 +569,7 @@ namespace backend.Data
                         Name = "Yala Block 1 Dawn Leopard & Elephant Safari",
                         Category = "Wildlife",
                         Description = "Private 4x4 open safari vehicle with an experienced tracker navigating the coastal lagoons and rocky outcrops for leopards and sloth bears.",
-                        ImageUrl = "https://images.unsplash.com/photo-1561731216-c3a4d99437d5?auto=format&fit=crop&w=800&q=80",
+                        ImageUrl = "https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg",
                         Price = 120.00m,
                         Currency = "USD",
                         DurationHours = 6.0,

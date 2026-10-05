@@ -24,7 +24,7 @@ const CATEGORIES = ['All', 'Heritage', 'Wildlife', 'Cultural', 'Marine', 'Scenic
 
 const FALLBACK_TOUR_IMAGES = {
   sigiriya: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
-  yala: 'https://images.unsplash.com/photo-1561731216-c3a4d99437d5?w=600&auto=format&fit=crop&q=80',
+  yala: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
   kandy: 'https://images.unsplash.com/photo-1546708973-b339540b5162?w=600&auto=format&fit=crop&q=80',
   galle: 'https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=600&auto=format&fit=crop&q=80',
   ella: 'https://images.unsplash.com/photo-1588258524675-c61917a10786?w=600&auto=format&fit=crop&q=80',
