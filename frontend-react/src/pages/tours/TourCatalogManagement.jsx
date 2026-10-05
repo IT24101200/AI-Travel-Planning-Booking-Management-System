@@ -16,7 +16,8 @@ import {
   RefreshIcon,
   EditIcon,
   TrashIcon,
-  CheckIcon
+  CheckIcon,
+  CloseIcon
 } from '../../components/ui/Icons.jsx'
 import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
 
@@ -124,10 +125,6 @@ export default function TourCatalogManagement() {
             }
           })
           setRows(mapped)
-
-          if (mapped.length > 0 && !selectedTour) {
-            selectForEdit(mapped[0])
-          }
         } else {
           setRows([])
           loadErrors.push('Could not load tours. Check that the backend is running.')
@@ -411,24 +408,24 @@ export default function TourCatalogManagement() {
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.25rem' }} onClick={(e) => e.stopPropagation()}>
+                        <div style={{ display: 'inline-flex', gap: '0.375rem' }} onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="btn-outline"
-                            style={{ height: '28px', padding: '0 6px' }}
+                            className="btn-action-edit"
                             title="Edit Tour"
                             onClick={() => selectForEdit(tour)}
                           >
-                            <EditIcon size={13} />
+                            <EditIcon size={12} />
+                            <span>Edit</span>
                           </button>
                           <button
                             type="button"
-                            className="btn-outline"
-                            style={{ height: '28px', padding: '0 6px', color: tour.status === 'Inactive' ? '#267a55' : '#dc2626' }}
+                            className="btn-action-delete"
                             title={tour.status === 'Inactive' ? 'Restore' : 'Deactivate'}
                             onClick={() => tour.status === 'Inactive' ? handleRestoreTour(tour) : handleDeleteTour(tour.id, tour.name)}
                           >
-                            {tour.status === 'Inactive' ? 'Restore' : <TrashIcon size={13} />}
+                            {tour.status === 'Inactive' ? <CheckIcon size={12} /> : <TrashIcon size={12} />}
+                            <span>{tour.status === 'Inactive' ? 'Restore' : 'Delete'}</span>
                           </button>
                         </div>
                       </td>
@@ -632,7 +629,8 @@ export default function TourCatalogManagement() {
                   className="btn-outline"
                   onClick={() => setDrawerMode(null)}
                 >
-                  Save as draft
+                  <CloseIcon size={14} />
+                  <span>Cancel</span>
                 </button>
                 <button
                   type="submit"

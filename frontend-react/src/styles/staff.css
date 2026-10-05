@@ -347,76 +347,187 @@
 }
 
 /* ── Standard Buttons matching Figma ── */
+/* ── Standard Buttons matching Figma ── */
 .btn-gold,
 .btn-green,
 .btn-primary {
-  background-color: #166b4f;
+  background: linear-gradient(135deg, #1f8c66 0%, #166b4f 100%);
   color: #ffffff;
-  border: 1px solid #166b4f;
-  border-radius: 6px;
+  border: 1px solid #1f8c66;
+  border-radius: 8px;
   height: 38px;
-  padding: 0 0.875rem;
-  font-size: 0.75rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 2px 8px rgba(22, 107, 79, 0.28);
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .btn-gold:hover,
 .btn-green:hover,
 .btn-primary:hover {
-  background-color: #11533d;
-  border-color: #11533d;
-  box-shadow: 0 2px 8px rgba(22, 107, 79, 0.25);
+  background: linear-gradient(135deg, #259c73 0%, #11533d 100%);
+  border-color: #35b183;
+  box-shadow: 0 4px 14px rgba(22, 107, 79, 0.4);
+  transform: translateY(-1px);
+}
+
+.btn-gold:active,
+.btn-green:active,
+.btn-primary:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(22, 107, 79, 0.2);
 }
 
 .btn-outline {
   background-color: #ffffff;
   color: #182126;
   border: 1px solid #c8d1d4;
-  border-radius: 6px;
+  border-radius: 8px;
   height: 38px;
-  padding: 0 0.875rem;
-  font-size: 0.75rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
   text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
-.btn-outline:hover {
-  background-color: #f8fafa;
-  border-color: #b0bcc0;
+.btn-outline:hover:not(:disabled) {
+  background-color: #f0fdf4;
+  border-color: #166b4f;
+  color: #166b4f;
+  box-shadow: 0 2px 8px rgba(22, 107, 79, 0.15);
+  transform: translateY(-1px);
+}
+
+.btn-outline:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .btn-danger-soft {
   background-color: #fee2e2;
   color: #991b1b;
   border: 1px solid #fecaca;
-  border-radius: 6px;
+  border-radius: 8px;
   height: 38px;
-  padding: 0 0.875rem;
-  font-size: 0.75rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: all 0.15s ease;
   white-space: nowrap;
 }
 
 .btn-danger-soft:hover {
   background-color: #fecaca;
+  color: #7f1d1d;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
+  transform: translateY(-1px);
+}
+
+/* ── Visualized Table Row Action Buttons ── */
+.btn-action-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  color: #065f46;
+  background-color: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(22, 107, 79, 0.08);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-edit:hover {
+  background-color: #059669;
+  color: #ffffff;
+  border-color: #059669;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-action-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 28px;
+  padding: 0 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  color: #b91c1c;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.08);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-delete:hover {
+  background-color: #dc2626;
+  color: #ffffff;
+  border-color: #dc2626;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.35);
+  transform: translateY(-1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-outline {
+    background-color: rgba(255, 255, 255, 0.07);
+    color: #f1f5f9;
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.14);
+    border-color: #35b183;
+    color: #6ee7b7;
+  }
+  .btn-action-edit {
+    background-color: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+    border-color: rgba(52, 211, 153, 0.4);
+  }
+  .btn-action-edit:hover {
+    background-color: #059669;
+    color: #ffffff;
+    border-color: #059669;
+  }
+  .btn-action-delete {
+    background-color: rgba(239, 68, 68, 0.18);
+    color: #fca5a5;
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+  .btn-action-delete:hover {
+    background-color: #dc2626;
+    color: #ffffff;
+    border-color: #dc2626;
+  }
 }
 
 /* ── Filter Tabs matching Figma ── */

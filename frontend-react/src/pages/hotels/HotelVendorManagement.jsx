@@ -8,7 +8,8 @@ import {
   SearchIcon,
   RefreshIcon,
   CloseIcon,
-  CheckIcon
+  CheckIcon,
+  EditIcon
 } from '../../components/ui/Icons.jsx'
 import ImageUploadWidget from '../../components/common/ImageUploadWidget.jsx'
 
@@ -26,7 +27,7 @@ export default function HotelVendorManagement() {
   const [page, setPage] = useState(1)
 
   // Drawer state
-  const [drawerMode, setDrawerMode] = useState('edit') // 'edit' | 'create' | null
+  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
   const [selectedHotel, setSelectedHotel] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -88,10 +89,6 @@ export default function HotelVendorManagement() {
             }
           })
           setRows(mapped)
-
-          if (mapped.length > 0 && !selectedHotel) {
-            selectForEdit(mapped[0])
-          }
         }
       }
     } catch (err) {
@@ -296,7 +293,7 @@ export default function HotelVendorManagement() {
       )}
 
       {/* ── Split Workspace matching Figma 2:28195 ── */}
-      <div className="split-workspace">
+      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 420px' : '1fr' }}>
         {/* Left Table Card */}
         <div className="staff-card">
           <div className="staff-card__head">
@@ -316,12 +313,13 @@ export default function HotelVendorManagement() {
                   <th>ROOMS</th>
                   <th>PRICE / NIGHT</th>
                   <th>STATUS</th>
+                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem' }}>
                       <LoadingState message="Loading hotel partners from database…" />
                     </td>
                   </tr>
@@ -405,12 +403,23 @@ export default function HotelVendorManagement() {
                             <span className="badge-dot" /> {h.status}
                           </span>
                         </td>
+                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn-action-edit"
+                            title="Edit Hotel"
+                            onClick={() => selectForEdit(h)}
+                          >
+                            <EditIcon size={12} />
+                            <span>Edit</span>
+                          </button>
+                        </td>
                       </tr>
                     )
                   })
                 ) : (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
                       {query ? `No hotels match “${query}”.` : 'No hotels in console.'}
                     </td>
                   </tr>
@@ -614,7 +623,15 @@ export default function HotelVendorManagement() {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setDrawerMode(null)}
+                >
+                  <CloseIcon size={14} />
+                  <span>Cancel</span>
+                </button>
                 {drawerMode === 'edit' && selectedHotel && (
                   <button
                     type="button"

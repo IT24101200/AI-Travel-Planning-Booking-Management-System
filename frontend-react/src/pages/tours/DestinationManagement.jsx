@@ -120,8 +120,6 @@ export default function DestinationManagement() {
             if (target) {
               selectForEdit(target)
             }
-          } else if (mapped.length > 0 && !selectedDest && drawerMode !== 'create') {
-            selectForEdit(mapped[0])
           }
         }
       }
@@ -311,7 +309,7 @@ export default function DestinationManagement() {
       )}
 
       {/* ── Split Workspace matching Figma 2:27727 ── */}
-      <div className="split-workspace">
+      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 420px' : '1fr' }}>
         {/* Left Table Card */}
         <div className="staff-card">
           <div className="staff-card__head">
@@ -414,8 +412,7 @@ export default function DestinationManagement() {
                           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
                             <button
                               type="button"
-                              className="btn-outline"
-                              style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem', gap: '0.25rem' }}
+                              className="btn-action-edit"
                               onClick={() => selectForEdit(d)}
                               title="Edit destination"
                             >
@@ -424,8 +421,7 @@ export default function DestinationManagement() {
                             </button>
                             <button
                               type="button"
-                              className="btn-danger-soft"
-                              style={{ height: '28px', padding: '0 0.5rem', fontSize: '0.75rem', gap: '0.25rem' }}
+                              className="btn-action-delete"
                               onClick={() => requestRemove(d)}
                               title="Delete destination"
                             >
@@ -663,7 +659,15 @@ export default function DestinationManagement() {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setDrawerMode(null)}
+                >
+                  <CloseIcon size={14} />
+                  <span>Cancel</span>
+                </button>
                 {drawerMode === 'edit' && selectedDest && (
                   <button
                     type="button"

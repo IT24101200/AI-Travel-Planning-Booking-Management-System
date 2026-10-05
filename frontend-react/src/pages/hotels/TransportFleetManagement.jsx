@@ -13,7 +13,8 @@ import {
   TrainIcon,
   BusFrontIcon,
   PlaneIcon,
-  TrashIcon
+  TrashIcon,
+  EditIcon
 } from '../../components/ui/Icons.jsx'
 import ImageUploadWidget from '../../components/common/ImageUploadWidget.jsx'
 
@@ -45,7 +46,7 @@ export default function TransportFleetManagement() {
   const [page, setPage] = useState(1)
 
   // Drawer state
-  const [drawerMode, setDrawerMode] = useState('edit') // 'edit' | 'create' | null
+  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
   const [selectedSchedule, setSelectedSchedule] = useState(null)
   const [formData, setFormData] = useState({
     type: 'Car',
@@ -104,10 +105,6 @@ export default function TransportFleetManagement() {
           }
         })
         setRows(mapped)
-
-        if (mapped.length > 0 && !selectedSchedule) {
-          selectForEdit(mapped[0])
-        }
       }
     } catch (err) {
       if (!cancelled) {
@@ -334,7 +331,7 @@ export default function TransportFleetManagement() {
       )}
 
       {/* ── Split Workspace matching Figma 2:28401 ── */}
-      <div className="split-workspace">
+      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 420px' : '1fr' }}>
         {/* Left Table Card */}
         <div className="staff-card">
           <div className="staff-card__head">
@@ -356,12 +353,13 @@ export default function TransportFleetManagement() {
                   <th>SEATS</th>
                   <th>RATE</th>
                   <th>STATUS</th>
+                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '2.5rem' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '2.5rem' }}>
                       <LoadingState message="Loading transport schedules from database…" />
                     </td>
                   </tr>
@@ -429,12 +427,23 @@ export default function TransportFleetManagement() {
                             <span className="badge-dot" /> {sch.status}
                           </span>
                         </td>
+                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn-action-edit"
+                            title="Edit Schedule"
+                            onClick={() => selectForEdit(sch)}
+                          >
+                            <EditIcon size={12} />
+                            <span>Edit</span>
+                          </button>
+                        </td>
                       </tr>
                     )
                   })
                 ) : (
                   <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
+                    <td colSpan={9} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
                       {query ? `No transport services match “${query}”.` : 'No schedules in fleet.'}
                     </td>
                   </tr>
@@ -639,6 +648,14 @@ export default function TransportFleetManagement() {
 
               {/* Actions matching Figma 2:28401 */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  onClick={() => setDrawerMode(null)}
+                >
+                  <CloseIcon size={14} />
+                  <span>Cancel</span>
+                </button>
                 {drawerMode === 'edit' && selectedSchedule && (
                   <button
                     type="button"
