@@ -121,7 +121,6 @@ export default function DestinationManagement() {
             setSelectedDest(null)
             setDrawerMode(null)
           }
-          }
         } else {
           setRows([])
           setSelectedDest(null)
