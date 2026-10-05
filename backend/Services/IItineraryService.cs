@@ -1,5 +1,4 @@
 using backend.DTOs;
-using backend.Models.Enums;
 
 namespace backend.Services
 {
@@ -41,14 +40,24 @@ namespace backend.Services
         Task<(bool Success, string? ErrorMessage)> RemoveItemFromItineraryAsync(int itineraryId, int itineraryItemId);
 
         /// <summary>
-        /// Updates the Status of an existing Itinerary.
-        /// Returns a result tuple: (Success, ErrorMessage).
+        /// Applies the itinerary status rules for a staff member or owning customer.
         /// </summary>
-        Task<(bool Success, string? ErrorMessage)> UpdateItineraryStatusAsync(int itineraryId, ItineraryStatus newStatus);
+        Task<ItineraryStatusUpdateResult> UpdateItineraryStatusAsync(
+            int itineraryId, string? requestedStatus, string? actorCustomerId, bool isStaff);
 
         /// <summary>
         /// Returns all Itineraries for staff review queue.
         /// </summary>
         Task<List<ItineraryDto>> GetAllItinerariesAsync();
     }
+
+    public enum ItineraryStatusUpdateOutcome
+    {
+        Updated,
+        Invalid,
+        Forbidden,
+        NotFound
+    }
+
+    public sealed record ItineraryStatusUpdateResult(ItineraryStatusUpdateOutcome Outcome, string Message);
 }

@@ -63,6 +63,150 @@ namespace backend.Tests
             return (context, service, itinerary.Id, tour.Id);
         }
 
+        private static async Task<(AppDbContext context, ItineraryService service, int itineraryId)>
+            SeedStatusAsync(ItineraryStatus status, bool withItem = false)
+        {
+            var (context, service, itineraryId, tourId) = await SeedAsync();
+            var itinerary = await context.Itineraries.FindAsync(itineraryId);
+            itinerary!.Status = status;
+
+            if (withItem)
+            {
+                context.ItineraryItems.Add(new ItineraryItem
+                {
+                    Id = 1,
+                    ItineraryId = itineraryId,
+                    TourId = tourId,
+                    DayNumber = 1,
+                    SequenceOrder = 1,
+                    StartTime = new TimeSpan(9, 0, 0),
+                    EndTime = new TimeSpan(11, 0, 0),
+                    PriceAtSelection = 50
+                });
+            }
+
+            await context.SaveChangesAsync();
+            context.ChangeTracker.Clear();
+            return (context, service, itineraryId);
+        }
+
+        [Theory]
+        [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Proposed, true)]
+        [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Draft, false)]
+        [InlineData(true, ItineraryStatus.Proposed, ItineraryStatus.Draft, false)]
+        [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Discarded, false)]
+        [InlineData(true, ItineraryStatus.Proposed, ItineraryStatus.Discarded, false)]
+        [InlineData(false, ItineraryStatus.Proposed, ItineraryStatus.Accepted, false)]
+        [InlineData(false, ItineraryStatus.Proposed, ItineraryStatus.Draft, false)]
+        [InlineData(false, ItineraryStatus.Draft, ItineraryStatus.Discarded, false)]
+        [InlineData(false, ItineraryStatus.Proposed, ItineraryStatus.Discarded, false)]
+        public async Task UpdateStatus_AllAllowedTransitions_SaveStatus(
+            bool isStaff, ItineraryStatus from, ItineraryStatus to, bool withItem)
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(from, withItem);
+
+            var result = await service.UpdateItineraryStatusAsync(
+                itineraryId, to.ToString(), isStaff ? null : "test-customer-1", isStaff);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Updated, result.Outcome);
+            context.ChangeTracker.Clear();
+            Assert.Equal(to, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Theory]
+        [InlineData(ItineraryStatus.Draft)]
+        [InlineData(ItineraryStatus.Proposed)]
+        public async Task UpdateStatus_StaffCannotAccept(ItineraryStatus from)
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(from, true);
+
+            var result = await service.UpdateItineraryStatusAsync(itineraryId, "Accepted", null, true);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Forbidden, result.Outcome);
+            Assert.Equal(from, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Fact]
+        public async Task UpdateStatus_CannotProposeDraftWithoutActivities()
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(ItineraryStatus.Draft);
+
+            var result = await service.UpdateItineraryStatusAsync(itineraryId, "Proposed", null, true);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Invalid, result.Outcome);
+            Assert.Equal("Cannot approve an itinerary with no activities.", result.Message);
+            Assert.Equal(ItineraryStatus.Draft, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Theory]
+        [InlineData(ItineraryStatus.Accepted, true)]
+        [InlineData(ItineraryStatus.Accepted, false)]
+        [InlineData(ItineraryStatus.Discarded, true)]
+        [InlineData(ItineraryStatus.Discarded, false)]
+        public async Task UpdateStatus_FinalStatesCannotChange(ItineraryStatus from, bool isStaff)
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(from);
+
+            var result = await service.UpdateItineraryStatusAsync(
+                itineraryId, "Draft", isStaff ? null : "test-customer-1", isStaff);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Invalid, result.Outcome);
+            Assert.Equal(from, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Fact]
+        public async Task UpdateStatus_CustomerCannotAcceptSomeoneElsesItinerary()
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(ItineraryStatus.Proposed);
+
+            var result = await service.UpdateItineraryStatusAsync(itineraryId, "Accepted", "other-customer", false);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Forbidden, result.Outcome);
+            Assert.Equal(ItineraryStatus.Proposed, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Theory]
+        [InlineData("Approve")]
+        [InlineData("")]
+        [InlineData("999")]
+        [InlineData("Draft, Proposed")]
+        public async Task UpdateStatus_InvalidStatusTextIsRejected(string status)
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(ItineraryStatus.Draft, true);
+
+            var result = await service.UpdateItineraryStatusAsync(itineraryId, status, null, true);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Invalid, result.Outcome);
+            Assert.Equal(ItineraryStatus.Draft, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Theory]
+        [InlineData(true, ItineraryStatus.Proposed, "Proposed")]
+        [InlineData(false, ItineraryStatus.Draft, "Accepted")]
+        [InlineData(false, ItineraryStatus.Draft, "Proposed")]
+        [InlineData(false, ItineraryStatus.Proposed, "Proposed")]
+        public async Task UpdateStatus_OtherTransitionsAreRejected(
+            bool isStaff, ItineraryStatus from, string target)
+        {
+            var (context, service, itineraryId) = await SeedStatusAsync(from, true);
+
+            var result = await service.UpdateItineraryStatusAsync(
+                itineraryId, target, isStaff ? null : "test-customer-1", isStaff);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.Invalid, result.Outcome);
+            Assert.Equal(from, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+        }
+
+        [Fact]
+        public async Task UpdateStatus_MissingItineraryIsNotFound()
+        {
+            var (_, service, _) = await SeedStatusAsync(ItineraryStatus.Draft);
+
+            var result = await service.UpdateItineraryStatusAsync(999, "Proposed", null, true);
+
+            Assert.Equal(ItineraryStatusUpdateOutcome.NotFound, result.Outcome);
+        }
+
         [Fact]
         public async Task ReadItineraries_ProjectCustomerNameAndTravellerCount()
         {
