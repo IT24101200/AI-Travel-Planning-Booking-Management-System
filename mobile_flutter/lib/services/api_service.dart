@@ -171,8 +171,12 @@ class ApiService {
     navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (_) => false);
   }
 
-  static Future<http.Response> _handleResponse(http.Response response) async {
-    if (response.statusCode == 401) {
+  static Future<http.Response> _handleResponse(
+    http.Response response, {
+    bool isAuth = false,
+  }) async {
+    // Only expire session and redirect for protected endpoints, never for auth/login or auth/register
+    if (response.statusCode == 401 && !isAuth) {
       final expiry = _sessionExpiry ??= _expireSession();
       try {
         await expiry;
@@ -226,39 +230,67 @@ class ApiService {
   }
 
   /// Generic GET request
-  static Future<http.Response> get(String endpoint) async {
+  static Future<http.Response> get(String endpoint, {bool isAuth = false}) async {
     final headers = await _headers();
-    return _handleResponse(await http.get(Uri.parse('$baseUrl/$endpoint'), headers: headers));
+    final isAuthReq = isAuth || endpoint.startsWith('auth/');
+    return _handleResponse(
+      await http.get(Uri.parse('$baseUrl/$endpoint'), headers: headers),
+      isAuth: isAuthReq,
+    );
   }
 
   /// Generic POST request
-  static Future<http.Response> post(String endpoint, Map<String, dynamic> body) async {
+  static Future<http.Response> post(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool isAuth = false,
+  }) async {
     final headers = await _headers();
-    return _handleResponse(await http.post(
-      Uri.parse('$baseUrl/$endpoint'),
-      headers: headers,
-      body: jsonEncode(body),
-    ));
+    final isAuthReq = isAuth || endpoint.startsWith('auth/');
+    return _handleResponse(
+      await http.post(
+        Uri.parse('$baseUrl/$endpoint'),
+        headers: headers,
+        body: jsonEncode(body),
+      ),
+      isAuth: isAuthReq,
+    );
   }
 
   /// Generic PUT request
-  static Future<http.Response> put(String endpoint, Map<String, dynamic> body) async {
+  static Future<http.Response> put(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool isAuth = false,
+  }) async {
     final headers = await _headers();
-    return _handleResponse(await http.put(
-      Uri.parse('$baseUrl/$endpoint'),
-      headers: headers,
-      body: jsonEncode(body),
-    ));
+    final isAuthReq = isAuth || endpoint.startsWith('auth/');
+    return _handleResponse(
+      await http.put(
+        Uri.parse('$baseUrl/$endpoint'),
+        headers: headers,
+        body: jsonEncode(body),
+      ),
+      isAuth: isAuthReq,
+    );
   }
 
   /// Generic PATCH request
-  static Future<http.Response> patch(String endpoint, Map<String, dynamic> body) async {
+  static Future<http.Response> patch(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool isAuth = false,
+  }) async {
     final headers = await _headers();
-    return _handleResponse(await http.patch(
-      Uri.parse('$baseUrl/$endpoint'),
-      headers: headers,
-      body: jsonEncode(body),
-    ));
+    final isAuthReq = isAuth || endpoint.startsWith('auth/');
+    return _handleResponse(
+      await http.patch(
+        Uri.parse('$baseUrl/$endpoint'),
+        headers: headers,
+        body: jsonEncode(body),
+      ),
+      isAuth: isAuthReq,
+    );
   }
 
   // ── Auth endpoints ──
@@ -283,14 +315,21 @@ class ApiService {
       'password': password,
       'fullName': fullName,
       'phone': phone,
-    });
+    }, isAuth: true);
 
-    final data = jsonDecode(response.body);
+    Map<String, dynamic> data = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        data = decoded;
+      }
+    } catch (_) {}
+
     if (response.statusCode == 201) {
       // Save token and user info on successful registration
-      await saveToken(data['token']);
-      await saveUserId(data['userId']);
-      await saveUserName(data['fullName']);
+      if (data['token'] != null) await saveToken(data['token'].toString());
+      if (data['userId'] != null) await saveUserId(data['userId'].toString());
+      if (data['fullName'] != null) await saveUserName(data['fullName'].toString());
     }
     return {'statusCode': response.statusCode, ...data};
   }
@@ -306,13 +345,20 @@ class ApiService {
     final response = await post('auth/login', {
       'email': email,
       'password': password,
-    });
+    }, isAuth: true);
 
-    final data = jsonDecode(response.body);
+    Map<String, dynamic> data = {};
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        data = decoded;
+      }
+    } catch (_) {}
+
     if (response.statusCode == 200) {
-      await saveToken(data['token']);
-      await saveUserId(data['userId']);
-      await saveUserName(data['fullName'] ?? '');
+      if (data['token'] != null) await saveToken(data['token'].toString());
+      if (data['userId'] != null) await saveUserId(data['userId'].toString());
+      if (data['fullName'] != null) await saveUserName(data['fullName'].toString());
     }
     return {'statusCode': response.statusCode, ...data};
   }

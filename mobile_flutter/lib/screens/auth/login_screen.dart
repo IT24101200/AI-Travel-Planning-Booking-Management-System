@@ -18,12 +18,20 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   String? _error;
   bool _obscurePassword = true;
+  bool _submitted = false;
 
   Future<void> _login() async {
-    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _submitted = true;
+      _error = null;
+    });
+
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
     setState(() {
       _loading = true;
-      _error = null;
     });
 
     try {
@@ -38,15 +46,27 @@ class _LoginScreenState extends State<LoginScreen> {
         Navigator.pushReplacementNamed(context, '/home');
       } else {
         setState(() {
-          _error =
-              result['message'] ??
-              'Login failed. Please check your credentials.';
+          final serverMsg = result['message']?.toString() ?? '';
+          if (result['statusCode'] == 401 || result['statusCode'] == 404) {
+            _error = serverMsg.isNotEmpty && !serverMsg.toLowerCase().contains('validation failed')
+                ? serverMsg
+                : 'Invalid email or password. No account found matching these credentials.';
+          } else if (serverMsg.isNotEmpty) {
+            _error = serverMsg;
+          } else {
+            _error = 'Login failed. Please check your credentials or register a new account.';
+          }
         });
       }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Connection error. Please check your internet connection or backend server.';
+        _error = 'Unable to connect to the server. Please check your network connection.';
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -176,6 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
                 child: Form(
                   key: _formKey,
+                  autovalidateMode: _submitted ? AutovalidateMode.onUserInteraction : AutovalidateMode.disabled,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -197,29 +218,59 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Error message if any
+                      // Error message banner if any
                       if (_error != null) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
                             color: isDark ? const Color(0xFF2C1616) : const Color(0xFFFEF2F2),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5)),
+                            border: Border.all(
+                              color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5),
+                              width: 1.2,
+                            ),
                           ),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 18),
-                              const SizedBox(width: 8),
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 20),
+                              ),
+                              const SizedBox(width: 10),
                               Expanded(
-                                child: Text(
-                                  _error!,
-                                  style: const TextStyle(color: Color(0xFFEF4444), fontSize: 12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _error!,
+                                      style: const TextStyle(
+                                        color: Color(0xFFDC2626),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    GestureDetector(
+                                      onTap: () => Navigator.pushNamed(context, '/register'),
+                                      child: Text(
+                                        'New to Serendib? Create an account here →',
+                                        style: TextStyle(
+                                          color: isDark ? AppColors.figmaGold : const Color(0xFFB45309),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 18),
                       ],
 
                       // Email field
@@ -274,10 +325,34 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: 1.5,
                             ),
                           ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFEF4444),
+                              width: 1.2,
+                            ),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDC2626),
+                              width: 1.5,
+                            ),
+                          ),
+                          errorStyle: const TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         validator: (val) {
-                          if (val == null || val.trim().isEmpty) return 'Email is required';
-                          if (!val.contains('@') || !val.contains('.')) return 'Enter a valid email';
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Please enter your email address';
+                          }
+                          final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                          if (!emailRegex.hasMatch(val.trim())) {
+                            return 'Please enter a valid email address';
+                          }
                           return null;
                         },
                       ),
@@ -343,10 +418,33 @@ class _LoginScreenState extends State<LoginScreen> {
                               width: 1.5,
                             ),
                           ),
+                          errorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFEF4444),
+                              width: 1.2,
+                            ),
+                          ),
+                          focusedErrorBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFDC2626),
+                              width: 1.5,
+                            ),
+                          ),
+                          errorStyle: const TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         validator: (val) {
-                          if (val == null || val.isEmpty) return 'Password is required';
-                          if (val.length < 6) return 'Password must contain at least 6 characters';
+                          if (val == null || val.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (val.length < 6) {
+                            return 'Password must contain at least 6 characters';
+                          }
                           return null;
                         },
                       ),
