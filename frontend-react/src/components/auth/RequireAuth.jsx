@@ -1,8 +1,9 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
+import { normalizeRole } from '../../lib/roles.js'
 
 /** Guards /staff/* — redirects anonymous users or customers to /login with access denied. */
-export function RequireAuth({ children }) {
+export function RequireAuth({ children, roles = ['TravelAgent', 'Admin'] }) {
   const auth = useAuth()
   const location = useLocation()
 
@@ -10,8 +11,9 @@ export function RequireAuth({ children }) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
-  const role = (auth.role || '').toLowerCase()
-  const isStaff = role === 'staff' || role === 'admin' || role === 'agent' || role === 'travelagent'
+  const role = normalizeRole(auth.role)
+  const allowed = roles.map((value) => normalizeRole(value))
+  const isStaff = allowed.includes(role)
 
   if (!isStaff) {
     return (

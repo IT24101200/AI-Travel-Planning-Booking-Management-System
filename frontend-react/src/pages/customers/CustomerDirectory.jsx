@@ -392,14 +392,11 @@ export default function CustomerDirectory() {
       }, 1200)
     } catch (err) {
       const apiErrors = err.response?.data?.errors
-      let errorMsg = ''
-      if (Array.isArray(apiErrors) && apiErrors.length > 0) {
-        errorMsg = apiErrors.join(' ')
-      } else if (apiErrors && typeof apiErrors === 'object') {
-        errorMsg = Object.values(apiErrors).flat().join(' ')
-      } else {
-        errorMsg = err.response?.data?.message || err.message || 'Failed to update customer profile.'
-      }
+      const errorMsg = Array.isArray(apiErrors) && apiErrors.length > 0
+        ? apiErrors.join(' ')
+        : apiErrors && typeof apiErrors === 'object'
+          ? Object.values(apiErrors).flat().join(' ')
+          : err.response?.data?.message || err.message || 'Failed to update customer profile.'
       setEditError(errorMsg)
     } finally {
       setEditLoading(false)

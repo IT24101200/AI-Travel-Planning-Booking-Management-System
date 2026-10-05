@@ -46,8 +46,19 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Create([FromBody] CreateDestinationDto dto)
         {
-            var created = await _service.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            try
+            {
+                var created = await _service.CreateAsync(dto);
+                return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            }
+            catch (DestinationConflictException ex)
+            {
+                return Conflict(new { message = ex.Message, references = ex.Details });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // PUT /api/destinations/{id}
@@ -55,9 +66,20 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateDestinationDto dto)
         {
-            var updated = await _service.UpdateAsync(id, dto);
-            if (!updated) return NotFound();
-            return NoContent();
+            try
+            {
+                var updated = await _service.UpdateAsync(id, dto);
+                if (!updated) return NotFound();
+                return NoContent();
+            }
+            catch (DestinationConflictException ex)
+            {
+                return Conflict(new { message = ex.Message, references = ex.Details });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // DELETE /api/destinations/{id}
@@ -65,9 +87,16 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var deleted = await _service.DeleteAsync(id);
-            if (!deleted) return NotFound();
-            return NoContent();
+            try
+            {
+                var deleted = await _service.DeleteAsync(id);
+                if (!deleted) return NotFound();
+                return NoContent();
+            }
+            catch (DestinationConflictException ex)
+            {
+                return Conflict(new { message = ex.Message, references = ex.Details });
+            }
         }
     }
 }

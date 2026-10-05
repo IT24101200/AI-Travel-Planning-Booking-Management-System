@@ -37,9 +37,41 @@ namespace backend.Data
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<TravelAgent> TravelAgents => Set<TravelAgent>();
 
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            NormalizeDestinationNames();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(
+            bool acceptAllChangesOnSuccess,
+            CancellationToken cancellationToken = default)
+        {
+            NormalizeDestinationNames();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void NormalizeDestinationNames()
+        {
+            foreach (var entry in ChangeTracker.Entries<Destination>()
+                         .Where(e => e.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.Name = entry.Entity.Name.Trim();
+                entry.Entity.NormalizedName = entry.Entity.Name.ToUpperInvariant();
+            }
+        }
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder); // Required for Identity tables
+
+            builder.Entity<Destination>(entity =>
+            {
+                entity.Property(d => d.Name).IsRequired().HasMaxLength(100);
+                entity.Property(d => d.NormalizedName).IsRequired().HasMaxLength(100);
+                entity.Property(d => d.Description).HasMaxLength(1000);
+                entity.HasIndex(d => d.NormalizedName).IsUnique();
+            });
 
             // ── Customer ──
             builder.Entity<Customer>(entity =>

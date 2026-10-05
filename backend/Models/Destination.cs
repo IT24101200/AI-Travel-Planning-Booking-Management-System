@@ -13,6 +13,10 @@ namespace backend.Models
 
         [Required]
         [MaxLength(100)]
+        public string NormalizedName { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(100)]
         public string Country { get; set; } = string.Empty;
 
         [MaxLength(1000)]

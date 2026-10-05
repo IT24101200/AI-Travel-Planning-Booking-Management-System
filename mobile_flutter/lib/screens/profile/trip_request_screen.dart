@@ -21,39 +21,17 @@ class TripRequestScreen extends StatefulWidget {
 
 class _TripRequestScreenState extends State<TripRequestScreen> {
   // Destination text controller
-  final _destinationCtrl =
-      TextEditingController(text: 'Sigiriya, Kandy, Ella & Mirissa');
+  final _destinationCtrl = TextEditingController();
 
   // Special requests / preferences text controller
   final _specialRequestsCtrl = TextEditingController(
     text: 'Quiet stays, vegetarian meals, easy-paced mornings',
   );
 
-  // Sri Lankan curated destinations mapped to backend database IDs
-  static const Map<String, int> _defaultDestinationIds = {
-    'sigiriya': 4,
-    'kandy': 2,
-    'galle': 3,
-    'ella': 5,
-    'yala': 6,
-    'mirissa': 7,
-    'nuwara eliya': 8,
-    'trincomalee': 9,
-    'badulla': 1,
-  };
-  final Map<String, int> _destinationIds = Map.from(_defaultDestinationIds);
+  final Map<String, int> _destinationIds = {};
 
   // Quick selectable Sri Lankan destination suggestions
-  final List<String> _quickDestinations = [
-    'Sigiriya',
-    'Kandy',
-    'Ella',
-    'Galle',
-    'Mirissa',
-    'Yala',
-    'Nuwara Eliya',
-    'All Island',
-  ];
+  List<String> _quickDestinations = [];
 
   // Date range state
   late DateTime _startDate;
@@ -85,12 +63,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   ];
 
   // Selected destinations set (tracks checked states directly)
-  final Set<String> _selectedDestinations = {
-    'Sigiriya',
-    'Kandy',
-    'Ella',
-    'Mirissa',
-  };
+  final Set<String> _selectedDestinations = {};
 
   bool _isGenerating = false;
   String? _submissionError;
@@ -136,7 +109,17 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         }
       }
     } catch (_) {
-      // Keep static fallback mapping
+      if (mounted) setState(() => _submissionError = 'Unable to load destinations from the database.');
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _quickDestinations = list
+            .whereType<Map>()
+            .map((item) => item['name']?.toString() ?? '')
+            .where((name) => name.isNotEmpty)
+            .toList();
+      });
     }
   }
 

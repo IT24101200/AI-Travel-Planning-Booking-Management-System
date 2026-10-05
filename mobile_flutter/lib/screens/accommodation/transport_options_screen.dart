@@ -57,7 +57,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   @override
   void initState() {
     super.initState();
-    TripSelectionService.selectedTransport ??= _curatedVehicles.first;
+    TripSelectionService.selectedTransport = null;
     _loadTransport();
   }
 
@@ -77,7 +77,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          // Fallback to curated vehicles on error
+          _error = e.toString();
           _loading = false;
         });
       }
@@ -95,7 +95,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
       );
     }
 
-    if (_error != null && _options.isEmpty && _curatedVehicles.isEmpty) {
+    if (_error != null) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -114,6 +114,31 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
           ),
         ),
         body: ErrorMessage(message: _error!, onRetry: _loadTransport),
+      );
+    }
+
+    final vehicles = _options.map((option) => <String, dynamic>{
+      'id': option['id'],
+      'tag': option['status'] ?? 'AVAILABLE',
+      'title': option['type'] ?? 'Transport type not provided',
+      'provider': option['provider'] ?? 'Provider not provided',
+      'guests': option['capacity'],
+      'bags': null,
+      'amenities': '${option['routeFrom'] ?? 'Origin not provided'} → ${option['routeTo'] ?? 'Destination not provided'}',
+      'price': option['price'],
+      'currency': option['currency'],
+      'isBestMatch': false,
+      'buttonLabel': 'Select',
+      'image': option['imageUrl'] != null && option['imageUrl'].toString().isNotEmpty
+          ? ApiService.resolveMediaUrl(option['imageUrl'])
+          : '',
+    }).toList();
+
+    if (vehicles.isEmpty) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(title: const Text('Transport')),
+        body: const Center(child: Text('No transport options available.')),
       );
     }
 
@@ -333,7 +358,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
               const SizedBox(height: 18),
 
               // ── Vehicle Cards List ──
-              ..._curatedVehicles.map((vehicle) {
+              ...vehicles.map((vehicle) {
                 final isBestMatch = vehicle['isBestMatch'] as bool;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 14),

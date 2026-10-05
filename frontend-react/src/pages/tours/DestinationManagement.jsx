@@ -71,7 +71,7 @@ export default function DestinationManagement() {
       ])
 
       if (!cancelled) {
-        // Map tour counts per destination
+        const loadErrors = []
         const counts = {}
         if (tourRes.status === 'fulfilled') {
           const tList = Array.isArray(tourRes.value) ? tourRes.value : (tourRes.value?.data || [])
@@ -79,13 +79,15 @@ export default function DestinationManagement() {
             const dId = t.destinationId
             counts[dId] = (counts[dId] || 0) + 1
           })
+        } else {
+          loadErrors.push('Tour associations are unavailable.')
         }
         if (destRes.status === 'fulfilled') {
           const live = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           const mapped = live.map((d, idx) => {
             const nameLower = d.name.toLowerCase()
-            let region = 'Central Province'
-            for (const [key, val] of Object.entries(REGIONS)) {
+              let region = 'Not provided'
+              for (const [key, val] of Object.entries(REGIONS)) {
               if (nameLower.includes(key)) {
                 region = val
                 break
@@ -96,21 +98,33 @@ export default function DestinationManagement() {
               id: d.id,
               code: `DEST-${String(idx + 1).padStart(3, '0')}`,
               name: d.name,
-              country: d.country || 'Sri Lanka',
+              country: d.country || 'Country not provided',
               region,
               imageUrl: d.imageUrl || '',
-              description: d.description || `Ancient fortress and UNESCO heritage site surrounded by gardens and forest in ${d.name}.`,
-              latitude: Number(d.latitude) || 7.9570,
-              longitude: Number(d.longitude) || 80.7603,
-              associatedTours: counts[d.id] || (12 + (idx * 2) % 7)
+              description: d.description || '',
+              latitude: d.latitude,
+              longitude: d.longitude,
+              associatedTours: Number.isFinite(Number(d.tourCount))
+                ? Number(d.tourCount)
+                : (tourRes.status === 'fulfilled' ? (counts[d.id] || 0) : null),
+              associatedHotels: Number.isFinite(Number(d.hotelCount)) ? Number(d.hotelCount) : null
             }
           })
           setRows(mapped)
 
           if (mapped.length > 0 && !selectedDest) {
             selectForEdit(mapped[0])
+          } else if (mapped.length === 0) {
+            setSelectedDest(null)
+            setDrawerMode(null)
           }
+        } else {
+          setRows([])
+          setSelectedDest(null)
+          setDrawerMode(null)
+          loadErrors.unshift('Unable to load destinations from the database.')
         }
+        setError(loadErrors.length > 0 ? loadErrors.join(' ') : null)
       }
     } catch (err) {
       if (!cancelled) {
@@ -131,7 +145,11 @@ export default function DestinationManagement() {
   }, [])
 
   function selectForEdit(dest) {
-    setSelectedDest(dest)
+    setSelectedDest({
+      ...dest,
+      associatedTours: dest.associatedTours == null ? 'Unavailable' : String(dest.associatedTours),
+      associatedHotels: dest.associatedHotels == null ? 'Unavailable' : String(dest.associatedHotels)
+    })
     setDrawerMode('edit')
     setFormData({
       name: dest.name,
@@ -362,7 +380,9 @@ export default function DestinationManagement() {
                         <td style={{ color: '#182126' }}>{d.country}</td>
                         <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{d.region}</td>
                         <td style={{ color: '#475569', fontSize: '0.75rem', fontFamily: 'monospace' }}>
-                          {Number(d.latitude).toFixed(4)}, {Number(d.longitude).toFixed(4)}
+                          {Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))
+                            ? `${Number(d.latitude).toFixed(4)}, ${Number(d.longitude).toFixed(4)}`
+                            : 'Coordinates not provided'}
                         </td>
                         <td>
                           <span className="badge-pill badge-blue">
