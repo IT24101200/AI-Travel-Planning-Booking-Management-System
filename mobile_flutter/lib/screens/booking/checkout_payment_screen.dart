@@ -120,7 +120,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     return null;
   }
 
-  /// Process payment through Stripe sandbox simulation
+  /// Process payment through the backend Stripe TEST Mode PaymentIntent flow.
   Future<void> _pay() async {
     if (_booking == null) return;
 
@@ -149,36 +149,32 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     });
 
     try {
-      final total = (_booking!['totalCost'] ??
-              _booking!['totalEstimatedCost'] ??
-              1712)
-          .toDouble();
-
-      // Card ending in 0002 simulates a declined card in Stripe Sandbox
+      // These are Stripe's documented TEST-mode PaymentMethod fixtures. The
+      // card number itself is never sent to the backend.
       final cleanCard = _cardNumberController.text.replaceAll(RegExp(r'\s+'), '');
-      final isDeclineTest = cleanCard.endsWith('0002');
-      final stripeToken = isDeclineTest ? 'tok_chargeDeclined' : 'tok_visa';
+      final paymentMethodId = cleanCard.endsWith('0002')
+          ? 'pm_card_chargeDeclined'
+          : 'pm_card_visa';
 
       final result = await ApiService.createPayment({
         'bookingId': _booking!['id'] ?? 101,
-        'amount': total,
-        'currency': _booking!['currency'] ?? 'USD',
-        'stripeToken': stripeToken,
+        'paymentMethodId': paymentMethodId,
       });
 
       if (!mounted) return;
 
-      final statusCode = result['statusCode'] ?? 200;
+      final statusCode = result['statusCode'] ?? 0;
+      final paymentStatus = result['status']?.toString().toLowerCase();
       final isSuccess = (statusCode == 200 || statusCode == 201) &&
-          result['status'] != 'Failed' &&
-          result['paymentStatus'] != 'Failed' &&
-          !isDeclineTest;
+          paymentStatus == 'paid' &&
+          (result['stripeReference']?.toString().isNotEmpty ?? false);
 
       if (isSuccess) {
-        // Update local booking with payment reference
+        // Carry only the server's successful payment result into confirmation.
         final updatedBooking = Map<String, dynamic>.from(_booking!);
-        updatedBooking['paymentId'] = result['id'] ?? result['paymentId'];
-        updatedBooking['paymentStatus'] = 'Paid';
+        updatedBooking['paymentId'] = result['id'];
+        updatedBooking['paymentStatus'] = result['status'];
+        updatedBooking['stripeReference'] = result['stripeReference'];
         updatedBooking['customerName'] = _nameController.text.trim();
 
         Navigator.pushReplacementNamed(
@@ -189,8 +185,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       } else {
         // Payment failed or declined: STAY on checkout screen with clear error
         setState(() {
-          _paymentMessage = result['message'] ??
-              'Payment declined: test card simulated failure. Please check your card details.';
+          _paymentMessage = result['failureReason'] ?? result['message'] ??
+              'Stripe did not confirm the payment. Please try again.';
         });
       }
     } catch (e) {
@@ -605,7 +601,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      'Stripe Sandbox',
+                      'Stripe TEST Mode',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,

@@ -8,7 +8,7 @@ namespace backend.Controllers
 {
     /// <summary>
     /// Student D — Payment API Controller.
-    /// Integrates with Stripe Sandbox for payment processing and revenue reports.
+    /// Integrates with Stripe TEST Mode for payment processing and revenue reports.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -25,7 +25,7 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Process payment through Stripe Sandbox.
+        /// Process payment through a server-side Stripe TEST Mode PaymentIntent.
         /// Rule 2 Guard: Returns 400 Bad Request if booking status is NOT Confirmed.
         /// </summary>
         [HttpPost]
@@ -40,8 +40,12 @@ namespace backend.Controllers
             try
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-                var booking = await _bookingService.GetBookingByIdAsync(dto.BookingId, userId, isStaff);
+                if (string.IsNullOrWhiteSpace(userId))
+                    return Unauthorized(new { message = "An authenticated customer identity is required for payment." });
+                if (User.IsInRole("TravelAgent") || User.IsInRole("Admin"))
+                    return Forbid();
+
+                var booking = await _bookingService.GetBookingByIdAsync(dto.BookingId, userId, false);
                 if (booking == null)
                     return NotFound(new { message = $"Booking with ID {dto.BookingId} not found." });
 
@@ -51,6 +55,14 @@ namespace backend.Controllers
             catch (KeyNotFoundException ex)
             {
                 return NotFound(new { message = ex.Message });
+            }
+            catch (PaymentAlreadyPaidException ex)
+            {
+                return Conflict(new { message = ex.Message });
+            }
+            catch (PaymentGatewayException ex)
+            {
+                return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -96,18 +108,20 @@ namespace backend.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetPaymentsByBooking(int bookingId)
         {
-            var result = (await _paymentService.GetPaymentsByBookingIdAsync(bookingId)).ToList();
-            if (result.Any())
+            var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+            try
             {
-                var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-                var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-
-                if (!isStaff && result.First().CustomerId != currentUserId)
-                {
-                    return Forbid();
-                }
+                var booking = await _bookingService.GetBookingByIdAsync(bookingId, currentUserId, isStaff);
+                if (booking == null)
+                    return NotFound(new { message = $"Booking with ID {bookingId} not found." });
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return Forbid();
             }
 
+            var result = (await _paymentService.GetPaymentsByBookingIdAsync(bookingId)).ToList();
             return Ok(result);
         }
 
