@@ -157,6 +157,7 @@ builder.Services.AddScoped<IItineraryService, ItineraryService>();
 // ── DI: Student D Services ──
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IApprovalService, ApprovalService>();
+builder.Services.AddScoped<IRevisionPlanningService, RevisionPlanningService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 // ── Swagger / OpenAPI ──
