@@ -165,8 +165,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   /// Checks if a specific destination is present in selected list or text
   bool _isDestSelected(String dest) {
     if (dest == 'All Island') {
-      const highlights = ['Sigiriya', 'Kandy', 'Ella', 'Mirissa'];
-      return highlights.every((h) => _isDestSelected(h));
+      final destinations = _quickDestinations.where((item) => item != 'All Island');
+      return destinations.isNotEmpty && destinations.every(_isDestSelected);
     }
     if (_selectedDestinations.any((d) => d.toLowerCase() == dest.toLowerCase())) {
       return true;
@@ -187,13 +187,13 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   void _toggleDestination(String dest) {
     setState(() {
       if (dest == 'All Island') {
+        final destinations = _quickDestinations.where((item) => item != 'All Island').toList();
         if (_isDestSelected('All Island')) {
-          // Reset to single iconic destination
+          // Clear the database-backed selection.
           _selectedDestinations.clear();
-          _selectedDestinations.add('Sigiriya');
         } else {
-          // Select all key island highlights
-          _selectedDestinations.addAll(['Sigiriya', 'Kandy', 'Ella', 'Mirissa']);
+          // Select all currently loaded database destinations.
+          _selectedDestinations.addAll(destinations);
         }
       } else {
         final isCurrentlySelected = _isDestSelected(dest);

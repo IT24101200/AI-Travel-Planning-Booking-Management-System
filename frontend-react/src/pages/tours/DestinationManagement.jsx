@@ -85,9 +85,9 @@ export default function DestinationManagement() {
         if (destRes.status === 'fulfilled') {
           const live = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           const mapped = live.map((d, idx) => {
-            const nameLower = d.name.toLowerCase()
-              let region = 'Not provided'
-              for (const [key, val] of Object.entries(REGIONS)) {
+            const nameLower = (d.name || '').toLowerCase()
+            let region = 'Not provided'
+            for (const [key, val] of Object.entries(REGIONS)) {
               if (nameLower.includes(key)) {
                 region = val
                 break
@@ -168,8 +168,8 @@ export default function DestinationManagement() {
       name: '',
       country: 'Sri Lanka',
       description: '',
-      latitude: '7.957032',
-      longitude: '80.760261',
+      latitude: '',
+      longitude: '',
       imageUrl: ''
     })
   }
@@ -204,8 +204,8 @@ export default function DestinationManagement() {
           country: formData.country.trim(),
           description: formData.description.trim() || null,
           imageUrl: formData.imageUrl?.trim() || null,
-          latitude: Number(formData.latitude) || 0,
-          longitude: Number(formData.longitude) || 0,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
         })
         setNotice(`Destination "${formData.name.trim()}" created successfully.`)
       } else if (drawerMode === 'edit' && selectedDest) {
@@ -214,8 +214,8 @@ export default function DestinationManagement() {
           country: formData.country.trim(),
           description: formData.description.trim() || null,
           imageUrl: formData.imageUrl?.trim() || null,
-          latitude: Number(formData.latitude) || 0,
-          longitude: Number(formData.longitude) || 0,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
         })
         setNotice(`Destination #${selectedDest.id} updated successfully.`)
       }
@@ -345,7 +345,7 @@ export default function DestinationManagement() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             {d.imageUrl ? (
                               <img
-                                src={d.imageUrl.startsWith('http') ? d.imageUrl : `${(import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '') : 'https://ai-travel-planning-booking-management.onrender.com')}${d.imageUrl.startsWith('/') ? '' : '/'}${d.imageUrl}`}
+                                src={d.imageUrl}
                                 alt={d.name}
                                 style={{
                                   width: '32px',
@@ -566,7 +566,7 @@ export default function DestinationManagement() {
               >
                 <MapPinIcon size={24} />
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace' }}>
-                  {formData.latitude || '7.957032'}, {formData.longitude || '80.760261'}
+                  {formData.latitude || 'Latitude not provided'}, {formData.longitude || 'Longitude not provided'}
                 </span>
               </div>
 
@@ -575,7 +575,7 @@ export default function DestinationManagement() {
                 <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
                   <span>⚠️</span>
                   <span>
-                    <strong>Removal guarded</strong> — {formData.name || 'This place'} is referenced by {selectedDest?.associatedTours || 12} active tours, hotels, and future itineraries.
+                    <strong>Removal guarded</strong> — {formData.name || 'This place'} has {selectedDest?.associatedTours ?? 'unavailable'} tour references and {selectedDest?.associatedHotels ?? 'unavailable'} hotel references.
                   </span>
                 </div>
               )}
