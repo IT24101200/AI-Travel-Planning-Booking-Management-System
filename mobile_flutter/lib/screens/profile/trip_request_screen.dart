@@ -80,11 +80,28 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     {'name': 'Wellness', 'icon': Icons.spa_outlined},
   ];
 
+  // Selected destinations set (tracks checked states directly)
+  final Set<String> _selectedDestinations = {
+    'Sigiriya',
+    'Kandy',
+    'Ella',
+    'Mirissa',
+  };
+
   bool _isGenerating = false;
   String? _submissionError;
   String? _preferencesError;
 
   void _onDestinationChanged() {
+    final text = _destinationCtrl.text.toLowerCase();
+    for (final dest in _quickDestinations) {
+      if (dest == 'All Island') continue;
+      if (text.contains(dest.toLowerCase())) {
+        _selectedDestinations.add(dest);
+      } else {
+        _selectedDestinations.removeWhere((d) => d.toLowerCase() == dest.toLowerCase());
+      }
+    }
     if (mounted) setState(() {});
   }
 
@@ -140,44 +157,51 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     return '${dests.sublist(0, dests.length - 1).join(", ")} & ${dests.last}';
   }
 
-  /// Checks if all main iconic highlights are selected
-  bool _isAllIslandSelected(List<String> currentDests) {
-    const highlights = ['Sigiriya', 'Kandy', 'Ella', 'Mirissa'];
-    return highlights.every(
-      (h) => currentDests.any((d) => d.toLowerCase() == h.toLowerCase()),
-    );
+  /// Checks if a specific destination is present in selected list or text
+  bool _isDestSelected(String dest) {
+    if (dest == 'All Island') {
+      const highlights = ['Sigiriya', 'Kandy', 'Ella', 'Mirissa'];
+      return highlights.every((h) => _isDestSelected(h));
+    }
+    if (_selectedDestinations.any((d) => d.toLowerCase() == dest.toLowerCase())) {
+      return true;
+    }
+    return _destinationCtrl.text.toLowerCase().contains(dest.toLowerCase());
   }
 
-  /// Checks if a specific destination is present in selected list
-  bool _isDestSelected(String dest, List<String> currentDests) {
-    return currentDests.any((d) => d.toLowerCase() == dest.toLowerCase());
+  /// Total count of active destinations
+  int get _selectedDestinationsCount {
+    final matchedQuick = _quickDestinations
+        .where((d) => d != 'All Island' && _isDestSelected(d))
+        .length;
+    if (matchedQuick > 0) return matchedQuick;
+    return _parseDestinations(_destinationCtrl.text).length;
   }
 
   /// Toggles a destination chip in/out of the selected destinations (allows 1 or more)
   void _toggleDestination(String dest) {
-    final currentDests = _parseDestinations(_destinationCtrl.text);
-
-    if (dest == 'All Island') {
-      if (_isAllIslandSelected(currentDests)) {
-        // Reset to single iconic destination
-        _destinationCtrl.text = 'Sigiriya';
+    setState(() {
+      if (dest == 'All Island') {
+        if (_isDestSelected('All Island')) {
+          // Reset to single iconic destination
+          _selectedDestinations.clear();
+          _selectedDestinations.add('Sigiriya');
+        } else {
+          // Select all key island highlights
+          _selectedDestinations.addAll(['Sigiriya', 'Kandy', 'Ella', 'Mirissa']);
+        }
       } else {
-        // Select all key island highlights
-        _destinationCtrl.text = 'Sigiriya, Kandy, Ella & Mirissa';
+        final isCurrentlySelected = _isDestSelected(dest);
+        if (isCurrentlySelected) {
+          // Deselect
+          _selectedDestinations.removeWhere((d) => d.toLowerCase() == dest.toLowerCase());
+        } else {
+          // Select / add destination
+          _selectedDestinations.add(dest);
+        }
       }
-    } else {
-      final existingIndex = currentDests.indexWhere(
-        (d) => d.toLowerCase() == dest.toLowerCase(),
-      );
-      if (existingIndex >= 0) {
-        // Deselect destination
-        currentDests.removeAt(existingIndex);
-      } else {
-        // Select / add destination
-        currentDests.add(dest);
-      }
-      _destinationCtrl.text = _formatDestinations(currentDests);
-    }
+      _destinationCtrl.text = _formatDestinations(_selectedDestinations.toList());
+    });
   }
 
   /// Load user preference defaults to ensure budget ceiling is consistent
@@ -461,8 +485,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
               // ── Destination Input ──
               Builder(
                 builder: (context) {
-                  final currentDests = _parseDestinations(_destinationCtrl.text);
-                  final destCount = currentDests.length;
+                  final destCount = _selectedDestinationsCount;
 
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -532,6 +555,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             if (_destinationCtrl.text.isNotEmpty)
                               GestureDetector(
                                 onTap: () {
+                                  _selectedDestinations.clear();
                                   _destinationCtrl.clear();
                                   setState(() {});
                                 },
@@ -554,9 +578,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                         scrollDirection: Axis.horizontal,
                         child: Row(
                           children: _quickDestinations.map((dest) {
-                            final isCurrent = dest == 'All Island'
-                                ? _isAllIslandSelected(currentDests)
-                                : _isDestSelected(dest, currentDests);
+                            final isCurrent = _isDestSelected(dest);
                             return Padding(
                               padding: const EdgeInsets.only(right: 6),
                               child: ActionChip(

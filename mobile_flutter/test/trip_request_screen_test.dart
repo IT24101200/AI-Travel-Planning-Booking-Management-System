@@ -57,15 +57,20 @@ void main() {
     // Initial state has 4 destinations
     expect(find.text('4 destinations selected'), findsOneWidget);
 
-    // Tap Galle to add it (now 5 destinations)
-    await tester.tap(find.widgetWithText(ActionChip, 'Galle'));
+    // Tap Yala to add it (now 5 destinations)
+    await tester.tap(find.widgetWithText(ActionChip, 'Yala'));
     await tester.pump();
     expect(find.text('5 destinations selected'), findsOneWidget);
+
+    // Tap Galle to add it (now 6 destinations, exactly matching user screenshot scenario)
+    await tester.tap(find.widgetWithText(ActionChip, 'Galle'));
+    await tester.pump();
+    expect(find.text('6 destinations selected'), findsOneWidget);
 
     // Tap Ella to remove it
     await tester.tap(find.widgetWithText(ActionChip, 'Ella'));
     await tester.pump();
-    expect(find.text('4 destinations selected'), findsOneWidget);
+    expect(find.text('5 destinations selected'), findsOneWidget);
 
     // Tap clear button (X icon)
     await tester.tap(find.byIcon(Icons.close));
