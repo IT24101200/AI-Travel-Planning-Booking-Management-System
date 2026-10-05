@@ -89,6 +89,7 @@ class DestinationItem {
 
 class AppDestinations {
   static const String heroSigiriya = 'assets/photos/sigiriya-1280.jpg';
+  static const String exploreHero = 'assets/photos/explore-hero.jpg';
 
   static const List<DestinationItem> featured = [
     DestinationItem(

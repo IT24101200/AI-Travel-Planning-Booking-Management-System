@@ -219,7 +219,7 @@ class _ExploreTabState extends State<_ExploreTab> {
                 width: double.infinity,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: NetworkImage('https://www.holidify.com/images/bgImages/ELLA.jpg'),
+                    image: AssetImage('assets/photos/explore-hero.jpg'),
                     fit: BoxFit.cover,
                   ),
                 ),
