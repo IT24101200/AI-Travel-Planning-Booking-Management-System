@@ -327,7 +327,7 @@ export default function DestinationManagement() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             {d.imageUrl ? (
                               <img
-                                src={d.imageUrl.startsWith('http') ? d.imageUrl : `http://localhost:5138${d.imageUrl.startsWith('/') ? '' : '/'}${d.imageUrl}`}
+                                src={d.imageUrl.startsWith('http') ? d.imageUrl : `${(import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/?$/, '') : 'https://ai-travel-planning-booking-management.onrender.com')}${d.imageUrl.startsWith('/') ? '' : '/'}${d.imageUrl}`}
                                 alt={d.name}
                                 style={{
                                   width: '32px',

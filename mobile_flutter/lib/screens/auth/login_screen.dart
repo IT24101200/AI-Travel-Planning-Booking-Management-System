@@ -46,7 +46,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Connection error. Check backend server on port 5138.';
+        _error = 'Connection error. Please check your internet connection or backend server.';
       });
     } finally {
       if (mounted) setState(() => _loading = false);
