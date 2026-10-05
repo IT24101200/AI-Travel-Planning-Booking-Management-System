@@ -138,9 +138,10 @@ void main() {
       await tester.pumpWidget(wrapWithArgs(const BookingStatusScreen(), args: 106));
       await tester.pumpAndSettle();
 
-      // Confirmed badge, ticket header, and QrImageView
+      // Confirmed badge, ticket header, Pay Now button, and QrImageView
       expect(find.text('BOOKING CONFIRMED'), findsOneWidget);
       expect(find.text('YOUR DIGITAL TICKET'), findsOneWidget);
+      expect(find.text('Pay Now with Stripe'), findsOneWidget);
       expect(find.byType(QrImageView), findsOneWidget);
 
       // Tap Cancel Booking button
@@ -153,6 +154,68 @@ void main() {
       // Should show real cancellation/support dialog, NOT fake refund snackbar
       expect(find.text('Booking Cancellation'), findsOneWidget);
       expect(find.textContaining('support@serendibtrails.com'), findsOneWidget);
+    });
+
+    testWidgets('Pay Now with Stripe button navigates to Checkout for unpaid confirmed booking', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      bool navigatedToCheckout = false;
+      final rawMap = <dynamic, dynamic>{
+        'id': 107,
+        'bookingReference': 'ST-2026-107',
+        'destination': 'Mirissa Coastal Getaway',
+        'status': 2, // Confirmed
+        'bookingStatus': 'Confirmed',
+        'totalCost': 950.0,
+        'currency': 'USD',
+      };
+
+      await tester.pumpWidget(wrapWithArgs(
+        const BookingStatusScreen(),
+        args: rawMap,
+        additionalRoutes: {
+          '/checkout': (context) {
+            navigatedToCheckout = true;
+            return const Scaffold(body: Text('Mock Checkout Screen'));
+          },
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('BOOKING CONFIRMED'), findsOneWidget);
+      final payBtn = find.text('Pay Now with Stripe');
+      expect(payBtn, findsOneWidget);
+      await tester.ensureVisible(payBtn);
+      await tester.tap(payBtn);
+      await tester.pumpAndSettle();
+
+      expect(navigatedToCheckout, isTrue);
+      expect(find.text('Mock Checkout Screen'), findsOneWidget);
+    });
+
+    testWidgets('Paid confirmed booking shows View Confirmation without Pay Now button', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final paidBooking = <dynamic, dynamic>{
+        'id': 108,
+        'bookingReference': 'ST-2026-108',
+        'destination': 'Mirissa Coastal Getaway',
+        'status': 2,
+        'paymentStatus': 'Paid',
+        'totalCost': 950.0,
+        'currency': 'USD',
+      };
+
+      await tester.pumpWidget(wrapWithArgs(const BookingStatusScreen(), args: paidBooking));
+      await tester.pumpAndSettle();
+
+      expect(find.text('BOOKING CONFIRMED'), findsOneWidget);
+      expect(find.text('View Confirmation'), findsOneWidget);
+      expect(find.text('Pay Now with Stripe'), findsNothing);
     });
   });
 
