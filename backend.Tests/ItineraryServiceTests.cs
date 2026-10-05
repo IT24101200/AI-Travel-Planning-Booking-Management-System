@@ -92,6 +92,8 @@ namespace backend.Tests
 
         [Theory]
         [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Proposed, true)]
+        [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Accepted, true)]
+        [InlineData(true, ItineraryStatus.Proposed, ItineraryStatus.Accepted, true)]
         [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Draft, false)]
         [InlineData(true, ItineraryStatus.Proposed, ItineraryStatus.Draft, false)]
         [InlineData(true, ItineraryStatus.Draft, ItineraryStatus.Discarded, false)]
@@ -116,14 +118,14 @@ namespace backend.Tests
         [Theory]
         [InlineData(ItineraryStatus.Draft)]
         [InlineData(ItineraryStatus.Proposed)]
-        public async Task UpdateStatus_StaffCannotAccept(ItineraryStatus from)
+        public async Task UpdateStatus_StaffCanAccept(ItineraryStatus from)
         {
             var (context, service, itineraryId) = await SeedStatusAsync(from, true);
 
             var result = await service.UpdateItineraryStatusAsync(itineraryId, "Accepted", null, true);
 
-            Assert.Equal(ItineraryStatusUpdateOutcome.Forbidden, result.Outcome);
-            Assert.Equal(from, (await context.Itineraries.FindAsync(itineraryId))!.Status);
+            Assert.Equal(ItineraryStatusUpdateOutcome.Updated, result.Outcome);
+            Assert.Equal(ItineraryStatus.Accepted, (await context.Itineraries.FindAsync(itineraryId))!.Status);
         }
 
         [Fact]
