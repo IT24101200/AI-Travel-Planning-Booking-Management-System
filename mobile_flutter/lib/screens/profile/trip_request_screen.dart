@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../../main.dart' show currencyNotifier;
 
 /// AI Trip Request screen matching Figma frame 15 · AI Trip Request
 /// Aligned with SE3090 Project Plan & Student A Component A specifications:
@@ -63,6 +64,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   // Budget ceiling in LKR (default: LKR 250,000)
   double _budgetCeiling = 250000;
+  String _currency = 'LKR';
 
   // Selected travel interests
   final Set<String> _selectedInterests = {
@@ -232,6 +234,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       if (response.statusCode == 200) {
         final pref = jsonDecode(response.body);
         if (pref is Map && pref['budgetMax'] != null) {
+          _currency = currencyNotifier.normalize(pref['currency']?.toString());
+          currencyNotifier.setCurrency(_currency);
           final maxBudget = (pref['budgetMax'] as num).toDouble();
           if (maxBudget > 50000 && mounted) {
             setState(() {
@@ -347,7 +351,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         'endDate': _endDate.toIso8601String(),
         'travellerCount': _travelers,
         'budgetCeiling': _budgetCeiling,
-        'currency': 'LKR',
+        'currency': _currency,
       });
       final id = int.tryParse(response['id']?.toString() ?? '');
       if (response['statusCode'] != 201 || id == null || id <= 0) {

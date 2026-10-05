@@ -46,7 +46,8 @@ namespace backend.Controllers
             [FromQuery] string? sortBy,
             [FromQuery] bool descending = false,
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? currency = null)
         {
             // Validate pagination (same as CustomerController)
             if (page < 1) page = 1;
@@ -54,7 +55,7 @@ namespace backend.Controllers
             if (pageSize > 50) pageSize = 50;
 
             var hotels = await _hotelService.GetAllAsync(
-                search, destinationId, minStarRating, status, sortBy, descending, page, pageSize);
+                search, destinationId, minStarRating, status, sortBy, descending, page, pageSize, currency);
             var totalCount = await _hotelService.GetTotalCountAsync(
                 search, destinationId, minStarRating, status);
 
@@ -74,9 +75,9 @@ namespace backend.Controllers
         /// </summary>
         [HttpGet("{id}")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<IActionResult> GetById(int id, [FromQuery] string? currency = null)
         {
-            var hotel = await _hotelService.GetByIdAsync(id);
+            var hotel = await _hotelService.GetByIdAsync(id, currency);
             if (hotel is null) return NotFound();
             return Ok(hotel);
         }
@@ -136,13 +137,14 @@ namespace backend.Controllers
             [FromQuery] string? sortBy,
             [FromQuery] bool descending = false,
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? currency = null)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 10;
             if (pageSize > 50) pageSize = 50;
 
-            var rooms = await _hotelService.SearchRoomsAsync(roomType, minCapacity, maxPrice, sortBy, descending, page, pageSize);
+            var rooms = await _hotelService.SearchRoomsAsync(roomType, minCapacity, maxPrice, sortBy, descending, page, pageSize, currency);
             return Ok(rooms);
         }
 
@@ -152,9 +154,9 @@ namespace backend.Controllers
         /// </summary>
         [HttpGet("{hotelId}/rooms")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetRooms(int hotelId)
+        public async Task<IActionResult> GetRooms(int hotelId, [FromQuery] string? currency = null)
         {
-            var rooms = await _hotelService.GetRoomsByHotelAsync(hotelId);
+            var rooms = await _hotelService.GetRoomsByHotelAsync(hotelId, currency);
             return Ok(rooms);
         }
 
@@ -164,9 +166,9 @@ namespace backend.Controllers
         /// </summary>
         [HttpGet("{hotelId}/rooms/{roomId}")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetRoom(int hotelId, int roomId)
+        public async Task<IActionResult> GetRoom(int hotelId, int roomId, [FromQuery] string? currency = null)
         {
-            var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId);
+            var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId, currency);
             if (room is null) return NotFound();
             return Ok(room);
         }

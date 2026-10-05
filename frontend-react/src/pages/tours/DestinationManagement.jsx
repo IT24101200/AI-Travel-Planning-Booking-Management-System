@@ -40,7 +40,6 @@ const REGIONS = {
  */
 export default function DestinationManagement() {
   const [rows, setRows] = useState([])
-  const [tourCounts, setTourCounts] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState('')
@@ -81,8 +80,6 @@ export default function DestinationManagement() {
             counts[dId] = (counts[dId] || 0) + 1
           })
         }
-        setTourCounts(counts)
-
         if (destRes.status === 'fulfilled') {
           const live = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
           const mapped = live.map((d, idx) => {
@@ -126,8 +123,11 @@ export default function DestinationManagement() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadData(cancelled)
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function selectForEdit(dest) {

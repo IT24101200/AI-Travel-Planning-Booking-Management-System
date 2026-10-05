@@ -151,6 +151,8 @@ export default function CustomerDirectory() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadCustomers(cancelled)
     return () => { cancelled = true }
   }, [])
@@ -186,6 +188,8 @@ export default function CustomerDirectory() {
   // Clear selection if the selected user is filtered out or removed
   useEffect(() => {
     if (selectedUser && !rows.find((r) => r.id === selectedUser.id)) {
+      // The selection must be cleared when filtering removes its row.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedUser(null)
     }
   }, [rows, selectedUser])

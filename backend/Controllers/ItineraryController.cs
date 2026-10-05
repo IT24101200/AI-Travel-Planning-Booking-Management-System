@@ -189,7 +189,7 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Updates the status of an existing Itinerary (e.g. Draft → Proposed → Accepted).
+        /// Updates an itinerary status according to staff and customer transition rules.
         /// </summary>
         [HttpPatch("{id}/status")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -201,26 +201,18 @@ namespace backend.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Ownership check before modifying
-            var itinerary = await _service.GetItineraryByIdAsync(id);
-            if (itinerary is null)
-                return NotFound(new { message = $"Itinerary with Id {id} was not found." });
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+            var requestedStatus = request.NewStatus?.ToString() ?? request.Status;
+            var result = await _service.UpdateItineraryStatusAsync(id, requestedStatus, userId, isStaff);
 
-            if (!isStaff && itinerary.CustomerId != userId)
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "You do not have access to this itinerary." });
-
-            if (!isStaff && request.ResolvedStatus != ItineraryStatus.Discarded)
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Customers can only request changes. Approval is done by staff." });
-
-            var (success, errorMessage) = await _service.UpdateItineraryStatusAsync(id, request.ResolvedStatus);
-
-            if (!success)
-                return NotFound(new { message = errorMessage });
-
-            return Ok(new { message = $"Itinerary status updated to {request.ResolvedStatus}." });
+            return result.Outcome switch
+            {
+                ItineraryStatusUpdateOutcome.Updated => Ok(new { message = result.Message }),
+                ItineraryStatusUpdateOutcome.NotFound => NotFound(new { message = result.Message }),
+                ItineraryStatusUpdateOutcome.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { message = result.Message }),
+                _ => BadRequest(new { message = result.Message })
+            };
         }
     }
 
@@ -246,16 +238,5 @@ namespace backend.Controllers
         public ItineraryStatus? NewStatus { get; set; }
         public string? Status { get; set; }
         public string? Notes { get; set; }
-
-        public ItineraryStatus ResolvedStatus
-        {
-            get
-            {
-                if (NewStatus.HasValue) return NewStatus.Value;
-                if (!string.IsNullOrWhiteSpace(Status) && Enum.TryParse<ItineraryStatus>(Status, true, out var parsed))
-                    return parsed;
-                return ItineraryStatus.Proposed;
-            }
-        }
     }
 }

@@ -357,7 +357,7 @@ class ApiService {
 
   static Future<List<dynamic>> Function({String? search, String? sortBy})? mockGetTours;
 
-  static Future<List<dynamic>> getTours({String? search, String? sortBy}) async {
+  static Future<List<dynamic>> getTours({String? search, String? sortBy, String? currency}) async {
     if (mockGetTours != null) {
       return await mockGetTours!(search: search, sortBy: sortBy);
     }
@@ -369,6 +369,7 @@ class ApiService {
     if (sortBy != null) {
       params.add('sortBy=${Uri.encodeQueryComponent(sortBy)}');
     }
+    if (currency != null) params.add('currency=${Uri.encodeQueryComponent(currency)}');
     if (params.isNotEmpty) endpoint += '?${params.join('&')}';
 
     final response = await get(endpoint);
@@ -381,12 +382,12 @@ class ApiService {
     );
   }
 
-  static Future<Map<String, dynamic>?> getTour(int id) async {
-    return _object(await get('tour/$id'));
+  static Future<Map<String, dynamic>?> getTour(int id, {String? currency}) async {
+    return _object(await get('tour/$id${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
   }
 
-  static Future<Map<String, dynamic>> getTourOrThrow(int id) async {
-    final response = await get('tour/$id');
+  static Future<Map<String, dynamic>> getTourOrThrow(int id, {String? currency}) async {
+    final response = await get('tour/$id${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}');
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -496,12 +497,12 @@ class ApiService {
 
   // ── Hotels ──
 
-  static Future<List<dynamic>> getHotels() async {
-    return _list(await get('hotel'));
+  static Future<List<dynamic>> getHotels({String? currency}) async {
+    return _list(await get('hotel${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
   }
 
-  static Future<List<dynamic>> getTransportOptions() async {
-    return _list(await get('transport'));
+  static Future<List<dynamic>> getTransportOptions({String? currency}) async {
+    return _list(await get('transport${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
   }
 
   static Future<Map<String, dynamic>> createTripRequest(Map<String, dynamic> data) async {

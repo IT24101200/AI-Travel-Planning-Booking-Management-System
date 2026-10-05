@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 # The tools directory is next to the agents directory. When the agentic-ai
 # directory is the Python working directory, this imports tools/search_tours.py.
 from tools.search_tours import search_tours
-from tools.itinerary_tools import ItineraryPersistenceError, persist_itinerary
 
 
 # Read variables from a local .env file (if one exists) into the environment.
@@ -158,10 +157,21 @@ def build_itinerary(trip_request):
 
     # Search the backend for tours belonging to the requested destination.
     try:
-        candidate_tours = search_tours(trip_request.get("destination_id"))
+        try:
+            candidate_tours = search_tours(
+                trip_request.get("destination_id"),
+                currency=trip_request.get("currency", "LKR"),
+            )
+        except TypeError:
+            # Preserve compatibility with deterministic/offline test providers.
+            candidate_tours = search_tours(trip_request.get("destination_id"))
+
         if not candidate_tours and trip_request.get("destination_id"):
             # Fallback to searching all active tours if specific destination has none
-            candidate_tours = search_tours(None)
+            try:
+                candidate_tours = search_tours(None, currency=trip_request.get("currency", "LKR"))
+            except TypeError:
+                candidate_tours = search_tours(None)
     except Exception as error:
         return {"error": f"Unable to search for tours: {error}"}
 
@@ -191,13 +201,9 @@ def build_itinerary(trip_request):
     for tour in candidate_tours:
         raw_price = float(_get_tour_value(tour, "price", "Price") or 0.0)
         tour_curr = str(_get_tour_value(tour, "currency", "Currency") or "LKR").upper()
-        # Normalize price to the trip request currency if needed (1 USD = 300 LKR)
-        if tour_curr == "LKR" and req_curr == "USD":
-            norm_price = round(raw_price / 300.0, 2)
-        elif tour_curr == "USD" and req_curr == "LKR":
-            norm_price = round(raw_price * 300.0, 2)
-        else:
-            norm_price = round(raw_price, 2)
+        # ASP.NET has already converted the catalogue response into the
+        # requested transaction currency. Python never performs FX itself.
+        norm_price = round(raw_price, 2)
 
         available_tours.append(
             {
@@ -258,7 +264,7 @@ Rules:
 {{
   "itinerary_id": null,
   "total_estimated_cost": 0.0,
-  "currency": "{trip_request.get('currency', 'USD')}",
+  "currency": "{trip_request.get('currency', 'LKR')}",
   "schedule": [
     {{
       "day_number": 1,
@@ -398,7 +404,7 @@ Rules:
     if not is_valid:
         return {"error": "Validation failed", "details": validation_errors}
 
-    parsed_result["currency"] = trip_request.get("currency", "USD")
+    parsed_result["currency"] = trip_request.get("currency", "LKR")
     return parsed_result
 
 
@@ -417,7 +423,7 @@ def itinerary_node(state: dict) -> dict:
         "budget_ceiling": state.get("target_budgets", {}).get("tours_budget")
         or state.get("budget_ceiling"),
         "preferred_activities": state.get("preferred_activities", []),
-        "currency": state.get("currency", "USD"),
+        "currency": state.get("currency", "LKR"),
     }
 
     if not trip_request["destination_id"]:
@@ -434,20 +440,10 @@ def itinerary_node(state: dict) -> dict:
     if result.get("error"):
         return {"itinerary": result, "status": result.get("status", "ItineraryFailed")}
 
-    try:
-        itinerary_id = persist_itinerary(state, result)
-    except ItineraryPersistenceError as error:
-        return {
-            "itinerary": {
-                "status": "ItineraryPersistenceFailed",
-                "error_code": "ITINERARY_PERSIST_FAILED",
-                "error": str(error),
-            },
-            "status": "ItineraryPersistenceFailed",
-        }
-
-    result["itinerary_id"] = itinerary_id
-    result["currency"] = state.get("currency", "USD")
+    # Persistence is deliberately deferred until the final validation result.
+    # ASP.NET owns the transaction and assigns the real ItineraryId.
+    result["itinerary_id"] = None
+    result["currency"] = state.get("currency", "LKR")
     result["total_cost"] = result["total_estimated_cost"]
     return {**state, "itinerary": result}
 

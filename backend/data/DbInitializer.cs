@@ -22,6 +22,12 @@ namespace backend.Data
         {
             using var scope = serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // SQLite is used only by automated tests. The seed script contains
+            // PostgreSQL-specific SQL and production demo data; test fixtures
+            // own their data and must start from a clean schema.
+            if (context.Database.ProviderName?.Contains("Sqlite", StringComparison.OrdinalIgnoreCase) == true)
+                return;
+
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
 
@@ -603,8 +609,8 @@ namespace backend.Data
                         Status = HotelStatus.Active,
                         Rooms = new List<Room>
                         {
-                            new Room { RoomType = "Mountain View Chalet", Capacity = 2, TotalRooms = 16, PricePerNight = 350.00m, Currency = "USD" },
-                            new Room { RoomType = "Garden Pavilion Suite", Capacity = 2, TotalRooms = 8, PricePerNight = 300.00m, Currency = "USD" }
+                            new Room { RoomType = "Mountain View Chalet", Capacity = 2, TotalRooms = 16, PricePerNight = 10000.00m, Currency = "LKR" },
+                            new Room { RoomType = "Garden Pavilion Suite", Capacity = 2, TotalRooms = 8, PricePerNight = 8000.00m, Currency = "LKR" }
                         }
                     },
                     new Hotel
@@ -678,8 +684,8 @@ namespace backend.Data
                         DepartureTime = DateTime.UtcNow.AddDays(1).Date.AddHours(8).AddMinutes(30),
                         ArrivalTime = DateTime.UtcNow.AddDays(1).Date.AddHours(14).AddMinutes(45),
                         Capacity = 80,
-                        Price = 25.00m,
-                        Currency = "USD",
+                        Price = 7500.00m,
+                        Currency = "LKR",
                         Status = TransportStatus.Active
                     },
                     new TransportOption
@@ -695,8 +701,8 @@ namespace backend.Data
                         DepartureTime = DateTime.UtcNow.AddDays(1).Date.AddHours(10),
                         ArrivalTime = DateTime.UtcNow.AddDays(1).Date.AddHours(13).AddMinutes(30),
                         Capacity = 4,
-                        Price = 85.00m,
-                        Currency = "USD",
+                        Price = 25500.00m,
+                        Currency = "LKR",
                         Status = TransportStatus.Active
                     },
                     new TransportOption
@@ -712,8 +718,8 @@ namespace backend.Data
                         DepartureTime = DateTime.UtcNow.AddDays(2).Date.AddHours(9),
                         ArrivalTime = DateTime.UtcNow.AddDays(2).Date.AddHours(9).AddMinutes(35),
                         Capacity = 8,
-                        Price = 240.00m,
-                        Currency = "USD",
+                        Price = 72000.00m,
+                        Currency = "LKR",
                         Status = TransportStatus.Active
                     },
                     new TransportOption
@@ -729,8 +735,8 @@ namespace backend.Data
                         DepartureTime = DateTime.UtcNow.AddDays(3).Date.AddHours(11),
                         ArrivalTime = DateTime.UtcNow.AddDays(3).Date.AddHours(11).AddMinutes(45),
                         Capacity = 6,
-                        Price = 40.00m,
-                        Currency = "USD",
+                        Price = 12000.00m,
+                        Currency = "LKR",
                         Status = TransportStatus.Active
                     },
                     new TransportOption
@@ -746,8 +752,8 @@ namespace backend.Data
                         DepartureTime = DateTime.UtcNow.AddDays(1).Date.AddHours(7),
                         ArrivalTime = DateTime.UtcNow.AddDays(1).Date.AddHours(10).AddMinutes(15),
                         Capacity = 45,
-                        Price = 12.00m,
-                        Currency = "USD",
+                        Price = 3600.00m,
+                        Currency = "LKR",
                         Status = TransportStatus.Active
                     }
                 };

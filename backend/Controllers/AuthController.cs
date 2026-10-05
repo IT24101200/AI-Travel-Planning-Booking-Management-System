@@ -136,7 +136,10 @@ namespace backend.Controllers
                 return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only administrators can invite or register new staff accounts." });
             }
 
-            var correctCode = _configuration["StaffSecretCode"] ?? "staff123";
+            var correctCode = _configuration["StaffSecretCode"];
+            if (!isAdminCaller && string.IsNullOrWhiteSpace(correctCode))
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Staff registration is not configured." });
+
             if (!isAdminCaller && (string.IsNullOrWhiteSpace(dto.StaffSecretCode) || dto.StaffSecretCode != correctCode))
                 return BadRequest(new { message = "Invalid staff secret code." });
 

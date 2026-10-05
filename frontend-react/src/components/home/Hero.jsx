@@ -35,7 +35,7 @@ function SwitcherItem({ destination, active, onSelect }) {
   )
 }
 
-export function Hero({ activeId, onSelect, weatherTheme, autoSky, onResumeAuto, onPauseAuto }) {
+export function Hero({ activeId, onSelect, weatherTheme, autoSky }) {
   const active = destinations.find((d) => d.id === activeId) ?? destinations[0]
 
   /* Weather-based greeting message */

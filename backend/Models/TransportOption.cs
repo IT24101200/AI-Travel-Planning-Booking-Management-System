@@ -63,7 +63,7 @@ namespace backend.Models
 
         [Required]
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         /// <summary>
         /// Cover image URL for vehicle/transport fleet option.

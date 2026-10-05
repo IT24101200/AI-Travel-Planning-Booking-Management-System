@@ -303,32 +303,6 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           }
         } catch (_) {}
 
-        if (bookingId == null) {
-          try {
-            final userId = await ApiService.getUserId() ?? 'customer-1';
-            final cost = (_itinerary!['totalEstimatedCost'] ?? 1712).toDouble();
-            final currency = _itinerary!['currency']?.toString() ?? 'USD';
-            final firstTourId = _itinerary!['items'] is List && _itinerary!['items'].isNotEmpty
-                ? _positiveId(_itinerary!['items'][0]['tourId']) ?? 1
-                : 1;
-
-            final created = await ApiService.createBooking({
-              'customerId': userId,
-              'itineraryId': id,
-              'totalCost': cost,
-              'currency': currency,
-              'items': [
-                {
-                  'itemType': 0, // Tour
-                  'tourId': firstTourId,
-                  'unitPrice': cost,
-                  'quantity': 1,
-                }
-              ],
-            });
-            bookingId = _positiveId(created['id']);
-          } catch (_) {}
-        }
       }
 
       if (bookingId != null) {
@@ -336,11 +310,13 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       }
 
       if (!mounted) return;
-      Navigator.pushNamed(
-        context,
-        '/checkout',
-        arguments: bookingId ?? id,
-      );
+      if (bookingId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your booking proposal is still being prepared.')),
+        );
+        return;
+      }
+      Navigator.pushNamed(context, '/checkout', arguments: bookingId);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -995,7 +971,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         children: [
                           TileLayer(
                             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.example.serendib_trails',
+                            userAgentPackageName: 'com.serendibtrails.travel',
                           ),
                           PolylineLayer(
                             polylines: [

@@ -27,33 +27,27 @@ def build_booking_package(state):
     start_date = state.get("start_date")
     end_date = state.get("end_date")
     traveller_count = state.get("traveller_count", 1)
-    currency = str(state.get("currency", "USD")).upper()
+    currency = str(state.get("currency", "LKR")).upper()
 
     itinerary = state.get("itinerary", {})
     if not isinstance(itinerary, dict) or itinerary.get("error"):
         return {
             "status": "AvailabilityFailed",
             "error_code": "INVALID_ITINERARY",
-            "error": itinerary.get("error", "A valid persisted itinerary is required."),
-        }
-    if not itinerary.get("itinerary_id"):
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "MISSING_ITINERARY_ID",
-            "error": "A persisted itinerary ID is required before inventory selection.",
+            "error": itinerary.get("error", "A valid itinerary proposal is required."),
         }
     
     # 1. Search Hotels (fallback to all active hotels if destination has no specific hotel)
-    hotels = search_hotels(destination_id)
+    hotels = search_hotels(destination_id, currency=currency)
     if not hotels:
-        hotels = search_hotels(None)
+        hotels = search_hotels(None, currency=currency)
     available_rooms = []
     
     for hotel in hotels:
-        rooms = search_hotel_rooms(hotel.get("id"))
+        rooms = search_hotel_rooms(hotel.get("id"), currency=currency)
         for room in rooms:
             if room.get("capacity", 1) >= traveller_count:
-                avail = check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date)
+                avail = check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date, currency=currency)
                 is_room_avail = avail and (avail.get("isAvailable") is True or avail.get("availableRooms", 0) > 0)
                 if is_room_avail:
                     available_rooms.append({
@@ -75,7 +69,7 @@ def build_booking_package(state):
     )
 
     # 2. Search Transports
-    transports = search_transports()
+    transports = search_transports(currency=currency)
     available_transports = []
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
@@ -111,40 +105,6 @@ def build_booking_package(state):
             "error_code": "NO_VALID_TRANSPORT",
             "error": "No database-backed transport option is available.",
         }
-
-    # Normalize available rooms and transports to the requested currency (1 USD = 300 LKR)
-    normalized_rooms = []
-    for room in available_rooms:
-        r_copy = dict(room)
-        r_curr = str(room.get("currency") or "USD").upper()
-        p = float(room.get("price_per_night") or 0.0)
-        if r_curr == "USD" and currency == "LKR":
-            r_copy["price_per_night"] = round(p * 300.0, 2)
-            r_copy["currency"] = "LKR"
-        elif r_curr == "LKR" and currency == "USD":
-            r_copy["price_per_night"] = round(p / 300.0, 2)
-            r_copy["currency"] = "USD"
-        else:
-            r_copy["currency"] = currency
-        normalized_rooms.append(r_copy)
-
-    normalized_transports = []
-    for option in available_transports:
-        t_copy = dict(option)
-        t_curr = str(option.get("currency") or "USD").upper()
-        p = float(option.get("price") or 0.0)
-        if t_curr == "USD" and currency == "LKR":
-            t_copy["price"] = round(p * 300.0, 2)
-            t_copy["currency"] = "LKR"
-        elif t_curr == "LKR" and currency == "USD":
-            t_copy["price"] = round(p / 300.0, 2)
-            t_copy["currency"] = "USD"
-        else:
-            t_copy["currency"] = currency
-        normalized_transports.append(t_copy)
-
-    available_rooms = normalized_rooms
-    available_transports = normalized_transports
 
     itinerary_json = json.dumps(itinerary, indent=2, default=str)
     rooms_json = json.dumps(available_rooms, indent=2, default=str)

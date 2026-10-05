@@ -25,7 +25,7 @@ namespace backend.Models
         public decimal BudgetMax { get; set; }
 
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         /// <summary>
         /// Comma-separated list of preferred activities (e.g. "hiking,snorkeling,sightseeing").

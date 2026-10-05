@@ -13,10 +13,12 @@ namespace backend.Services
     public class TransportService : ITransportService
     {
         private readonly AppDbContext _context;
+        private readonly ICurrencyConversionService _currency;
 
-        public TransportService(AppDbContext context)
+        public TransportService(AppDbContext context, ICurrencyConversionService? currency = null)
         {
             _context = context;
+            _currency = currency ?? new CurrencyConversionService();
         }
 
         /// <summary>
@@ -33,7 +35,8 @@ namespace backend.Services
             string? sortBy,
             bool descending,
             int page,
-            int pageSize)
+            int pageSize,
+            string? currency = null)
         {
             var query = _context.TransportOptions.AsQueryable();
 
@@ -88,7 +91,8 @@ namespace backend.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            return results.Select(t => ToDto(t)).ToList();
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return results.Select(t => ToDto(t, targetCurrency)).ToList();
         }
 
         public async Task<int> GetTotalCountAsync(
@@ -123,14 +127,16 @@ namespace backend.Services
             return await query.CountAsync();
         }
 
-        public async Task<TransportOptionDto?> GetByIdAsync(int id)
+        public async Task<TransportOptionDto?> GetByIdAsync(int id, string? currency = null)
         {
             var transport = await _context.TransportOptions.FindAsync(id);
-            return transport is null ? null : ToDto(transport);
+            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
+            return transport is null ? null : ToDto(transport, targetCurrency);
         }
 
         public async Task<TransportOptionDto> CreateAsync(CreateTransportOptionDto dto)
         {
+            dto.Currency = _currency.Normalize(dto.Currency, "Transport currency");
             // Parse the type string from the DTO into our enum
             var transportType = Enum.Parse<TransportType>(dto.Type, ignoreCase: true);
 
@@ -161,6 +167,7 @@ namespace backend.Services
 
         public async Task<bool> UpdateAsync(int id, CreateTransportOptionDto dto)
         {
+            dto.Currency = _currency.Normalize(dto.Currency, "Transport currency");
             var transport = await _context.TransportOptions.FindAsync(id);
             if (transport is null) return false;
 
@@ -195,7 +202,7 @@ namespace backend.Services
         }
 
         // ── Mapping helper ──
-        private static TransportOptionDto ToDto(TransportOption t) => new TransportOptionDto
+        private TransportOptionDto ToDto(TransportOption t, string? targetCurrency = null) => new TransportOptionDto
         {
             Id                 = t.Id,
             Type               = t.Type.ToString(),     // enum → string for the API response
@@ -209,8 +216,8 @@ namespace backend.Services
             DepartureTime      = t.DepartureTime,
             ArrivalTime        = t.ArrivalTime,
             Capacity           = t.Capacity,
-            Price              = t.Price,
-            Currency           = t.Currency,
+            Price              = targetCurrency == null ? t.Price : _currency.Convert(t.Price, t.Currency, targetCurrency),
+            Currency           = targetCurrency ?? t.Currency,
             ImageUrl           = t.ImageUrl,
             Status             = t.Status.ToString()
         };

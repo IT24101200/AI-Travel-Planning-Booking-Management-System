@@ -2,6 +2,7 @@ using System.Security.Claims;
 using backend.Data;
 using backend.DTOs;
 using backend.Models.Enums;
+using backend.Security;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,7 @@ namespace backend.Controllers
     public class TripRequestController : ControllerBase
     {
         private readonly ITripRequestService _tripRequestService;
+        private readonly IAgentProposalPersistenceService _proposalPersistenceService;
         private readonly ICustomerService _customerService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
@@ -23,6 +25,7 @@ namespace backend.Controllers
 
         public TripRequestController(
             ITripRequestService tripRequestService,
+            IAgentProposalPersistenceService proposalPersistenceService,
             ICustomerService customerService,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
@@ -30,6 +33,7 @@ namespace backend.Controllers
             ILogger<TripRequestController> logger)
         {
             _tripRequestService = tripRequestService;
+            _proposalPersistenceService = proposalPersistenceService;
             _customerService = customerService;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
@@ -58,8 +62,15 @@ namespace backend.Controllers
             {
                 var result = await _tripRequestService.CreateAsync(userId, dto);
 
+                var planning = await _tripRequestService.UpdateAgentPlanAsync(result.Id, new TripRequestAgentUpdateDto
+                {
+                    Status = "Planning"
+                });
+                if (planning is not null)
+                    result = planning;
+
                 // Option A: Automatically trigger the multi-agent pipeline in the background
-                TriggerAgentPipelineAsync(result);
+                TriggerAgentPipelineAsync(result, Request.Headers.Authorization.ToString());
 
                 return StatusCode(StatusCodes.Status201Created, result);
             }
@@ -217,6 +228,9 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(AgentLogDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> AddAgentLog([FromBody] AgentLogCreateDto dto)
         {
+            if (!AgentServiceAuthentication.IsValid(Request, _configuration))
+                return Unauthorized(new { message = "Valid agent service credentials are required." });
+
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
@@ -233,11 +247,63 @@ namespace backend.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AgentUpdate(int id, [FromBody] TripRequestAgentUpdateDto dto)
         {
-            var updated = await _tripRequestService.UpdateAgentPlanAsync(id, dto);
+            if (!AgentServiceAuthentication.IsValid(Request, _configuration))
+                return Unauthorized(new { message = "Valid agent service credentials are required." });
+
+            if (string.Equals(dto.Status, "AwaitingApproval", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!dto.PlanJson.HasValue)
+                    return BadRequest(new { message = "A validated proposal is required before persistence." });
+
+                try
+                {
+                    var persisted = await _proposalPersistenceService.PersistAsync(
+                        id, dto.PlanJson.Value, dto.RetryCount ?? 0, HttpContext.RequestAborted);
+                    return Ok(persisted);
+                }
+                catch (ProposalPersistenceException ex)
+                {
+                    await MarkProposalFailedAsync(id, ex.Message, dto.RetryCount ?? 0);
+                    try
+                    {
+                        await _tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
+                        {
+                            TripRequestId = id,
+                            AgentName = "ASP.NET ProposalPersistence",
+                            StepName = "Proposal persistence failed",
+                            Output = ex.Message,
+                            Status = "Failed",
+                            Timestamp = DateTime.UtcNow
+                        });
+                    }
+                    catch (Exception logError)
+                    {
+                        _logger.LogWarning(logError, "Could not write persistence failure log for TripRequest #{Id}.", id);
+                    }
+                    return BadRequest(new { code = ex.Code, message = ex.Message });
+                }
+            }
+
+            TripRequestDto? updated;
+            try
+            {
+                updated = await _tripRequestService.UpdateAgentPlanAsync(id, dto);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+
             if (updated == null)
                 return NotFound(new { message = "Trip request not found." });
 
-            if (updated.Status == "AwaitingApproval" && !string.IsNullOrWhiteSpace(updated.PlanJson))
+            // Itinerary and booking persistence belongs to the authenticated agent tools.
+            // This endpoint only records the agent result on the TripRequest.
+            if (false && updated.Status == "AwaitingApproval" && !string.IsNullOrWhiteSpace(updated.PlanJson))
             {
                 _ = Task.Run(async () =>
                 {
@@ -363,7 +429,7 @@ namespace backend.Controllers
             return Ok(updated);
         }
 
-        private void TriggerAgentPipelineAsync(TripRequestDto trip)
+        private void TriggerAgentPipelineAsync(TripRequestDto trip, string authorizationHeader)
         {
             _ = Task.Run(async () =>
             {
@@ -391,6 +457,9 @@ namespace backend.Controllers
                         destination_id = trip.DestinationId,
                         destination_name = trip.DestinationName ?? "Destination",
                         raw_request_text = trip.RawRequestText,
+                        access_token = authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                            ? authorizationHeader["Bearer ".Length..].Trim()
+                            : null,
                         start_date = trip.StartDate.ToString("o"),
                         end_date = trip.EndDate.ToString("o"),
                         traveller_count = trip.TravellerCount,
@@ -412,7 +481,7 @@ namespace backend.Controllers
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning("Agent service offline at {Url}: {Message}. Running local multi-agent fallback.", agentBaseUrl, ex.Message);
+                        _logger.LogWarning("Agent service offline at {Url}: {Message}.", agentBaseUrl, ex.Message);
                     }
 
                     if (response != null && response.IsSuccessStatusCode)
@@ -421,8 +490,7 @@ namespace backend.Controllers
                     }
                     else
                     {
-                        _logger.LogInformation("Executing multi-agent planning fallback for TripRequest #{Id}...", trip.Id);
-                        await RunLocalFallbackPipelineAsync(scope, trip);
+                        await MarkAgentPipelineFailedAsync(trip.Id, "Agent service did not accept the pipeline request.");
                     }
                 }
                 catch (Exception ex)
@@ -430,6 +498,39 @@ namespace backend.Controllers
                     _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{Id}.", trip.Id);
                 }
             });
+        }
+
+        private async Task MarkAgentPipelineFailedAsync(int tripRequestId, string reason)
+        {
+            try
+            {
+                await _tripRequestService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
+                {
+                    Status = "Failed",
+                    FailureReason = reason
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not mark TripRequest #{Id} as failed after agent dispatch failure.", tripRequestId);
+            }
+        }
+
+        private async Task MarkProposalFailedAsync(int tripRequestId, string reason, int retryCount)
+        {
+            try
+            {
+                await _tripRequestService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
+                {
+                    Status = "Failed",
+                    FailureReason = reason,
+                    RetryCount = retryCount
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not persist proposal failure for TripRequest #{Id}.", tripRequestId);
+            }
         }
 
         private async Task RunLocalFallbackPipelineAsync(IServiceScope scope, TripRequestDto trip)

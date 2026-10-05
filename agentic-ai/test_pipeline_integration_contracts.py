@@ -4,7 +4,7 @@ import os
 from unittest.mock import patch
 
 from agents import booking_agent, itinerary_agent
-from tools.itinerary_tools import persist_itinerary
+from tools.itinerary_tools import ItineraryPersistenceError, persist_itinerary
 
 
 def _state():
@@ -92,9 +92,8 @@ def test_no_tours_returns_clean_failure_without_fake_ids(_search):
     assert "101" not in str(result)
 
 
-@patch("agents.itinerary_agent.persist_itinerary", return_value=42)
 @patch("agents.itinerary_agent.build_itinerary")
-def test_itinerary_node_returns_positive_persisted_id(build_mock, persist_mock):
+def test_itinerary_node_returns_proposal_without_persisting(build_mock):
     build_mock.return_value = {
         "itinerary_id": None,
         "total_estimated_cost": 200,
@@ -103,9 +102,9 @@ def test_itinerary_node_returns_positive_persisted_id(build_mock, persist_mock):
     }
     result = itinerary_agent.itinerary_node(_state())
 
-    assert result["itinerary"]["itinerary_id"] == 42
+    assert result["itinerary"]["itinerary_id"] is None
     assert result["itinerary"]["currency"] == "USD"
-    persist_mock.assert_called_once()
+    assert result["itinerary"]["schedule"] == []
 
 
 class _Response:
@@ -129,7 +128,7 @@ class _ItineraryClient:
         return _Response(200, {"id": 9})
 
 
-def test_itinerary_persistence_uses_backend_id_and_all_items():
+def test_direct_itinerary_persistence_is_disabled():
     state = _state()
     itinerary = {
         "schedule": [
@@ -147,11 +146,13 @@ def test_itinerary_persistence_uses_backend_id_and_all_items():
     }
     client = _ItineraryClient()
 
-    result = persist_itinerary(state, itinerary, client=client)
-
-    assert result == 42
-    assert len(client.calls) == 2
-    assert client.calls[1][1]["json"]["tourId"] == 15
+    try:
+        persist_itinerary(state, itinerary, client=client)
+    except ItineraryPersistenceError as error:
+        assert "Direct AI itinerary persistence is disabled" in str(error)
+    else:
+        raise AssertionError("AI must not persist itineraries directly.")
+    assert client.calls == []
 
 
 @patch("agents.booking_agent.search_hotels", return_value=[])

@@ -47,7 +47,7 @@ namespace backend.Models
 
         [Required]
         [MaxLength(10)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; set; } = "LKR";
 
         // ── Navigation ──
         [ForeignKey(nameof(HotelId))]

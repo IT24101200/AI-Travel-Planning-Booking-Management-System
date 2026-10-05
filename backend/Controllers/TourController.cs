@@ -36,19 +36,20 @@ namespace backend.Controllers
             [FromQuery] string? sortBy,
             [FromQuery] bool descending = false,
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10)
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? currency = null)
         {
             var results = await _service.SearchAsync(
-                search, destinationId, category, minPrice, maxPrice, status, sortBy, descending, page, pageSize);
+                search, destinationId, category, minPrice, maxPrice, status, sortBy, descending, page, pageSize, currency);
             return Ok(results);
         }
 
         // GET /api/tour/{id}
         [HttpGet("{id}")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetById(int id)
+        public async Task<IActionResult> GetById(int id, [FromQuery] string? currency = null)
         {
-            var tour = await _service.GetByIdAsync(id);
+            var tour = await _service.GetByIdAsync(id, currency);
             if (tour is null) return NotFound();
             return Ok(tour);
         }

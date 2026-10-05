@@ -84,6 +84,8 @@ export default function BookingApprovalDashboard() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadBookings(cancelled)
     return () => { cancelled = true }
   }, [])
@@ -101,6 +103,8 @@ export default function BookingApprovalDashboard() {
   // Load autonomous AI agent execution logs for the selected booking's trip request
   useEffect(() => {
     if (active?.agentLogs && active.agentLogs.length > 0) {
+      // Agent logs are copied into the panel's local view when the selection changes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAgentLogs(active.agentLogs)
       return
     }

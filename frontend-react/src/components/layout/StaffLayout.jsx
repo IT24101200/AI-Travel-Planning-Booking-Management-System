@@ -46,6 +46,8 @@ export function StaffLayout() {
 
   // Automatically close mobile menu when navigating
   useEffect(() => {
+    // Navigation invalidates the drawer state; this is intentional UI synchronization.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMobileMenuOpen(false)
   }, [location.pathname])
 

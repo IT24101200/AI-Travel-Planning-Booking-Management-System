@@ -3,6 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/trip_selection_service.dart';
+import '../../services/currency_notifier.dart';
+import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
 
 /// Checkout and payment screen matching Figma frame 11 · Checkout & Payment (node 7:10956)
@@ -45,23 +47,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     } else if (TripSelectionService.activeBookingId != null) {
       _loadBooking(TripSelectionService.activeBookingId!);
     } else {
-      // Default initial state for student evaluation
       setState(() {
-        _booking = {
-          'id': 101,
-          'bookingReference': 'ST-2026-98214',
-          'destination': 'Sri Lanka Discovery',
-          'dates': '12–18 Oct 2026 · 2 travelers',
-          'stops': 'Sigiriya · Kandy · Ella · Mirissa',
-          'accommodationCost': 1116.0,
-          'toursCost': 218.0,
-          'transfersCost': 284.0,
-          'taxesCost': 94.0,
-          'totalCost': 1712.0,
-          'currency': 'USD',
-          'status': 2, // Confirmed for sandbox payment demo
-          'bookingStatus': 'Confirmed',
-        };
+        _error = 'No booking is available yet. Wait for the travel agent to prepare the proposal.';
         _loading = false;
       });
     }
@@ -135,7 +122,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     return null;
   }
 
-  /// Process payment through Stripe sandbox simulation
+  /// Process payment through the backend Stripe TEST Mode PaymentIntent flow.
   Future<void> _pay() async {
     if (_booking == null) return;
 
@@ -164,36 +151,32 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     });
 
     try {
-      final total = (_booking!['totalCost'] ??
-              _booking!['totalEstimatedCost'] ??
-              1712)
-          .toDouble();
-
-      // Card ending in 0002 simulates a declined card in Stripe Sandbox
+      // These are Stripe's documented TEST-mode PaymentMethod fixtures. The
+      // card number itself is never sent to the backend.
       final cleanCard = _cardNumberController.text.replaceAll(RegExp(r'\s+'), '');
-      final isDeclineTest = cleanCard.endsWith('0002');
-      final stripeToken = isDeclineTest ? 'tok_chargeDeclined' : 'tok_visa';
+      final paymentMethodId = cleanCard.endsWith('0002')
+          ? 'pm_card_chargeDeclined'
+          : 'pm_card_visa';
 
       final result = await ApiService.createPayment({
         'bookingId': _booking!['id'] ?? 101,
-        'amount': total,
-        'currency': _booking!['currency'] ?? 'USD',
-        'stripeToken': stripeToken,
+        'paymentMethodId': paymentMethodId,
       });
 
       if (!mounted) return;
 
-      final statusCode = result['statusCode'] ?? 200;
+      final statusCode = result['statusCode'] ?? 0;
+      final paymentStatus = result['status']?.toString().toLowerCase();
       final isSuccess = (statusCode == 200 || statusCode == 201) &&
-          result['status'] != 'Failed' &&
-          result['paymentStatus'] != 'Failed' &&
-          !isDeclineTest;
+          paymentStatus == 'paid' &&
+          (result['stripeReference']?.toString().isNotEmpty ?? false);
 
       if (isSuccess) {
-        // Update local booking with payment reference
+        // Carry only the server's successful payment result into confirmation.
         final updatedBooking = Map<String, dynamic>.from(_booking!);
-        updatedBooking['paymentId'] = result['id'] ?? result['paymentId'];
-        updatedBooking['paymentStatus'] = 'Paid';
+        updatedBooking['paymentId'] = result['id'];
+        updatedBooking['paymentStatus'] = result['status'];
+        updatedBooking['stripeReference'] = result['stripeReference'];
         updatedBooking['customerName'] = _nameController.text.trim();
 
         Navigator.pushReplacementNamed(
@@ -204,8 +187,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       } else {
         // Payment failed or declined: STAY on checkout screen with clear error
         setState(() {
-          _paymentMessage = result['message'] ??
-              'Payment declined: test card simulated failure. Please check your card details.';
+          _paymentMessage = result['failureReason'] ?? result['message'] ??
+              'Stripe did not confirm the payment. Please try again.';
         });
       }
     } catch (e) {
@@ -268,6 +251,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final toursCost = (_booking!['toursCost'] ?? 218).toDouble();
     final transfersCost = (_booking!['transfersCost'] ?? 284).toDouble();
     final taxesCost = (_booking!['taxesCost'] ?? 94).toDouble();
+    final transactionCurrency = (_booking!['currency']?.toString().isNotEmpty ?? false)
+        ? _booking!['currency'].toString().toUpperCase()
+        : currencyNotifier.value;
     final tripTitle = _booking!['destination'] ?? 'Sri Lanka Discovery';
     final dates = _booking!['dates'] ?? '12–18 Oct 2026 · 2 travelers';
     final stops = _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
@@ -412,40 +398,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
                                   color: const Color(0xFFD97706),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          // Student Demo Helper: Simulate Agent Approval
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () {
-                                setState(() {
-                                  _booking!['status'] = 2;
-                                  _booking!['bookingStatus'] = 'Confirmed';
-                                  _paymentMessage = null;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Agent approved booking! Payment unlocked.'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFD97706),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              child: Text(
-                                'Simulate Approval',
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
                             ),
@@ -607,7 +559,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               ),
                             ),
                             Text(
-                              'USD · all taxes included',
+                              '$transactionCurrency · all taxes included',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 color: isDark
@@ -618,7 +570,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           ],
                         ),
                         Text(
-                          '\$${total.toStringAsFixed(0)}',
+                          formatMoney(total, transactionCurrency),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
@@ -654,7 +606,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      'Stripe Sandbox',
+                      'Stripe TEST Mode',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -904,7 +856,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                             const SizedBox(width: 8),
                             Text(
                               isConfirmed
-                                  ? 'Confirm & Pay \$${total.toStringAsFixed(0)}'
+                                  ? 'Confirm & Pay ${formatMoney(total, transactionCurrency)}'
                                   : 'Payment Locked (Awaiting Approval)',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 15,
@@ -942,7 +894,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          '\$${amount.toStringAsFixed(0)}',
+          formatMoney(amount, (_booking?['currency']?.toString() ?? currencyNotifier.value)),
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w700,

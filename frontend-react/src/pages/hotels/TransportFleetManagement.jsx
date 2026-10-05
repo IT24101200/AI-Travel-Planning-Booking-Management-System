@@ -120,8 +120,11 @@ export default function TransportFleetManagement() {
 
   useEffect(() => {
     let cancelled = false
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadFleet(cancelled)
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function selectForEdit(sch) {
@@ -224,7 +227,7 @@ export default function TransportFleetManagement() {
       await deleteTransport(sch.id)
       setNotice(`Schedule ${sch.code} decommissioned.`)
       await loadFleet()
-    } catch (err) {
+    } catch {
       // Set to decommissioned locally
       setRows(prev => prev.map(r => r.id === sch.id ? { ...r, status: 'Decommissioned' } : r))
       if (selectedSchedule?.id === sch.id) {

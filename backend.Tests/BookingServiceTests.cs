@@ -29,6 +29,12 @@ namespace backend.Tests
 
         private static async Task SeedDependenciesAsync(AppDbContext context)
         {
+            context.Users.Add(new IdentityUser
+            {
+                Id = "agent-user-1",
+                UserName = "agent-user-1"
+            });
+
             context.Customers.Add(new Customer
             {
                 Id = "cust-1",
@@ -52,7 +58,15 @@ namespace backend.Tests
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddDays(5),
                 Status = ItineraryStatus.Proposed,
-                TotalEstimatedCost = 500
+                TotalEstimatedCost = 500,
+                Currency = "USD"
+            });
+
+            context.Destinations.Add(new Destination
+            {
+                Id = 1,
+                Name = "Paris",
+                Country = "France"
             });
 
             context.Tours.Add(new Tour
@@ -149,7 +163,7 @@ namespace backend.Tests
             await SeedDependenciesAsync(context);
 
             var bookingService = new BookingService(context);
-            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build());
+            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build(), new FakeStripePaymentGateway());
 
             var booking = await bookingService.CreateBookingAsync(new BookingCreateDto
             {
@@ -171,8 +185,7 @@ namespace backend.Tests
             var paymentDto = new PaymentCreateDto
             {
                 BookingId = booking.Id,
-                Amount = 300,
-                Currency = "USD"
+                PaymentMethodId = "pm_card_visa"
             };
 
             // Act & Assert — Must throw InvalidOperationException because booking status is AwaitingApproval, not Confirmed
@@ -190,7 +203,7 @@ namespace backend.Tests
             await SeedDependenciesAsync(context);
 
             var bookingService = new BookingService(context);
-            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build());
+            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build(), new FakeStripePaymentGateway());
 
             var booking = await bookingService.CreateBookingAsync(new BookingCreateDto
             {
@@ -216,14 +229,13 @@ namespace backend.Tests
             var payment = await paymentService.ProcessPaymentAsync(new PaymentCreateDto
             {
                 BookingId = booking.Id,
-                Amount = 300,
-                Currency = "USD"
+                PaymentMethodId = "pm_card_visa"
             });
 
             // Assert
             Assert.NotNull(payment);
             Assert.Equal(PaymentStatus.Paid, payment.Status);
-            Assert.StartsWith("ch_sb_", payment.StripeReference);
+            Assert.StartsWith("pi_test_", payment.StripeReference);
         }
 
         [Fact]
@@ -330,13 +342,14 @@ namespace backend.Tests
         {
             // Arrange
             using var context = CreateContext();
-            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build());
+            var paymentService = new PaymentService(context, new ConfigurationBuilder().Build(), new FakeStripePaymentGateway());
 
             var paymentDto = new PaymentCreateDto
             {
                 BookingId = 9999,
                 Amount = 100,
-                Currency = "USD"
+                Currency = "USD",
+                PaymentMethodId = "pm_card_visa"
             };
 
             // Act & Assert (HTTP 404 response trigger)
