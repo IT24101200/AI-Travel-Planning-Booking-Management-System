@@ -75,6 +75,7 @@ def coordinator_plan(state: dict) -> dict:
     budget = float(state.get("budget_ceiling", 1000.0))
     currency = state.get("currency", "USD")
     retry_count = state.get("retry_count", 0)
+    revision_feedback = state.get("revision_feedback") or "None"
 
     days = calculate_days(start_date, end_date)
 
@@ -97,6 +98,7 @@ def coordinator_plan(state: dict) -> dict:
     - Travellers: {travellers}
     - Total Budget: {budget} {currency} (Target for activities/stay: {effective_budget} {currency})
     - Customer Notes: {raw_text}
+    - Human Revision Feedback: {revision_feedback}
     - Retry Attempt: {retry_count}
 
     Provide a concise JSON object with:
@@ -156,7 +158,8 @@ def coordinator_plan(state: dict) -> dict:
             "budget": budget,
             "currency": currency,
             "days": days,
-            "retry_count": retry_count
+            "retry_count": retry_count,
+            "revision_feedback": revision_feedback
         },
         output_data=plan_summary,
         status="Success"

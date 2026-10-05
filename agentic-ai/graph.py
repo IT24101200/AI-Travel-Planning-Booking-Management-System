@@ -26,6 +26,7 @@ class TripPlanningState(TypedDict, total=False):
     destination_id: Optional[int]
     destination_name: str
     raw_request_text: str
+    revision_feedback: Optional[str]
     preferred_activities: Optional[list[str]]
     start_date: str
     end_date: str

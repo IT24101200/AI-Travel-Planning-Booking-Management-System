@@ -45,6 +45,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             throw new ProposalPersistenceException("TRIP_NOT_FOUND", $"TripRequest {tripRequestId} was not found.");
 
         var existingItinerary = await _db.Itineraries
+            .OrderByDescending(i => i.CreatedAt)
             .FirstOrDefaultAsync(i => i.TripRequestId == tripRequestId, cancellationToken);
         if (existingItinerary is not null)
         {
@@ -53,16 +54,19 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             if (existingBooking is null)
                 throw new ProposalPersistenceException("PARTIAL_PROPOSAL", "A prior itinerary exists without its booking.");
 
-            await transaction.CommitAsync(cancellationToken);
-            return new AgentProposalPersistenceResult
+            if (existingBooking.Status is not (BookingStatus.Cancelled or BookingStatus.Rejected))
             {
-                TripRequestId = tripRequestId,
-                ItineraryId = existingItinerary.Id,
-                BookingId = existingBooking.Id,
-                BookingReference = existingBooking.BookingReference,
-                BookingStatus = existingBooking.Status.ToString(),
-                AlreadyPersisted = true
-            };
+                await transaction.CommitAsync(cancellationToken);
+                return new AgentProposalPersistenceResult
+                {
+                    TripRequestId = tripRequestId,
+                    ItineraryId = existingItinerary.Id,
+                    BookingId = existingBooking.Id,
+                    BookingReference = existingBooking.BookingReference,
+                    BookingStatus = existingBooking.Status.ToString(),
+                    AlreadyPersisted = true
+                };
+            }
         }
 
         if (trip.Status is not (TripRequestStatus.Pending or TripRequestStatus.Planning or TripRequestStatus.Planned))
