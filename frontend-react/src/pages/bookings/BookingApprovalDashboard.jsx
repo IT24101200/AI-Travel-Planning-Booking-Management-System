@@ -11,8 +11,8 @@ import {
   RotateCcwIcon,
 } from '../../components/ui/Icons.jsx'
 
-const STATUS_NAMES = ['AwaitingApproval', 'Confirmed', 'Rejected', 'Cancelled']
-const DECISION_NAMES = ['Pending', 'Approved', 'Rejected', 'RevisionRequested']
+const STATUS_NAMES = ['Draft', 'AwaitingApproval', 'Confirmed', 'Rejected', 'Cancelled', 'Completed']
+const DECISION_NAMES = ['Approved', 'Rejected', 'RevisionRequested']
 
 /**
  * Student D — Booking Approval Dashboard
@@ -572,65 +572,86 @@ export default function BookingApprovalDashboard() {
               )}
             </div>
 
-            {/* Audit Comment Form */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>
-                Audit comment *
-              </label>
-              <textarea
+            {/* Audit Comment Form & Decision Controls */}
+            {active.status.toLowerCase() === 'awaitingapproval' ? (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>
+                    Audit comment *
+                  </label>
+                  <textarea
+                    style={{
+                      width: '100%',
+                      minHeight: '68px',
+                      padding: '0.625rem',
+                      borderRadius: '6px',
+                      border: '1px solid #c8d1d4',
+                      fontSize: '0.75rem',
+                      fontFamily: 'inherit',
+                      boxSizing: 'border-box',
+                      resize: 'vertical',
+                      outline: 'none',
+                    }}
+                    placeholder="Required: explain your decision for the audit log"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <button
+                    type="button"
+                    className="btn-gold"
+                    style={{ width: '100%', justifyContent: 'center', height: '42px', fontSize: '0.8125rem' }}
+                    onClick={() => decide('Approved')}
+                    disabled={loading}
+                  >
+                    <CheckIcon size={16} />
+                    <span>Approve Booking</span>
+                  </button>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      className="btn-danger-soft"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                      onClick={() => decide('Rejected')}
+                      disabled={loading}
+                    >
+                      Reject Booking
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                      onClick={() => decide('RevisionRequested')}
+                      disabled={loading}
+                    >
+                      <RotateCcwIcon size={14} />
+                      <span>Request Revision</span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div
                 style={{
-                  width: '100%',
-                  minHeight: '68px',
-                  padding: '0.625rem',
+                  padding: '0.75rem',
                   borderRadius: '6px',
-                  border: '1px solid #c8d1d4',
+                  backgroundColor: active.status.toLowerCase() === 'confirmed' ? '#f0fdf4' : '#fef2f2',
+                  color: active.status.toLowerCase() === 'confirmed' ? '#166534' : '#991b1b',
+                  border: `1px solid ${active.status.toLowerCase() === 'confirmed' ? '#bbf7d0' : '#fecaca'}`,
                   fontSize: '0.75rem',
-                  fontFamily: 'inherit',
-                  boxSizing: 'border-box',
-                  resize: 'vertical',
-                  outline: 'none',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                  marginTop: '0.5rem',
                 }}
-                placeholder="Required: explain your decision for the audit log"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-              />
-            </div>
-
-            {/* Decision Controls matching Figma */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-              <button
-                type="button"
-                className="btn-gold"
-                style={{ width: '100%', justifyContent: 'center', height: '42px', fontSize: '0.8125rem' }}
-                onClick={() => decide('Approved')}
-                disabled={loading}
               >
-                <CheckIcon size={16} />
-                <span>Approve Booking</span>
-              </button>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  className="btn-danger-soft"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => decide('Rejected')}
-                  disabled={loading}
-                >
-                  Reject Booking
-                </button>
-                <button
-                  type="button"
-                  className="btn-outline"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                  onClick={() => decide('RevisionRequested')}
-                  disabled={loading}
-                >
-                  <RotateCcwIcon size={14} />
-                  <span>Request Revision</span>
-                </button>
+                {active.status.toLowerCase() === 'confirmed'
+                  ? '✓ This booking is already Confirmed.'
+                  : `Decision recorded: ${active.status}.`}
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>

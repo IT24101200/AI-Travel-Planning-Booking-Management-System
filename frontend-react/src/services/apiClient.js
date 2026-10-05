@@ -210,9 +210,18 @@ export async function fetchPendingApprovals() {
 }
 
 export async function decideApproval(bookingId, decision, comment) {
+  const DECISION_MAP = {
+    Approved: 0,
+    Rejected: 1,
+    RevisionRequested: 2,
+  }
+  const numericDecision = typeof decision === 'string' && decision in DECISION_MAP
+    ? DECISION_MAP[decision]
+    : decision
+
   const { data } = await api.post('/Approval', {
     bookingId: Number(bookingId),
-    decision,
+    decision: numericDecision,
     comment: comment || '',
   })
   return data

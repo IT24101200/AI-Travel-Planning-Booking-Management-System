@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace backend.Models.Enums
 {
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum BookingStatus
     {
         Draft,
@@ -10,6 +13,7 @@ namespace backend.Models.Enums
         Completed
     }
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum BookingItemType
     {
         Tour,
@@ -17,6 +21,7 @@ namespace backend.Models.Enums
         Transport
     }
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum ApprovalDecision
     {
         Approved,
@@ -24,6 +29,7 @@ namespace backend.Models.Enums
         RevisionRequested
     }
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum PaymentStatus
     {
         Pending,
