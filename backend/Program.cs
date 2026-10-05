@@ -360,6 +360,20 @@ if (app.Environment.IsDevelopment())
             return Results.Problem(title: "Seeding error", detail: ex.Message);
         }
     });
+
+    app.MapPost("/reset-db", async (IServiceProvider services) =>
+    {
+        try
+        {
+            await backend.Data.DbInitializer.ResetAndSeedAsync(services);
+            return Results.Ok(new { success = true, message = "Database fully cleared and re-seeded with fresh data." });
+        }
+        catch (Exception ex)
+        {
+            app.Logger.LogError(ex, "Database reset and seeding failed.");
+            return Results.Problem(title: "Reset error", detail: ex.Message);
+        }
+    });
 }
 
 app.MapPost("/setup-supabase-storage", async (AppDbContext db) =>
