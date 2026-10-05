@@ -18,6 +18,49 @@ namespace backend.Data
     /// </summary>
     public static class DbInitializer
     {
+        /// <summary>
+        /// Fully clears all application and identity tables, then re-seeds fresh default data.
+        /// </summary>
+        public static async Task ResetAndSeedAsync(IServiceProvider serviceProvider)
+        {
+            using var scope = serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            if (context.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                await context.Database.ExecuteSqlRawAsync(@"
+                    TRUNCATE TABLE 
+                        ""AgentLogs"",
+                        ""AspNetRoleClaims"",
+                        ""AspNetRoles"",
+                        ""AspNetUserClaims"",
+                        ""AspNetUserLogins"",
+                        ""AspNetUserRoles"",
+                        ""AspNetUserTokens"",
+                        ""AspNetUsers"",
+                        ""BookingApprovals"",
+                        ""BookingItems"",
+                        ""Bookings"",
+                        ""Customers"",
+                        ""Destinations"",
+                        ""Hotels"",
+                        ""Itineraries"",
+                        ""ItineraryItems"",
+                        ""Notifications"",
+                        ""Payments"",
+                        ""Preferences"",
+                        ""Rooms"",
+                        ""Tours"",
+                        ""TransportOptions"",
+                        ""TravelAgents"",
+                        ""TripRequests""
+                    CASCADE;
+                ");
+            }
+
+            await SeedAsync(serviceProvider);
+        }
+
         public static async Task SeedAsync(IServiceProvider serviceProvider)
         {
             using var scope = serviceProvider.CreateScope();
@@ -220,6 +263,16 @@ namespace backend.Data
                     BudgetMax: 7000m,
                     Activities: "Ancient Ruins, Architecture, Fine Dining",
                     Dietary: "Nut allergy",
+                    Accessibility: "None"
+                ),
+                (
+                    Email: "user@gmail.com",
+                    Name: "user",
+                    Phone: "0776543876",
+                    BudgetMin: 25000m,
+                    BudgetMax: 75000m,
+                    Activities: "Scenic, Cultural Walks, Heritage",
+                    Dietary: "No restrictions",
                     Accessibility: "None"
                 )
             };
