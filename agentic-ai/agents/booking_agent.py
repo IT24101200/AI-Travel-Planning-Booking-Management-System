@@ -34,13 +34,7 @@ def build_booking_package(state):
         return {
             "status": "AvailabilityFailed",
             "error_code": "INVALID_ITINERARY",
-            "error": itinerary.get("error", "A valid persisted itinerary is required."),
-        }
-    if not itinerary.get("itinerary_id"):
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "MISSING_ITINERARY_ID",
-            "error": "A persisted itinerary ID is required before inventory selection.",
+            "error": itinerary.get("error", "A valid itinerary proposal is required."),
         }
     
     # 1. Search Hotels (fallback to all active hotels if destination has no specific hotel)

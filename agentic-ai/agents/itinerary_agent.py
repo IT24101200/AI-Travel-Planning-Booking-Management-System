@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 # The tools directory is next to the agents directory. When the agentic-ai
 # directory is the Python working directory, this imports tools/search_tours.py.
 from tools.search_tours import search_tours
-from tools.itinerary_tools import ItineraryPersistenceError, persist_itinerary
 
 
 # Read variables from a local .env file (if one exists) into the environment.
@@ -431,19 +430,9 @@ def itinerary_node(state: dict) -> dict:
     if result.get("error"):
         return {"itinerary": result, "status": result.get("status", "ItineraryFailed")}
 
-    try:
-        itinerary_id = persist_itinerary(state, result)
-    except ItineraryPersistenceError as error:
-        return {
-            "itinerary": {
-                "status": "ItineraryPersistenceFailed",
-                "error_code": "ITINERARY_PERSIST_FAILED",
-                "error": str(error),
-            },
-            "status": "ItineraryPersistenceFailed",
-        }
-
-    result["itinerary_id"] = itinerary_id
+    # Persistence is deliberately deferred until the final validation result.
+    # ASP.NET owns the transaction and assigns the real ItineraryId.
+    result["itinerary_id"] = None
     result["currency"] = state.get("currency", "USD")
     result["total_cost"] = result["total_estimated_cost"]
     return {**state, "itinerary": result}

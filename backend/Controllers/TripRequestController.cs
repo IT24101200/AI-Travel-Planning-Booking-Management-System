@@ -16,6 +16,7 @@ namespace backend.Controllers
     public class TripRequestController : ControllerBase
     {
         private readonly ITripRequestService _tripRequestService;
+        private readonly IAgentProposalPersistenceService _proposalPersistenceService;
         private readonly ICustomerService _customerService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
@@ -24,6 +25,7 @@ namespace backend.Controllers
 
         public TripRequestController(
             ITripRequestService tripRequestService,
+            IAgentProposalPersistenceService proposalPersistenceService,
             ICustomerService customerService,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
@@ -31,6 +33,7 @@ namespace backend.Controllers
             ILogger<TripRequestController> logger)
         {
             _tripRequestService = tripRequestService;
+            _proposalPersistenceService = proposalPersistenceService;
             _customerService = customerService;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
@@ -58,6 +61,13 @@ namespace backend.Controllers
             try
             {
                 var result = await _tripRequestService.CreateAsync(userId, dto);
+
+                var planning = await _tripRequestService.UpdateAgentPlanAsync(result.Id, new TripRequestAgentUpdateDto
+                {
+                    Status = "Planning"
+                });
+                if (planning is not null)
+                    result = planning;
 
                 // Option A: Automatically trigger the multi-agent pipeline in the background
                 TriggerAgentPipelineAsync(result, Request.Headers.Authorization.ToString());
@@ -239,6 +249,40 @@ namespace backend.Controllers
         {
             if (!AgentServiceAuthentication.IsValid(Request, _configuration))
                 return Unauthorized(new { message = "Valid agent service credentials are required." });
+
+            if (string.Equals(dto.Status, "AwaitingApproval", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!dto.PlanJson.HasValue)
+                    return BadRequest(new { message = "A validated proposal is required before persistence." });
+
+                try
+                {
+                    var persisted = await _proposalPersistenceService.PersistAsync(
+                        id, dto.PlanJson.Value, dto.RetryCount ?? 0, HttpContext.RequestAborted);
+                    return Ok(persisted);
+                }
+                catch (ProposalPersistenceException ex)
+                {
+                    await MarkProposalFailedAsync(id, ex.Message, dto.RetryCount ?? 0);
+                    try
+                    {
+                        await _tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
+                        {
+                            TripRequestId = id,
+                            AgentName = "ASP.NET ProposalPersistence",
+                            StepName = "Proposal persistence failed",
+                            Output = ex.Message,
+                            Status = "Failed",
+                            Timestamp = DateTime.UtcNow
+                        });
+                    }
+                    catch (Exception logError)
+                    {
+                        _logger.LogWarning(logError, "Could not write persistence failure log for TripRequest #{Id}.", id);
+                    }
+                    return BadRequest(new { code = ex.Code, message = ex.Message });
+                }
+            }
 
             TripRequestDto? updated;
             try
@@ -469,6 +513,23 @@ namespace backend.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Could not mark TripRequest #{Id} as failed after agent dispatch failure.", tripRequestId);
+            }
+        }
+
+        private async Task MarkProposalFailedAsync(int tripRequestId, string reason, int retryCount)
+        {
+            try
+            {
+                await _tripRequestService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
+                {
+                    Status = "Failed",
+                    FailureReason = reason,
+                    RetryCount = retryCount
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not persist proposal failure for TripRequest #{Id}.", tripRequestId);
             }
         }
 

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using backend.Controllers;
 using backend.DTOs;
 using backend.Models.Enums;
@@ -40,7 +41,7 @@ public class IntegrationSecurityTests
     {
         var service = new Mock<ITripRequestService>();
         var controller = new TripRequestController(
-            service.Object, Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
+            service.Object, Mock.Of<IAgentProposalPersistenceService>(), Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
             Configuration, Mock.Of<IServiceScopeFactory>(), Mock.Of<Microsoft.Extensions.Logging.ILogger<TripRequestController>>())
         {
             ControllerContext = new ControllerContext { HttpContext = Context(key) }
@@ -59,7 +60,7 @@ public class IntegrationSecurityTests
         service.Setup(s => s.AddAgentLogAsync(It.IsAny<AgentLogCreateDto>()))
             .ReturnsAsync(new AgentLogDto());
         var controller = new TripRequestController(
-            service.Object, Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
+            service.Object, Mock.Of<IAgentProposalPersistenceService>(), Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
             Configuration, Mock.Of<IServiceScopeFactory>(), Mock.Of<Microsoft.Extensions.Logging.ILogger<TripRequestController>>())
         {
             ControllerContext = new ControllerContext { HttpContext = Context("agent-test-key") }
@@ -83,7 +84,7 @@ public class IntegrationSecurityTests
     {
         var service = new Mock<ITripRequestService>();
         var controller = new TripRequestController(
-            service.Object, Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
+            service.Object, Mock.Of<IAgentProposalPersistenceService>(), Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
             Configuration, Mock.Of<IServiceScopeFactory>(), Mock.Of<Microsoft.Extensions.Logging.ILogger<TripRequestController>>())
         {
             ControllerContext = new ControllerContext { HttpContext = Context(key) }
@@ -100,18 +101,53 @@ public class IntegrationSecurityTests
     {
         var service = new Mock<ITripRequestService>();
         service.Setup(s => s.UpdateAgentPlanAsync(1, It.IsAny<TripRequestAgentUpdateDto>()))
-            .ReturnsAsync(new TripRequestDto { Id = 1, Status = "AwaitingApproval" });
+            .ReturnsAsync(new TripRequestDto { Id = 1, Status = "Planning" });
         var controller = new TripRequestController(
-            service.Object, Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
+            service.Object, Mock.Of<IAgentProposalPersistenceService>(), Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
             Configuration, Mock.Of<IServiceScopeFactory>(), Mock.Of<Microsoft.Extensions.Logging.ILogger<TripRequestController>>())
         {
             ControllerContext = new ControllerContext { HttpContext = Context("agent-test-key") }
         };
 
-        var result = await controller.AgentUpdate(1, new TripRequestAgentUpdateDto { Status = "AwaitingApproval" });
+        var result = await controller.AgentUpdate(1, new TripRequestAgentUpdateDto { Status = "Planning" });
 
         Assert.IsType<OkObjectResult>(result);
         service.Verify(s => s.UpdateAgentPlanAsync(1, It.IsAny<TripRequestAgentUpdateDto>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AgentUpdate_FinalProposalUsesSinglePersistenceOwner()
+    {
+        var tripService = new Mock<ITripRequestService>();
+        var persistence = new Mock<IAgentProposalPersistenceService>();
+        persistence.Setup(s => s.PersistAsync(1, It.IsAny<JsonElement>(), 0, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new AgentProposalPersistenceResult
+            {
+                TripRequestId = 1,
+                ItineraryId = 20,
+                BookingId = 30,
+                BookingReference = "ST-REAL-30",
+                BookingStatus = "AwaitingApproval"
+            });
+        var controller = new TripRequestController(
+            tripService.Object, persistence.Object, Mock.Of<ICustomerService>(), Mock.Of<IHttpClientFactory>(),
+            Configuration, Mock.Of<IServiceScopeFactory>(), Mock.Of<Microsoft.Extensions.Logging.ILogger<TripRequestController>>())
+        {
+            ControllerContext = new ControllerContext { HttpContext = Context("agent-test-key") }
+        };
+
+        using var document = JsonDocument.Parse("{\"itinerary\":{},\"booking_details\":{}}");
+        var result = await controller.AgentUpdate(1, new TripRequestAgentUpdateDto
+        {
+            Status = "AwaitingApproval",
+            RetryCount = 0,
+            PlanJson = document.RootElement.Clone()
+        });
+
+        var response = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(30, ((AgentProposalPersistenceResult)response.Value!).BookingId);
+        persistence.Verify(s => s.PersistAsync(1, It.IsAny<JsonElement>(), 0, It.IsAny<CancellationToken>()), Times.Once);
+        tripService.Verify(s => s.UpdateAgentPlanAsync(It.IsAny<int>(), It.IsAny<TripRequestAgentUpdateDto>()), Times.Never);
     }
 
     [Fact]

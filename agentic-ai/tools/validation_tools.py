@@ -60,36 +60,10 @@ def create_booking(
     *,
     client: httpx.Client | None = None,
 ) -> dict[str, Any]:
-    """Create exactly one backend booking and require AwaitingApproval status."""
-
-    token = _token(access_token)
-    if not token:
-        raise BackendToolError("Booking creation requires an authenticated backend token.")
-    headers = {"Authorization": f"Bearer {token}"}
-    owns_client = client is None
-    http = client or httpx.Client(timeout=15.0)
-    try:
-        response = http.post(
-            f"{_backend_url()}/api/booking", json=payload, headers=headers
-        )
-        if response.status_code not in (200, 201):
-            raise BackendToolError(
-                f"Booking creation failed ({response.status_code}): "
-                f"{_error_message(response)}"
-            )
-        booking = response.json()
-        if not isinstance(booking, dict):
-            raise BackendToolError("Booking API returned an invalid response body.")
-        status = booking.get("status")
-        if status != 1 and str(status).lower() != "awaitingapproval":
-            raise BackendToolError(
-                "Approval gate violation: a new booking was not returned in "
-                "AwaitingApproval status."
-            )
-        return booking
-    finally:
-        if owns_client:
-            http.close()
+    """Deprecated: the ASP.NET proposal service owns booking persistence."""
+    raise BackendToolError(
+        "Direct AI booking persistence is disabled; submit the final proposal to ASP.NET."
+    )
 
 
 def initiate_payment(
