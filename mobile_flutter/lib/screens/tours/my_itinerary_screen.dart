@@ -1,10 +1,9 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:latlong2/latlong.dart';
 import '../../services/api_service.dart';
+import '../../widgets/itinerary_route_preview.dart';
 import '../../services/trip_selection_service.dart';
 
 /// Normalizes status for external callers if needed
@@ -127,7 +126,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
       Map<String, dynamic>? tripRequest = latestTripRequest;
       if (resolvedTripRequestId != null && tripRequest == null) {
-        tripRequest = await ApiService.getTripRequest(resolvedTripRequestId!);
+        tripRequest = await ApiService.getTripRequest(resolvedTripRequestId);
       }
 
       Map<String, dynamic>? agentHealth;
@@ -188,46 +187,6 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  /// Gets waypoint route points for map preview tailored to the destination
-  List<LatLng> _getRoutePoints() {
-    final title = '${_itinerary?['title']} ${_itinerary?['destinationName']}'.toLowerCase();
-    if (title.contains('galle') || title.contains('mirissa') || title.contains('beach') || title.contains('coast') || title.contains('bentota')) {
-      return const [
-        LatLng(6.0535, 80.2210), // Galle
-        LatLng(5.9734, 80.4285), // Weligama
-        LatLng(5.9483, 80.4589), // Mirissa
-        LatLng(6.0242, 80.7941), // Tangalle
-      ];
-    }
-    if (title.contains('kandy') || title.contains('ella') || title.contains('highland') || title.contains('nuwara eliya') || title.contains('badulla')) {
-      return const [
-        LatLng(7.2906, 80.6337), // Kandy
-        LatLng(6.9497, 80.7891), // Nuwara Eliya
-        LatLng(6.8667, 81.0466), // Ella
-        LatLng(6.9934, 81.0550), // Badulla
-      ];
-    }
-    // Default Cultural & Island Discovery route
-    return const [
-      LatLng(7.9570, 80.7603), // Sigiriya
-      LatLng(7.2906, 80.6337), // Kandy
-      LatLng(6.8667, 81.0466), // Ella
-      LatLng(5.9483, 80.4589), // Mirissa
-    ];
-  }
-
-  /// Gets center location for map preview
-  LatLng _getMapCenter() {
-    final title = '${_itinerary?['title']} ${_itinerary?['destinationName']}'.toLowerCase();
-    if (title.contains('galle') || title.contains('mirissa') || title.contains('beach') || title.contains('coast') || title.contains('bentota')) {
-      return const LatLng(6.02, 80.45);
-    }
-    if (title.contains('kandy') || title.contains('ella') || title.contains('highland') || title.contains('nuwara eliya') || title.contains('badulla')) {
-      return const LatLng(7.05, 80.85);
-    }
-    return const LatLng(7.05, 80.75);
   }
 
   // ── Status helper utilities ──
@@ -922,8 +881,6 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     final formattedCost = totalCost is num
         ? '$currency ${NumberFormat('#,##0').format(totalCost)}'.trim()
         : 'Cost pending';
-    final routePoints = _getRoutePoints();
-    final mapCenter = _getMapCenter();
 
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -1059,120 +1016,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
           const SizedBox(height: 12),
 
-          // Open-Source Map Route Preview Card with Live OpenStreetMap & Full Route Button
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/trip-map', arguments: _itinerary),
-            child: Container(
-              height: 120,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFEDECE4)),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Stack(
-                  children: [
-                    // Live OpenStreetMap preview
-                    IgnorePointer(
-                      child: FlutterMap(
-                        options: MapOptions(
-                          initialCenter: mapCenter,
-                          initialZoom: 7.2,
-                          interactionOptions: const InteractionOptions(flags: InteractiveFlag.none),
-                        ),
-                        children: [
-                          TileLayer(
-                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.serendibtrails.travel',
-                          ),
-                          PolylineLayer(
-                            polylines: [
-                              Polyline(
-                                points: routePoints,
-                                color: const Color(0xFF0E382C),
-                                strokeWidth: 3.5,
-                                borderStrokeWidth: 1.5,
-                                borderColor: const Color(0xFFD4A346),
-                              ),
-                            ],
-                          ),
-                          MarkerLayer(
-                            markers: routePoints.map((pt) {
-                              return Marker(
-                                point: pt,
-                                width: 22,
-                                height: 22,
-                                child: const Icon(Icons.location_on, color: Color(0xFF0E382C), size: 22),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Gradient tint overlay for contrast
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 0.08),
-                            Colors.black.withValues(alpha: 0.02),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // VIEW FULL ROUTE pill button
-                    Positioned(
-                      top: 12,
-                      left: 14,
-                      child: GestureDetector(
-                        onTap: () {
-                          Navigator.pushNamed(
-                            context,
-                            '/trip-map',
-                            arguments: _itinerary,
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.alt_route, size: 15, color: Color(0xFF0E382C)),
-                              SizedBox(width: 6),
-                              Text(
-                                'VIEW FULL ROUTE',
-                                style: TextStyle(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.6,
-                                  color: Color(0xFF0E382C),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          ItineraryRoutePreview(itinerary: itinerary),
 
           const SizedBox(height: 20),
 

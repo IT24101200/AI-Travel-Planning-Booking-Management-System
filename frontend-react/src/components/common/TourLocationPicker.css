@@ -1,0 +1,9 @@
+.tour-location-picker { min-width: 0; margin: 0; padding: 0; border: 0; }
+.tour-location-picker legend { font-size: .75rem; font-weight: 800; color: #475569; }
+.tour-location-picker p { font-size: .8125rem; line-height: 1.5; color: #66747b; margin: .35rem 0 .65rem; }
+.tour-location-picker__map { height: 300px; width: 100%; border-radius: 10px; border: 1px solid #c8d1d4; z-index: 0; }
+.tour-location-picker__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: .75rem; }
+.tour-location-picker__fields label { font-size: .75rem; font-weight: 700; color: #475569; }
+.tour-location-picker__fields input { display: block; width: 100%; min-width: 0; box-sizing: border-box; padding: .5rem; margin-top: .3rem; border: 1px solid #c8d1d4; border-radius: 6px; font: inherit; }
+.tour-location-picker__actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; margin-top: .65rem; font-size: .75rem; color: #475569; }
+.tour-location-picker__pin span { display: block; box-sizing: border-box; width: 26px; height: 26px; border: 3px solid white; border-radius: 50% 50% 50% 0; background: #0e382c; transform: rotate(-45deg); box-shadow: 0 2px 6px #0005; }

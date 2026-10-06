@@ -1,0 +1,62 @@
+﻿Id,Name,Status,DestinationId,Destination,Latitude,Longitude,LocationStatus,LocationSource
+43,Sunrise Rock Fortress Walk,Active,30,Sigirya,7.9571,80.7573,GPS present,
+44,Kandy Cultural Heritage Tour,Active,34,Ella,,,Missing GPS,
+45,Yala Wildlife Safari,Active,37,Yala,,,Missing GPS,
+46,Galle Fort History Walk,Active,35,Galle,6.03047,80.21692,GPS present,
+47,Mirissa Coastal Day Trip,Active,36,Mirissa,,,Missing GPS,
+66,Ceylon Tea Museum Tour,Active,41,Kandy,7.26864,80.63266,GPS present,
+67,Bahirawakanda Vihara Buddha Statue,Active,41,Kandy,7.29553,80.63094,GPS present,
+68,Kandyan Cultural Show,Active,41,Kandy,,,Missing GPS,
+69,Royal Botanical Garden Peradeniya,Active,41,Kandy,7.2707,80.5955,GPS present,
+70,Kandy Lake Sunset Walk,Active,41,Kandy,7.29115,80.63772,GPS present,
+71,Temple of the Tooth Tour,Active,41,Kandy,7.2936,80.6413,GPS present,
+72,Udawattakele Forest Walk,Active,41,Kandy,7.2989,80.6429,GPS present,https://www.geonames.org/1225893/udawattekele-sanctuary.html
+73,Ranawana Rajamaha Viharaya Visit,Active,41,Kandy,7.2714139,80.5641156,GPS present,https://www.openstreetmap.org/node/2908817146
+74,Lankatilaka Temple Visit,Active,41,Kandy,7.2339083,80.5650427,GPS present,https://www.openstreetmap.org/node/1743126531
+75,Gadaladeniya Temple Visit,Active,41,Kandy,7.25727,80.5561355,GPS present,https://www.openstreetmap.org/node/1743126596
+76,Embekka Devalaya Woodcarving Visit,Active,41,Kandy,7.21791666666667,80.5676111111111,GPS present,https://www.uniquesrilanka.com/v2/heritage/embekke-devalaya
+77,Galle Lighthouse Coastal Walk,Active,35,Galle,6.0245483,80.2193733,GPS present,https://www.openstreetmap.org/way/278295989
+78,Dutch Reformed Church Visit,Active,35,Galle,6.0281645,80.2171268,GPS present,https://www.openstreetmap.org/way/398146186
+79,Galle National Maritime Museum Visit,Active,35,Galle,6.0281548,80.2184438,GPS present,https://www.openstreetmap.org/way/28239945
+80,Japanese Peace Pagoda Visit,Active,35,Galle,6.0158561,80.2379092,GPS present,https://www.openstreetmap.org/way/431413183
+81,Unawatuna Beach Walk,Active,35,Galle,6.0081669,80.2443683,GPS present,https://www.openstreetmap.org/way/303723769
+82,Nine Arch Bridge Walk,Active,34,Ella,6.8789299,81.06136,GPS present,https://www.openstreetmap.org/node/12725192395
+83,Little Adam's Peak Hike,Active,34,Ella,6.86505,81.0630167,GPS present,https://www.openstreetmap.org/node/1105822211
+84,Ella Rock Hike,Active,34,Ella,6.8550355,81.0523841,GPS present,https://www.openstreetmap.org/node/4683720698
+85,Ravana Falls Viewpoint Visit,Active,34,Ella,6.8411694,81.0550963,GPS present,https://www.openstreetmap.org/node/6301206992
+86,Dhowa Rock Temple Visit,Active,34,Ella,6.8562524,81.0222394,GPS present,https://www.openstreetmap.org/way/185848137
+87,Victoria Park Garden Walk,Active,45,Nuwara Eliya,6.9694837,80.7683193,GPS present,https://www.openstreetmap.org/relation/16186319
+88,Gregory Lake Park Walk,Active,45,Nuwara Eliya,6.9622884,80.7723637,GPS present,https://www.openstreetmap.org/way/1196872351
+89,Hakgala Botanical Garden Visit,Active,45,Nuwara Eliya,6.9270754,80.8224067,GPS present,https://www.openstreetmap.org/node/10570913580
+90,Seetha Amman Temple Visit,Active,45,Nuwara Eliya,6.9332089,80.8106456,GPS present,https://www.openstreetmap.org/node/2714473161
+91,Galway's Land Nature Walk,Active,45,Nuwara Eliya,6.9657876,80.7780162,GPS present,https://www.openstreetmap.org/way/24390459
+92,Sigiriya Museum Visit,Active,46,Sigiriya,7.9569719,80.751573,GPS present,https://www.openstreetmap.org/way/191390663
+93,Pidurangala Rock Hike,Active,46,Sigiriya,7.9662102,80.7616977,GPS present,https://www.openstreetmap.org/node/4366143462
+94,Dambulla Cave Temple Visit,Active,46,Sigiriya,7.8566286,80.6484958,GPS present,https://www.openstreetmap.org/way/431489913
+95,Minneriya National Park Safari,Active,46,Sigiriya,8.0327164,80.823612,GPS present,https://www.openstreetmap.org/node/258523523
+96,Kaudulla National Park Safari,Active,46,Sigiriya,8.1341492,80.8775612,GPS present,https://www.openstreetmap.org/node/11036534305
+97,Jaya Sri Maha Bodhi Visit,Active,47,Anuradhapura,8.3447251,80.3974552,GPS present,https://www.openstreetmap.org/way/398907394
+98,Ruwanwelisaya Stupa Visit,Active,47,Anuradhapura,8.3500003,80.396397,GPS present,https://www.openstreetmap.org/way/247453300
+99,Jetavanaramaya Stupa Visit,Active,47,Anuradhapura,8.3516411,80.403653,GPS present,https://www.openstreetmap.org/way/115767725
+100,Abhayagiri Monastery Visit,Active,47,Anuradhapura,8.3692316,80.3956506,GPS present,https://www.openstreetmap.org/way/389744540
+101,Isurumuniya Temple Visit,Active,47,Anuradhapura,8.3355732,80.3908857,GPS present,https://www.openstreetmap.org/way/127446278
+102,Koneswaram Temple Visit,Active,48,Trincomalee,8.58244,81.24538,GPS present,https://mapcarta.com/N4000048959
+103,Fort Frederick Heritage Walk,Active,48,Trincomalee,8.5793044,81.2440475,GPS present,https://www.openstreetmap.org/way/439563994
+104,Kanniya Hot Water Wells Visit,Active,48,Trincomalee,8.6044881,81.1713144,GPS present,https://www.openstreetmap.org/node/1723379303
+105,Nilaveli Beach Walk,Active,48,Trincomalee,8.6980818,81.1929762,GPS present,https://www.openstreetmap.org/way/177784839
+106,Trincomalee Maritime Museum Visit,Active,48,Trincomalee,8.5698325,81.2374202,GPS present,https://www.openstreetmap.org/way/327738155
+107,Nallur Kandaswamy Temple Visit,Active,49,Jaffna,9.6745677,80.0296641,GPS present,https://www.openstreetmap.org/way/454472584
+108,Jaffna Fort Heritage Walk,Active,49,Jaffna,9.6623353,80.0081655,GPS present,https://www.openstreetmap.org/way/99282968
+109,Jaffna Public Library Visit,Active,49,Jaffna,9.6621715,80.0118084,GPS present,https://www.openstreetmap.org/node/1148495533
+110,Keerimalai Springs Visit,Active,49,Jaffna,9.8148018,80.0111483,GPS present,https://www.openstreetmap.org/relation/11143621
+111,Naguleswaram Temple Visit,Active,49,Jaffna,9.8134984,80.0125066,GPS present,https://www.openstreetmap.org/node/11913580337
+112,Batticaloa Fort Heritage Visit,Active,50,Batticaloa,7.7117713,81.7019369,GPS present,https://www.openstreetmap.org/way/219872503
+113,Batticaloa Lighthouse Visit,Active,50,Batticaloa,7.7548402,81.6854255,GPS present,https://www.openstreetmap.org/way/220840505
+114,Kallady Beach Walk,Active,50,Batticaloa,7.71813888888889,81.7188638888889,GPS present,https://commons.wikimedia.org/wiki/File:Kallady_beach_batticaloa_sri_lanka.jpg
+115,St Mary's Cathedral Visit,Active,50,Batticaloa,7.7124456,81.6960228,GPS present,https://www.openstreetmap.org/way/238423280
+116,Pasikudah Beach Walk,Active,50,Batticaloa,7.9294868,81.5613931,GPS present,https://www.openstreetmap.org/way/179218768
+117,Gangaramaya Temple Visit,Active,51,Colombo,6.9166446,79.8566559,GPS present,https://www.openstreetmap.org/node/269366454
+118,Colombo National Museum Visit,Active,51,Colombo,6.9104168,79.8609194,GPS present,https://www.openstreetmap.org/way/138991604
+119,Independence Memorial Hall Visit,Active,51,Colombo,6.9040669,79.8676301,GPS present,https://www.openstreetmap.org/way/303909847
+120,Galle Face Green Coastal Walk,Active,51,Colombo,6.9249607,79.8444586,GPS present,https://www.openstreetmap.org/way/27712165
+121,Viharamahadevi Park Walk,Active,51,Colombo,6.9138226,79.8614842,GPS present,https://www.openstreetmap.org/way/22323428

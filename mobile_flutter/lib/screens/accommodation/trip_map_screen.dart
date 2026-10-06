@@ -3,7 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../../app_constants.dart';
-import '../../services/trip_selection_service.dart';
+import '../../services/itinerary_route_service.dart';
 
 /// Model representing an interactive stop on the Sri Lankan itinerary route map
 class MapStopItem {
@@ -46,219 +46,66 @@ class TripMapScreen extends StatefulWidget {
 
 class _TripMapScreenState extends State<TripMapScreen> {
   final MapController _mapController = MapController();
-  int _activeStopIndex = 1; // Default to Stop 2: Temple of the Tooth (matches Figma)
+  int _activeStopIndex = 0;
   bool _isSatellite = false;
   List<MapStopItem> _stops = [];
-  String _tripTitle = 'Sri Lanka Discovery';
-  int _totalKm = 612;
-
-  // Default curated Sri Lankan stops with authentic GPS coordinates
-  static const List<MapStopItem> _defaultStops = [
-    MapStopItem(
-      stopNum: 1,
-      location: 'SIGIRIYA',
-      title: 'Sigiriya Lion Rock Fortress',
-      rating: 4.9,
-      time: '12 Oct · 07:00–10:30',
-      distance: 'From airport · 148 km',
-      transit: '3.5 hrs private transfer',
-      image: 'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=600&auto=format&fit=crop&q=80',
-      latLng: LatLng(7.9570, 80.7603), // Sigiriya Rock Fortress
-      icon: Icons.castle_outlined,
-      color: AppColors.figmaGold,
-    ),
-    MapStopItem(
-      stopNum: 2,
-      location: 'KANDY',
-      title: 'Temple of the Tooth',
-      rating: 4.8,
-      time: '13 Oct · 10:30–12:00',
-      distance: 'From hotel · 1.8 km',
-      transit: '8 min by tuk-tuk',
-      image: 'https://images.unsplash.com/photo-1546708973-b339540b5162?w=600&auto=format&fit=crop&q=80',
-      latLng: LatLng(7.2906, 80.6337), // Kandy Temple of the Tooth
-      icon: Icons.account_balance_outlined,
-      color: Color(0xFF2563EB),
-    ),
-    MapStopItem(
-      stopNum: 3,
-      location: 'DAMBULLA',
-      title: 'Heritance Kandalama Stay',
-      rating: 4.9,
-      time: '14 Oct · Check-in 14:00',
-      distance: 'From Sigiriya · 19 km',
-      transit: '25 min private car',
-      image: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
-      latLng: LatLng(7.8731, 80.6519), // Dambulla / Kandalama
-      icon: Icons.hotel_outlined,
-      color: AppColors.figmaDarkGreen,
-    ),
-    MapStopItem(
-      stopNum: 4,
-      location: 'ELLA',
-      title: 'Nine Arches Bridge & Train',
-      rating: 4.9,
-      time: '16 Oct · 08:30–11:00',
-      distance: 'From Kandy · 135 km',
-      transit: 'Scenic observation train',
-      image: 'https://images.unsplash.com/photo-1588598198321-9735fd52455b?w=600&auto=format&fit=crop&q=80',
-      latLng: LatLng(6.8667, 81.0466), // Ella Nine Arch Bridge
-      icon: Icons.directions_car_outlined,
-      color: Color(0xFFD97706),
-    ),
-  ];
+  List<LatLng> _roadPoints = [];
+  String _tripTitle = 'Trip route';
+  String _totalKm = '0';
+  String? _routeError;
+  List<String> _missingStops = [];
 
   @override
   void initState() {
     super.initState();
-    _stops = _defaultStops;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initFromRouteArguments();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadRoute());
   }
 
-  /// Parses itinerary arguments if passed from MyItineraryScreen
-  void _initFromRouteArguments() {
+  Future<void> _loadRoute() async {
     final args = ModalRoute.of(context)?.settings.arguments;
-    if (args is Map) {
-      final title = args['title']?.toString();
-      if (title != null && title.isNotEmpty) {
-        setState(() {
-          _tripTitle = title;
-        });
-      }
-
-      final rawItems = args['items'];
-      if (rawItems is List && rawItems.isNotEmpty) {
-        final parsed = <MapStopItem>[];
-        int num = 1;
-        for (var item in rawItems) {
-          if (item is! Map) continue;
-          final tourName = item['tourName']?.toString() ?? 'Activity';
-          final latLng = _resolveCoordinates(tourName, item['destinationName']?.toString());
-          final timeStr = item['startTime']?.toString() ?? '09:00';
-          final dayNum = item['dayNumber']?.toString() ?? '$num';
-
-          IconData icon = Icons.account_balance_outlined;
-          Color color = const Color(0xFF2563EB);
-          if (num == 1) {
-            icon = Icons.castle_outlined;
-            color = AppColors.figmaGold;
-          } else if (num == rawItems.length) {
-            icon = Icons.directions_car_outlined;
-            color = const Color(0xFFD97706);
-          } else if (num % 2 == 0) {
-            icon = Icons.hotel_outlined;
-            color = AppColors.figmaDarkGreen;
-          }
-
-          parsed.add(
-            MapStopItem(
-              stopNum: num++,
-              location: _extractLocationName(tourName),
-              title: tourName,
-              rating: 4.8 + (num % 3) * 0.1,
-              time: 'Day $dayNum · ${timeStr.length >= 5 ? timeStr.substring(0, 5) : timeStr}',
-              distance: 'Scheduled Tour Stop',
-              transit: 'Private guided transit',
-              image: AppDestinations.getImageForDestination(tourName),
-              latLng: latLng,
-              icon: icon,
-              color: color,
-            ),
-          );
-        }
-
-        if (parsed.isNotEmpty) {
-          setState(() {
-            _stops = parsed;
-            _totalKm = parsed.length * 115;
-            _activeStopIndex = 0;
-          });
-        }
-      }
+    if (args is! Map) {
+      setState(() => _routeError = 'Open this map from a saved itinerary to see its route.');
+      return;
     }
-
-    final selectedHotel = TripSelectionService.selectedHotel;
-    final selectedTransport = TripSelectionService.selectedTransport;
-    if (selectedHotel != null || selectedTransport != null) {
-      final updatedStops = _stops.map((stop) {
-        if (stop.icon == Icons.hotel_outlined && selectedHotel != null) {
-          final hotelName = selectedHotel['name']?.toString() ?? stop.title;
-          final location = selectedHotel['location']?.toString() ?? stop.location;
-          final rating = (selectedHotel['rating'] is num)
-              ? (selectedHotel['rating'] as num).toDouble()
-              : stop.rating;
-          final image = selectedHotel['image']?.toString() ?? stop.image;
-          return MapStopItem(
-            stopNum: stop.stopNum,
-            location: location.toUpperCase(),
-            title: hotelName,
-            rating: rating,
-            time: stop.time,
-            distance: stop.distance,
-            transit: selectedTransport != null
-                ? selectedTransport['title']?.toString() ?? stop.transit
-                : stop.transit,
-            image: image,
-            latLng: stop.latLng,
-            icon: stop.icon,
-            color: stop.color,
-          );
-        }
-        if (selectedTransport != null && stop.icon == Icons.directions_car_outlined) {
-          return MapStopItem(
-            stopNum: stop.stopNum,
-            location: stop.location,
-            title: stop.title,
-            rating: stop.rating,
-            time: stop.time,
-            distance: stop.distance,
-            transit: selectedTransport['title']?.toString() ?? stop.transit,
-            image: stop.image,
-            latLng: stop.latLng,
-            icon: stop.icon,
-            color: stop.color,
-          );
-        }
-        return stop;
-      }).toList();
-
+    setState(() => _routeError = null);
+    try {
+      final route = args['roadRoute'] is ItineraryRoadRoute
+          ? args['roadRoute'] as ItineraryRoadRoute
+          : await ItineraryRouteService.load(args);
+      if (!mounted) return;
       setState(() {
-        _stops = updatedStops;
+        _tripTitle = args['title']?.toString() ?? 'Your trip route';
+        _roadPoints = route.points;
+        _missingStops = route.missingStops;
+        _totalKm = (route.distanceMeters / 1000).toStringAsFixed(1);
+        _activeStopIndex = 0;
+        _stops = route.stops.asMap().entries.map((entry) {
+          final item = entry.value.item;
+          final name = item['tourName']?.toString() ?? 'Activity';
+          return MapStopItem(
+            stopNum: entry.key + 1,
+            location: 'STOP ${entry.key + 1}',
+            title: name,
+            rating: 0,
+            time: 'Day ${item['dayNumber']} · ${item['startTime'] ?? ''}',
+            distance: 'Itinerary stop',
+            transit: 'Driving route',
+            image: AppDestinations.getImageForDestination(name),
+            latLng: entry.value.point,
+            icon: Icons.location_on,
+            color: AppColors.figmaDarkGreen,
+          );
+        }).toList();
       });
+    } catch (error) {
+      if (mounted) setState(() => _routeError = '$error');
     }
   }
 
-  /// Resolves authentic GPS coordinates for Sri Lankan tour destinations
-  LatLng _resolveCoordinates(String name, String? destination) {
-    final text = '$name ${destination ?? ''}'.toLowerCase();
-    if (text.contains('sigiriya')) return const LatLng(7.9570, 80.7603);
-    if (text.contains('dambulla') || text.contains('kandalama')) return const LatLng(7.8731, 80.6519);
-    if (text.contains('kandy') || text.contains('tooth')) return const LatLng(7.2906, 80.6337);
-    if (text.contains('nuwara eliya') || text.contains('pedro') || text.contains('gregory')) return const LatLng(6.9497, 80.7891);
-    if (text.contains('ella') || text.contains('nine arch') || text.contains('adam')) return const LatLng(6.8667, 81.0466);
-    if (text.contains('yala') || text.contains('safari')) return const LatLng(6.3725, 81.5173);
-    if (text.contains('mirissa') || text.contains('whale')) return const LatLng(5.9483, 80.4589);
-    if (text.contains('galle') || text.contains('fort')) return const LatLng(6.0535, 80.2210);
-    if (text.contains('minneriya')) return const LatLng(8.0321, 80.9015);
-    if (text.contains('horton') || text.contains('world')) return const LatLng(6.8028, 80.8044);
-    if (text.contains('bentota')) return const LatLng(6.4259, 79.9958);
-    if (text.contains('trincomalee')) return const LatLng(8.5874, 81.2152);
-    return const LatLng(7.2906, 80.6337);
-  }
-
-  String _extractLocationName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('sigiriya')) return 'SIGIRIYA';
-    if (lower.contains('dambulla')) return 'DAMBULLA';
-    if (lower.contains('kandy')) return 'KANDY';
-    if (lower.contains('nuwara eliya')) return 'NUWARA ELIYA';
-    if (lower.contains('ella')) return 'ELLA';
-    if (lower.contains('yala')) return 'YALA';
-    if (lower.contains('mirissa')) return 'MIRISSA';
-    if (lower.contains('galle')) return 'GALLE';
-    return 'SRI LANKA';
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
   }
 
   /// Centers the map on the given stop
@@ -272,20 +119,35 @@ class _TripMapScreenState extends State<TripMapScreen> {
   /// Fits all stops in camera view
   void _fitAllStops() {
     if (_stops.isEmpty) return;
-    final points = _stops.map((s) => s.latLng).toList();
+    final points = [..._roadPoints, ..._stops.map((s) => s.latLng)];
     final bounds = LatLngBounds.fromPoints(points);
     _mapController.fitCamera(
       CameraFit.bounds(
         bounds: bounds,
-        padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 120),
+        padding: EdgeInsets.fromLTRB(50, 120, 50, MediaQuery.sizeOf(context).height * 0.35),
+        maxZoom: 15,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeStop = _stops.isNotEmpty ? _stops[_activeStopIndex] : _defaultStops[0];
-    final routePoints = _stops.map((s) => s.latLng).toList();
+    if (_stops.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Trip route')),
+        body: Center(child: _routeError == null
+            ? const CircularProgressIndicator()
+            : Padding(padding: const EdgeInsets.all(24), child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_routeError!, textAlign: TextAlign.center),
+                  TextButton(onPressed: _loadRoute, child: const Text('Retry directions')),
+                ],
+              ))),
+      );
+    }
+    final activeStop = _stops[_activeStopIndex];
+    final routePoints = _roadPoints;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -296,9 +158,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
-                initialCenter: const LatLng(7.45, 80.75), // Geographic center of Sri Lanka
-                initialZoom: 8.2,
-                minZoom: 6.5,
+                initialCameraFit: CameraFit.bounds(
+                  bounds: LatLngBounds.fromPoints([..._roadPoints, ..._stops.map((s) => s.latLng)]),
+                  padding: EdgeInsets.fromLTRB(50, 120, 50, MediaQuery.sizeOf(context).height * 0.35),
+                  maxZoom: 15,
+                ),
+                minZoom: 1,
                 maxZoom: 18.0,
                 interactionOptions: const InteractionOptions(
                   flags: InteractiveFlag.all,
@@ -352,6 +217,21 @@ class _TripMapScreenState extends State<TripMapScreen> {
               ],
             ),
           ),
+
+          if (_missingStops.isNotEmpty)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 72,
+              left: 16,
+              right: 16,
+              child: Material(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text('Route incomplete. Missing GPS: ${_missingStops.toSet().join(', ')}'),
+                ),
+              ),
+            ),
 
           // ── Top Floating App Bar Capsule ──
           Positioned(
