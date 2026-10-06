@@ -6,8 +6,6 @@ namespace backend.DTOs
     {
         public int Id { get; set; }
         public int DestinationId { get; set; }
-        public string DestinationName { get; set; } = string.Empty;
-        public string DestinationCountry { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public string Category { get; set; } = string.Empty;
         public string? Description { get; set; }
@@ -46,7 +44,7 @@ namespace backend.DTOs
         public decimal Price { get; set; }
 
         [MaxLength(10, ErrorMessage = "Currency code cannot exceed 10 characters.")]
-        public string Currency { get; set; } = "LKR";
+        public string Currency { get; set; } = "USD";
 
         [Range(0.1, 240, ErrorMessage = "Duration must be between 0.1 and 240 hours.")]
         public double DurationHours { get; set; }

@@ -1,8 +1,6 @@
 using System.Security.Claims;
 using backend.Data;
 using backend.DTOs;
-using backend.Models.Enums;
-using backend.Security;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,7 +14,6 @@ namespace backend.Controllers
     public class TripRequestController : ControllerBase
     {
         private readonly ITripRequestService _tripRequestService;
-        private readonly IAgentProposalPersistenceService _proposalPersistenceService;
         private readonly ICustomerService _customerService;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
@@ -25,7 +22,6 @@ namespace backend.Controllers
 
         public TripRequestController(
             ITripRequestService tripRequestService,
-            IAgentProposalPersistenceService proposalPersistenceService,
             ICustomerService customerService,
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
@@ -33,7 +29,6 @@ namespace backend.Controllers
             ILogger<TripRequestController> logger)
         {
             _tripRequestService = tripRequestService;
-            _proposalPersistenceService = proposalPersistenceService;
             _customerService = customerService;
             _httpClientFactory = httpClientFactory;
             _configuration = configuration;
@@ -62,15 +57,8 @@ namespace backend.Controllers
             {
                 var result = await _tripRequestService.CreateAsync(userId, dto);
 
-                var planning = await _tripRequestService.UpdateAgentPlanAsync(result.Id, new TripRequestAgentUpdateDto
-                {
-                    Status = "Planning"
-                });
-                if (planning is not null)
-                    result = planning;
-
                 // Option A: Automatically trigger the multi-agent pipeline in the background
-                TriggerAgentPipelineAsync(result, Request.Headers.Authorization.ToString());
+                TriggerAgentPipelineAsync(result);
 
                 return StatusCode(StatusCodes.Status201Created, result);
             }
@@ -228,9 +216,6 @@ namespace backend.Controllers
         [ProducesResponseType(typeof(AgentLogDto), StatusCodes.Status200OK)]
         public async Task<IActionResult> AddAgentLog([FromBody] AgentLogCreateDto dto)
         {
-            if (!AgentServiceAuthentication.IsValid(Request, _configuration))
-                return Unauthorized(new { message = "Valid agent service credentials are required." });
-
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
@@ -247,63 +232,11 @@ namespace backend.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AgentUpdate(int id, [FromBody] TripRequestAgentUpdateDto dto)
         {
-            if (!AgentServiceAuthentication.IsValid(Request, _configuration))
-                return Unauthorized(new { message = "Valid agent service credentials are required." });
-
-            if (string.Equals(dto.Status, "AwaitingApproval", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!dto.PlanJson.HasValue)
-                    return BadRequest(new { message = "A validated proposal is required before persistence." });
-
-                try
-                {
-                    var persisted = await _proposalPersistenceService.PersistAsync(
-                        id, dto.PlanJson.Value, dto.RetryCount ?? 0, HttpContext.RequestAborted);
-                    return Ok(persisted);
-                }
-                catch (ProposalPersistenceException ex)
-                {
-                    await MarkProposalFailedAsync(id, ex.Message, dto.RetryCount ?? 0);
-                    try
-                    {
-                        await _tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
-                        {
-                            TripRequestId = id,
-                            AgentName = "ASP.NET ProposalPersistence",
-                            StepName = "Proposal persistence failed",
-                            Output = ex.Message,
-                            Status = "Failed",
-                            Timestamp = DateTime.UtcNow
-                        });
-                    }
-                    catch (Exception logError)
-                    {
-                        _logger.LogWarning(logError, "Could not write persistence failure log for TripRequest #{Id}.", id);
-                    }
-                    return BadRequest(new { code = ex.Code, message = ex.Message });
-                }
-            }
-
-            TripRequestDto? updated;
-            try
-            {
-                updated = await _tripRequestService.UpdateAgentPlanAsync(id, dto);
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-            catch (InvalidOperationException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
-
+            var updated = await _tripRequestService.UpdateAgentPlanAsync(id, dto);
             if (updated == null)
                 return NotFound(new { message = "Trip request not found." });
 
-            // Itinerary and booking persistence belongs to the authenticated agent tools.
-            // This endpoint only records the agent result on the TripRequest.
-            if (false && updated.Status == "AwaitingApproval" && !string.IsNullOrWhiteSpace(updated.PlanJson))
+            if (updated.Status == "AwaitingApproval" && !string.IsNullOrWhiteSpace(updated.PlanJson))
             {
                 _ = Task.Run(async () =>
                 {
@@ -429,7 +362,7 @@ namespace backend.Controllers
             return Ok(updated);
         }
 
-        private void TriggerAgentPipelineAsync(TripRequestDto trip, string authorizationHeader)
+        private void TriggerAgentPipelineAsync(TripRequestDto trip)
         {
             _ = Task.Run(async () =>
             {
@@ -457,9 +390,6 @@ namespace backend.Controllers
                         destination_id = trip.DestinationId,
                         destination_name = trip.DestinationName ?? "Destination",
                         raw_request_text = trip.RawRequestText,
-                        access_token = authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-                            ? authorizationHeader["Bearer ".Length..].Trim()
-                            : null,
                         start_date = trip.StartDate.ToString("o"),
                         end_date = trip.EndDate.ToString("o"),
                         traveller_count = trip.TravellerCount,
@@ -474,23 +404,14 @@ namespace backend.Controllers
                         System.Text.Encoding.UTF8,
                         "application/json");
 
-                    HttpResponseMessage? response = null;
-                    try
-                    {
-                        response = await client.PostAsync($"{agentBaseUrl}/run-pipeline-async", content);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning("Agent service offline at {Url}: {Message}.", agentBaseUrl, ex.Message);
-                    }
-
-                    if (response != null && response.IsSuccessStatusCode)
+                    var response = await client.PostAsync($"{agentBaseUrl}/run-pipeline-async", content);
+                    if (response.IsSuccessStatusCode)
                     {
                         _logger.LogInformation("Dispatched TripRequest #{Id} to multi-agent pipeline.", trip.Id);
                     }
                     else
                     {
-                        await MarkAgentPipelineFailedAsync(trip.Id, "Agent service did not accept the pipeline request.");
+                        _logger.LogWarning("Agent service returned HTTP {Status} for TripRequest #{Id}.", response.StatusCode, trip.Id);
                     }
                 }
                 catch (Exception ex)
@@ -498,192 +419,6 @@ namespace backend.Controllers
                     _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{Id}.", trip.Id);
                 }
             });
-        }
-
-        private async Task MarkAgentPipelineFailedAsync(int tripRequestId, string reason)
-        {
-            try
-            {
-                await _tripRequestService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
-                {
-                    Status = "Failed",
-                    FailureReason = reason
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Could not mark TripRequest #{Id} as failed after agent dispatch failure.", tripRequestId);
-            }
-        }
-
-        private async Task MarkProposalFailedAsync(int tripRequestId, string reason, int retryCount)
-        {
-            try
-            {
-                await _tripRequestService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
-                {
-                    Status = "Failed",
-                    FailureReason = reason,
-                    RetryCount = retryCount
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Could not persist proposal failure for TripRequest #{Id}.", tripRequestId);
-            }
-        }
-
-        private async Task RunLocalFallbackPipelineAsync(IServiceScope scope, TripRequestDto trip)
-        {
-            try
-            {
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var tripRequestService = scope.ServiceProvider.GetRequiredService<ITripRequestService>();
-
-                // 1. Pick tours in destination or active tours
-                var tours = await db.Tours
-                    .Where(t => (t.DestinationId == trip.DestinationId || trip.DestinationId == null) && t.Status == "Active")
-                    .Take(4)
-                    .ToListAsync();
-                if (tours.Count == 0)
-                {
-                    tours = await db.Tours.Where(t => t.Status == "Active").Take(4).ToListAsync();
-                }
-
-                // 2. Pick hotel & room
-                var hotel = await db.Hotels
-                    .Include(h => h.Rooms)
-                    .FirstOrDefaultAsync(h => h.DestinationId == trip.DestinationId && h.Status == HotelStatus.Active);
-                if (hotel == null || hotel.Rooms.Count == 0)
-                {
-                    hotel = await db.Hotels
-                        .Include(h => h.Rooms)
-                        .FirstOrDefaultAsync(h => h.Status == HotelStatus.Active);
-                }
-                var room = hotel?.Rooms.FirstOrDefault(r => r.Capacity >= trip.TravellerCount) ?? hotel?.Rooms.FirstOrDefault();
-
-                // 3. Pick transport
-                var transport = await db.TransportOptions
-                    .FirstOrDefaultAsync(t => t.Status == TransportStatus.Active && t.Capacity >= trip.TravellerCount)
-                    ?? await db.TransportOptions.FirstOrDefaultAsync(t => t.Status == TransportStatus.Active);
-
-                var days = Math.Max(1, (trip.EndDate.Date - trip.StartDate.Date).Days);
-                var schedule = new List<object>();
-                decimal toursCost = 0;
-
-                int tourIndex = 0;
-                for (int dayNum = 1; dayNum <= days; dayNum++)
-                {
-                    var items = new List<object>();
-                    if (tourIndex < tours.Count)
-                    {
-                        var t = tours[tourIndex++];
-                        toursCost += t.Price * trip.TravellerCount;
-                        items.Add(new
-                        {
-                            tour_id = t.Id,
-                            tour_name = t.Name,
-                            start_time = t.DefaultStartTime.ToString(@"hh\:mm\:ss"),
-                            end_time = t.DefaultStartTime.Add(TimeSpan.FromHours(Math.Max(2, (double)t.DurationHours))).ToString(@"hh\:mm\:ss"),
-                            price = (double)t.Price
-                        });
-                    }
-                    schedule.Add(new
-                    {
-                        day_number = dayNum,
-                        items = items
-                    });
-                }
-
-                decimal roomCost = (room?.PricePerNight ?? 150m) * days;
-                decimal transCost = (transport?.Price ?? 50m) * trip.TravellerCount;
-                decimal totalCost = toursCost + roomCost + transCost;
-
-                var planObj = new
-                {
-                    status = "AwaitingApproval",
-                    itinerary = new
-                    {
-                        itinerary_id = trip.Id,
-                        total_estimated_cost = (double)toursCost,
-                        currency = trip.Currency,
-                        schedule = schedule
-                    },
-                    booking_details = new
-                    {
-                        total_package_cost = (double)totalCost,
-                        currency = trip.Currency,
-                        itinerary = new { schedule = schedule },
-                        selected_room = room != null ? new
-                        {
-                            hotel_id = hotel!.Id,
-                            room_id = room.Id,
-                            hotel_name = hotel.Name,
-                            price_per_night = (double)room.PricePerNight
-                        } : null,
-                        selected_transport = transport != null ? new
-                        {
-                            transport_id = transport.Id,
-                            type = transport.Type.ToString(),
-                            provider = transport.Provider,
-                            price = (double)transport.Price
-                        } : null
-                    }
-                };
-
-                var planJsonString = System.Text.Json.JsonSerializer.Serialize(planObj);
-                using var jsonDoc = System.Text.Json.JsonDocument.Parse(planJsonString);
-
-                var updateDto = new TripRequestAgentUpdateDto
-                {
-                    Status = "AwaitingApproval",
-                    PlanJson = jsonDoc.RootElement.Clone(),
-                    RetryCount = 0
-                };
-
-                await AgentUpdate(trip.Id, updateDto);
-
-                // Add audit logs for all 4 agents
-                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
-                {
-                    TripRequestId = trip.Id,
-                    AgentName = "CoordinatorAgent",
-                    StepName = "DecomposeAndAllocateBudget",
-                    Status = "Success",
-                    Input = "Trip request decomposed for destination",
-                    Output = $"Tours: {toursCost:C}, Hotel: {roomCost:C}, Transport: {transCost:C}"
-                });
-                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
-                {
-                    TripRequestId = trip.Id,
-                    AgentName = "ItineraryAgent",
-                    StepName = "Generated draft itinerary",
-                    Status = "Success",
-                    Output = $"{schedule.Count} days planned with {tours.Count} curated tours"
-                });
-                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
-                {
-                    TripRequestId = trip.Id,
-                    AgentName = "BookingAgent",
-                    StepName = "Assembled priced booking package",
-                    Status = "Success",
-                    Output = $"Selected {hotel?.Name} ({room?.RoomType}) and {transport?.Provider}"
-                });
-                await tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
-                {
-                    TripRequestId = trip.Id,
-                    AgentName = "ValidationAgent",
-                    StepName = "Approval gate passed",
-                    Status = "Success",
-                    Output = $"Package total {totalCost:C} validated against budget {trip.BudgetCeiling:C}"
-                });
-
-                _logger.LogInformation("Successfully completed planned package for TripRequest #{Id}.", trip.Id);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed in local fallback pipeline for TripRequest #{Id}.", trip.Id);
-            }
         }
 
         private string GetUserId()

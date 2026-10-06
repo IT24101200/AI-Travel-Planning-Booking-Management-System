@@ -13,12 +13,10 @@ namespace backend.Services
     public class ItineraryService : IItineraryService
     {
         private readonly AppDbContext _context;
-        private readonly ICurrencyConversionService _currency;
 
-        public ItineraryService(AppDbContext context, ICurrencyConversionService? currency = null)
+        public ItineraryService(AppDbContext context)
         {
             _context = context;
-            _currency = currency ?? new CurrencyConversionService();
         }
 
         /// <summary>
@@ -36,15 +34,14 @@ namespace backend.Services
                 EndDate          = endDate,
                 Status           = ItineraryStatus.Draft,
                 TotalEstimatedCost = 0,
-                Currency         = _currency.Normalize(currency),
-                ExchangeRateToLkr = _currency.ExchangeRateToLkr(currency),
+                Currency         = currency,
                 CreatedAt        = DateTime.UtcNow
             };
 
             _context.Itineraries.Add(itinerary);
             await _context.SaveChangesAsync();
 
-            return (await GetItineraryByIdAsync(itinerary.Id))!;
+            return ToDto(itinerary);
         }
 
         /// <summary>
@@ -54,8 +51,12 @@ namespace backend.Services
         /// </summary>
         public async Task<ItineraryDto?> GetItineraryByIdAsync(int itineraryId)
         {
-            return await ReadItineraries()
+            var itinerary = await _context.Itineraries
+                .Include(i => i.ItineraryItems)
+                    .ThenInclude(item => item.Tour)
                 .FirstOrDefaultAsync(i => i.Id == itineraryId);
+
+            return itinerary is null ? null : ToDto(itinerary);
         }
 
         /// <summary>
@@ -64,10 +65,14 @@ namespace backend.Services
         /// </summary>
         public async Task<List<ItineraryDto>> GetItinerariesByCustomerAsync(string customerId)
         {
-            return await ReadItineraries()
+            var itineraries = await _context.Itineraries
                 .Where(i => i.CustomerId == customerId)
+                .Include(i => i.ItineraryItems)
+                    .ThenInclude(item => item.Tour)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
+
+            return itineraries.Select(i => ToDto(i)).ToList();
         }
 
         /// <summary>
@@ -135,8 +140,7 @@ namespace backend.Services
                 SequenceOrder    = dto.SequenceOrder,
                 StartTime        = dto.StartTime,
                 EndTime          = dto.EndTime,
-                PriceAtSelection = _currency.Convert(tour.Price, tour.Currency, itinerary.Currency),
-                Currency = itinerary.Currency
+                PriceAtSelection = tour.Price
             };
 
             _context.ItineraryItems.Add(newItem);
@@ -146,7 +150,13 @@ namespace backend.Services
 
             await _context.SaveChangesAsync();
 
-            return (true, null, await GetItineraryByIdAsync(itineraryId));
+            // Reload with Tour navigation for the response DTO
+            var updated = await _context.Itineraries
+                .Include(i => i.ItineraryItems)
+                    .ThenInclude(item => item.Tour)
+                .FirstAsync(i => i.Id == itineraryId);
+
+            return (true, null, ToDto(updated));
         }
 
         /// <summary>
@@ -180,61 +190,21 @@ namespace backend.Services
         }
 
         /// <summary>
-        /// Applies the allowed status transitions for staff and the owning customer.
+        /// Updates the Status of an existing Itinerary to the specified value.
+        /// Returns failure if the Itinerary does not exist.
         /// </summary>
-        public async Task<ItineraryStatusUpdateResult> UpdateItineraryStatusAsync(
-            int itineraryId, string? requestedStatus, string? actorCustomerId, bool isStaff)
+        public async Task<(bool Success, string? ErrorMessage)>
+            UpdateItineraryStatusAsync(int itineraryId, ItineraryStatus newStatus)
         {
             var itinerary = await _context.Itineraries.FindAsync(itineraryId);
 
             if (itinerary is null)
-                return new(ItineraryStatusUpdateOutcome.NotFound,
-                    $"Itinerary with Id {itineraryId} was not found.");
-
-            if (!isStaff && (string.IsNullOrWhiteSpace(actorCustomerId) || itinerary.CustomerId != actorCustomerId))
-                return new(ItineraryStatusUpdateOutcome.Forbidden,
-                    "You do not have access to this itinerary.");
-
-            var statusName = Enum.GetNames<ItineraryStatus>()
-                .FirstOrDefault(name => string.Equals(name, requestedStatus?.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (statusName is null)
-                return new(ItineraryStatusUpdateOutcome.Invalid,
-                    "Invalid itinerary status. Use Draft, Proposed, Accepted, or Discarded.");
-
-            var newStatus = Enum.Parse<ItineraryStatus>(statusName);
-
-            if (itinerary.Status is ItineraryStatus.Accepted or ItineraryStatus.Discarded)
-                return new(ItineraryStatusUpdateOutcome.Invalid,
-                    $"An itinerary in {itinerary.Status} status cannot be changed.");
-
-            var allowed = isStaff
-                ? itinerary.Status switch
-                {
-                    ItineraryStatus.Draft => newStatus is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
-                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Draft or ItineraryStatus.Accepted or ItineraryStatus.Discarded,
-                    _ => false
-                }
-                : itinerary.Status switch
-                {
-                    ItineraryStatus.Draft => newStatus == ItineraryStatus.Discarded,
-                    ItineraryStatus.Proposed => newStatus is ItineraryStatus.Accepted or ItineraryStatus.Draft or ItineraryStatus.Discarded,
-                    _ => false
-                };
-
-            if (!allowed)
-                return new(ItineraryStatusUpdateOutcome.Invalid,
-                    $"Cannot change itinerary status from {itinerary.Status} to {newStatus}.");
-
-            if (isStaff && (newStatus == ItineraryStatus.Proposed || newStatus == ItineraryStatus.Accepted) && itinerary.Status == ItineraryStatus.Draft &&
-                !await _context.ItineraryItems.AnyAsync(item => item.ItineraryId == itineraryId))
-                return new(ItineraryStatusUpdateOutcome.Invalid,
-                    "Cannot approve an itinerary with no activities.");
+                return (false, $"Itinerary with Id {itineraryId} was not found.");
 
             itinerary.Status = newStatus;
             await _context.SaveChangesAsync();
 
-            return new(ItineraryStatusUpdateOutcome.Updated,
-                $"Itinerary status updated to {newStatus}.");
+            return (true, null);
         }
 
         /// <summary>
@@ -242,45 +212,42 @@ namespace backend.Services
         /// </summary>
         public async Task<List<ItineraryDto>> GetAllItinerariesAsync()
         {
-            return await ReadItineraries()
+            var itineraries = await _context.Itineraries
+                .Include(i => i.ItineraryItems)
+                    .ThenInclude(item => item.Tour)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
+
+            return itineraries.Select(i => ToDto(i)).ToList();
         }
 
-        // Read-only projection shared by the list and detail endpoints.
+        // ── Mapping helpers ──────────────────────────────────────────────────
 
-        private IQueryable<ItineraryDto> ReadItineraries() =>
-            from itinerary in _context.Itineraries.AsNoTracking()
-            join customer in _context.Customers on itinerary.CustomerId equals customer.Id into customers
-            from customer in customers.DefaultIfEmpty()
-            join tripRequest in _context.TripRequests on itinerary.TripRequestId equals tripRequest.Id into tripRequests
-            from tripRequest in tripRequests.DefaultIfEmpty()
-            select new ItineraryDto
-            {
-                Id = itinerary.Id,
-                CustomerId = itinerary.CustomerId,
-                CustomerName = customer == null ? null : customer.FullName,
-                TripRequestId = itinerary.TripRequestId,
-                TravellerCount = tripRequest == null ? null : (int?)tripRequest.TravellerCount,
-                StartDate = itinerary.StartDate,
-                EndDate = itinerary.EndDate,
-                Status = itinerary.Status,
-                TotalEstimatedCost = itinerary.TotalEstimatedCost,
-                Currency = itinerary.Currency,
-                ExchangeRateToLkr = itinerary.ExchangeRateToLkr,
-                CreatedAt = itinerary.CreatedAt,
-                Items = itinerary.ItineraryItems.Select(item => new ItineraryItemDto
-                {
-                    Id = item.Id,
-                    TourId = item.TourId,
-                    TourName = item.Tour == null ? string.Empty : item.Tour.Name,
-                    DayNumber = item.DayNumber,
-                    SequenceOrder = item.SequenceOrder,
-                    StartTime = item.StartTime,
-                    EndTime = item.EndTime,
-                    PriceAtSelection = item.PriceAtSelection
-                    ,Currency = item.Currency
-                }).ToList()
-            };
+        private static ItineraryDto ToDto(Itinerary i) => new ItineraryDto
+        {
+            Id                 = i.Id,
+            CustomerId         = i.CustomerId,
+            TripRequestId      = i.TripRequestId,
+            StartDate          = i.StartDate,
+            EndDate            = i.EndDate,
+            Status             = i.Status,
+            TotalEstimatedCost = i.TotalEstimatedCost,
+            Currency           = i.Currency,
+            CreatedAt          = i.CreatedAt,
+            Items              = i.ItineraryItems?.Select(item => ToItemDto(item)).ToList()
+                                 ?? new List<ItineraryItemDto>()
+        };
+
+        private static ItineraryItemDto ToItemDto(ItineraryItem item) => new ItineraryItemDto
+        {
+            Id               = item.Id,
+            TourId           = item.TourId,
+            TourName         = item.Tour?.Name ?? string.Empty,
+            DayNumber        = item.DayNumber,
+            SequenceOrder    = item.SequenceOrder,
+            StartTime        = item.StartTime,
+            EndTime          = item.EndTime,
+            PriceAtSelection = item.PriceAtSelection
+        };
     }
 }

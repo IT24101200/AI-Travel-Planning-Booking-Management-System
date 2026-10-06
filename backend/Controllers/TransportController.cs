@@ -41,8 +41,7 @@ namespace backend.Controllers
             [FromQuery] string? sortBy,
             [FromQuery] bool descending = false,
             [FromQuery] int page = 1,
-            [FromQuery] int pageSize = 10,
-            [FromQuery] string? currency = null)
+            [FromQuery] int pageSize = 10)
         {
             if (page < 1) page = 1;
             if (pageSize < 1) pageSize = 10;
@@ -50,7 +49,7 @@ namespace backend.Controllers
 
             var results = await _transportService.SearchAsync(
                 type, routeFrom, routeTo, minPrice, maxPrice, status,
-                sortBy, descending, page, pageSize, currency);
+                sortBy, descending, page, pageSize);
             var totalCount = await _transportService.GetTotalCountAsync(
                 type, routeFrom, routeTo, minPrice, maxPrice, status);
 
@@ -70,9 +69,9 @@ namespace backend.Controllers
         /// </summary>
         [HttpGet("{id}")]
         [AllowAnonymous]
-        public async Task<IActionResult> GetById(int id, [FromQuery] string? currency = null)
+        public async Task<IActionResult> GetById(int id)
         {
-            var transport = await _transportService.GetByIdAsync(id, currency);
+            var transport = await _transportService.GetByIdAsync(id);
             if (transport is null) return NotFound();
             return Ok(transport);
         }

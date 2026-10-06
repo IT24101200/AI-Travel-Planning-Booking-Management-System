@@ -9,7 +9,7 @@ namespace backend.DTOs
         public string CustomerId { get; set; } = string.Empty;
         public decimal BudgetMin { get; set; }
         public decimal BudgetMax { get; set; }
-        public string Currency { get; set; } = "LKR";
+        public string Currency { get; set; } = "USD";
         public string? PreferredActivities { get; set; }
         public string? DietaryNotes { get; set; }
         public string? AccessibilityNotes { get; set; }

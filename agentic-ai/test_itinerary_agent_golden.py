@@ -3,55 +3,12 @@
 # The backend must be running locally before this script is executed.
 
 import sys
-import os
-from unittest.mock import patch
 
 from agents.itinerary_agent import build_itinerary
 from tools.search_tours import search_tours
 
 
 KANDY_DESTINATION_ID = 2
-
-_OFFLINE_KANDY_TOURS = [
-    {
-        "id": 101,
-        "name": "Kandy Heritage Walk",
-        "price": 25000,
-        "currency": "LKR",
-        "duration": 2,
-        "category": "Heritage",
-        "default_start_time": "09:00:00",
-        "status": "Active",
-    },
-    {
-        "id": 102,
-        "name": "Tea Country Experience",
-        "price": 30000,
-        "currency": "LKR",
-        "duration": 3,
-        "category": "Tea",
-        "default_start_time": "13:00:00",
-        "status": "Active",
-    },
-]
-
-
-def _offline_search_tours(destination_id, category=None, max_price=None):
-    """Return stable catalog data so golden tests do not require a live API."""
-    if destination_id != KANDY_DESTINATION_ID:
-        return []
-    return list(_OFFLINE_KANDY_TOURS)
-
-
-def _build_offline_itinerary(trip_request):
-    """Build using the same production function with its catalog boundary mocked."""
-    # A placeholder key exercises the deterministic fallback without sending
-    # a request to a paid provider. The production code still requires a real
-    # key when the agent is run outside this offline test fixture.
-    with patch("agents.itinerary_agent.search_tours", _offline_search_tours), patch(
-        "agents.itinerary_agent.log_agent_step"
-    ), patch.dict(os.environ, {"GOOGLE_API_KEY_ITINERARY": "offline-test-key"}):
-        return build_itinerary(trip_request)
 
 
 def _normal_trip_request():
@@ -90,7 +47,7 @@ def _assert_rule_based_validity(result, trip_request):
     assert isinstance(schedule, list), "schedule must be a list"
     assert schedule, "schedule must contain at least one day"
 
-    destination_tours = _offline_search_tours(trip_request["destination_id"])
+    destination_tours = search_tours(trip_request["destination_id"])
     active_tour_ids = {
         _get_tour_value(tour, "id", "tour_id", "tourId", "Id")
         for tour in destination_tours
@@ -139,7 +96,7 @@ def _assert_rule_based_validity(result, trip_request):
 
 def test_normal_case_produces_valid_itinerary():
     trip_request = _normal_trip_request()
-    result = _build_offline_itinerary(trip_request)
+    result = build_itinerary(trip_request)
     _assert_rule_based_validity(result, trip_request)
 
 
@@ -147,7 +104,7 @@ def test_impossibly_low_budget_fails_validation():
     trip_request = _normal_trip_request()
     trip_request["budget_ceiling"] = 100
 
-    result = _build_offline_itinerary(trip_request)
+    result = build_itinerary(trip_request)
 
     assert "error" in result, (
         "an itinerary that cannot fit the budget must return an error"
@@ -159,14 +116,14 @@ def test_nonexistent_destination_returns_clean_error():
     trip_request["destination_id"] = 99999
     trip_request["destination_name"] = "Nonexistent destination"
 
-    result = _build_offline_itinerary(trip_request)
+    result = build_itinerary(trip_request)
 
     assert "error" in result, "a nonexistent destination must return an error"
 
 
 def test_output_contract_shape():
     trip_request = _normal_trip_request()
-    result = _build_offline_itinerary(trip_request)
+    result = build_itinerary(trip_request)
 
     assert "error" not in result, result.get("error")
     assert set(result) == {

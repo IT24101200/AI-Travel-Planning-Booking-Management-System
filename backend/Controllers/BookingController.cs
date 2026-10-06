@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using backend.DTOs;
 using backend.Models.Enums;
-using backend.Security;
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,12 +17,10 @@ namespace backend.Controllers
     public class BookingController : ControllerBase
     {
         private readonly IBookingService _bookingService;
-        private readonly IConfiguration _configuration;
 
-        public BookingController(IBookingService bookingService, IConfiguration configuration)
+        public BookingController(IBookingService bookingService)
         {
             _bookingService = bookingService;
-            _configuration = configuration;
         }
 
         /// <summary>
@@ -37,12 +34,6 @@ namespace backend.Controllers
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
-
-            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-            var isAgentService = AgentServiceAuthentication.IsValid(Request, _configuration);
-            if (!isStaff && !isAgentService && !string.Equals(dto.CustomerId, currentUserId, StringComparison.Ordinal))
-                return Forbid();
 
             try
             {

@@ -29,7 +29,6 @@ import HotelVendorManagement from './pages/hotels/HotelVendorManagement.jsx'
 import TransportFleetManagement from './pages/hotels/TransportFleetManagement.jsx'
 import BookingApprovalDashboard from './pages/bookings/BookingApprovalDashboard.jsx'
 import PaymentsRevenueReport from './pages/bookings/PaymentsRevenueReport.jsx'
-import MediaLibrary from './pages/media/MediaLibrary.jsx'
 
 /**
  * Public marketing site + staff console.
@@ -42,8 +41,6 @@ export default function App() {
   const { pathname } = useLocation()
   const weatherTheme = useWeatherTheme()
   const isStaffRoute = pathname.startsWith('/staff')
-  const isLoginRoute = pathname === '/login'
-  const isStaffOrLogin = isStaffRoute || isLoginRoute
   const timeOfDay = weatherTheme?.timeOfDay || 'morning'
 
   const setActiveId = useCallback((id) => {
@@ -65,20 +62,15 @@ export default function App() {
           Skip to content
         </a>
 
-        {/* Backdrop only on public customer pages */}
-        {!isStaffOrLogin && (
-          <Backdrop
-            activeId={scene.activeId}
-            leavingId={scene.leavingId}
-            calm={pathname !== '/'}
-            weather={weatherTheme?.weather}
-            timeOfDay={timeOfDay}
-          />
-        )}
+        <Backdrop
+          activeId={scene.activeId}
+          leavingId={scene.leavingId}
+          calm={pathname !== '/'}
+          weather={weatherTheme?.weather}
+          timeOfDay={timeOfDay}
+        />
         <ScrollToTop />
-
-        {/* Customer Navbar only on public pages, hidden on Staff Console & Login */}
-        {!isStaffOrLogin && <Navbar />}
+        <Navbar />
 
         <main id="main">
           <ErrorBoundary>
@@ -95,7 +87,7 @@ export default function App() {
               <Route
                 path="/staff"
                 element={
-                  <RequireAuth roles={['TravelAgent', 'Admin']}>
+                  <RequireAuth roles={['staff', 'admin', 'agent']}>
                     <StaffLayout />
                   </RequireAuth>
                 }
@@ -110,7 +102,6 @@ export default function App() {
                 <Route path="itineraries" element={<ItineraryReview />} />
                 <Route path="hotels" element={<HotelVendorManagement />} />
                 <Route path="transport" element={<TransportFleetManagement />} />
-                <Route path="media" element={<MediaLibrary />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
@@ -118,9 +109,8 @@ export default function App() {
           </ErrorBoundary>
         </main>
 
-        {!isStaffOrLogin && <Footer />}
+        {!isStaffRoute && <Footer />}
       </SceneContext.Provider>
     </AuthProvider>
   )
 }
-

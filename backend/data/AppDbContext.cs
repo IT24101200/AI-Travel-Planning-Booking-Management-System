@@ -37,41 +37,9 @@ namespace backend.Data
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<TravelAgent> TravelAgents => Set<TravelAgent>();
 
-        public override int SaveChanges(bool acceptAllChangesOnSuccess)
-        {
-            NormalizeDestinationNames();
-            return base.SaveChanges(acceptAllChangesOnSuccess);
-        }
-
-        public override Task<int> SaveChangesAsync(
-            bool acceptAllChangesOnSuccess,
-            CancellationToken cancellationToken = default)
-        {
-            NormalizeDestinationNames();
-            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-        }
-
-        private void NormalizeDestinationNames()
-        {
-            foreach (var entry in ChangeTracker.Entries<Destination>()
-                         .Where(e => e.State is EntityState.Added or EntityState.Modified))
-            {
-                entry.Entity.Name = entry.Entity.Name.Trim();
-                entry.Entity.NormalizedName = entry.Entity.Name.ToUpperInvariant();
-            }
-        }
-
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder); // Required for Identity tables
-
-            builder.Entity<Destination>(entity =>
-            {
-                entity.Property(d => d.Name).IsRequired().HasMaxLength(100);
-                entity.Property(d => d.NormalizedName).IsRequired().HasMaxLength(100);
-                entity.Property(d => d.Description).HasMaxLength(1000);
-                entity.HasIndex(d => d.NormalizedName).IsUnique();
-            });
 
             // ── Customer ──
             builder.Entity<Customer>(entity =>
@@ -95,7 +63,7 @@ namespace backend.Data
 
                 entity.Property(p => p.BudgetMin).HasColumnType("decimal(18,2)");
                 entity.Property(p => p.BudgetMax).HasColumnType("decimal(18,2)");
-                entity.Property(p => p.Currency).HasMaxLength(10).HasDefaultValue("LKR");
+                entity.Property(p => p.Currency).HasMaxLength(10).HasDefaultValue("USD");
                 entity.Property(p => p.UpdatedAt).HasDefaultValueSql("NOW()");
             });
 
@@ -144,7 +112,7 @@ namespace backend.Data
                       .HasDefaultValue(TripRequestStatus.Pending);
 
                 entity.Property(t => t.BudgetCeiling).HasColumnType("decimal(18,2)");
-                entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("LKR");
+                entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("USD");
                 entity.Property(t => t.RawRequestText).IsRequired().HasMaxLength(2000);
                 entity.Property(t => t.PlanJson).HasColumnType("jsonb");
                 entity.Property(t => t.RetryCount).HasDefaultValue(0);
@@ -190,8 +158,7 @@ namespace backend.Data
                       .OnDelete(DeleteBehavior.Cascade);
 
                 entity.Property(i => i.TotalEstimatedCost).HasColumnType("decimal(18,2)");
-                entity.Property(i => i.Currency).HasMaxLength(10).HasDefaultValue("LKR");
-                entity.Property(i => i.ExchangeRateToLkr).HasColumnType("decimal(18,6)").HasDefaultValue(1m);
+                entity.Property(i => i.Currency).HasMaxLength(10).HasDefaultValue("USD");
                 entity.Property(i => i.CreatedAt).HasDefaultValueSql("NOW()");
             });
 
@@ -209,7 +176,6 @@ namespace backend.Data
                       .OnDelete(DeleteBehavior.Restrict);
 
                 entity.Property(ii => ii.PriceAtSelection).HasColumnType("decimal(18,2)");
-                entity.Property(ii => ii.Currency).HasMaxLength(3).HasDefaultValue("LKR");
             });
 
             // ── Student D: Booking ──
@@ -224,8 +190,7 @@ namespace backend.Data
                       .HasDefaultValue(BookingStatus.Draft);
 
                 entity.Property(b => b.TotalCost).HasColumnType("decimal(18,2)");
-                entity.Property(b => b.Currency).HasMaxLength(10).HasDefaultValue("LKR");
-                entity.Property(b => b.ExchangeRateToLkr).HasColumnType("decimal(18,6)").HasDefaultValue(1m);
+                entity.Property(b => b.Currency).HasMaxLength(10).HasDefaultValue("USD");
                 entity.Property(b => b.CreatedAt).HasDefaultValueSql("NOW()");
                 entity.Property(b => b.UpdatedAt).HasDefaultValueSql("NOW()");
 
@@ -249,7 +214,6 @@ namespace backend.Data
 
                 entity.Property(bi => bi.UnitPrice).HasColumnType("decimal(18,2)");
                 entity.Property(bi => bi.Subtotal).HasColumnType("decimal(18,2)");
-                entity.Property(bi => bi.Currency).HasMaxLength(3).HasDefaultValue("LKR");
 
                 entity.HasOne(bi => bi.Booking)
                       .WithMany(b => b.BookingItems)
@@ -302,11 +266,8 @@ namespace backend.Data
                       .HasDefaultValue(PaymentStatus.Pending);
 
                 entity.Property(p => p.Amount).HasColumnType("decimal(18,2)");
-                entity.Property(p => p.Currency).HasMaxLength(10).HasDefaultValue("LKR");
-                entity.Property(p => p.ExchangeRateToLkr).HasColumnType("decimal(18,6)").HasDefaultValue(1m);
+                entity.Property(p => p.Currency).HasMaxLength(10).HasDefaultValue("USD");
                 entity.Property(p => p.StripeReference).HasMaxLength(100);
-                entity.Property(p => p.IdempotencyKey).HasMaxLength(120);
-                entity.Property(p => p.FailureReason).HasMaxLength(500);
                 entity.Property(p => p.PaymentDate).HasDefaultValueSql("NOW()");
 
                 entity.HasOne(p => p.Booking)
@@ -355,7 +316,7 @@ namespace backend.Data
 
                 entity.Property(r => r.RoomType).IsRequired().HasMaxLength(50);
                 entity.Property(r => r.PricePerNight).HasColumnType("decimal(18,2)");
-                entity.Property(r => r.Currency).HasMaxLength(10).HasDefaultValue("LKR");
+                entity.Property(r => r.Currency).HasMaxLength(10).HasDefaultValue("USD");
             });
 
             // ── TransportOption ──
@@ -374,7 +335,7 @@ namespace backend.Data
                 entity.Property(t => t.RouteFrom).IsRequired().HasMaxLength(200);
                 entity.Property(t => t.RouteTo).IsRequired().HasMaxLength(200);
                 entity.Property(t => t.Price).HasColumnType("decimal(18,2)");
-                entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("LKR");
+                entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("USD");
             });
         }
     }

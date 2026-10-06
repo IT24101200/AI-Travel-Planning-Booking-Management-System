@@ -7,7 +7,7 @@ import axios from 'axios'
  * marketing site renders from src/data/*. Only the planner talks to the API,
  * and it degrades gracefully when the backend is not running.
  */
-const baseURL = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:5138/api' : '')
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5138/api'
 
 export const api = axios.create({
   baseURL,
@@ -89,23 +89,8 @@ export async function deleteDestination(id) {
 // Student A — Customer & Notification API endpoints
 // ─────────────────────────────────────────────────────────────
 
-export async function fetchCustomers(params = {}) {
-  const { data } = await api.get('/Customer', { params: { pageSize: 50, ...params } })
-  return data
-}
-
-export async function updateCustomer(id, data) {
-  const { data: res } = await api.put(`/Customer/${id}`, data)
-  return res
-}
-
-export async function registerStaff(staffData) {
-  const { data } = await api.post('/auth/register-staff', staffData)
-  return data
-}
-
-export async function deleteCustomer(id) {
-  const { data } = await api.delete(`/Customer/${id}`)
+export async function fetchCustomers() {
+  const { data } = await api.get('/Customer')
   return data
 }
 
@@ -118,12 +103,6 @@ export async function resendNotification(id) {
   const { data } = await api.post(`/Notification/${id}/resend`)
   return data
 }
-
-export async function sendNotification(payload) {
-  const { data } = await api.post('/Notification/send', payload)
-  return data
-}
-
 
 // ─────────────────────────────────────────────────────────────
 // Student B — Tours & Itineraries API endpoints
@@ -194,11 +173,6 @@ export async function removeItineraryItem(itineraryId, itemId) {
   return data
 }
 
-export async function addItineraryItem(itineraryId, item) {
-  const { data } = await api.post(`/Itinerary/${itineraryId}/items`, item)
-  return data
-}
-
 // ─────────────────────────────────────────────────────────────
 // Student C — Hotels & Transport API endpoints
 // ─────────────────────────────────────────────────────────────
@@ -243,35 +217,17 @@ export async function fetchPendingApprovals() {
 }
 
 export async function decideApproval(bookingId, decision, comment) {
-  const DECISION_MAP = {
-    Approved: 0,
-    Rejected: 1,
-    RevisionRequested: 2,
-  }
-  const numericDecision = typeof decision === 'string' && decision in DECISION_MAP
-    ? DECISION_MAP[decision]
-    : decision
-
   const { data } = await api.post('/Approval', {
     bookingId: Number(bookingId),
-    decision: numericDecision,
+    decision,
     comment: comment || '',
   })
   return data
 }
 
-export async function fetchBookings(params = {}) {
-  const { data } = await api.get('/Booking', { params })
+export async function fetchBookings() {
+  const { data } = await api.get('/Booking')
   return data
-}
-
-export async function fetchCustomerTrips(customerId) {
-  try {
-    const { data } = await api.get('/TripRequest/search', { params: { customerId } })
-    return data
-  } catch {
-    return []
-  }
 }
 
 export async function fetchPayments(status) {
@@ -321,30 +277,3 @@ export async function fetchAgentLogs(tripRequestId) {
     return data
   }
 }
-
-// ─────────────────────────────────────────────────────────────
-// Staff Media Management API endpoints
-// Note: Strictly manages catalog images (Tours, Destinations, Hotels, Fleet).
-// User profile images are not managed or retrieved here.
-// ─────────────────────────────────────────────────────────────
-
-export async function uploadMedia(file, category = 'general') {
-  const formData = new FormData()
-  formData.append('file', file)
-  const { data } = await api.post(`/Media/upload?category=${encodeURIComponent(category)}`, formData)
-  return data
-}
-
-export async function fetchMedia(category, search) {
-  const params = {}
-  if (category && category !== 'all') params.category = category
-  if (search) params.search = search
-  const { data } = await api.get('/Media', { params })
-  return data
-}
-
-export async function deleteMedia(url) {
-  const { data } = await api.delete('/Media', { params: { url } })
-  return data
-}
-

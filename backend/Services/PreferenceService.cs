@@ -8,12 +8,10 @@ namespace backend.Services
     public class PreferenceService : IPreferenceService
     {
         private readonly AppDbContext _db;
-        private readonly ICurrencyConversionService _currency;
 
-        public PreferenceService(AppDbContext db, ICurrencyConversionService? currency = null)
+        public PreferenceService(AppDbContext db)
         {
             _db = db;
-            _currency = currency ?? new CurrencyConversionService();
         }
 
         public async Task<PreferenceDto?> GetByCustomerIdAsync(string customerId)
@@ -31,8 +29,6 @@ namespace backend.Services
             {
                 throw new ArgumentException("BudgetMax must be greater than or equal to BudgetMin.");
             }
-
-            dto.Currency = _currency.Normalize(dto.Currency);
 
             var existing = await _db.Preferences
                 .FirstOrDefaultAsync(p => p.CustomerId == customerId);

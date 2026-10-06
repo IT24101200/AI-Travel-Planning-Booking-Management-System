@@ -271,41 +271,47 @@ class _LandingScreenState extends State<LandingScreen> {
             ),
           ),
 
-          // ── Single-Screen Foreground Content (No Scrolling) ──
+          // ── Foreground Content (Responsive with Safe Scroll) ──
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Top Navigation Bar
-                  Row(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Top Navigation Bar
+                            Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Autonomous Multi-Agent AI Travel Pill
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.jungle800.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(9999),
-                          border: Border.all(color: AppColors.sand400.withValues(alpha: 0.4)),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.auto_awesome, color: AppColors.sand400, size: 14),
-                            SizedBox(width: 5),
-                            Text(
-                              'AUTONOMOUS AI TRAVEL',
-                              style: TextStyle(
-                                color: AppColors.sand200,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 0.8,
-                              ),
+                      // Brand Logo & Title
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
                             ),
-                          ],
-                        ),
+                            child: const Icon(Icons.travel_explore, color: AppColors.sand400, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'SERENDIB TRAILS',
+                            style: GoogleFonts.poppins(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.8,
+                            ),
+                          ),
+                        ],
                       ),
 
                       // Sign In / Dashboard Quick Pill
@@ -319,7 +325,7 @@ class _LandingScreenState extends State<LandingScreen> {
                         },
                         borderRadius: BorderRadius.circular(20),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.22),
                             borderRadius: BorderRadius.circular(20),
@@ -351,77 +357,31 @@ class _LandingScreenState extends State<LandingScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 14),
-
-                  // Brandmark & Title
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: AppColors.jungle600.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.leaf400.withValues(alpha: 0.5)),
-                        ),
-                        child: const Icon(Icons.eco, color: AppColors.sand400, size: 20),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Serendib Trails',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.4,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Center(
-                    child: Text(
-                      'Discover the pearl of the Indian Ocean through intelligent travel orchestration',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                        color: AppColors.leaf100.withValues(alpha: 0.9),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-
                   const Spacer(flex: 3),
 
-                  // Destination Region Pill Tag
+                  // Destination Region Pill Tag (Figma style)
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppColors.sand500,
+                        color: Colors.black.withValues(alpha: 0.35),
                         borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.2),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                       ),
                       child: Text(
                         currentDest.region.toUpperCase(),
-                        style: const TextStyle(
-                          color: AppColors.jungle900,
-                          fontWeight: FontWeight.w800,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.95),
+                          fontWeight: FontWeight.w700,
                           fontSize: 10.5,
-                          letterSpacing: 1.2,
+                          letterSpacing: 1.1,
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
                   // Destination Title (Animated Switcher)
                   AnimatedSwitcher(
@@ -431,35 +391,30 @@ class _LandingScreenState extends State<LandingScreen> {
                       key: ValueKey(currentDest.name),
                       style: GoogleFonts.poppins(
                         color: Colors.white,
-                        fontSize: 34,
-                        fontWeight: FontWeight.w900,
+                        fontSize: 42,
+                        fontWeight: FontWeight.w800,
                         letterSpacing: -0.5,
-                        height: 1.1,
+                        height: 1.05,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8),
 
-                  // Destination Tagline (Animated Switcher)
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 400),
-                    child: Text(
-                      currentDest.tagline,
-                      key: ValueKey(currentDest.tagline),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 13.5,
-                        height: 1.35,
-                      ),
+                  // Subtitle matching Figma 01 Landing
+                  Text(
+                    'Go beyond the guidebook. Let intelligent agents compose your island story.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 14,
+                      height: 1.4,
+                      fontWeight: FontWeight.w400,
                     ),
                   ),
 
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 16),
 
-                  // Destination Dots Switcher
+                  // Destination Dots Switcher (Figma style)
                   Row(
                     children: [
                       ...List.generate(_showcase.length, (i) {
@@ -475,282 +430,136 @@ class _LandingScreenState extends State<LandingScreen> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 300),
                             margin: const EdgeInsets.only(right: 6),
-                            width: isActive ? 26 : 7,
-                            height: 7,
+                            width: isActive ? 28 : 6,
+                            height: 6,
                             decoration: BoxDecoration(
-                              color: isActive ? AppColors.sand400 : Colors.white.withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(4),
+                              color: isActive ? const Color(0xFFD4A346) : Colors.white.withValues(alpha: 0.45),
+                              borderRadius: BorderRadius.circular(3),
                             ),
                           ),
                         );
                       }),
-                      const Spacer(),
-                      Text(
-                        '${_currentPage + 1} / ${_showcase.length}',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                     ],
                   ),
 
                   const Spacer(flex: 2),
 
-                  // Floating Glass Highlights Strip
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildMiniStat('8+', 'UNESCO Sites'),
-                        Container(width: 1, height: 20, color: Colors.white.withValues(alpha: 0.25)),
-                        _buildMiniStat('4', 'AI Agents'),
-                        Container(width: 1, height: 20, color: Colors.white.withValues(alpha: 0.25)),
-                        _buildMiniStat('100%', 'Inventory Lock'),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  // Quick Action to View 4 Agents Architecture
-                  InkWell(
-                    onTap: () => _showAgentWorkflowDialog(context),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  // Primary Action: Start Your Journey (Gold Pill Button)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pushNamed(context, '/home'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD4A346),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(26),
+                        ),
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.auto_awesome, size: 14, color: AppColors.sand400),
-                          SizedBox(width: 6),
+                          Icon(Icons.arrow_forward, size: 18, color: Colors.white),
+                          SizedBox(width: 8),
                           Text(
-                            'How 4 Autonomous AI Agents Plan Your Journey',
+                            'Start Your Journey',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(width: 4),
-                          Icon(Icons.arrow_forward_ios, size: 10, color: AppColors.sand400),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                  const Spacer(flex: 2),
-
-                  // Sign In Required Notice Badge (if not logged in)
-                  if (!_isLoggedIn)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: AppColors.sand100,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.sand200),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock_outline, size: 13, color: AppColors.jungle800),
-                          SizedBox(width: 6),
-                          Text(
-                            'Sign in required to view tours & real-time bookings',
-                            style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.jungle900,
+                              color: Colors.white,
                             ),
                           ),
                         ],
                       ),
                     ),
+                  ),
 
-                  // Primary Action Buttons (matching Figma 01 · Landing)
-                  if (!_isLoggedIn) ...[
-                    // Primary Gold Button: Start Your Journey
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pushNamed(context, '/register').then((_) => _checkAuthStatus()),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.figmaGold,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                          elevation: 3,
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.arrow_forward, size: 18, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text(
-                              'Start Your Journey',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Row with Sign In and How AI Agents Work
-                    Row(
-                      children: [
-                        Expanded(
+                  const SizedBox(height: 12),
+
+                  // Secondary Row: Sign In & How AI Agents Work (White Pill Buttons)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
                           child: ElevatedButton(
                             onPressed: () => Navigator.pushNamed(context, '/login').then((_) => _checkAuthStatus()),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              foregroundColor: AppColors.figmaDarkGreen,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                              elevation: 1,
+                              foregroundColor: const Color(0xFF0E382C),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
                             ),
-                            child: const Text(
-                              'Sign In',
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                            child: Text(
+                              _isLoggedIn ? 'Account' : 'Sign In',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0E382C),
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
                           child: ElevatedButton.icon(
                             onPressed: () => _showAgentWorkflowDialog(context),
-                            icon: const Icon(Icons.auto_awesome, color: AppColors.jungle600, size: 16),
+                            icon: const Icon(Icons.auto_awesome, size: 16, color: Color(0xFF0E382C)),
                             label: const Text(
                               'How AI Agents Work',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.figmaDarkGreen,
+                                color: Color(0xFF0E382C),
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
-                              elevation: 1,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    const Center(
-                      child: Text(
-                        'Curated routes · Verified partners · 24/7 trip support',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                    ),
-                  ]
-                  else
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/home'),
-                            icon: const Icon(Icons.explore, size: 17),
-                            label: const Text('Open Dashboard'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.jungle600,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 4,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            onPressed: () => Navigator.pushNamed(context, '/trip-request'),
-                            icon: const Icon(Icons.auto_awesome, size: 17, color: AppColors.jungle900),
-                            label: const Text(
-                              'AI Plan Trip',
-                              style: TextStyle(color: AppColors.jungle900, fontWeight: FontWeight.w800),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.sand400,
-                              foregroundColor: AppColors.jungle900,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 4,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                    ],
+                  ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 14),
 
-                  // Brand Subtitle
+                  // Footer Caption
                   Center(
                     child: Text(
-                      'SERENDIB TRAILS • SRI LANKA TRAVEL PLATFORM',
+                      'Curated routes · Verified partners · 24/7 trip support',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.0,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                 ],
               ),
             ),
           ),
+        ),
+      );
+    },
+  ),
+),
         ],
       ),
     );
   }
-
-  Widget _buildMiniStat(String value, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.75),
-            fontSize: 10,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
 }
+

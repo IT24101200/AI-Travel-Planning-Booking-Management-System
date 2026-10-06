@@ -9,15 +9,12 @@ namespace backend.DTOs
     {
         public int Id { get; set; }
         public string CustomerId { get; set; } = string.Empty;
-        public string? CustomerName { get; set; }
         public int TripRequestId { get; set; }
-        public int? TravellerCount { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }
         public ItineraryStatus Status { get; set; }
         public decimal TotalEstimatedCost { get; set; }
         public string Currency { get; set; } = string.Empty;
-        public decimal ExchangeRateToLkr { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<ItineraryItemDto> Items { get; set; } = new();
     }
@@ -35,6 +32,5 @@ namespace backend.DTOs
         public TimeSpan StartTime { get; set; }
         public TimeSpan EndTime { get; set; }
         public decimal PriceAtSelection { get; set; }
-        public string Currency { get; set; } = "LKR";
     }
 }

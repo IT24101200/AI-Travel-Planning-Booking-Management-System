@@ -12,14 +12,8 @@ namespace backend.DTOs
         public string FullName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Phone number is required.")]
-        [MaxLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
-        [RegularExpression(@"^[+]?[0-9\s\-()]{9,20}$", ErrorMessage = "Phone number must be valid (e.g. 0771234567 or +94 11 888 7778).")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
         public string Phone { get; set; } = string.Empty;
-
-        /// <summary>Optional role update ("Customer", "TravelAgent", or "Admin").</summary>
-        public string? Role { get; set; }
-
-        /// <summary>Optional department update for staff.</summary>
-        public string? Department { get; set; }
     }
 }

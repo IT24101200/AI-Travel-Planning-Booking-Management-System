@@ -25,12 +25,6 @@ namespace backend.Models
         [MaxLength(500)]
         public string? Address { get; set; }
 
-        /// <summary>
-        /// Cover image URL for the hotel (Supabase CDN or static upload).
-        /// </summary>
-        [MaxLength(500)]
-        public string? ImageUrl { get; set; }
-
         // ── Location for the Trip Map ──
         public double Latitude { get; set; }
         public double Longitude { get; set; }
@@ -38,6 +32,12 @@ namespace backend.Models
         // ── 1 to 5 star rating ──
         [Range(1, 5)]
         public int StarRating { get; set; }
+
+        [MaxLength(200)]
+        public string? ContactEmail { get; set; }
+
+        [MaxLength(20)]
+        public string? ContactPhone { get; set; }
 
         // ── Soft delete: Active or Inactive ──
         [Required]

@@ -21,12 +21,7 @@ logging.basicConfig(
 )
 console = logging.getLogger("AgentLogger")
 
-BACKEND_URL = os.getenv("BACKEND_URL") or os.getenv("BACKEND_API_URL") or "http://localhost:5138"
-AGENT_SERVICE_API_KEY = os.getenv("AGENT_SERVICE_API_KEY", "").strip()
-
-
-def agent_service_headers():
-    return {"X-Agent-Service-Key": AGENT_SERVICE_API_KEY} if AGENT_SERVICE_API_KEY else {}
+BACKEND_URL = os.getenv("BACKEND_API_URL", "http://localhost:5138")
 
 
 def format_payload(data):
@@ -79,8 +74,8 @@ def log_agent_step(
     # Send log to backend API
     try:
         url = f"{BACKEND_URL}/api/triprequest/agent-log"
-        with httpx.Client(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
-            response = client.post(url, json=payload, headers=agent_service_headers())
+        with httpx.Client(timeout=httpx.Timeout(1.5, connect=0.5)) as client:
+            response = client.post(url, json=payload)
             if response.is_success:
                 return payload
             else:

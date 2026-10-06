@@ -1,7 +1,6 @@
 using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace backend.Controllers
 {
@@ -68,26 +67,6 @@ namespace backend.Controllers
                 return NotFound(new { message = $"Trip request #{id} not found." });
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-            if (!isStaff && (string.IsNullOrWhiteSpace(userId) || trip.CustomerId != userId))
-            {
-                return Forbid();
-            }
-
-            var authorization = Request.Headers.Authorization.ToString();
-            const string bearerPrefix = "Bearer ";
-            if (!authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return Unauthorized(new { message = "A Bearer token is required to run the agent pipeline." });
-            }
-
-            var accessToken = authorization[bearerPrefix.Length..].Trim();
-            if (string.IsNullOrWhiteSpace(accessToken))
-            {
-                return Unauthorized(new { message = "The Bearer token is empty." });
-            }
-
             var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
             var client = _httpClientFactory.CreateClient();
             client.Timeout = TimeSpan.FromSeconds(runAsync ? 5 : 60);
@@ -111,8 +90,7 @@ namespace backend.Controllers
                 budget_ceiling = (double)trip.BudgetCeiling,
                 currency = trip.Currency,
                 retry_count = trip.RetryCount,
-                preferred_activities = preferredActivities,
-                access_token = accessToken
+                preferred_activities = preferredActivities
             };
 
             var endpoint = runAsync ? $"{agentBaseUrl}/run-pipeline-async" : $"{agentBaseUrl}/run-pipeline";

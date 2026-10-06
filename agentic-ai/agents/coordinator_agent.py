@@ -43,17 +43,14 @@ def call_gemini_for_planning(prompt: str) -> str:
         return None
 
     try:
-        import httpx
-        url = f"https://generativelanguage.googleapis.com/v1beta/interactions?key={GEMINI_API_KEY}"
-        with httpx.Client(timeout=4.0) as client:
-            resp = client.post(url, json={"model": "gemini-3.8-flash", "input": prompt})
-            if resp.status_code == 200:
-                data = resp.json()
-                text = data.get("output_text") or (data.get("outputs", [{}])[0].get("text") if "outputs" in data else None)
-                if text:
-                    return text.strip()
-            else:
-                logger.warning(f"Gemini API returned HTTP {resp.status_code}, using rule-based planning fallback.")
+            from google import genai
+            client = genai.Client(api_key=GEMINI_API_KEY)
+            interaction = client.interactions.create(
+            model="gemini-3.5-flash",
+                input=prompt
+            )
+            if interaction and getattr(interaction, "output_text", None):
+                return interaction.output_text.strip()
     except Exception as e:
         logger.warning(f"Gemini API call failed, using rule-based planning fallback: {e}")
 
@@ -73,9 +70,8 @@ def coordinator_plan(state: dict) -> dict:
     end_date = state.get("end_date", "")
     travellers = state.get("traveller_count", 1)
     budget = float(state.get("budget_ceiling", 1000.0))
-    currency = str(state.get("currency", "LKR")).upper()
+    currency = state.get("currency", "USD")
     retry_count = state.get("retry_count", 0)
-    revision_feedback = state.get("revision_feedback") or "None"
 
     days = calculate_days(start_date, end_date)
 
@@ -98,7 +94,6 @@ def coordinator_plan(state: dict) -> dict:
     - Travellers: {travellers}
     - Total Budget: {budget} {currency} (Target for activities/stay: {effective_budget} {currency})
     - Customer Notes: {raw_text}
-    - Human Revision Feedback: {revision_feedback}
     - Retry Attempt: {retry_count}
 
     Provide a concise JSON object with:
@@ -158,8 +153,7 @@ def coordinator_plan(state: dict) -> dict:
             "budget": budget,
             "currency": currency,
             "days": days,
-            "retry_count": retry_count,
-            "revision_feedback": revision_feedback
+            "retry_count": retry_count
         },
         output_data=plan_summary,
         status="Success"

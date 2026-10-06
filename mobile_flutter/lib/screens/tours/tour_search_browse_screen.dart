@@ -1,13 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
-import '../../widgets/common_widgets.dart';
-import '../../main.dart' show currencyNotifier;
 
-/// Tour search and browse screen with category chips, search bar, and scenic tour cards.
+/// Tour search and browse screen matching Figma Dev Mode (05 · Tour Search & Browse).
+/// Real API integration, destination & budget filter chips, infinite scroll pagination,
+/// loading, empty, and error states, and strict LKR pricing.
 class TourSearchBrowseScreen extends StatefulWidget {
   const TourSearchBrowseScreen({super.key});
 
@@ -16,41 +15,54 @@ class TourSearchBrowseScreen extends StatefulWidget {
 }
 
 class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
-  List<dynamic> _tours = [];
+  final List<dynamic> _tours = [];
   bool _loading = true;
-  String? _error;
-  final _searchCtrl = TextEditingController();
-  Timer? _searchDebounce;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  String? _errorMessage;
+  int _page = 1;
+  final int _pageSize = 10;
+
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchCtrl = TextEditingController();
+
   String _selectedCategory = 'All';
-  String _selectedSort = 'Top Rated';
+  int? _selectedDestinationId;
+  int _selectedBudgetIndex = 0;
 
-  // ── Favorites State ──
-  Set<int> _favoriteTourIds = {};
-  bool _showOnlyFavorites = false;
-
-  final List<String> _categoryTabs = [
+  final List<String> _categories = [
     'All',
+    'Culture',
+    'Wildlife',
+    'Hiking',
     'Heritage',
-    'Rail journey',
-    'Safari',
-    'Marine',
-    'Tea',
-    'Snorkelling',
+    'Coast',
+  ];
+
+  List<Map<String, dynamic>> _destinationFilters = [
+    {'id': null, 'name': 'All Destinations'},
+    {'id': 4, 'name': 'Sigiriya'},
+    {'id': 2, 'name': 'Kandy'},
+    {'id': 5, 'name': 'Ella'},
+    {'id': 3, 'name': 'Galle'},
+    {'id': 7, 'name': 'Mirissa'},
+    {'id': 6, 'name': 'Yala'},
+    {'id': 8, 'name': 'Nuwara Eliya'},
+  ];
+
+  final List<Map<String, dynamic>> _budgetFilters = [
+    {'label': 'All Budgets', 'min': null, 'max': null},
+    {'label': '< LKR 2,500', 'min': null, 'max': 2500},
+    {'label': 'LKR 2,500 – 5,000', 'min': 2500, 'max': 5000},
+    {'label': '> LKR 5,000', 'min': 5000, 'max': null},
   ];
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
+    _loadDestinations();
     _loadTours();
-    _loadFavorites();
-  }
-
-  /// Load persisted favorite tour IDs from storage
-  Future<void> _loadFavorites() async {
-    final favs = await ApiService.getFavoriteTourIds();
-    if (mounted) {
-      setState(() => _favoriteTourIds = favs);
-    }
   }
 
   @override
@@ -59,125 +71,172 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     final query = ModalRoute.of(context)?.settings.arguments as String?;
     if (query != null && query.isNotEmpty && _searchCtrl.text.isEmpty) {
       _searchCtrl.text = query;
-      _loadTours(search: query);
+      _resetAndLoad();
     }
-  }
-
-  /// Fetch tours from the backend API
-  Future<void> _loadTours({String? search}) async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final results = await ApiService.getTours(search: search, currency: currencyNotifier.value);
-      if (mounted) {
-        setState(() {
-          _tours = results;
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _loading = false;
-        });
-      }
-    }
-  }
-
-  /// Helper to calculate or read tour rating
-  double _getTourRating(dynamic tour) {
-    if (tour is Map) {
-      if (tour['rating'] != null) {
-        final r = double.tryParse(tour['rating'].toString());
-        if (r != null) return r;
-      }
-      final id = int.tryParse(tour['id']?.toString() ?? '1') ?? 1;
-      // Deterministic realistic ratings: 4.9, 4.8, 4.7...
-      return 4.6 + ((id * 7) % 5) * 0.1;
-    }
-    return 4.8;
-  }
-
-  List<dynamic> get _filteredTours {
-    List<dynamic> list = List.from(_tours);
-    if (_selectedCategory != 'All') {
-      final cat = _selectedCategory.toLowerCase();
-      list = list.where((tour) {
-        final category = (tour['category'] ?? '').toString().toLowerCase();
-        return category == cat;
-      }).toList();
-    }
-
-    // Filter by favorites when active
-    if (_showOnlyFavorites) {
-      list = list.where((tour) {
-        final id = int.tryParse(tour['id']?.toString() ?? '');
-        return id != null && _favoriteTourIds.contains(id);
-      }).toList();
-    }
-
-    // Sort by rating or price
-    if (_selectedSort == 'Top Rated') {
-      list.sort((a, b) => _getTourRating(b).compareTo(_getTourRating(a)));
-    } else if (_selectedSort == 'Price: Low to High') {
-      list.sort((a, b) => ((a['price'] ?? 0) as num).compareTo((b['price'] ?? 0) as num));
-    } else if (_selectedSort == 'Price: High to Low') {
-      list.sort((a, b) => ((b['price'] ?? 0) as num).compareTo((a['price'] ?? 0) as num));
-    }
-    return list;
   }
 
   @override
   void dispose() {
-    _searchDebounce?.cancel();
+    _scrollController.dispose();
     _searchCtrl.dispose();
     super.dispose();
   }
 
-  void _scheduleSearch(String value) {
-    setState(() {});
-    _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 400), () {
-      _loadTours(search: value.trim());
+  /// Infinite scroll listener for pagination
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        !_loading &&
+        !_loadingMore &&
+        _hasMore) {
+      _loadMoreTours();
+    }
+  }
+
+  /// Load destinations from backend API to dynamically populate destination chips
+  Future<void> _loadDestinations() async {
+    try {
+      final dests = await ApiService.getDestinations();
+      if (dests.isNotEmpty && mounted) {
+        setState(() {
+          _destinationFilters = [
+            {'id': null, 'name': 'All Destinations'},
+            ...dests.map((d) => {
+                  'id': d['id'] as int?,
+                  'name': d['name']?.toString() ?? '',
+                }),
+          ];
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _resetAndLoad() {
+    setState(() {
+      _page = 1;
+      _hasMore = true;
+      _tours.clear();
     });
+    _loadTours();
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _searchCtrl.clear();
+      _selectedCategory = 'All';
+      _selectedDestinationId = null;
+      _selectedBudgetIndex = 0;
+      _page = 1;
+      _hasMore = true;
+      _tours.clear();
+    });
+    _loadTours();
+  }
+
+  /// Fetches the first page of tours with active filters
+  Future<void> _loadTours() async {
+    setState(() {
+      _loading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final selectedBudget = _budgetFilters[_selectedBudgetIndex];
+      final results = await ApiService.getTours(
+        search: _searchCtrl.text.trim().isNotEmpty ? _searchCtrl.text.trim() : null,
+        destinationId: _selectedDestinationId,
+        category: _selectedCategory != 'All' ? _selectedCategory : null,
+        minPrice: selectedBudget['min'] as num?,
+        maxPrice: selectedBudget['max'] as num?,
+        page: 1,
+        pageSize: _pageSize,
+      );
+
+      if (mounted) {
+        setState(() {
+          _tours.clear();
+          _tours.addAll(results);
+          _page = 1;
+          _hasMore = results.length >= _pageSize;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Could not load tours. Please check your network connection.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  /// Loads subsequent pages when scrolled to bottom
+  Future<void> _loadMoreTours() async {
+    if (_loadingMore || !_hasMore) return;
+
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+
+    try {
+      final selectedBudget = _budgetFilters[_selectedBudgetIndex];
+      final results = await ApiService.getTours(
+        search: _searchCtrl.text.trim().isNotEmpty ? _searchCtrl.text.trim() : null,
+        destinationId: _selectedDestinationId,
+        category: _selectedCategory != 'All' ? _selectedCategory : null,
+        minPrice: selectedBudget['min'] as num?,
+        maxPrice: selectedBudget['max'] as num?,
+        page: nextPage,
+        pageSize: _pageSize,
+      );
+
+      if (mounted) {
+        setState(() {
+          _page = nextPage;
+          _tours.addAll(results);
+          _hasMore = results.length >= _pageSize;
+          _loadingMore = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _loadingMore = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final displayList = _filteredTours;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFFBF9F4),
       body: SafeArea(
         child: Column(
           children: [
-            // ── Top Navigation Bar ──
+            // ── Top Header Row ──
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      if (Navigator.canPop(context)) {
-                        Navigator.pop(context);
-                      } else {
-                        Navigator.pushReplacementNamed(context, '/home');
-                      }
-                    },
+                    onTap: () => Navigator.pop(context),
                     child: Container(
-                      width: 40,
-                      height: 40,
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surface,
+                        color: Colors.white,
                         shape: BoxShape.circle,
-                        border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                        border: Border.all(color: const Color(0xFFEDECE4)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface, size: 20),
+                      child: const Center(
+                        child: Icon(Icons.arrow_back, color: Color(0xFF1E1E1E), size: 20),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -187,281 +246,301 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       children: [
                         Text(
                           'Find a tour',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 18,
+                          style: GoogleFonts.poppins(
+                            fontSize: 22,
                             fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.onSurface,
+                            color: const Color(0xFF08201A),
+                            letterSpacing: -0.5,
                           ),
                         ),
-                        Text(
+                        const SizedBox(height: 2),
+                        const Text(
                           'Handpicked island experiences',
-                          style: GoogleFonts.plusJakartaSans(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                            color: Color(0xFF8A9E96),
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _showOnlyFavorites = !_showOnlyFavorites;
-                      });
-                    },
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: _showOnlyFavorites
-                                ? (isDark ? const Color(0xFF332025) : const Color(0xFFFFECEF))
-                                : theme.colorScheme.surface,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _showOnlyFavorites
-                                  ? const Color(0xFFE11D48)
-                                  : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
-                            ),
+                    onTap: _resetAndLoad,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFEDECE4)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                          child: Icon(
-                            _showOnlyFavorites ? Icons.favorite : Icons.favorite_border,
-                            color: _showOnlyFavorites ? const Color(0xFFE11D48) : theme.colorScheme.onSurface,
-                            size: 20,
-                          ),
-                        ),
-                        if (_favoriteTourIds.isNotEmpty)
-                          Positioned(
-                            top: -2,
-                            right: -2,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFE11D48),
-                                shape: BoxShape.circle,
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              child: Text(
-                                '${_favoriteTourIds.length}',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                      ],
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.refresh, color: Color(0xFF1E1E1E), size: 20),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // ── Search Bar Capsule ──
+            // ── Floating Search Pill ──
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Container(
                 height: 48,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
+                  border: Border.all(color: const Color(0xFFEDECE4)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.03),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, color: Color(0xFF6B7280), size: 20),
+                    const Icon(Icons.search, color: Color(0xFF0E382C), size: 20),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: _searchCtrl,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.colorScheme.onSurface),
                         decoration: const InputDecoration(
                           hintText: 'Search Sigiriya, safari, surf...',
-                          hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                          hintStyle: TextStyle(
+                            color: Color(0xFF8A9E96),
+                            fontSize: 13,
+                          ),
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
                         ),
-                        onChanged: _scheduleSearch,
-                        onSubmitted: (value) {
-                          _searchDebounce?.cancel();
-                          _loadTours(search: value.trim());
-                        },
+                        onSubmitted: (_) => _resetAndLoad(),
                       ),
                     ),
                     if (_searchCtrl.text.isNotEmpty)
                       GestureDetector(
                         onTap: () {
-                          _searchDebounce?.cancel();
                           _searchCtrl.clear();
-                          setState(() {});
-                          _loadTours();
+                          _resetAndLoad();
                         },
-                        child: const Icon(Icons.close, size: 18, color: Color(0xFF9CA3AF)),
+                        child: const Icon(Icons.close, color: Color(0xFF8A9E96), size: 18),
+                      )
+                    else
+                      GestureDetector(
+                        onTap: _resetAndLoad,
+                        child: const Icon(Icons.tune, color: Color(0xFF6B7280), size: 18),
                       ),
-                    const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: _showSortBottomSheet,
-                      child: const Icon(Icons.tune, color: Color(0xFF6B7280), size: 18),
-                    ),
                   ],
                 ),
               ),
             ),
 
-            // ── Category Pills Row ──
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                children: _categoryTabs.map((cat) {
+            const SizedBox(height: 10),
+
+            // ── Category Filter Pills ──
+            SizedBox(
+              height: 34,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                itemCount: _categories.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final cat = _categories[index];
                   final isSelected = _selectedCategory == cat;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _selectedCategory = cat);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected ? theme.colorScheme.primary : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
-                          ),
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _selectedCategory = cat);
+                      _resetAndLoad();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF0E382C) : Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF0E382C) : const Color(0xFFEDECE4),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.02),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Center(
                         child: Text(
                           cat,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : const Color(0xFF1E1E1E),
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                            fontSize: 12,
                           ),
                         ),
                       ),
                     ),
                   );
-                }).toList(),
+                },
               ),
             ),
 
-            // ── Active Favorites Banner ──
-            if (_showOnlyFavorites)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF332025) : const Color(0xFFFFECEF),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFDA4AF)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.favorite, size: 16, color: Color(0xFFE11D48)),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Showing ${_favoriteTourIds.length} Saved Favorite${_favoriteTourIds.length == 1 ? '' : 's'}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFFE11D48),
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () => setState(() => _showOnlyFavorites = false),
-                        child: Text(
-                          'Show All',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: theme.colorScheme.primary,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            const SizedBox(height: 8),
 
-            // ── Count and Sort Header ──
+            // ── Destination Filter Chips ──
+            SizedBox(
+              height: 32,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                itemCount: _destinationFilters.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final dest = _destinationFilters[index];
+                  final isSelected = _selectedDestinationId == dest['id'];
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _selectedDestinationId = dest['id'] as int?);
+                      _resetAndLoad();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFFD4A346) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFFD4A346) : const Color(0xFFEDECE4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.location_on_outlined,
+                            size: 13,
+                            color: isSelected ? Colors.white : const Color(0xFF8A9E96),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            dest['name'] as String,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : const Color(0xFF08201A),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // ── Budget Filter Chips ──
+            SizedBox(
+              height: 32,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                itemCount: _budgetFilters.length,
+                separatorBuilder: (context, index) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  final b = _budgetFilters[index];
+                  final isSelected = _selectedBudgetIndex == index;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _selectedBudgetIndex = index);
+                      _resetAndLoad();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? const Color(0xFF134035) : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isSelected ? const Color(0xFF134035) : const Color(0xFFEDECE4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.payments_outlined,
+                            size: 13,
+                            color: isSelected ? Colors.white : const Color(0xFF8A9E96),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            b['label'] as String,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : const Color(0xFF08201A),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Count and Active Filters Row ──
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${displayList.length} experiences',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
+                    _loading ? 'Searching...' : '${_tours.length} experiences',
+                    style: const TextStyle(
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
+                      color: Color(0xFF08201A),
                     ),
                   ),
-                  GestureDetector(
-                    onTap: _showSortBottomSheet,
-                    child: Row(
-                      children: [
-                        Text(
-                          _selectedSort == 'Top Rated'
-                              ? 'Top rated (4.8+) ↓'
-                              : '$_selectedSort ↓',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF166B4F),
-                          ),
+                  if (_searchCtrl.text.isNotEmpty ||
+                      _selectedCategory != 'All' ||
+                      _selectedDestinationId != null ||
+                      _selectedBudgetIndex != 0)
+                    GestureDetector(
+                      onTap: _resetFilters,
+                      child: const Text(
+                        'Clear filters',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFD4A346),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
 
-            // ── Tour Cards List ──
+            const SizedBox(height: 8),
+
+            // ── Body Content (Loading / Error / Empty / List with pagination) ──
             Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                  : _error != null
-                      ? ErrorMessage(message: _error!, onRetry: () => _loadTours())
-                      : displayList.isEmpty
-                          ? EmptyState(
-                              icon: _showOnlyFavorites ? Icons.favorite_border : Icons.tour_outlined,
-                              message: _showOnlyFavorites
-                                  ? 'No favorite tours saved yet. Tap the heart icon on any tour to save it here.'
-                                  : 'No experiences found for this filter.',
-                              actionLabel: _showOnlyFavorites ? 'Explore All Tours' : 'Reset Filters',
-                              onAction: () {
-                                _searchCtrl.clear();
-                                setState(() {
-                                  _showOnlyFavorites = false;
-                                  _selectedCategory = 'All';
-                                  _selectedSort = 'Top Rated';
-                                });
-                                _loadTours();
-                              },
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                              itemCount: displayList.length,
-                              itemBuilder: (context, index) {
-                                final tour = displayList[index];
-                                return _buildFigmaTourCard(tour);
-                              },
-                            ),
+              child: _buildBody(),
             ),
           ],
         ),
@@ -469,267 +548,288 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     );
   }
 
-  void _showSortBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                  child: Text(
-                    'Sort Expeditions By',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
+  Widget _buildBody() {
+    if (_loading && _tours.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF0E382C)),
+            SizedBox(height: 14),
+            Text(
+              'Finding island tours...',
+              style: TextStyle(color: Color(0xFF5A7067), fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null && _tours.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 50, color: Color(0xFFD9534F)),
+              const SizedBox(height: 14),
+              const Text(
+                'Unable to load tours',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF08201A),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 13, color: Color(0xFF8A9E96)),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _loadTours,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Retry'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0E382C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_tours.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF6EED8),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.search_off_outlined, size: 34, color: Color(0xFFD4A346)),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'No tours found',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF08201A),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'No tours match your current search or filters. Try adjusting your destination, category, or budget.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Color(0xFF8A9E96), height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              OutlinedButton.icon(
+                onPressed: _resetFilters,
+                icon: const Icon(Icons.refresh, size: 16, color: Color(0xFF0E382C)),
+                label: const Text(
+                  'Reset Filters',
+                  style: TextStyle(color: Color(0xFF0E382C), fontWeight: FontWeight.bold),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF0E382C)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: const Color(0xFF0E382C),
+      onRefresh: () async => _resetAndLoad(),
+      child: ListView.builder(
+        controller: _scrollController,
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        itemCount: _tours.length + (_loadingMore ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == _tours.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.2,
+                    color: Color(0xFF0E382C),
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.star, color: AppColors.figmaGold),
-                  title: const Text('Top Rated (4.8+ First)'),
-                  trailing: _selectedSort == 'Top Rated' ? const Icon(Icons.check, color: AppColors.figmaDarkGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedSort = 'Top Rated');
-                    Navigator.pop(ctx);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.arrow_upward, color: AppColors.figmaDarkGreen),
-                  title: const Text('Price: Low to High'),
-                  trailing: _selectedSort == 'Price: Low to High' ? const Icon(Icons.check, color: AppColors.figmaDarkGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedSort = 'Price: Low to High');
-                    Navigator.pop(ctx);
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.arrow_downward, color: Color(0xFFE4694A)),
-                  title: const Text('Price: High to Low'),
-                  trailing: _selectedSort == 'Price: High to Low' ? const Icon(Icons.check, color: AppColors.figmaDarkGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedSort = 'Price: High to Low');
-                    Navigator.pop(ctx);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+              ),
+            );
+          }
+          final tour = _tours[index];
+          return _buildFigmaTourCard(tour);
+        },
+      ),
     );
   }
 
-  Widget _buildFigmaTourCard(Map<String, dynamic> tour) {
-    final tourName = tour['name'] ?? 'Tour';
-    final uploadedImage = ApiService.resolveMediaUrl(
-      tour['imageUrl']?.toString(),
-    );
-    final price = tour['price']?.toString() ?? 'Unavailable';
-    final currency = (tour['currency']?.toString().trim().isNotEmpty ?? false)
-        ? tour['currency'].toString()
-        : 'LKR';
-    final duration = tour['durationHours']?.toString() ?? 'N/A';
-    final category = (tour['category'] ?? 'Uncategorized').toString().toUpperCase();
-    final destinationName = tour['destinationName'] as String?;
-    final location = destinationName != null && destinationName.isNotEmpty
-        ? destinationName
-        : 'Unknown destination';
+  Widget _buildFigmaTourCard(dynamic tourData) {
+    final Map<String, dynamic> tour = tourData is Map<String, dynamic>
+        ? tourData
+        : Map<String, dynamic>.from(tourData as Map);
 
-    final tourId = int.tryParse(tour['id']?.toString() ?? '');
-    final isFav = tourId != null && _favoriteTourIds.contains(tourId);
-    final rating = _getTourRating(tour);
+    final tourName = tour['name']?.toString() ?? 'Sri Lanka Tour';
+    final category = (tour['category'] ?? 'EXPERIENCE').toString().toUpperCase();
+    final location = tour['location']?.toString() ??
+        tour['destinationName']?.toString() ??
+        'Sri Lanka';
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () async {
-          await Navigator.pushNamed(
-            context,
-            '/tour-details',
-            arguments: tour['id'],
-          );
-          // Reload favorites in case user toggled it in details view
-          _loadFavorites();
-        },
+    final duration = tour['duration']?.toString() ??
+        (tour['durationHours'] != null ? '${tour['durationHours']} hours' : 'Half day');
+
+    final rating = (tour['rating'] ?? 4.9).toString();
+
+    final num priceNum = tour['price'] is num
+        ? tour['price'] as num
+        : num.tryParse(tour['price']?.toString() ?? '0') ?? 0;
+    final formattedPrice = 'LKR ${NumberFormat('#,##0').format(priceNum)}';
+
+    final tourId = tour['id']?.toString() ?? '1';
+
+    final uploadedImage = ApiService.resolveMediaUrl(tour['imageUrl']?.toString());
+    final imageUrl = uploadedImage.isNotEmpty
+        ? uploadedImage
+        : AppDestinations.getImageForDestination(tourName);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 14),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.02),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+        border: Border.all(color: const Color(0xFFEDECE4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
-          child: Row(
+        ],
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Left: Photo thumbnail with quick-favorite toggle
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: SizedBox(
-                  width: 110,
-                  height: 125,
-                  child: uploadedImage.isNotEmpty
-                      ? AppNetworkImage(
-                          imageUrl: uploadedImage,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          color: const Color(0xFFE5E7EB),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.image_not_supported_outlined),
-                        ),
-                ),
-              ),
-              Positioned(
-                top: 6,
-                right: 6,
-                child: GestureDetector(
-                  onTap: tourId == null
-                      ? null
-                      : () async {
-                          final nowFav = await ApiService.toggleFavorite(tourId);
-                          if (!mounted) return;
-                          setState(() {
-                            if (nowFav) {
-                              _favoriteTourIds.add(tourId);
-                            } else {
-                              _favoriteTourIds.remove(tourId);
-                            }
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                nowFav
-                                    ? 'Saved "$tourName" to favorites!'
-                                    : 'Removed "$tourName" from favorites.',
-                              ),
-                              duration: const Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
+          // Left Image (rounded square)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              width: 106,
+              height: 106,
+              child: imageUrl.startsWith('http')
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(color: const Color(0xFF0E382C)),
+                    )
+                  : Image.asset(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          Container(color: const Color(0xFF0E382C)),
                     ),
-                    child: Icon(
-                      isFav ? Icons.favorite : Icons.favorite_border,
-                      color: isFav ? const Color(0xFFE11D48) : Colors.white,
-                      size: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(width: 14),
 
-          // Right: Content details
+          // Right Content
           Expanded(
             child: SizedBox(
-              height: 125,
+              height: 106,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // Category & Rating Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            category,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.figmaGold,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star, size: 12, color: AppColors.figmaGold),
-                              const SizedBox(width: 3),
-                              Text(
-                                rating.toStringAsFixed(1),
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? const Color(0xFFE5E7EB)
-                                      : const Color(0xFF374151),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-
-                      // Title
                       Text(
-                        tourName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
+                        category,
+                        style: const TextStyle(
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.onSurface,
+                          color: Color(0xFFD4A346),
+                          letterSpacing: 0.5,
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Location & Duration
-                      Row(
-                        children: [
-                          const Icon(Icons.place_outlined, size: 13, color: Color(0xFF6B7280)),
-                          const SizedBox(width: 3),
-                          Text(
-                            location,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
-                          ),
-                        ],
                       ),
                       Row(
                         children: [
-                          const Icon(Icons.schedule, size: 13, color: Color(0xFF6B7280)),
+                          const Icon(Icons.star, color: Color(0xFFD4A346), size: 14),
                           const SizedBox(width: 3),
                           Text(
-                            '$duration hours',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
+                            rating,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E1E1E),
+                            ),
                           ),
                         ],
                       ),
                     ],
                   ),
 
-                  // Bottom price & arrow button
+                  // Title
+                  Text(
+                    tourName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF08201A),
+                    ),
+                  ),
+
+                  // Location & Duration Row
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 13, color: Color(0xFF8A9E96)),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 11.5, color: Color(0xFF6B7280)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.schedule, size: 13, color: Color(0xFF8A9E96)),
+                      const SizedBox(width: 2),
+                      Text(
+                        duration,
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF6B7280)),
+                      ),
+                    ],
+                  ),
+
+                  // Price & Action Arrow Button
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -737,28 +837,33 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'from',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 10, color: const Color(0xFF9CA3AF)),
+                            style: TextStyle(fontSize: 10, color: Color(0xFF8A9E96)),
                           ),
                           Text(
-                            '$currency $price',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Theme.of(context).brightness == Brightness.dark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                            formattedPrice,
+                            style: const TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0E382C),
                             ),
                           ),
                         ],
                       ),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary,
-                          shape: BoxShape.circle,
+                      GestureDetector(
+                        onTap: () => Navigator.pushNamed(context, '/tour-details', arguments: tourId),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF0E382C),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.north_east, color: Colors.white, size: 17),
+                          ),
                         ),
-                        child: const Icon(Icons.north_east, color: Colors.white, size: 18),
                       ),
                     ],
                   ),
@@ -767,8 +872,6 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             ),
           ),
         ],
-          ),
-        ),
       ),
     );
   }

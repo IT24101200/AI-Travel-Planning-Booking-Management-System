@@ -60,9 +60,6 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
             }
 
-            // Assign Customer role in ASP.NET Identity
-            await _userManager.AddToRoleAsync(user, "Customer");
-
             // Create the Customer profile linked to the Identity user
             var customer = new Customer
             {
@@ -113,7 +110,7 @@ namespace backend.Controllers
 
         /// <summary>
         /// Register a new staff account (TravelAgent or Admin).
-        /// Requires a secret staff code if unauthenticated, or allows authenticated staff to invite colleagues.
+        /// Requires a secret staff code to prevent unauthorised staff sign-ups.
         /// </summary>
         [HttpPost("register-staff")]
         [AllowAnonymous]
@@ -127,20 +124,9 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Validation failed.", errors = errors });
             }
 
-            // Only Administrators can invite staff, or unauthenticated initial setup with the secret code
-            var isAuthenticated = User.Identity?.IsAuthenticated == true;
-            var isAdminCaller = isAuthenticated && User.IsInRole("Admin");
-
-            if (isAuthenticated && !isAdminCaller)
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only administrators can invite or register new staff accounts." });
-            }
-
-            var correctCode = _configuration["StaffSecretCode"];
-            if (!isAdminCaller && string.IsNullOrWhiteSpace(correctCode))
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Staff registration is not configured." });
-
-            if (!isAdminCaller && (string.IsNullOrWhiteSpace(dto.StaffSecretCode) || dto.StaffSecretCode != correctCode))
+            // Simple secret code check — set "StaffSecretCode" in appsettings.json
+            var correctCode = _configuration["StaffSecretCode"] ?? "staff123";
+            if (dto.StaffSecretCode != correctCode)
                 return BadRequest(new { message = "Invalid staff secret code." });
 
             // Only allow valid roles
@@ -155,16 +141,12 @@ namespace backend.Controllers
             var user = new IdentityUser
             {
                 UserName = dto.Email,
-                Email = dto.Email,
-                EmailConfirmed = true
+                Email = dto.Email
             };
 
             var result = await _userManager.CreateAsync(user, dto.Password);
             if (!result.Succeeded)
                 return BadRequest(new { message = "Registration failed.", errors = result.Errors.Select(e => e.Description) });
-
-            // Assign role in ASP.NET Identity
-            await _userManager.AddToRoleAsync(user, dto.Role);
 
             var customer = new Customer
             {
@@ -177,16 +159,6 @@ namespace backend.Controllers
             };
 
             _db.Customers.Add(customer);
-
-            // Ensure TravelAgent record exists with department
-            var dept = string.IsNullOrWhiteSpace(dto.Department) ? "Tour Operations" : dto.Department;
-            _db.TravelAgents.Add(new TravelAgent
-            {
-                Id = user.Id,
-                FullName = dto.FullName,
-                Department = dept
-            });
-
             await _db.SaveChangesAsync();
 
             var token = await GenerateJwtTokenAsync(user);
@@ -198,8 +170,7 @@ namespace backend.Controllers
                 userId = user.Id,
                 email = user.Email,
                 fullName = customer.FullName,
-                role = customer.Role,
-                department = dept
+                role = customer.Role
             });
         }
 
@@ -310,8 +281,8 @@ namespace backend.Controllers
         public string FullName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Phone number is required.")]
-        [MaxLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
-        [RegularExpression(@"^[+]?[0-9\s\-()]{9,20}$", ErrorMessage = "Phone number must be valid (e.g. 0771234567 or +94 11 888 7778).")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
         public string Phone { get; set; } = string.Empty;
 
 
@@ -342,19 +313,16 @@ namespace backend.Controllers
         public string FullName { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Phone number is required.")]
-        [MaxLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
-        [RegularExpression(@"^[+]?[0-9\s\-()]{9,20}$", ErrorMessage = "Phone number must be valid (e.g. 0771234567 or +94 11 888 7778).")]
+        [StringLength(10, MinimumLength = 10, ErrorMessage = "Phone number must be exactly 10 characters.")]
+        [RegularExpression(@"^\d{10}$", ErrorMessage = "Phone number must contain exactly 10 digits.")]
         public string Phone { get; set; } = string.Empty;
 
         /// <summary>Role must be "TravelAgent" or "Admin".</summary>
         [Required]
         public string Role { get; set; } = "TravelAgent";
 
-        /// <summary>Optional department for Travel Agents (defaults to Tour Operations).</summary>
-        [MaxLength(100)]
-        public string? Department { get; set; } = "Tour Operations";
-
-        /// <summary>Secret code required to create staff accounts if unauthenticated.</summary>
-        public string? StaffSecretCode { get; set; }
+        /// <summary>Secret code required to create staff accounts.</summary>
+        [Required]
+        public string StaffSecretCode { get; set; } = string.Empty;
     }
 }

@@ -41,11 +41,6 @@ namespace backend.Tests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
-            builder.ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.AddConsole();
-            });
 
             builder.ConfigureServices(services =>
             {
@@ -153,8 +148,7 @@ namespace backend.Tests
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddDays(7),
                 Status = ItineraryStatus.Proposed,
-                TotalEstimatedCost = 200,
-                Currency = "USD"
+                TotalEstimatedCost = 200
             });
 
             // Destination (required FK for Hotel)

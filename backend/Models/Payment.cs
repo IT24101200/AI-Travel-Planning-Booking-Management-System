@@ -16,22 +16,13 @@ namespace backend.Models
         public decimal Amount { get; set; }
 
         [MaxLength(10)]
-        public string Currency { get; set; } = "LKR";
-
-        [Column(TypeName = "decimal(18,6)")]
-        public decimal ExchangeRateToLkr { get; set; } = 1m;
+        public string Currency { get; set; } = "USD";
 
         [Required]
         public PaymentStatus Status { get; set; } = PaymentStatus.Pending;
 
         [MaxLength(100)]
         public string? StripeReference { get; set; }
-
-        [MaxLength(120)]
-        public string? IdempotencyKey { get; set; }
-
-        [MaxLength(500)]
-        public string? FailureReason { get; set; }
 
         public DateTime PaymentDate { get; set; } = DateTime.UtcNow;
 

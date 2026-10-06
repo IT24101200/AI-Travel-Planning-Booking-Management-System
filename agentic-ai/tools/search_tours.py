@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def search_tours(destination_id, category=None, max_price=None, currency=None):
+def search_tours(destination_id, category=None, max_price=None):
     """Tool: search_tours(destination_id, category, max_price) — queries the
     ASP.NET Core GET /api/tour endpoint to retrieve candidate tours.
 
@@ -31,8 +31,6 @@ def search_tours(destination_id, category=None, max_price=None, currency=None):
         query_parameters["category"] = category
     if max_price is not None:
         query_parameters["maxPrice"] = max_price
-    if currency is not None:
-        query_parameters["currency"] = currency
 
     try:
         # Send the GET request. The timeout prevents the program from waiting
