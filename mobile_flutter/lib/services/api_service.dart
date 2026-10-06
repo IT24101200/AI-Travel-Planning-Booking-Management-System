@@ -3,11 +3,11 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'app_navigation.dart';
 
-// Override: flutter run --dart-define=API_BASE_URL=https://ai-travel-planning-booking-management.onrender.com/api
+// Override: flutter run --dart-define=API_BASE_URL=https://ai-travel-planning-booking-backend.onrender.com/api
 // Both a server root and a URL ending in /api are accepted.
 const String kApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://ai-travel-planning-booking-management.onrender.com/api',
+  defaultValue: 'https://ai-travel-planning-booking-backend.onrender.com/api',
 );
 
 class ApiException implements Exception {
