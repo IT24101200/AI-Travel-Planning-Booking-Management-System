@@ -35,7 +35,6 @@ export default function HotelVendorManagement() {
     destinationName: 'Destination not provided',
     address: '',
     starRating: 5,
-    roomCount: 36,
     email: '',
     phone: '',
     imageUrl: '',
@@ -65,7 +64,6 @@ export default function HotelVendorManagement() {
           const live = Array.isArray(hotelRes.value) ? hotelRes.value : (hotelRes.value?.data || [])
           const mapped = live.map((h, idx) => {
             const rooms = Array.isArray(h.rooms) ? h.rooms : []
-            const roomCount = rooms.reduce((acc, r) => acc + (Number(r.totalRooms) || 0), 0)
             const pricedRooms = rooms.filter((r) => Number.isFinite(Number(r.pricePerNight)))
             const pricePerNight = pricedRooms.length > 0
               ? Math.min(...pricedRooms.map((r) => Number(r.pricePerNight)))
@@ -80,9 +78,7 @@ export default function HotelVendorManagement() {
               destinationId: h.destinationId,
               address: h.address || 'Address not provided',
               stars: h.starRating,
-              roomCount,
               occupancy,
-              committedRooms: null,
               priceRange: null,
               pricePerNight,
               priceCurrency: pricedRooms[0]?.currency || null,
@@ -122,7 +118,6 @@ export default function HotelVendorManagement() {
       destinationName: hotel.destination,
       address: hotel.address,
       starRating: hotel.stars,
-      roomCount: hotel.roomCount,
       email: hotel.contactEmail || '',
       phone: hotel.contactPhone || '',
       imageUrl: hotel.imageUrl || '',
@@ -139,7 +134,6 @@ export default function HotelVendorManagement() {
       destinationName: destinations[0]?.name || 'Destination not provided',
       address: '',
       starRating: 5,
-      roomCount: '',
       email: '',
       phone: '',
       imageUrl: '',
@@ -156,7 +150,6 @@ export default function HotelVendorManagement() {
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const view = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  const totalRoomsLive = useMemo(() => rows.filter(r => r.status === 'Active').reduce((sum, r) => sum + r.roomCount, 0), [rows])
   const avgOccupancy = useMemo(() => {
     const active = rows.filter(r => r.status === 'Active')
     if (active.length === 0 || active.some(r => r.occupancy == null)) return null
@@ -243,7 +236,7 @@ export default function HotelVendorManagement() {
           <p className="staff-page__eyebrow">PARTNERS / ACCOMMODATION</p>
           <h1 className="staff-page__title">Hotel vendor console</h1>
           <p className="staff-page__subtitle">
-            Manage accommodation partners, room inventory, contacts, and overbooking risk.
+            Manage accommodation partners, contacts, and overbooking risk.
           </p>
         </div>
         <div className="staff-page__actions">
@@ -283,9 +276,6 @@ export default function HotelVendorManagement() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <span className="badge-pill badge-green" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
-            <span className="badge-dot" /> {totalRoomsLive} rooms live
-          </span>
           <span className="badge-pill badge-amber" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
             <span className="badge-dot" /> {avgOccupancy == null ? 'Occupancy unavailable' : `${avgOccupancy}% average occupancy`}
           </span>
@@ -584,7 +574,7 @@ export default function HotelVendorManagement() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                     Star rating
@@ -610,21 +600,6 @@ export default function HotelVendorManagement() {
                     <option value="4" style={{ color: '#182126', backgroundColor: '#ffffff' }}>4 Stars</option>
                     <option value="3" style={{ color: '#182126', backgroundColor: '#ffffff' }}>3 Stars</option>
                   </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Total rooms
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                    value={formData.roomCount}
-                    onChange={(e) => setFormData({ ...formData, roomCount: e.target.value })}
-                  />
                 </div>
               </div>
 
@@ -655,6 +630,16 @@ export default function HotelVendorManagement() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
               </div>
+
+              {/* Overbooking Guard Warning matching Figma 2:28195 */}
+              {drawerMode === 'edit' && selectedHotel && selectedHotel.occupancy > 80 && (
+                <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
+                  <span>⚠️</span>
+                  <span>
+                    <strong>High occupancy</strong> — This hotel has high average occupancy.
+                  </span>
+                </div>
+              )}
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
