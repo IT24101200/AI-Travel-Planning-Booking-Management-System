@@ -35,7 +35,7 @@ export default function HotelVendorManagement() {
     destinationName: 'Destination not provided',
     address: '',
     starRating: 5,
-    roomCount: 36,
+    starRating: 5,
     email: '',
     phone: '',
     imageUrl: '',
@@ -64,8 +64,6 @@ export default function HotelVendorManagement() {
         if (hotelRes.status === 'fulfilled') {
           const live = Array.isArray(hotelRes.value) ? hotelRes.value : (hotelRes.value?.data || [])
           const mapped = live.map((h, idx) => {
-            const rooms = Array.isArray(h.rooms) ? h.rooms : []
-            const roomCount = rooms.reduce((acc, r) => acc + (Number(r.totalRooms) || 0), 0)
             const occupancy = null
             const destName = h.destinationName || h.destination?.name || 'Destination not provided'
             return {
@@ -75,13 +73,12 @@ export default function HotelVendorManagement() {
               destination: destName,
               destinationId: h.destinationId,
               address: h.address || 'Address not provided',
+              address: h.address || 'Address not provided',
               stars: h.starRating,
-              roomCount,
               occupancy,
-              committedRooms: null,
               priceRange: null,
-              email: h.email || 'Email not provided',
-              phone: h.phone || 'Phone not provided',
+              email: h.contactEmail || 'Email not provided',
+              phone: h.contactPhone || 'Phone not provided',
               imageUrl: h.imageUrl || '',
               status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Status not provided'),
             }
@@ -116,9 +113,9 @@ export default function HotelVendorManagement() {
       destinationName: hotel.destination,
       address: hotel.address,
       starRating: hotel.stars,
-      roomCount: hotel.roomCount,
-      email: hotel.email,
-      phone: hotel.phone,
+      starRating: hotel.stars,
+      email: hotel.email === 'Email not provided' ? '' : hotel.email,
+      phone: hotel.phone === 'Phone not provided' ? '' : hotel.phone,
       imageUrl: hotel.imageUrl || '',
       status: hotel.status
     })
@@ -133,7 +130,7 @@ export default function HotelVendorManagement() {
       destinationName: destinations[0]?.name || 'Destination not provided',
       address: '',
       starRating: 5,
-      roomCount: 24,
+      starRating: 5,
       email: 'reservations@hotel.lk',
       phone: '+94 11 234 5678',
       imageUrl: '',
@@ -150,7 +147,6 @@ export default function HotelVendorManagement() {
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const view = filtered.slice((page - 1) * pageSize, page * pageSize)
 
-  const totalRoomsLive = useMemo(() => rows.filter(r => r.status === 'Active').reduce((sum, r) => sum + r.roomCount, 0), [rows])
   const avgOccupancy = useMemo(() => {
     const active = rows.filter(r => r.status === 'Active')
     if (active.length === 0 || active.some(r => r.occupancy == null)) return null
@@ -179,16 +175,8 @@ export default function HotelVendorManagement() {
           address: formData.address.trim(),
           imageUrl: formData.imageUrl || '',
           starRating: Number(formData.starRating) || 5,
-        })
-        setNotice(`Hotel "${formData.name.trim()}" created successfully.`)
-      } else if (drawerMode === 'edit' && selectedHotel) {
-        await updateHotel(selectedHotel.id, {
-          name: formData.name.trim(),
-          destinationId: destId,
-          address: formData.address.trim(),
-          imageUrl: formData.imageUrl || '',
-          starRating: Number(formData.starRating) || 5,
-          status: formData.status
+          contactEmail: formData.email.trim(),
+          contactPhone: formData.phone.trim(),
         })
         setNotice(`Hotel #${selectedHotel.id} updated successfully.`)
       }
@@ -208,6 +196,8 @@ export default function HotelVendorManagement() {
         destinationId: hotel.destinationId,
         address: hotel.address,
         starRating: hotel.stars,
+        contactEmail: hotel.email === 'Email not provided' ? null : hotel.email,
+        contactPhone: hotel.phone === 'Phone not provided' ? null : hotel.phone,
         status: nextStatus
       })
       setRows(prev => prev.map(h => h.id === hotel.id ? { ...h, status: nextStatus } : h))
@@ -229,7 +219,7 @@ export default function HotelVendorManagement() {
           <p className="staff-page__eyebrow">PARTNERS / ACCOMMODATION</p>
           <h1 className="staff-page__title">Hotel vendor console</h1>
           <p className="staff-page__subtitle">
-            Manage accommodation partners, room inventory, contacts, and overbooking risk.
+            Manage accommodation partners, contacts, and overbooking risk.
           </p>
         </div>
         <div className="staff-page__actions">
@@ -269,9 +259,6 @@ export default function HotelVendorManagement() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <span className="badge-pill badge-green" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
-            <span className="badge-dot" /> {totalRoomsLive} rooms live
-          </span>
           <span className="badge-pill badge-amber" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
             <span className="badge-dot" /> {avgOccupancy == null ? 'Occupancy unavailable' : `${avgOccupancy}% average occupancy`}
           </span>
@@ -313,7 +300,6 @@ export default function HotelVendorManagement() {
                   <th>HOTEL NAME</th>
                   <th>DESTINATION / REGION</th>
                   <th>RATING</th>
-                  <th>ROOMS</th>
                   <th>PRICE / NIGHT</th>
                   <th>STATUS</th>
                   <th style={{ textAlign: 'right' }}>ACTIONS</th>
@@ -387,7 +373,6 @@ export default function HotelVendorManagement() {
                             {'★'.repeat(h.stars)}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 600, color: '#182126' }}>{h.roomCount}</td>
                         <td style={{ fontWeight: 700, color: '#182126' }}>Not provided</td>
                         <td>
                           <span className={`badge-pill ${h.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
@@ -561,7 +546,7 @@ export default function HotelVendorManagement() {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.75rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                     Star rating
@@ -587,21 +572,6 @@ export default function HotelVendorManagement() {
                     <option value="4" style={{ color: '#182126', backgroundColor: '#ffffff' }}>4 Stars</option>
                     <option value="3" style={{ color: '#182126', backgroundColor: '#ffffff' }}>3 Stars</option>
                   </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Total rooms
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                    value={formData.roomCount}
-                    onChange={(e) => setFormData({ ...formData, roomCount: e.target.value })}
-                  />
                 </div>
               </div>
 
@@ -634,11 +604,11 @@ export default function HotelVendorManagement() {
               </div>
 
               {/* Overbooking Guard Warning matching Figma 2:28195 */}
-              {drawerMode === 'edit' && selectedHotel && (
+              {drawerMode === 'edit' && selectedHotel && selectedHotel.occupancy > 80 && (
                 <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
                   <span>⚠️</span>
                   <span>
-                    <strong>Overbooking guard active</strong> — {selectedHotel.committedRooms} of {selectedHotel.roomCount} rooms are committed on peak dates. New holds are capped at 4 rooms.
+                    <strong>High occupancy</strong> — This hotel has high average occupancy.
                   </span>
                 </div>
               )}

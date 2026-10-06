@@ -135,6 +135,8 @@ namespace backend.Services
                 Latitude      = dto.Latitude,
                 Longitude     = dto.Longitude,
                 StarRating    = dto.StarRating,
+                ContactEmail  = dto.ContactEmail,
+                ContactPhone  = dto.ContactPhone,
                 Status        = HotelStatus.Active
             };
 
@@ -158,6 +160,13 @@ namespace backend.Services
             hotel.Latitude      = dto.Latitude;
             hotel.Longitude     = dto.Longitude;
             hotel.StarRating    = dto.StarRating;
+            hotel.ContactEmail  = dto.ContactEmail;
+            hotel.ContactPhone  = dto.ContactPhone;
+
+            if (!string.IsNullOrWhiteSpace(dto.Status) && Enum.TryParse<HotelStatus>(dto.Status, true, out var parsedStatus))
+            {
+                hotel.Status = parsedStatus;
+            }
 
             await _context.SaveChangesAsync();
             return true;
@@ -294,6 +303,8 @@ namespace backend.Services
             Latitude      = h.Latitude,
             Longitude     = h.Longitude,
             StarRating    = h.StarRating,
+            ContactEmail  = h.ContactEmail,
+            ContactPhone  = h.ContactPhone,
             Status        = h.Status.ToString(),
             Rooms         = h.Rooms?.Select(r => ToRoomDto(r)).ToList() ?? new List<RoomDto>()
         };

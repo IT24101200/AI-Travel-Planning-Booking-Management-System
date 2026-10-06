@@ -12,6 +12,8 @@ namespace backend.DTOs
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public int StarRating { get; set; }
+        public string? ContactEmail { get; set; }
+        public string? ContactPhone { get; set; }
         public string Status { get; set; } = string.Empty;
 
         /// <summary>
@@ -38,5 +40,13 @@ namespace backend.DTOs
 
         [Range(1, 5, ErrorMessage = "Star rating must be between 1 and 5.")]
         public int StarRating { get; set; }
+
+        [MaxLength(200)]
+        public string? ContactEmail { get; set; }
+
+        [MaxLength(20)]
+        public string? ContactPhone { get; set; }
+
+        public string? Status { get; set; }
     }
 }
