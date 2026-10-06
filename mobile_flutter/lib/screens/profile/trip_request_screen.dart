@@ -108,18 +108,18 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           }
         }
       }
+      if (mounted) {
+        setState(() {
+          _quickDestinations = list
+              .whereType<Map>()
+              .map((item) => item['name']?.toString() ?? '')
+              .where((name) => name.isNotEmpty)
+              .toList();
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => _submissionError = 'Unable to load destinations from the database.');
       return;
-    }
-    if (mounted) {
-      setState(() {
-        _quickDestinations = list
-            .whereType<Map>()
-            .map((item) => item['name']?.toString() ?? '')
-            .where((name) => name.isNotEmpty)
-            .toList();
-      });
     }
   }
 
