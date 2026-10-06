@@ -60,7 +60,7 @@ namespace backend.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> Create([FromForm] CreateTourDto dto, IFormFile? image)
         {
-            var imageError = await ValidateImageAsync(image);
+            var imageError = await ValidateImageAsync(image, dto.ImageUrl);
             if (imageError is not null)
                 return BadRequest(new { message = imageError });
 
@@ -121,10 +121,22 @@ namespace backend.Controllers
             return NoContent();
         }
 
-        private static async Task<string?> ValidateImageAsync(IFormFile? image)
+        private static async Task<string?> ValidateImageAsync(IFormFile? image, string? imageUrl)
         {
             if (image is null || image.Length == 0)
-                return "A tour image is required.";
+            {
+                if (string.IsNullOrWhiteSpace(imageUrl))
+                    return "A tour image is required.";
+
+                if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri)
+                    && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+                    return null;
+
+                if (imageUrl.StartsWith("/", StringComparison.Ordinal))
+                    return null;
+
+                return "A tour image URL must be an HTTP(S) or application-relative URL.";
+            }
             if (image.Length > MaxImageBytes)
                 return "The image must be 5 MB or smaller.";
 

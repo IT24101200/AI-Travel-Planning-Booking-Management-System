@@ -139,7 +139,7 @@ export async function createTour(tour, image) {
   Object.entries(tour).forEach(([key, value]) => {
     if (value !== null && value !== undefined) formData.append(key, value)
   })
-  formData.append('image', image)
+  if (image) formData.append('image', image)
   // Do not set Content-Type manually. The browser must add the multipart
   // boundary that ASP.NET Core uses to parse the form and uploaded file.
   const { data } = await api.post('/Tour', formData)
