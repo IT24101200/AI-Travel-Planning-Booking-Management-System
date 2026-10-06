@@ -38,7 +38,9 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
   List<dynamic> _logs = [];
   bool _isLoading = false;
   Timer? _pollingTimer;
-  final Set<String> _expandedAgents = {'CoordinatorAgent', 'ItineraryAgent', 'BookingAgent', 'ValidationAgent'};
+  // Keep the workflow compact by default; users can expand any agent to view
+  // its persisted server output.
+  final Set<String> _expandedAgents = <String>{};
 
   static const List<Map<String, dynamic>> _agentMeta = [
     {

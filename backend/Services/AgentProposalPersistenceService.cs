@@ -17,11 +17,16 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
 {
     private readonly AppDbContext _db;
     private readonly ICurrencyConversionService _currency;
+    private readonly IAgentLogStreamService? _logStream;
 
-    public AgentProposalPersistenceService(AppDbContext db, ICurrencyConversionService? currency = null)
+    public AgentProposalPersistenceService(
+        AppDbContext db,
+        ICurrencyConversionService? currency = null,
+        IAgentLogStreamService? logStream = null)
     {
         _db = db;
         _currency = currency ?? new CurrencyConversionService();
+        _logStream = logStream;
     }
 
     public async Task<AgentProposalPersistenceResult> PersistAsync(
@@ -254,7 +259,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         trip.RetryCount = retryCount;
         trip.Status = TripRequestStatus.AwaitingApproval;
         trip.FailureReason = null;
-        _db.AgentLogs.Add(new AgentLog
+        var persistedLog = new AgentLog
         {
             TripRequestId = trip.Id,
             AgentName = "ASP.NET ProposalPersistence",
@@ -263,9 +268,23 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             Output = $"ItineraryId={itineraryEntity.Id}; BookingId={booking.Id}; BookingStatus={booking.Status}",
             Status = "Success",
             Timestamp = DateTime.UtcNow
-        });
+        };
+        _db.AgentLogs.Add(persistedLog);
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+
+        _logStream?.PublishTripStatus(trip.Id, trip.Status.ToString(), trip.FailureReason);
+        _logStream?.PublishAgentLog(new backend.DTOs.AgentLogDto
+        {
+            Id = persistedLog.Id,
+            TripRequestId = persistedLog.TripRequestId,
+            AgentName = persistedLog.AgentName,
+            StepName = persistedLog.StepName,
+            Input = persistedLog.Input,
+            Output = persistedLog.Output,
+            Status = persistedLog.Status,
+            Timestamp = persistedLog.Timestamp
+        });
 
         return new AgentProposalPersistenceResult
         {
