@@ -44,9 +44,14 @@ String normalizeItineraryStatus(dynamic status) {
 /// Displays real customer itinerary, scheduled tours timeline, live OSM preview,
 /// status badge, accept & request changes actions, and checkout transition.
 class MyItineraryScreen extends StatefulWidget {
-  const MyItineraryScreen({super.key, this.healthLoader = ApiService.getAgentHealth});
+  const MyItineraryScreen({
+    super.key,
+    this.healthLoader = ApiService.getAgentHealth,
+    this.nowProvider,
+  });
 
   final Future<Map<String, dynamic>> Function() healthLoader;
+  final DateTime Function()? nowProvider;
 
   @override
   State<MyItineraryScreen> createState() => _MyItineraryScreenState();
@@ -68,6 +73,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   int? _selectedJourneyIndex;
   List<Map<String, dynamic>> _itineraries = [];
   int? _resolvedTripRequestId;
+  DateTime? _tripStartDate;
   Map<String, dynamic>? _booking;
   List<dynamic> _agentLogs = [];
 
@@ -96,6 +102,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       _isCheckingAgentHealth = false;
       _pending = false;
       _itinerary = null;
+      _tripStartDate = null;
       _selectedJourneyIndex = null;
     });
     try {
@@ -171,6 +178,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         _agentStatus = agentStatus;
         _agentFailureReason = agentFailureReason;
         _resolvedTripRequestId = resolvedTripRequestId;
+        _tripStartDate = DateTime.tryParse(
+          selected?['startDate']?.toString() ?? tripRequest?['startDate']?.toString() ?? '',
+        );
         _pending = resolvedTripRequestId != null && selected == null;
       });
       if (resolvedTripRequestId != null) {
@@ -258,7 +268,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     });
     try {
       final selected = await ApiService.getItinerary(id);
-      if (mounted) setState(() => _itinerary = selected);
+      if (mounted) {
+        setState(() {
+          _itinerary = selected;
+          _tripStartDate = DateTime.tryParse(selected?['startDate']?.toString() ?? '');
+        });
+      }
     } catch (error) {
       if (mounted) setState(() => _errorMessage = error.toString());
     } finally {
@@ -307,11 +322,18 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
   bool _canCancelTrip() {
     if (_resolvedTripRequestId == null || _isTripCancelled()) return false;
+    final startDate = _tripStartDate;
+    if (startDate == null) return false;
+    final now = widget.nowProvider?.call() ?? DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tripDay = DateTime(startDate.year, startDate.month, startDate.day);
+    if (tripDay.isBefore(today.add(const Duration(days: 3)))) return false;
     final value = _agentStatus?.toLowerCase().replaceAll(' ', '');
     return value == 'pending' ||
         value == 'planning' ||
         value == 'planned' ||
-        value == 'awaitingapproval';
+        value == 'awaitingapproval' ||
+        value == 'approved';
   }
 
   /// Status badge widget matching Serendib theme
@@ -1521,6 +1543,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ),
             ),
           ),
+          if (_canCancelTrip()) ...[
+            const SizedBox(height: 12),
+            _buildCancelTripButton(),
+          ],
         ],
       );
     }
@@ -1556,26 +1582,36 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   }
 
   Widget _buildCancelTripButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: OutlinedButton.icon(
-        onPressed: _isActionLoading ? null : _confirmTripCancellation,
-        icon: _isActionLoading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC62828)),
-              )
-            : const Icon(Icons.cancel_outlined, size: 19),
-        label: const Text('Cancel trip'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFFC62828),
-          side: const BorderSide(color: Color(0xFFC62828), width: 1.3),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
-          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: OutlinedButton.icon(
+            onPressed: _isActionLoading ? null : _confirmTripCancellation,
+            icon: _isActionLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC62828)),
+                  )
+                : const Icon(Icons.cancel_outlined, size: 19),
+            label: const Text('Cancel trip'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFFC62828),
+              side: const BorderSide(color: Color(0xFFC62828), width: 1.3),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+              textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 6),
+        const Text(
+          'Cancellation is available until 3 days before departure.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, color: Color(0xFF8A9E96)),
+        ),
+      ],
     );
   }
 
@@ -1608,7 +1644,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Cancel trip?'),
-        content: const Text('Are you sure you want to cancel this trip? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to cancel this trip? This action cannot be undone. '
+          'Cancellation is allowed until 3 days before departure.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
