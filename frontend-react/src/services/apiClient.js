@@ -176,8 +176,8 @@ export async function addItineraryItem(itineraryId, item) {
 // Student C — Hotels & Transport API endpoints
 // ─────────────────────────────────────────────────────────────
 
-export async function fetchHotels(search) {
-  const { data } = await api.get('/Hotel', { params: { search } })
+export async function fetchHotels(search, status = 'All') {
+  const { data } = await api.get('/Hotel', { params: { search, status, page: 1, pageSize: 50 } })
   return data
 }
 

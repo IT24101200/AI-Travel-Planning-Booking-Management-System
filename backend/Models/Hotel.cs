@@ -25,6 +25,13 @@ namespace backend.Models
         [MaxLength(500)]
         public string? Address { get; set; }
 
+        [MaxLength(254)]
+        [EmailAddress]
+        public string? ContactEmail { get; set; }
+
+        [MaxLength(30)]
+        public string? ContactPhone { get; set; }
+
         /// <summary>
         /// Cover image URL for the hotel (Supabase CDN or static upload).
         /// </summary>

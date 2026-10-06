@@ -90,8 +90,15 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Create([FromBody] CreateHotelDto dto)
         {
-            var created = await _hotelService.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            try
+            {
+                var created = await _hotelService.CreateAsync(dto);
+                return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -102,9 +109,16 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateHotelDto dto)
         {
-            var updated = await _hotelService.UpdateAsync(id, dto);
-            if (!updated) return NotFound();
-            return NoContent();
+            try
+            {
+                var updated = await _hotelService.UpdateAsync(id, dto);
+                if (!updated) return NotFound();
+                return NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>

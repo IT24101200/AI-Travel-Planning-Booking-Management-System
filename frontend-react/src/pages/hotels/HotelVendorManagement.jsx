@@ -50,7 +50,7 @@ export default function HotelVendorManagement() {
     setError(null)
     try {
       const [hotelRes, destRes] = await Promise.allSettled([
-        fetchHotels(),
+        fetchHotels(undefined, 'All'),
         fetchDestinations()
       ])
 
@@ -66,6 +66,10 @@ export default function HotelVendorManagement() {
           const mapped = live.map((h, idx) => {
             const rooms = Array.isArray(h.rooms) ? h.rooms : []
             const roomCount = rooms.reduce((acc, r) => acc + (Number(r.totalRooms) || 0), 0)
+            const pricedRooms = rooms.filter((r) => Number.isFinite(Number(r.pricePerNight)))
+            const pricePerNight = pricedRooms.length > 0
+              ? Math.min(...pricedRooms.map((r) => Number(r.pricePerNight)))
+              : null
             const occupancy = null
             const destName = h.destinationName || h.destination?.name || 'Destination not provided'
             return {
@@ -80,8 +84,10 @@ export default function HotelVendorManagement() {
               occupancy,
               committedRooms: null,
               priceRange: null,
-              email: h.email || 'Email not provided',
-              phone: h.phone || 'Phone not provided',
+              pricePerNight,
+              priceCurrency: pricedRooms[0]?.currency || null,
+              contactEmail: h.contactEmail || null,
+              contactPhone: h.contactPhone || null,
               imageUrl: h.imageUrl || '',
               status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Status not provided'),
             }
@@ -117,8 +123,8 @@ export default function HotelVendorManagement() {
       address: hotel.address,
       starRating: hotel.stars,
       roomCount: hotel.roomCount,
-      email: hotel.email,
-      phone: hotel.phone,
+      email: hotel.contactEmail || '',
+      phone: hotel.contactPhone || '',
       imageUrl: hotel.imageUrl || '',
       status: hotel.status
     })
@@ -133,9 +139,9 @@ export default function HotelVendorManagement() {
       destinationName: destinations[0]?.name || 'Destination not provided',
       address: '',
       starRating: 5,
-      roomCount: 24,
-      email: 'reservations@hotel.lk',
-      phone: '+94 11 234 5678',
+      roomCount: '',
+      email: '',
+      phone: '',
       imageUrl: '',
       status: 'Active'
     })
@@ -177,8 +183,11 @@ export default function HotelVendorManagement() {
           name: formData.name.trim(),
           destinationId: destId,
           address: formData.address.trim(),
-          imageUrl: formData.imageUrl || '',
+          imageUrl: formData.imageUrl || null,
+          contactEmail: formData.email.trim() || null,
+          contactPhone: formData.phone.trim() || null,
           starRating: Number(formData.starRating) || 5,
+          status: formData.status,
         })
         setNotice(`Hotel "${formData.name.trim()}" created successfully.`)
       } else if (drawerMode === 'edit' && selectedHotel) {
@@ -186,7 +195,9 @@ export default function HotelVendorManagement() {
           name: formData.name.trim(),
           destinationId: destId,
           address: formData.address.trim(),
-          imageUrl: formData.imageUrl || '',
+          imageUrl: formData.imageUrl || null,
+          contactEmail: formData.email.trim() || null,
+          contactPhone: formData.phone.trim() || null,
           starRating: Number(formData.starRating) || 5,
           status: formData.status
         })
@@ -200,13 +211,16 @@ export default function HotelVendorManagement() {
     }
   }
 
-  async function toggleStatus(hotel) {
-    const nextStatus = hotel.status === 'Active' ? 'Inactive' : 'Active'
+  async function toggleStatus(hotel, requestedStatus = null) {
+    const nextStatus = requestedStatus || (hotel.status === 'Active' ? 'Inactive' : 'Active')
     try {
       await updateHotel(hotel.id, {
         name: hotel.name,
         destinationId: hotel.destinationId,
         address: hotel.address,
+        contactEmail: hotel.contactEmail,
+        contactPhone: hotel.contactPhone,
+        imageUrl: hotel.imageUrl || null,
         starRating: hotel.stars,
         status: nextStatus
       })
@@ -313,7 +327,6 @@ export default function HotelVendorManagement() {
                   <th>HOTEL NAME</th>
                   <th>DESTINATION / REGION</th>
                   <th>RATING</th>
-                  <th>ROOMS</th>
                   <th>PRICE / NIGHT</th>
                   <th>STATUS</th>
                   <th style={{ textAlign: 'right' }}>ACTIONS</th>
@@ -322,7 +335,7 @@ export default function HotelVendorManagement() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem' }}>
                       <LoadingState message="Loading hotel partners from database…" />
                     </td>
                   </tr>
@@ -387,12 +400,23 @@ export default function HotelVendorManagement() {
                             {'★'.repeat(h.stars)}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 600, color: '#182126' }}>{h.roomCount}</td>
-                        <td style={{ fontWeight: 700, color: '#182126' }}>Not provided</td>
+                        <td style={{ fontWeight: 700, color: '#182126' }}>
+                          {h.pricePerNight == null
+                            ? 'Not provided'
+                            : `${h.priceCurrency || ''} ${h.pricePerNight.toFixed(2)}`}
+                        </td>
                         <td>
-                          <span className={`badge-pill ${h.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
-                            <span className="badge-dot" /> {h.status}
-                          </span>
+                          <select
+                            aria-label={`Status for ${h.name}`}
+                            className="staff-select"
+                            value={h.status}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => toggleStatus(h, e.target.value)}
+                            style={{ height: '30px', padding: '0 0.4rem', fontSize: '0.75rem', color: '#182126', backgroundColor: '#ffffff' }}
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                          </select>
                         </td>
                         <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                           <button
@@ -410,7 +434,7 @@ export default function HotelVendorManagement() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
                       {query ? `No hotels match “${query}”.` : 'No hotels in console.'}
                     </td>
                   </tr>
@@ -506,8 +530,7 @@ export default function HotelVendorManagement() {
                   value={formData.imageUrl}
                   onChange={(url) => setFormData({ ...formData, imageUrl: url })}
                   category="hotels"
-                  title="Hotel Cover Image"
-                  description="Upload a photo to Supabase Cloud or pick from the media library."
+                  label="Hotel cover image"
                 />
               </div>
 
@@ -609,10 +632,9 @@ export default function HotelVendorManagement() {
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                   Contact email
                 </label>
-                <input
-                  type="email"
-                  required
-                  className="staff-search-box"
+                  <input
+                    type="email"
+                    className="staff-search-box"
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -623,25 +645,16 @@ export default function HotelVendorManagement() {
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                   Contact phone
                 </label>
-                <input
-                  type="text"
-                  required
-                  className="staff-search-box"
+                  <input
+                    type="text"
+                    inputMode="tel"
+                    pattern="^\+?[0-9][0-9\s().-]{6,24}$"
+                    className="staff-search-box"
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
               </div>
-
-              {/* Overbooking Guard Warning matching Figma 2:28195 */}
-              {drawerMode === 'edit' && selectedHotel && (
-                <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
-                  <span>⚠️</span>
-                  <span>
-                    <strong>Overbooking guard active</strong> — {selectedHotel.committedRooms} of {selectedHotel.roomCount} rooms are committed on peak dates. New holds are capped at 4 rooms.
-                  </span>
-                </div>
-              )}
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>

@@ -25,40 +25,6 @@ class _AccommodationOptionsScreenState
   String _selectedCategory = 'Hotel';
   final List<String> _categories = ['Hotel', 'Resort', 'Villa', 'Hostel'];
 
-  // Default curated stays matching Figma
-  final List<Map<String, dynamic>> _curatedStays = [
-    {
-      'id': 'heritance',
-      'name': 'Heritance Kandalama',
-      'location': 'Dambulla · 11 km from Sigiriya',
-      'amenities': 'Pool · Spa · Lake view',
-      'rating': 4.9,
-      'price': 186,
-      'image':
-          'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      'id': '98acres',
-      'name': '98 Acres Resort',
-      'location': 'Ella · Tea estate',
-      'amenities': 'Breakfast · Pool · Mountain view',
-      'rating': 4.8,
-      'price': 214,
-      'image':
-          'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      'id': 'fortprinters',
-      'name': 'The Fort Printers',
-      'location': 'Galle Fort · Historic quarter',
-      'amenities': 'Courtyard · Breakfast · Wi-Fi',
-      'rating': 4.7,
-      'price': 142,
-      'image':
-          'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=600&auto=format&fit=crop&q=80',
-    },
-  ];
-
   late String _selectedStayId;
 
   @override

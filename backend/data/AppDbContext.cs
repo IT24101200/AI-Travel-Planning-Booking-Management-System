@@ -338,6 +338,8 @@ namespace backend.Data
 
                 entity.Property(h => h.Name).IsRequired().HasMaxLength(200);
                 entity.Property(h => h.Address).HasMaxLength(500);
+                entity.Property(h => h.ContactEmail).HasMaxLength(254);
+                entity.Property(h => h.ContactPhone).HasMaxLength(30);
 
                 entity.Property(h => h.Status)
                       .HasConversion<string>()
