@@ -130,6 +130,9 @@ class ApiService {
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateTripRequest;
   static Future<List<dynamic>> Function()? mockGetMyTripRequests;
   static Future<List<dynamic>> Function()? mockGetMyBookings;
+  static Future<List<dynamic>> Function({String? currency})? mockGetHotels;
+  static Future<List<dynamic>> Function({String? currency})?
+      mockGetTransportOptions;
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateBooking;
   static Future<Map<String, dynamic>?> Function(int id)? mockGetBooking;
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreatePayment;
@@ -570,6 +573,7 @@ class ApiService {
   // ── Hotels ──
 
   static Future<List<dynamic>> getHotels({String? currency}) async {
+    if (mockGetHotels != null) return mockGetHotels!(currency: currency);
     final hotels = <dynamic>[];
     var page = 1;
     var totalPages = 1;
@@ -588,6 +592,9 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getTransportOptions({String? currency}) async {
+    if (mockGetTransportOptions != null) {
+      return mockGetTransportOptions!(currency: currency);
+    }
     return _list(await get('transport${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
   }
 

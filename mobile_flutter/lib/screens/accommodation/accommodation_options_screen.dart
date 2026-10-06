@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../services/booked_inventory_service.dart';
 import '../../services/currency_notifier.dart';
 import '../../services/hotel_catalog_service.dart';
 import '../../services/trip_selection_service.dart';
@@ -9,7 +10,15 @@ import '../../widgets/itinerary_journey_layout.dart';
 import '../../main.dart' show currencyNotifier;
 
 class AccommodationOptionsScreen extends StatefulWidget {
-  const AccommodationOptionsScreen({super.key});
+  const AccommodationOptionsScreen({
+    super.key,
+    this.mapBuilder = _defaultMapBuilder,
+  });
+
+  final Widget Function(Map<String, dynamic>) mapBuilder;
+
+  static Widget _defaultMapBuilder(Map<String, dynamic> hotel) =>
+      HotelRouteMap(hotel: hotel);
   @override
   State<AccommodationOptionsScreen> createState() =>
       _AccommodationOptionsScreenState();
@@ -18,9 +27,11 @@ class AccommodationOptionsScreen extends StatefulWidget {
 class _AccommodationOptionsScreenState
     extends State<AccommodationOptionsScreen> {
   List<Map<String, dynamic>> _hotels = [];
+  List<Map<String, dynamic>> _bookedHotels = [];
   bool _loading = true;
   String? _error;
   String? _selectedId;
+  String _selectedCategory = 'Available';
 
   @override
   void initState() {
@@ -43,13 +54,18 @@ class _AccommodationOptionsScreenState
       _error = null;
     });
     try {
-      final data = await ApiService.getHotels(currency: currencyNotifier.value);
+      final results = await Future.wait([
+        ApiService.getHotels(currency: currencyNotifier.value),
+        ApiService.getMyBookings(),
+      ]);
       if (!mounted || request != _request) return;
+      final bookedRooms = BookedInventoryService.paidRoomItems(results[1]);
       setState(() {
-        _hotels = data
+        _hotels = results[0]
             .whereType<Map>()
             .map(HotelCatalogService.displayStay)
             .toList();
+        _bookedHotels = bookedRooms.map(_displayBookedStay).toList();
         _loading = false;
       });
     } catch (error) {
@@ -61,12 +77,28 @@ class _AccommodationOptionsScreenState
     }
   }
 
-  Map<String, dynamic>? get _selected => _hotels.isEmpty
+  List<Map<String, dynamic>> get _visibleHotels =>
+      _selectedCategory == 'Booked' ? _bookedHotels : _hotels;
+
+  Map<String, dynamic>? get _selected => _visibleHotels.isEmpty
       ? null
-      : _hotels.firstWhere(
+      : _visibleHotels.firstWhere(
           (h) => h['id'] == _selectedId,
-          orElse: () => _hotels.first,
+          orElse: () => _visibleHotels.first,
         );
+
+  Map<String, dynamic> _displayBookedStay(Map<String, dynamic> item) => {
+    ...item,
+    'id': 'booked-${item['id']}',
+    'name': item['hotelName'] ?? 'Reserved hotel',
+    'location': item['hotelAddress'] ?? 'Address not provided',
+    'latitude': item['hotelLatitude'],
+    'longitude': item['hotelLongitude'],
+    'price': item['subtotal'] ?? item['unitPrice'],
+    'roomType': item['roomType'],
+    'image': '',
+    'booked': true,
+  };
 
   void _select(Map<String, dynamic> hotel) {
     setState(() => _selectedId = hotel['id'] as String);
@@ -97,45 +129,90 @@ class _AccommodationOptionsScreenState
             : _error != null
             ? ErrorMessage(message: _error!, onRetry: _loadHotels)
             : selected == null
-            ? const Center(child: Text('No accommodation options available.'))
-            : ItineraryJourneyLayout(
-                map: HotelRouteMap(hotel: selected),
-                heading: Text(
-                  '${_hotels.length} stays',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      'Published nightly from rates. Final prices, taxes, resident eligibility and availability must be confirmed with the hotel.',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-                  ..._hotels.map(
-                    (hotel) => _hotelCard(hotel, hotel['id'] == selected['id']),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledButton.icon(
-                    onPressed: selected['price'] == null
-                        ? null
-                        : () {
-                            TripSelectionService.selectedHotel = selected;
-                            Navigator.pushNamed(
-                              context,
-                              '/transport',
-                              arguments: selected,
-                            );
-                          },
-                    icon: const Icon(Icons.arrow_forward),
-                    label: Text(
-                      'Continue with ${selected['name']}',
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
+                  _categorySelector(),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        _selectedCategory == 'Booked'
+                            ? 'No paid hotel bookings yet.'
+                            : 'No accommodation options available.',
+                      ),
                     ),
                   ),
                 ],
+              )
+            : ItineraryJourneyLayout(
+                map: widget.mapBuilder(selected),
+                heading: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _categorySelector(),
+                    const SizedBox(height: 12),
+                    Text(
+                      _selectedCategory == 'Booked'
+                          ? '${_bookedHotels.length} booked stays'
+                          : '${_hotels.length} stays',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
+                children: [
+                  if (_selectedCategory != 'Booked')
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        'Published nightly from rates. Final prices, taxes, resident eligibility and availability must be confirmed with the hotel.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ..._visibleHotels.map(
+                    (hotel) => _hotelCard(hotel, hotel['id'] == selected['id']),
+                  ),
+                  if (_selectedCategory != 'Booked') ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: selected['price'] == null
+                          ? null
+                          : () {
+                              TripSelectionService.selectedHotel = selected;
+                              Navigator.pushNamed(
+                                context,
+                                '/transport',
+                                arguments: selected,
+                              );
+                            },
+                      icon: const Icon(Icons.arrow_forward),
+                      label: Text(
+                        'Continue with ${selected['name']}',
+                        maxLines: 2,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ],
               ),
+      ),
+    );
+  }
+
+  Widget _categorySelector() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: SegmentedButton<String>(
+        segments: const [
+          ButtonSegment(value: 'Available', label: Text('Available')),
+          ButtonSegment(value: 'Booked', label: Text('Booked')),
+        ],
+        selected: {_selectedCategory},
+        onSelectionChanged: (selection) {
+          setState(() {
+            _selectedCategory = selection.first;
+            _selectedId = null;
+          });
+        },
       ),
     );
   }
@@ -210,7 +287,14 @@ class _AccommodationOptionsScreenState
                         ),
                       const SizedBox(height: 8),
                       Text(
-                        price == null
+                        hotel['booked'] == true
+                            ? price == null
+                                  ? 'Paid booking'
+                                  : formatMoney(
+                                      price,
+                                      hotel['currency']?.toString() ?? 'LKR',
+                                    )
+                            : price == null
                             ? 'Contact hotel for rates'
                             : 'From ${formatMoney(price, hotel['currency']?.toString() ?? currencyNotifier.value)} / night',
                         style: TextStyle(
@@ -220,6 +304,11 @@ class _AccommodationOptionsScreenState
                         ),
                       ),
                       const SizedBox(height: 6),
+                      if (hotel['booked'] == true)
+                        Text(
+                          '${hotel['bookingReference'] ?? 'Confirmed booking'} · ${hotel['checkInDate']?.toString().split('T').first ?? 'Check-in pending'} → ${hotel['checkOutDate']?.toString().split('T').first ?? 'Check-out pending'}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                       if (selected && hotel['rateNotes'] != null)
                         Text(
                           '${hotel['rateNotes']}',
