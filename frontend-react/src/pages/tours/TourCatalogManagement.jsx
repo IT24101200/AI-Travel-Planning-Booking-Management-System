@@ -497,12 +497,23 @@ export default function TourCatalogManagement() {
                   </label>
                   <select
                     className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.5rem', fontSize: '0.8125rem' }}
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      padding: '0 0.5rem',
+                      fontSize: '0.8125rem',
+                      color: '#182126',
+                      backgroundColor: '#ffffff',
+                      opacity: 1,
+                      colorScheme: 'light'
+                    }}
                     value={formData.destinationId}
                     onChange={(e) => setFormData({ ...formData, destinationId: e.target.value })}
                   >
-                    {destinations.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
+                    {destinations.length === 0 ? (
+                      <option value="">No destinations available</option>
+                    ) : destinations.map((d) => (
+                      <option key={d.id} value={d.id} style={{ color: '#182126', backgroundColor: '#ffffff' }}>{d.name}</option>
                     ))}
                   </select>
                 </div>
@@ -513,12 +524,21 @@ export default function TourCatalogManagement() {
                   </label>
                   <select
                     className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.5rem', fontSize: '0.8125rem' }}
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      padding: '0 0.5rem',
+                      fontSize: '0.8125rem',
+                      color: '#182126',
+                      backgroundColor: '#ffffff',
+                      opacity: 1,
+                      colorScheme: 'light'
+                    }}
                     value={formData.category}
                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   >
                     {CATEGORIES.filter(c => c !== 'All').map((c) => (
-                      <option key={c} value={c}>{c}</option>
+                      <option key={c} value={c} style={{ color: '#182126', backgroundColor: '#ffffff' }}>{c}</option>
                     ))}
                   </select>
                 </div>
@@ -527,7 +547,7 @@ export default function TourCatalogManagement() {
               {/* 3-Column: Price, Duration, Start Time */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', minHeight: '2.4rem', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                     PRICE (LKR)
                   </label>
                   <input
@@ -542,7 +562,7 @@ export default function TourCatalogManagement() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', minHeight: '2.4rem', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                     Duration (hrs)
                   </label>
                   <input
@@ -559,7 +579,7 @@ export default function TourCatalogManagement() {
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'flex-start', minHeight: '2.4rem', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                     Start Time
                   </label>
                   <input
