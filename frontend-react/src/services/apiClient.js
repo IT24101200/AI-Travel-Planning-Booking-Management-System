@@ -135,33 +135,6 @@ export async function fetchTours(params) {
 }
 
 export async function createTour(tour, image) {
-  let fileToUpload = image || tour.image
-
-  // If no File was provided directly, load tour.imageUrl as a File
-  // to satisfy the backend multipart requirement across all backend environments.
-  if (!fileToUpload && tour.imageUrl) {
-    try {
-      const response = await fetch(tour.imageUrl)
-      if (response.ok) {
-        const blob = await response.blob()
-        const mimeType = blob.type || 'image/jpeg'
-        const ext = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg'
-        fileToUpload = new File([blob], `tour.${ext}`, { type: mimeType })
-      }
-    } catch {
-      // In case cross-origin fetching is blocked, use a minimal valid 1x1 JPEG blob
-    }
-
-    if (!fileToUpload) {
-      // Minimal valid 1x1 JPEG byte stream fallback
-      const base64Jpeg = '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AP//Z'
-      const binary = atob(base64Jpeg)
-      const bytes = new Uint8Array(binary.length)
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-      fileToUpload = new File([bytes], 'tour.jpg', { type: 'image/jpeg' })
-    }
-  }
-
   const formData = new FormData()
   const { imageUrl, ...tourFields } = tour
   Object.entries(tourFields).forEach(([key, value]) => {
@@ -172,7 +145,7 @@ export async function createTour(tour, image) {
   if (typeof imageUrl === 'string' && imageUrl.trim()) {
     formData.set('imageUrl', imageUrl.trim())
   }
-  if (fileToUpload) formData.append('image', fileToUpload)
+  if (image) formData.append('image', image)
   // Do not set Content-Type manually. The browser must add the multipart
   // boundary that ASP.NET Core uses to parse the form and uploaded file.
   const { data } = await api.post('/Tour', formData)

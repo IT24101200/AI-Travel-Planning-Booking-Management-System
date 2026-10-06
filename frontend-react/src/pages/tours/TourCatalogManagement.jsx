@@ -178,6 +178,11 @@ export default function TourCatalogManagement() {
     setNotice(null)
     try {
       if (drawerMode === 'create') {
+        const imageUrl = formData.imageUrl.trim()
+        if (!imageUrl) {
+          setNotice({ type: 'error', message: 'A tour image is required.' })
+          return
+        }
         const res = await createTour({
           destinationId: Number(formData.destinationId),
           name: formData.name.trim(),
@@ -187,7 +192,7 @@ export default function TourCatalogManagement() {
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
-          imageUrl: formData.imageUrl.trim(),
+          imageUrl,
           status: 'Active'
         })
         setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
@@ -360,11 +365,37 @@ export default function TourCatalogManagement() {
                       onClick={() => selectForEdit(tour)}
                     >
                       <td>
-                        <img
-                          src={tour.imageUrl}
-                          alt={tour.name}
-                          style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }}
-                        />
+                        <div style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '6px',
+                          overflow: 'hidden',
+                          background: '#f1f5f6',
+                          color: '#66747b',
+                          fontSize: '0.5rem',
+                          textAlign: 'center'
+                        }}>
+                          {tour.imageUrl ? (
+                            <>
+                              <img
+                                src={tour.imageUrl}
+                                alt={tour.name}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                  e.currentTarget.nextElementSibling.style.display = 'flex'
+                                }}
+                              />
+                              <span style={{ display: 'none', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                                Image unavailable
+                              </span>
+                            </>
+                          ) : (
+                            <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+                              Image unavailable
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <strong style={{ display: 'block', color: '#182126', fontSize: '0.875rem' }}>
@@ -606,7 +637,10 @@ export default function TourCatalogManagement() {
               {/* Cover Image Upload & Media Library Selector */}
               <ImageUploadWidget
                 value={formData.imageUrl}
-                onChange={(url) => setFormData((prev) => ({ ...prev, imageUrl: url }))}
+                onChange={(url) => {
+                  setFormData((prev) => ({ ...prev, imageUrl: url }))
+                  setNotice((current) => current?.type === 'error' ? null : current)
+                }}
                 category="tours"
                 label="Cover Image"
               />

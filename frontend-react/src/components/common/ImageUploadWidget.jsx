@@ -88,9 +88,15 @@ export function ImageUploadWidget({
 
   // Save manually entered URL
   function applyUrlInput() {
-    if (urlInput.trim()) {
-      onChange(urlInput.trim())
+    const candidate = urlInput.trim()
+    try {
+      const parsed = new URL(candidate)
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol')
+      onChange(candidate)
+      setUploadError(null)
       setIsUrlMode(false)
+    } catch {
+      setUploadError('Enter a valid HTTP(S) image URL.')
     }
   }
 
