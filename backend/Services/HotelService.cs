@@ -61,10 +61,15 @@ namespace backend.Services
                 query = query.Where(h => h.StarRating >= minStarRating.Value);
 
             // Default to Active if no status filter provided (same as TourService)
-            var statusFilter = string.IsNullOrWhiteSpace(status)
-                ? HotelStatus.Active
-                : Enum.Parse<HotelStatus>(status, ignoreCase: true);
-            query = query.Where(h => h.Status == statusFilter);
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<HotelStatus>(status, true, out var statusFilter))
+                    query = query.Where(h => h.Status == statusFilter);
+            }
+            else if (string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(h => h.Status == HotelStatus.Active);
+            }
 
             // ── Sort ──
             query = sortBy?.ToLower() switch
@@ -106,10 +111,15 @@ namespace backend.Services
             if (minStarRating.HasValue)
                 query = query.Where(h => h.StarRating >= minStarRating.Value);
 
-            var statusFilter = string.IsNullOrWhiteSpace(status)
-                ? HotelStatus.Active
-                : Enum.Parse<HotelStatus>(status, ignoreCase: true);
-            query = query.Where(h => h.Status == statusFilter);
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<HotelStatus>(status, true, out var statusFilter))
+                    query = query.Where(h => h.Status == statusFilter);
+            }
+            else if (string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(h => h.Status == HotelStatus.Active);
+            }
 
             return await query.CountAsync();
         }
@@ -137,11 +147,13 @@ namespace backend.Services
                 DestinationId = dto.DestinationId,
                 Name          = dto.Name,
                 Address       = dto.Address,
+                ContactEmail  = NormalizeOptional(dto.ContactEmail),
+                ContactPhone  = NormalizeOptional(dto.ContactPhone),
                 ImageUrl      = dto.ImageUrl,
                 Latitude      = dto.Latitude,
                 Longitude     = dto.Longitude,
                 StarRating    = dto.StarRating,
-                Status        = HotelStatus.Active
+                Status        = ParseStatus(dto.Status)
             };
 
             _context.Hotels.Add(hotel);
@@ -161,11 +173,13 @@ namespace backend.Services
             hotel.DestinationId = dto.DestinationId;
             hotel.Name          = dto.Name;
             hotel.Address       = dto.Address;
-            if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
-                hotel.ImageUrl = dto.ImageUrl;
+            hotel.ContactEmail  = NormalizeOptional(dto.ContactEmail);
+            hotel.ContactPhone  = NormalizeOptional(dto.ContactPhone);
+            hotel.ImageUrl      = dto.ImageUrl;
             hotel.Latitude      = dto.Latitude;
             hotel.Longitude     = dto.Longitude;
             hotel.StarRating    = dto.StarRating;
+            hotel.Status        = ParseStatus(dto.Status);
 
             await _context.SaveChangesAsync();
             return true;
@@ -184,6 +198,14 @@ namespace backend.Services
             await _context.SaveChangesAsync();
             return true;
         }
+
+        private static string? NormalizeOptional(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+        private static HotelStatus ParseStatus(string? value) =>
+            string.IsNullOrWhiteSpace(value)
+                ? HotelStatus.Active
+                : Enum.Parse<HotelStatus>(value, ignoreCase: true);
 
         // ══════════════════════════════════════════════════════════════════
         //  ROOM CRUD (nested under a hotel)
@@ -304,6 +326,8 @@ namespace backend.Services
             DestinationId = h.DestinationId,
             Name          = h.Name,
             Address       = h.Address,
+            ContactEmail  = h.ContactEmail,
+            ContactPhone  = h.ContactPhone,
             ImageUrl      = h.ImageUrl,
             Latitude      = h.Latitude,
             Longitude     = h.Longitude,
