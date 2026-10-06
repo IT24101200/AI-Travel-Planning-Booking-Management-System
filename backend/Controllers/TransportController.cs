@@ -85,8 +85,15 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Create([FromBody] CreateTransportOptionDto dto)
         {
-            var created = await _transportService.CreateAsync(dto);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            try
+            {
+                var created = await _transportService.CreateAsync(dto);
+                return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -97,21 +104,36 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateTransportOptionDto dto)
         {
-            var updated = await _transportService.UpdateAsync(id, dto);
-            if (!updated) return NotFound();
-            return NoContent();
+            try
+            {
+                var updated = await _transportService.UpdateAsync(id, dto);
+                if (!updated) return NotFound();
+                return NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
-        /// Soft delete a transport option (sets status to Inactive).
+        /// Permanently delete an unreferenced transport option.
         /// DELETE /api/transport/5
         /// </summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var deleted = await _transportService.SoftDeleteAsync(id);
-            if (!deleted) return NotFound();
+            var result = await _transportService.DeleteAsync(id);
+            if (!result.Found) return NotFound();
+            if (!result.Deleted)
+            {
+                return Conflict(new
+                {
+                    message = "This transport cannot be permanently deleted because it is referenced by booking history.",
+                    bookingReferences = result.BookingReferences
+                });
+            }
             return NoContent();
         }
 

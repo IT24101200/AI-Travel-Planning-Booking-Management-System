@@ -71,10 +71,15 @@ namespace backend.Services
                 query = query.Where(t => t.Price <= maxPrice.Value);
 
             // ── Filter by status (default: Active) ──
-            var statusFilter = string.IsNullOrWhiteSpace(status)
-                ? TransportStatus.Active
-                : Enum.Parse<TransportStatus>(status, ignoreCase: true);
-            query = query.Where(t => t.Status == statusFilter);
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<TransportStatus>(status, true, out var statusFilter))
+                    query = query.Where(t => t.Status == statusFilter);
+            }
+            else if (string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(t => t.Status == TransportStatus.Active);
+            }
 
             // ── Sort ──
             query = sortBy?.ToLower() switch
@@ -119,10 +124,15 @@ namespace backend.Services
             if (maxPrice.HasValue)
                 query = query.Where(t => t.Price <= maxPrice.Value);
 
-            var statusFilter = string.IsNullOrWhiteSpace(status)
-                ? TransportStatus.Active
-                : Enum.Parse<TransportStatus>(status, ignoreCase: true);
-            query = query.Where(t => t.Status == statusFilter);
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<TransportStatus>(status, true, out var statusFilter))
+                    query = query.Where(t => t.Status == statusFilter);
+            }
+            else if (string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(t => t.Status == TransportStatus.Active);
+            }
 
             return await query.CountAsync();
         }
@@ -138,7 +148,8 @@ namespace backend.Services
         {
             dto.Currency = _currency.Normalize(dto.Currency, "Transport currency");
             // Parse the type string from the DTO into our enum
-            var transportType = Enum.Parse<TransportType>(dto.Type, ignoreCase: true);
+            var transportType = ParseType(dto.Type);
+            ValidateSchedule(dto);
 
             var transport = new TransportOption
             {
@@ -156,7 +167,7 @@ namespace backend.Services
                 Price              = dto.Price,
                 Currency           = dto.Currency,
                 ImageUrl           = dto.ImageUrl,
-                Status             = TransportStatus.Active
+                Status             = ParseStatus(dto.Status)
             };
 
             _context.TransportOptions.Add(transport);
@@ -171,7 +182,8 @@ namespace backend.Services
             var transport = await _context.TransportOptions.FindAsync(id);
             if (transport is null) return false;
 
-            transport.Type               = Enum.Parse<TransportType>(dto.Type, ignoreCase: true);
+            transport.Type               = ParseType(dto.Type);
+            ValidateSchedule(dto);
             transport.Provider           = dto.Provider;
             transport.RouteFrom          = dto.RouteFrom;
             transport.RouteTo            = dto.RouteTo;
@@ -184,21 +196,49 @@ namespace backend.Services
             transport.Capacity           = dto.Capacity;
             transport.Price              = dto.Price;
             transport.Currency           = dto.Currency;
-            if (!string.IsNullOrWhiteSpace(dto.ImageUrl))
-                transport.ImageUrl = dto.ImageUrl;
+            transport.Status             = ParseStatus(dto.Status);
+            transport.ImageUrl = dto.ImageUrl;
 
             await _context.SaveChangesAsync();
             return true;
         }
 
-        public async Task<bool> SoftDeleteAsync(int id)
+        public async Task<TransportDeleteResult> DeleteAsync(int id)
         {
             var transport = await _context.TransportOptions.FindAsync(id);
-            if (transport is null) return false;
+            if (transport is null) return new TransportDeleteResult(false, false, 0);
 
-            transport.Status = TransportStatus.Inactive;
+            var bookingReferences = await _context.BookingItems
+                .CountAsync(item => item.TransportOptionId == id);
+            if (bookingReferences > 0)
+                return new TransportDeleteResult(true, false, bookingReferences);
+
+            _context.TransportOptions.Remove(transport);
             await _context.SaveChangesAsync();
-            return true;
+            return new TransportDeleteResult(true, true, 0);
+        }
+
+        private static TransportStatus ParseStatus(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value)
+                ? TransportStatus.Active
+                : Enum.Parse<TransportStatus>(value, ignoreCase: true);
+        }
+
+        private static TransportType ParseType(string? value)
+        {
+            if (Enum.TryParse<TransportType>(value, true, out var parsed)) return parsed;
+            throw new ArgumentException("Transport type must be Car, Van, Train, Bus, or Flight.");
+        }
+
+        private static void ValidateSchedule(CreateTransportOptionDto dto)
+        {
+            if (dto.ArrivalTime <= dto.DepartureTime)
+                throw new ArgumentException("Arrival time must be later than departure time.");
+            if (dto.Capacity < 1 || dto.Capacity > 1000)
+                throw new ArgumentException("Capacity must be between 1 and 1000.");
+            if (dto.Price < 0)
+                throw new ArgumentException("Price must be zero or greater.");
         }
 
         // ── Mapping helper ──

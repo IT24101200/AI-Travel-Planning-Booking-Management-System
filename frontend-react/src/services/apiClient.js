@@ -191,8 +191,10 @@ export async function deleteHotel(id) {
   return data
 }
 
-export async function fetchTransport(type, search) {
-  const { data } = await api.get('/Transport', { params: { type, search } })
+export async function fetchTransport(type, search, status = 'All') {
+  const { data } = await api.get('/Transport', {
+    params: { type, search, status, page: 1, pageSize: 50 }
+  })
   return data
 }
 

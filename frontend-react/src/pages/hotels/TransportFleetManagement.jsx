@@ -18,14 +18,13 @@ import {
 } from '../../components/ui/Icons.jsx'
 import ImageUploadWidget from '../../components/common/ImageUploadWidget.jsx'
 
-const TRANSPORT_TYPES = ['Car', 'Train', 'Bus', 'Flight']
-const MODES = ['All', 'Car', 'Train', 'Bus', 'Flight']
+const MODES = ['All', 'Car', 'Van', 'Train', 'Bus', 'Flight']
 
 function formatDateTimeFigma(isoString) {
-  if (!isoString) return '12 Nov · 08:30'
+  if (!isoString) return '—'
   try {
     const d = new Date(isoString)
-    if (isNaN(d.getTime())) return isoString
+    if (isNaN(d.getTime())) return '—'
     return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   } catch {
     return isoString
@@ -50,13 +49,14 @@ export default function TransportFleetManagement() {
   const [selectedSchedule, setSelectedSchedule] = useState(null)
   const [formData, setFormData] = useState({
     type: 'Car',
-    provider: 'Car / Private Van',
-    from: 'Colombo Bandaranaike Airport',
-    to: 'Sigiriya',
-    price: '86.00',
-    capacity: 6,
-    departureTime: '2026-11-12T08:30',
-    arrivalTime: '2026-11-12T12:45',
+    provider: '',
+    from: '',
+    to: '',
+    price: '',
+    currency: 'LKR',
+    capacity: '',
+    departureTime: '',
+    arrivalTime: '',
     imageUrl: '',
     status: 'Active'
   })
@@ -68,40 +68,28 @@ export default function TransportFleetManagement() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetchTransport()
+      const res = await fetchTransport(undefined, undefined, 'All')
       const live = Array.isArray(res) ? res : (res?.data || [])
       if (!cancelled) {
-        const mapped = live.map((t, idx) => {
-          let typeStr = 'Car'
-          if (typeof t.type === 'number') {
-            typeStr = TRANSPORT_TYPES[t.type] || 'Car'
-          } else if (typeof t.type === 'string') {
-            typeStr = t.type
-          }
-
-          const rawCode = `TR-${4108 - idx}`
-          const from = t.routeFrom || (idx === 0 ? 'Colombo Airport' : idx === 1 ? 'Kandy' : idx === 2 ? 'Ella' : idx === 3 ? 'Colombo' : 'Galle')
-          const to = t.routeTo || (idx === 0 ? 'Sigiriya' : idx === 1 ? 'Ella' : idx === 2 ? 'Yala' : idx === 3 ? 'Trincomalee' : 'Colombo')
-          const capacity = Number(t.capacity) || (typeStr === 'Train' ? 44 : typeStr === 'Bus' ? 32 : typeStr === 'Flight' ? 70 : 6)
-          const price = Number(t.price) || (typeStr === 'Train' ? 18 : typeStr === 'Bus' ? 24 : typeStr === 'Flight' ? 124 : 86)
-          const assignedSeats = Math.max(1, Math.min(capacity, Math.round(capacity * 0.7)))
+        const mapped = live.map((t) => {
+          const typeStr = typeof t.type === 'string' ? t.type : ''
 
           return {
             id: t.id,
-            code: rawCode,
+            code: `TR-${t.id}`,
             type: typeStr,
-            provider: t.provider || `${typeStr} / Private Partner`,
-            from,
-            to,
-            price,
-            capacity,
-            assignedSeats,
-            departureRaw: t.departureTime || '2026-11-12T08:30:00',
-            arrivalRaw: t.arrivalTime || '2026-11-12T12:45:00',
+            provider: t.provider,
+            from: t.routeFrom,
+            to: t.routeTo,
+            price: Number(t.price),
+            currency: t.currency || 'LKR',
+            capacity: Number(t.capacity),
+            departureRaw: t.departureTime,
+            arrivalRaw: t.arrivalTime,
             departureFormatted: formatDateTimeFigma(t.departureTime),
             arrivalFormatted: formatDateTimeFigma(t.arrivalTime),
             imageUrl: t.imageUrl || '',
-            status: idx === 4 ? 'Decommissioned' : 'Active'
+            status: t.status || 'Active'
           }
         })
         setRows(mapped)
@@ -133,6 +121,7 @@ export default function TransportFleetManagement() {
       from: sch.from,
       to: sch.to,
       price: sch.price,
+      currency: sch.currency,
       capacity: sch.capacity,
       departureTime: sch.departureRaw ? sch.departureRaw.substring(0, 16) : '2026-11-12T08:30',
       arrivalTime: sch.arrivalRaw ? sch.arrivalRaw.substring(0, 16) : '2026-11-12T12:45',
@@ -146,13 +135,14 @@ export default function TransportFleetManagement() {
     setSelectedSchedule(null)
     setFormData({
       type: 'Car',
-      provider: 'Private Chauffeured Van',
-      from: 'Colombo International Airport',
-      to: 'Sigiriya Rock Fortress',
-      price: '85.00',
-      capacity: 6,
-      departureTime: '2026-11-12T08:30',
-      arrivalTime: '2026-11-12T12:45',
+      provider: '',
+      from: '',
+      to: '',
+      price: '',
+      currency: 'LKR',
+      capacity: '',
+      departureTime: '',
+      arrivalTime: '',
       imageUrl: '',
       status: 'Active'
     })
@@ -173,15 +163,31 @@ export default function TransportFleetManagement() {
 
   async function handleSave(e) {
     e.preventDefault()
-    if (!formData.provider.trim() || !formData.from.trim() || !formData.to.trim()) {
-      setNotice('Please provide provider, origin, and destination.')
+    if (!formData.type || !formData.provider.trim() || !formData.from.trim() || !formData.to.trim()) {
+      setNotice('Please provide transport type, provider, origin, and destination.')
+      return
+    }
+    if (!formData.departureTime || !formData.arrivalTime) {
+      setNotice('Departure and arrival times are required.')
       return
     }
     setBusy(true)
     setNotice('')
     try {
-      const depDate = formData.departureTime ? new Date(formData.departureTime) : new Date()
-      const arrDate = formData.arrivalTime ? new Date(formData.arrivalTime) : new Date(depDate.getTime() + 4 * 3600000)
+      const depDate = new Date(formData.departureTime)
+      const arrDate = new Date(formData.arrivalTime)
+      if (Number.isNaN(depDate.getTime()) || Number.isNaN(arrDate.getTime()) || arrDate <= depDate) {
+        setNotice('Arrival must be later than departure.')
+        return
+      }
+      if (!Number.isInteger(Number(formData.capacity)) || Number(formData.capacity) < 1) {
+        setNotice('Capacity must be a whole number greater than zero.')
+        return
+      }
+      if (!Number.isFinite(Number(formData.price)) || Number(formData.price) < 0) {
+        setNotice('Price must be zero or greater.')
+        return
+      }
 
       if (drawerMode === 'create') {
         await createTransport({
@@ -189,8 +195,10 @@ export default function TransportFleetManagement() {
           provider: formData.provider.trim(),
           routeFrom: formData.from.trim(),
           routeTo: formData.to.trim(),
-          price: Number(formData.price) || 86,
-          capacity: Number(formData.capacity) || 6,
+          price: Number(formData.price),
+          capacity: Number(formData.capacity),
+          currency: formData.currency,
+          status: formData.status,
           departureTime: depDate.toISOString(),
           arrivalTime: arrDate.toISOString(),
           imageUrl: formData.imageUrl || '',
@@ -202,8 +210,10 @@ export default function TransportFleetManagement() {
           provider: formData.provider.trim(),
           routeFrom: formData.from.trim(),
           routeTo: formData.to.trim(),
-          price: Number(formData.price) || 86,
-          capacity: Number(formData.capacity) || 6,
+          price: Number(formData.price),
+          capacity: Number(formData.capacity),
+          currency: formData.currency,
+          status: formData.status,
           departureTime: depDate.toISOString(),
           arrivalTime: arrDate.toISOString(),
           imageUrl: formData.imageUrl || '',
@@ -218,14 +228,14 @@ export default function TransportFleetManagement() {
     }
   }
 
-  async function decommissionSchedule(sch) {
-    if (!window.confirm(`Decommission schedule ${sch.code}?`)) return
+  async function deleteSchedule(sch) {
+    if (!window.confirm(`Permanently delete schedule ${sch.code}? This cannot be undone.`)) return
     try {
       await deleteTransport(sch.id)
-      setNotice(`Schedule ${sch.code} decommissioned.`)
+      setNotice(`Schedule ${sch.code} permanently deleted.`)
       await loadFleet()
     } catch (err) {
-      setNotice(`Failed to decommission schedule: ${err.response?.data?.message || err.message || 'The server rejected the request.'}`)
+      setNotice(`Failed to delete schedule: ${err.response?.data?.message || err.message || 'The server rejected the request.'}`)
     }
   }
 
@@ -412,7 +422,7 @@ export default function TransportFleetManagement() {
                         <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{sch.departureFormatted}</td>
                         <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{sch.arrivalFormatted}</td>
                         <td style={{ fontWeight: 600, color: '#182126' }}>{sch.capacity}</td>
-                        <td style={{ fontWeight: 700, color: '#182126' }}>${sch.price}</td>
+                        <td style={{ fontWeight: 700, color: '#182126' }}>{sch.currency} {sch.price.toFixed(2)}</td>
                         <td>
                           <span
                             className={`badge-pill ${
@@ -423,6 +433,7 @@ export default function TransportFleetManagement() {
                           </span>
                         </td>
                         <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                           <button
                             type="button"
                             className="btn-action-edit"
@@ -432,6 +443,17 @@ export default function TransportFleetManagement() {
                             <EditIcon size={12} />
                             <span>Edit</span>
                           </button>
+                          <button
+                            type="button"
+                            className="btn-danger-soft"
+                            title="Delete schedule"
+                            onClick={() => deleteSchedule(sch)}
+                            style={{ padding: '0.35rem 0.5rem' }}
+                          >
+                            <TrashIcon size={12} />
+                            <span>Delete</span>
+                          </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -494,7 +516,7 @@ export default function TransportFleetManagement() {
                 <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
                   {drawerMode === 'create'
                     ? 'New fleet route schedule'
-                    : `${selectedSchedule?.code || 'TR-4108'} · Private partner fleet`}
+                    : `${selectedSchedule?.code || ''} · Transport schedule`}
                 </span>
               </div>
               <button
@@ -519,10 +541,27 @@ export default function TransportFleetManagement() {
                 <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
                   Transport mode *
                 </label>
+                <select
+                  required
+                  className="staff-search-box"
+                  style={{ maxWidth: '100%', width: '100%' }}
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                >
+                  {MODES.filter((mode) => mode !== 'All').map((mode) => (
+                    <option key={mode} value={mode}>{mode}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  Provider *
+                </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Car / Private Van"
+                  placeholder="e.g. Sri Lanka Railways"
                   className="staff-search-box"
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.provider}
@@ -536,8 +575,7 @@ export default function TransportFleetManagement() {
                   value={formData.imageUrl}
                   onChange={(url) => setFormData({ ...formData, imageUrl: url })}
                   category="transport"
-                  title="Fleet Vehicle Cover Image"
-                  description="Upload a photo to Supabase Cloud or pick from the media library."
+                  label="Fleet vehicle cover image"
                 />
               </div>
 
@@ -622,7 +660,7 @@ export default function TransportFleetManagement() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Passenger rate USD
+                    Passenger rate ({formData.currency})
                   </label>
                   <input
                     type="number"
@@ -637,15 +675,38 @@ export default function TransportFleetManagement() {
                 </div>
               </div>
 
-              {/* Capacity Check Passed Banner matching Figma */}
-              {drawerMode === 'edit' && selectedSchedule && (
-                <div className="banner-success" style={{ fontSize: '0.75rem' }}>
-                  <CheckIcon size={14} />
-                  <span>
-                    <strong>{selectedSchedule.assignedSeats} of {selectedSchedule.capacity} seats assigned</strong> · capacity check passed
-                  </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                    Currency
+                  </label>
+                  <select
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                    value={formData.currency}
+                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                  >
+                    <option value="LKR">LKR</option>
+                    <option value="USD">USD</option>
+                  </select>
                 </div>
-              )}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                    Status
+                  </label>
+                  <select
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Capacity Check Passed Banner matching Figma */}
 
               {/* Actions matching Figma 2:28401 */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -698,10 +759,10 @@ export default function TransportFleetManagement() {
                   type="button"
                   className="btn-danger-soft"
                   style={{ width: '100%', justifyContent: 'center', marginTop: '0.25rem' }}
-                  onClick={() => decommissionSchedule(selectedSchedule)}
+                  onClick={() => deleteSchedule(selectedSchedule)}
                 >
                   <TrashIcon size={14} />
-                  <span>Decommission schedule</span>
+                  <span>Delete schedule permanently</span>
                 </button>
               )}
             </form>

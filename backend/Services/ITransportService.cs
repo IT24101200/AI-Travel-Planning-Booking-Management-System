@@ -12,6 +12,11 @@ namespace backend.Services
         Task<TransportOptionDto?> GetByIdAsync(int id, string? currency = null);
         Task<TransportOptionDto> CreateAsync(CreateTransportOptionDto dto);
         Task<bool> UpdateAsync(int id, CreateTransportOptionDto dto);
-        Task<bool> SoftDeleteAsync(int id);
+        Task<TransportDeleteResult> DeleteAsync(int id);
     }
+
+    public sealed record TransportDeleteResult(
+        bool Found,
+        bool Deleted,
+        int BookingReferences);
 }

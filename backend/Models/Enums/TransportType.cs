@@ -8,6 +8,7 @@ namespace backend.Models.Enums
         Flight,
         Bus,
         Car,
-        Train
+        Train,
+        Van
     }
 }

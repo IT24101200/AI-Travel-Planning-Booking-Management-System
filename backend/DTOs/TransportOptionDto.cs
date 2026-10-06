@@ -67,6 +67,9 @@ namespace backend.DTOs
 
         [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
         public string? ImageUrl { get; set; }
+
+        [MaxLength(20, ErrorMessage = "Status cannot exceed 20 characters.")]
+        public string Status { get; set; } = "Active";
     }
 
     // ── Availability response ──
