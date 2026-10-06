@@ -91,9 +91,9 @@ export default function ItineraryReview() {
       const list = Array.isArray(res) ? res : (res?.data || [])
 
       const mapped = list.map((it) => {
-        let statusStr = 'Proposed'
+        let statusStr = 'Status unavailable'
         if (typeof it.status === 'number') {
-          statusStr = TABS[it.status] || 'Proposed'
+          statusStr = TABS[it.status] || 'Status unavailable'
         } else if (typeof it.status === 'string') {
           statusStr = it.status
         }
@@ -106,9 +106,8 @@ export default function ItineraryReview() {
 
         return {
           ...it,
-          code: `ITN-${it.id}`,
           title: `Itinerary #${it.id}`,
-          totalCost: it.totalEstimatedCost ?? 0,
+          totalCost: it.totalEstimatedCost ?? null,
           status: statusStr,
           durationDays,
           items: it.items ?? [],
@@ -137,7 +136,7 @@ export default function ItineraryReview() {
       const matchesTab = activeTab === 'All' || it.status.toLowerCase() === activeTab.toLowerCase()
       const matchesQuery =
         !q ||
-        [it.id, it.code, it.title, it.customerName, it.tripRequestId, it.customerId].some(
+        [it.id, it.title, it.customerName, it.tripRequestId, it.customerId].some(
           (val) => String(val ?? '').toLowerCase().includes(q)
         )
 
@@ -228,7 +227,7 @@ export default function ItineraryReview() {
       if (selectedItinerary) {
         setSelectedItinerary({ ...selectedItinerary, status: newStatus })
       }
-      setNotice({ type: 'success', message: `Itinerary #${selectedItinerary.code} marked as ${newStatus}.` })
+      setNotice({ type: 'success', message: `Itinerary #${selectedItinerary.id} marked as ${newStatus}.` })
     } catch (err) {
       setNotice({ type: 'error', message: err.response?.data?.message || err.message || `Failed to update status to ${newStatus}.` })
     } finally {
@@ -439,7 +438,7 @@ export default function ItineraryReview() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                         <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#66747b', letterSpacing: '0.5px' }}>
-                          #{item.code}
+                          #{item.id}
                         </span>
                         <span className={`badge-pill ${item.status === 'Accepted' ? 'badge-green' : item.status === 'Proposed' ? 'badge-gold' : 'badge-gray'}`} style={{ fontSize: '0.625rem', padding: '1px 6px' }}>
                           <span className="badge-dot" /> {item.status}
@@ -455,7 +454,7 @@ export default function ItineraryReview() {
                         Created: {formatDate(item.createdAt)}
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
-                        <strong style={{ color: '#182126' }}>{formatPrice(item.totalCost, item.currency)}</strong>
+                        <strong style={{ color: '#182126' }}>{item.totalCost != null ? formatPrice(item.totalCost, item.currency) : 'Not available'}</strong>
                         <span style={{ color: '#267a55', fontWeight: 600, fontSize: '0.6875rem' }}>
                           {item.items.length === 0 ? 'No activities yet' : `${item.items.length} activities`}
                         </span>
@@ -512,7 +511,7 @@ export default function ItineraryReview() {
               )}
               {!!selectedItinerary.tripRequestId && !loadingAgentLogs && agentLogs.length > 0 && (
                 <div style={{ marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {agentLogs.slice(0, 3).map((log, i) => (
+                  {agentLogs.map((log, i) => (
                     <div key={log.id || i} style={{ fontSize: '0.6875rem', color: '#64748b' }}>
                       <strong style={{ color: '#334155' }}>{log.agentName}:</strong> {log.stepName}
                     </div>
@@ -530,7 +529,7 @@ export default function ItineraryReview() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid #eef2f3' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#66747b' }}>#{selectedItinerary.code}</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#66747b' }}>#{selectedItinerary.id}</span>
                   <span className={`badge-pill ${selectedItinerary.status === 'Accepted' ? 'badge-green' : selectedItinerary.status === 'Proposed' ? 'badge-gold' : 'badge-gray'}`}>
                     <span className="badge-dot" /> {selectedItinerary.status}
                   </span>
@@ -548,7 +547,7 @@ export default function ItineraryReview() {
 
               <div style={{ textAlign: 'right' }}>
                 <span style={{ fontSize: '0.6875rem', color: '#66747b', display: 'block' }}>TOTAL ESTIMATE</span>
-                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>{formatPrice(selectedItinerary.totalCost, selectedItinerary.currency)}</strong>
+                <strong style={{ fontSize: '1.375rem', color: '#182126' }}>{selectedItinerary.totalCost != null ? formatPrice(selectedItinerary.totalCost, selectedItinerary.currency) : 'Not available'}</strong>
               </div>
             </div>
 
@@ -587,7 +586,7 @@ export default function ItineraryReview() {
                             {act.tourName}
                           </p>
                         </div>
-                        <span className="activity-cost">{formatPrice(act.priceAtSelection ?? 0, act.currency || selectedItinerary.currency)}</span>
+                        <span className="activity-cost">{act.priceAtSelection != null ? formatPrice(act.priceAtSelection, act.currency || selectedItinerary.currency) : 'Not available'}</span>
                         <button
                           type="button"
                           style={{

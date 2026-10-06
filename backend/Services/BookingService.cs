@@ -304,6 +304,7 @@ namespace backend.Services
             return _db.Bookings
                 .Include(b => b.Customer)
                 .Include(b => b.Itinerary)
+                    .ThenInclude(i => i.TripRequest)
                 .Include(b => b.BookingItems)
                     .ThenInclude(bi => bi.Tour)
                 .Include(b => b.BookingItems)
@@ -384,6 +385,7 @@ namespace backend.Services
                 CustomerName = b.Customer?.FullName ?? string.Empty,
                 ItineraryId = b.ItineraryId,
                 TripRequestId = b.Itinerary?.TripRequestId ?? 0,
+                TravellerCount = b.Itinerary?.TripRequest?.TravellerCount,
                 Status = b.Status,
                 TotalCost = b.TotalCost,
                 Currency = b.Currency,

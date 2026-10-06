@@ -52,6 +52,7 @@ namespace backend.DTOs
         public string CustomerName { get; set; } = string.Empty;
         public int ItineraryId { get; set; }
         public int TripRequestId { get; set; }
+        public int? TravellerCount { get; set; }
         public BookingStatus Status { get; set; }
         public decimal TotalCost { get; set; }
         public string Currency { get; set; } = "LKR";
