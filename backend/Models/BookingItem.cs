@@ -31,10 +31,6 @@ namespace backend.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal Subtotal { get; set; }
 
-        [Required]
-        [MaxLength(3)]
-        public string Currency { get; set; } = "LKR";
-
         // ── Navigation Properties ──
         [ForeignKey(nameof(BookingId))]
         public Booking Booking { get; set; } = null!;

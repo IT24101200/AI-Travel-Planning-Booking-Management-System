@@ -18,13 +18,11 @@ namespace backend.Controllers
     {
         private readonly IApprovalService _approvalService;
         private readonly IBookingService _bookingService;
-        private readonly IRevisionPlanningService _revisionPlanningService;
 
-        public ApprovalController(IApprovalService approvalService, IBookingService bookingService, IRevisionPlanningService revisionPlanningService)
+        public ApprovalController(IApprovalService approvalService, IBookingService bookingService)
         {
             _approvalService = approvalService;
             _bookingService = bookingService;
-            _revisionPlanningService = revisionPlanningService;
         }
 
         /// <summary>
@@ -42,21 +40,11 @@ namespace backend.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId))
-                return Unauthorized(new { message = "The authenticated approval actor has no identity claim." });
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "agent-system";
 
             try
             {
                 var result = await _approvalService.CreateApprovalAsync(userId, dto);
-                if (dto.Decision == backend.Models.Enums.ApprovalDecision.RevisionRequested)
-                {
-                    await _revisionPlanningService.TriggerAsync(
-                        await _approvalService.GetTripRequestIdForBookingAsync(dto.BookingId),
-                        dto.Comment ?? string.Empty,
-                        Request.Headers.Authorization.ToString(),
-                        HttpContext.RequestAborted);
-                }
                 return CreatedAtAction(nameof(GetApprovalsByBooking), new { bookingId = dto.BookingId }, result);
             }
             catch (KeyNotFoundException ex)
@@ -66,10 +54,6 @@ namespace backend.Controllers
             catch (InvalidOperationException ex)
             {
                 return BadRequest(new { message = ex.Message });
-            }
-            catch (HttpRequestException ex)
-            {
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
             }
         }
 

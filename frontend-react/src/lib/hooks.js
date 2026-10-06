@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /** True once the user has scrolled past `offset` px. Drives the sticky header. */
 export function useScrolled(offset = 24) {
@@ -134,8 +134,6 @@ export function useAsync(asyncFn, immediate = true) {
   useEffect(() => {
     let isCancelled = false
     if (immediate) {
-      // Immediate async execution initializes the hook's request state.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true)
       setError(null)
       asyncFn()

@@ -32,10 +32,6 @@ namespace backend.Models
         [Column(TypeName = "decimal(18,2)")]
         public decimal PriceAtSelection { get; set; }
 
-        [Required]
-        [MaxLength(3)]
-        public string Currency { get; set; } = "LKR";
-
         // ── Navigation ──
         [ForeignKey(nameof(ItineraryId))]
         public Itinerary Itinerary { get; set; } = null!;

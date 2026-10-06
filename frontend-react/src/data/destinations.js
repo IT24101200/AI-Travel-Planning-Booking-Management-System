@@ -13,6 +13,12 @@ const ellaImg =
 const ellaThumb = ellaImg
 import nuwaraEliyaImg from '../assets/photos/nuwara-eliya-1280.jpg'
 import nuwaraEliyaThumb from '../assets/photos/nuwara-eliya-500.jpg'
+import mirissaImg from '../assets/photos/mirissa-1280.jpg'
+import mirissaThumb from '../assets/photos/mirissa-500.jpg'
+import yalaImg from '../assets/photos/yala-np.webp'
+import yalaThumb from '../assets/photos/yala-np.webp'
+import kandyImg from '../assets/photos/kandy-1280.jpg'
+import kandyThumb from '../assets/photos/kandy-500.jpg'
 import trincomaleeImg from '../assets/photos/trincomalee-1280.jpg'
 import trincomaleeThumb from '../assets/photos/trincomalee-500.jpg'
 import hortonPlainsImg from '../assets/photos/horton-plains-1280.jpg'
@@ -157,8 +163,8 @@ export const destinations = [
     currency: 'USD',
     coords: { lat: 6.3728, lng: 81.5019 },
     tags: ['Safari', 'Wildlife'],
-    image: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
-    thumb: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
+    image: yalaImg,
+    thumb: yalaThumb,
     palette: {
       skyTop: '#2a2340',
       skyBottom: '#eaa15c',

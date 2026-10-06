@@ -49,7 +49,7 @@ def _state(**overrides):
 def test_valid_package_builds_backend_dto_with_exactly_one_fk_per_item():
     payload, checks = validate_and_build_booking(_state())
 
-    assert payload["tripRequestId"] == 7
+    assert payload["itineraryId"] == 22
     assert payload["totalCost"] == 950
     assert [item["itemType"] for item in payload["items"]] == [0, 0, 1, 2]
     for item in payload["items"]:
@@ -78,18 +78,17 @@ def test_currency_mismatch_is_rejected():
     assert result["validation_result"]["error_code"] == "CURRENCY_MISMATCH"
 
 
-def test_proposal_does_not_require_a_backend_itinerary_id():
+def test_unpersisted_itinerary_is_rejected():
     state = _state()
     state["itinerary"]["itinerary_id"] = None
     result = validation_node(state)
 
-    assert result["validation_result"]["is_valid"] is True
-    assert result["plan_json"]["itinerary"]["itinerary_id"] is None
+    assert result["validation_result"]["is_valid"] is False
+    assert result["validation_result"]["error_code"] == "INVALID_REFERENCE"
 
 
 def test_total_mismatch_is_rejected():
     state = _state()
-    state["booking_details"]["total_package_cost"] = 951
     state["booking_details"]["total_cost"] = 951
     result = validation_node(state)
 
@@ -98,14 +97,22 @@ def test_total_mismatch_is_rejected():
 
 
 @patch("agents.validation_agent.log_agent_step")
-def test_success_returns_proposal_for_backend_persistence(_log_mock):
+@patch("agents.validation_agent.create_booking")
+def test_success_creates_only_awaiting_approval_booking(create_mock, _log_mock):
+    create_mock.return_value = {
+        "id": 55,
+        "bookingReference": "TRV-20260927-ABC123",
+        "status": "AwaitingApproval",
+    }
 
     result = validation_node(_state())
 
     assert result["validation_result"]["is_valid"] is True
     assert result["validation_result"]["status"] == "AwaitingApproval"
-    assert result["plan_json"]["validation"]["is_valid"] is True
-    assert "booking" not in result["plan_json"]
+    assert result["plan_json"]["booking"]["requires_human_approval"] is True
+    sent_payload = create_mock.call_args.args[0]
+    assert "status" not in sent_payload
+    assert create_mock.call_count == 1
 
 
 class _FakeResponse:
@@ -166,7 +173,7 @@ def test_backend_rejection_of_fake_inventory_id_is_not_silently_accepted():
     try:
         create_booking(payload, access_token="token", client=_RejectedBookingClient())
     except BackendToolError as error:
-        assert "Direct AI booking persistence is disabled" in str(error)
+        assert "Room with ID 999999 not found" in str(error)
     else:
         raise AssertionError("A backend-rejected fake room ID was accepted.")
 
@@ -199,5 +206,6 @@ def test_missing_backend_authentication_fails_cleanly(_log_mock):
     with patch.dict("os.environ", {"AGENT_BACKEND_TOKEN": ""}):
         result = validation_node(state)
 
-    assert result["validation_result"]["is_valid"] is True
-    assert result["plan_json"]["customer_id"] == "customer-1"
+    assert result["validation_result"]["is_valid"] is False
+    assert result["validation_result"]["error_code"] == "BOOKING_CREATION_FAILED"
+    assert "access token is required" in result["validation_result"]["error"]

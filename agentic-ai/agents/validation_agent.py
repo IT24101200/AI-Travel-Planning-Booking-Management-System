@@ -2,8 +2,8 @@
 
 The validation agent is intentionally not LLM-driven. Upstream agents may use
 LLMs to propose a package, but commercial rules are enforced with normal code.
-On success this node returns a validated proposal. ASP.NET persists the
-commercial records in one transaction and stops at AwaitingApproval.
+On success this node creates a backend Booking in AwaitingApproval and stops;
+it never approves a booking and never initiates payment.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from logger import log_agent_step
+from tools.validation_tools import BackendToolError, create_booking
 
 
 class PackageValidationError(ValueError):
@@ -53,8 +54,10 @@ def _positive_int(value: Any, field: str) -> int:
 
 def _currency(value: Any, field: str) -> str:
     result = str(value or "").strip().upper()
-    if result not in {"LKR", "USD"}:
-        raise PackageValidationError("INVALID_CURRENCY", f"{field} must be LKR or USD.")
+    if len(result) != 3 or not result.isalpha():
+        raise PackageValidationError(
+            "INVALID_CURRENCY", f"{field} must be a three-letter currency code."
+        )
     return result
 
 
@@ -92,6 +95,10 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
 
     itinerary = _require_mapping(
         booking.get("itinerary") or state.get("itinerary"), "itinerary"
+    )
+    itinerary_id = _positive_int(
+        itinerary.get("itinerary_id") or itinerary.get("itineraryId"),
+        "itinerary_id",
     )
     customer_id = str(state.get("customer_id") or "").strip()
     if not customer_id:
@@ -206,8 +213,8 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
         )
 
     payload = {
-        "tripRequestId": int(state.get("trip_request_id") or 0),
         "customerId": customer_id,
+        "itineraryId": itinerary_id,
         "totalCost": float(reported_total),
         "currency": package_currency,
         "items": items,
@@ -240,32 +247,50 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
             output_data=checks,
         )
 
+        token = state.get("access_token") or state.get("auth_token")
+        created = create_booking(payload, access_token=token)
+        booking_id = created.get("id")
+        reference = created.get("bookingReference") or created.get("booking_reference")
+
         result = {
             "is_valid": True,
             "checks": checks,
+            "booking_id": booking_id,
+            "booking_reference": reference,
             "status": "AwaitingApproval",
         }
         plan_json = {
-            "trip_request_id": trip_id,
-            "customer_id": state.get("customer_id"),
             "plan_summary": state.get("plan_summary", {}),
             "itinerary": state.get("itinerary", {}),
             "booking_details": state.get("booking_details", {}),
-            "validation": result,
+            "booking": {
+                "id": booking_id,
+                "booking_reference": reference,
+                "status": "AwaitingApproval",
+                "total_cost": payload["totalCost"],
+                "currency": payload["currency"],
+                "requires_human_approval": True,
+            },
         }
         log_agent_step(
             trip_request_id=trip_id,
             agent_name="ValidationAgent",
-            step_name="Prepared validated proposal for backend persistence",
-            step_type="Validation",
-            output_data={"status": "AwaitingApproval", "total": payload["totalCost"]},
+            step_name="Created booking awaiting human approval",
+            step_type="ToolCall",
+            tool_name="create_booking",
+            input_data={"itinerary_id": payload["itineraryId"]},
+            output_data={
+                "booking_id": booking_id,
+                "booking_reference": reference,
+                "status": "AwaitingApproval",
+            },
         )
         return {
             "validation_result": result,
             "plan_json": plan_json,
             "status": "AwaitingApproval",
         }
-    except PackageValidationError as error:
+    except (PackageValidationError, BackendToolError) as error:
         code = getattr(error, "code", "BOOKING_CREATION_FAILED")
         message = str(error)
         log_agent_step(

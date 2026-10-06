@@ -1,3 +1,5 @@
+import React from 'react'
+
 /**
  * Standardized Empty State component when a table or query has no matching records.
  */

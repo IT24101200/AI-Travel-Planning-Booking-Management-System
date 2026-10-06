@@ -1,7 +1,13 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { normalizeRole } from './roles.js'
 
 const AuthContext = createContext(null)
+
+function roleFromEmail(email) {
+  const e = (email || '').toLowerCase()
+  if (e.includes('admin')) return 'admin'
+  if (e.includes('agent') || e.includes('staff') || e.includes('colombo')) return 'agent'
+  return 'customer'
+}
 
 /**
  * Minimal JWT-style auth for the assignment demo.
@@ -27,7 +33,7 @@ export function AuthProvider({ children }) {
   })
 
   const login = useCallback(async (email, password) => {
-    const base = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:5138/api' : '')
+    const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:5138/api'
     try {
       const res = await fetch(`${base}/Auth/login`, {
         method: 'POST',
@@ -36,11 +42,14 @@ export function AuthProvider({ children }) {
       })
       if (res.ok) {
         const data = await res.json()
-        const normalizedRole = normalizeRole(data.role)
+        const rawRole = (data.role || roleFromEmail(email)).toLowerCase()
+        const normalizedRole = (rawRole === 'travelagent' || rawRole === 'agent' || rawRole === 'staff')
+          ? 'agent'
+          : rawRole === 'admin'
+          ? 'admin'
+          : 'customer'
         const next = {
           email,
-          userId: data.userId || null,
-          fullName: data.fullName || null,
           token: data.token || data.accessToken,
           role: normalizedRole,
         }
@@ -69,8 +78,6 @@ export function AuthProvider({ children }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-// The provider and hook intentionally share this module as one auth boundary.
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   return useContext(AuthContext)
 }

@@ -67,20 +67,11 @@ if (!string.IsNullOrWhiteSpace(envFilePath))
     }
 }
 
-var connectionString = builder.Configuration["SUPABASE_DB_CONNECTION"]
-    ?? Environment.GetEnvironmentVariable("SUPABASE_DB_CONNECTION")
-    ?? builder.Configuration["DATABASE_URL"]
-    ?? Environment.GetEnvironmentVariable("DATABASE_URL")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? builder.Configuration["ConnectionStrings:DefaultConnection"]
+var connectionString = builder.Configuration["SUPERBASE_URL"]
+    ?? Environment.GetEnvironmentVariable("SUPERBASE_URL")
     ?? builder.Configuration.GetConnectionString("Default")
+    ?? builder.Configuration["DATABASE_URL"]
     ?? builder.Configuration["ConnectionStrings:Default"];
-
-if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(connectionString))
-{
-    throw new InvalidOperationException(
-        "A production PostgreSQL connection string is required. Configure SUPABASE_DB_CONNECTION, DATABASE_URL, or ConnectionStrings__Default.");
-}
 
 // ── Database ──
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -91,7 +82,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     }
     else
     {
-        // Development-only local fallback. Production fails closed above.
+        // Safe local default without sensitive credentials
         options.UseNpgsql("Host=localhost;Port=5432;Database=travel_booking_db;Username=postgres;Password=");
     }
 });
@@ -136,6 +127,10 @@ builder.Services.AddAuthorization();
 
 // ── Controllers & Consistent Validation Errors ──
 builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    })
     .ConfigureApiBehaviorOptions(options =>
     {
         options.InvalidModelStateResponseFactory = context =>
@@ -158,18 +153,14 @@ builder.Services.AddHttpClient();
 // ── DI: Student A Services ──
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IPreferenceService, PreferenceService>();
-builder.Services.AddSingleton<ICurrencyConversionService, CurrencyConversionService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
-builder.Services.AddScoped<IAgentProposalPersistenceService, AgentProposalPersistenceService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 
 // ── DI: Student D Services ──
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IApprovalService, ApprovalService>();
-builder.Services.AddScoped<IRevisionPlanningService, RevisionPlanningService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
-builder.Services.AddScoped<IStripePaymentGateway, StripePaymentGateway>();
 
 // ── Swagger / OpenAPI ──
 builder.Services.AddEndpointsApiExplorer();
@@ -210,36 +201,13 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // ── CORS ──
-var configuredOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
-    ?? Array.Empty<string>();
-var environmentOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")
-    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-    ?? Array.Empty<string>();
-var allowedOrigins = environmentOrigins.Length > 0 ? environmentOrigins : configuredOrigins;
-
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("ConfiguredOrigins", policy =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        if (allowedOrigins.Length > 0)
-        {
-            policy.SetIsOriginAllowed(origin =>
-            {
-                if (string.IsNullOrEmpty(origin)) return false;
-                // Always permit localhost development origins (Flutter Web, React, etc.)
-                if (origin.StartsWith("http://localhost:") || origin.StartsWith("https://localhost:") || origin == "http://localhost" || origin == "https://localhost")
-                    return true;
-                return allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
-            })
-            .AllowAnyMethod()
-            .AllowAnyHeader();
-        }
-        else
-        {
-            policy.AllowAnyOrigin()
-                .AllowAnyMethod()
-                .AllowAnyHeader();
-        }
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
     });
 });
 
@@ -253,33 +221,15 @@ builder.Services.AddScoped<IAvailabilityService, AvailabilityService>();
 
 var app = builder.Build();
 
-app.Logger.LogInformation(
-    "Database provider: PostgreSQL; database connection configured: {Configured}; target is intentionally not logged.",
-    !string.IsNullOrWhiteSpace(connectionString));
-
-var applyMigrationsOnStartup = app.Configuration.GetValue<bool>("ApplyMigrationsOnStartup", false);
-if (applyMigrationsOnStartup && !app.Environment.IsEnvironment("Testing"))
+// ── Database Seeding on Startup ──
+try
 {
-    await using var migrationScope = app.Services.CreateAsyncScope();
-    var database = migrationScope.ServiceProvider.GetRequiredService<AppDbContext>().Database;
-    app.Logger.LogInformation("Applying EF Core migrations on startup.");
-    await database.MigrateAsync();
-    app.Logger.LogInformation("EF Core migrations completed successfully.");
+    await backend.Data.DbInitializer.SeedAsync(app.Services);
 }
-
-// ── Database Seeding on Startup (Disabled by default to preserve cleared state) ──
-var seedOnStartup = app.Configuration.GetValue<bool>("SeedDatabaseOnStartup", false);
-if (seedOnStartup && !app.Environment.IsEnvironment("Testing"))
+catch (Exception ex)
 {
-    try
-    {
-        await backend.Data.DbInitializer.SeedAsync(app.Services);
-    }
-    catch (Exception ex)
-    {
-        // Log database connection warning without crashing application startup
-        app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
-    }
+    // Log database connection warning without crashing application startup
+    app.Logger.LogWarning("Could not seed database on startup: {Message}", ex.Message);
 }
 
 // ── Global Exception Handling ──
@@ -297,29 +247,21 @@ app.UseExceptionHandler(errorApp =>
         {
             statusCode = 500,
             message = ex?.Message ?? "An unexpected internal server error occurred. Please try again later.",
-            detail = app.Environment.IsDevelopment() ? ex?.ToString() : null
+            detail = ex?.ToString()
         };
         await context.Response.WriteAsJsonAsync(response);
     });
 });
 
 // ── Middleware Pipeline ──
-// Enable Swagger documentation for all environments (including cloud deployment)
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "AI Travel Planning API v1");
-    c.RoutePrefix = "swagger";
-});
-
-// Root redirect to Swagger UI for instant access when deployed
-app.MapGet("/", () => Results.Redirect("/swagger"));
-
-if (!app.Environment.IsDevelopment())
-{
-    app.UseHttpsRedirection();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
-app.UseCors("ConfiguredOrigins");
+
+// app.UseHttpsRedirection(); // Disabled for mobile HTTP testing
+app.UseCors("AllowAll");
 app.UseStaticFiles();
 
 // Also serve the uploads directory (for tour images, etc.)
@@ -342,27 +284,18 @@ app.MapControllers();
 
 // ── Health Check Endpoints (kept from original scaffold) ──
 
-app.MapGet("/health", () => Results.Ok(new
-{
-    status = "healthy",
-    service = "AI Travel Planning API",
-    environment = app.Environment.EnvironmentName
-}));
-
 app.MapGet("/dbhealth", async (AppDbContext db) =>
 {
     try
     {
         var connected = await db.Database.CanConnectAsync();
-        var pendingMigrations = connected
-            ? (await db.Database.GetPendingMigrationsAsync()).Count()
-            : -1;
+        var conn = db.Database.GetDbConnection();
         return Results.Ok(new
         {
             connected,
             message = connected ? "Database connection is OK." : "Database connection failed.",
-            provider = db.Database.ProviderName,
-            pendingMigrations
+            server = conn.DataSource,
+            database = conn.Database
         });
     }
     catch (Exception ex)
@@ -371,64 +304,18 @@ app.MapGet("/dbhealth", async (AppDbContext db) =>
     }
 });
 
-if (app.Environment.IsDevelopment())
-{
-    app.MapPost("/seed-db", async (IServiceProvider services) =>
-    {
-        try
-        {
-            await backend.Data.DbInitializer.SeedAsync(services);
-            return Results.Ok(new { success = true, message = "Database seeded successfully." });
-        }
-        catch (Exception ex)
-        {
-            app.Logger.LogError(ex, "Development database seeding failed.");
-            return Results.Problem(title: "Seeding error", detail: ex.Message);
-        }
-    });
-
-    app.MapPost("/reset-db", async (IServiceProvider services) =>
-    {
-        try
-        {
-            await backend.Data.DbInitializer.ResetAndSeedAsync(services);
-            return Results.Ok(new { success = true, message = "Database fully cleared and re-seeded with fresh data." });
-        }
-        catch (Exception ex)
-        {
-            app.Logger.LogError(ex, "Database reset and seeding failed.");
-            return Results.Problem(title: "Reset error", detail: ex.Message);
-        }
-    });
-}
-
-app.MapPost("/setup-supabase-storage", async (AppDbContext db) =>
+app.MapPost("/seed-db", async (IServiceProvider services) =>
 {
     try
     {
-        await db.Database.ExecuteSqlRawAsync(@"
-            INSERT INTO storage.buckets (id, name, public) 
-            VALUES ('catalog-images', 'catalog-images', true) 
-            ON CONFLICT (id) DO UPDATE SET public = true;
-            
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM pg_policies WHERE tablename = 'objects' AND policyname = 'Public Access for catalog-images'
-                ) THEN
-                    CREATE POLICY ""Public Access for catalog-images"" ON storage.objects FOR ALL USING (bucket_id = 'catalog-images') WITH CHECK (bucket_id = 'catalog-images');
-                END IF;
-            END
-            $$;
-        ");
-        return Results.Ok(new { success = true, message = "Supabase storage bucket and policy created successfully." });
+        await backend.Data.DbInitializer.SeedAsync(services);
+        return Results.Ok(new { success = true, message = "Database seeded successfully." });
     }
     catch (Exception ex)
     {
-        return Results.Problem(title: "Storage setup error", detail: ex.Message);
+        return Results.Problem(title: "Seeding error", detail: ex.ToString());
     }
 });
-
 
 app.MapGet("/supabasehealth", async () =>
 {

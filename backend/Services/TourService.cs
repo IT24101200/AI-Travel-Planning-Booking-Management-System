@@ -8,12 +8,10 @@ namespace backend.Services
     public class TourService
     {
         private readonly AppDbContext _context;
-        private readonly ICurrencyConversionService _currency;
 
-        public TourService(AppDbContext context, ICurrencyConversionService? currency = null)
+        public TourService(AppDbContext context)
         {
             _context = context;
-            _currency = currency ?? new CurrencyConversionService();
         }
 
         public async Task<List<TourDto>> SearchAsync(
@@ -26,12 +24,9 @@ namespace backend.Services
             string? sortBy,
             bool descending,
             int page,
-            int pageSize,
-            string? currency = null)
+            int pageSize)
         {
-            var query = _context.Tours
-                .Include(t => t.Destination)
-                .AsQueryable();
+            var query = _context.Tours.AsQueryable();
 
             // Free-text search on Name or Description (case-insensitive)
             if (!string.IsNullOrWhiteSpace(search))
@@ -71,22 +66,17 @@ namespace backend.Services
                 .Take(pageSize)
                 .ToListAsync();
 
-            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
-            return tours.Select(t => ToDto(t, targetCurrency)).ToList();
+            return tours.Select(t => ToDto(t)).ToList();
         }
 
-        public async Task<TourDto?> GetByIdAsync(int id, string? currency = null)
+        public async Task<TourDto?> GetByIdAsync(int id)
         {
-            var tour = await _context.Tours
-                .Include(t => t.Destination)
-                .SingleOrDefaultAsync(t => t.Id == id);
-            var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
-            return tour is null ? null : ToDto(tour, targetCurrency);
+            var tour = await _context.Tours.FindAsync(id);
+            return tour is null ? null : ToDto(tour);
         }
 
         public async Task<TourDto> CreateAsync(CreateTourDto dto)
         {
-            dto.Currency = _currency.Normalize(dto.Currency, "Tour currency");
             if (!await _context.Destinations.AnyAsync(d => d.Id == dto.DestinationId))
             {
                 throw new ArgumentException(
@@ -115,16 +105,12 @@ namespace backend.Services
 
             _context.Tours.Add(tour);
             await _context.SaveChangesAsync();
-            await _context.Entry(tour)
-                .Reference(t => t.Destination)
-                .LoadAsync();
 
             return ToDto(tour);
         }
 
         public async Task<bool> UpdateAsync(int id, CreateTourDto dto)
         {
-            dto.Currency = _currency.Normalize(dto.Currency, "Tour currency");
             var tour = await _context.Tours.FindAsync(id);
             if (tour is null) return false;
 
@@ -166,18 +152,16 @@ namespace backend.Services
         }
 
         // ── Mapping helper ────────────────────────────────────────────────────
-        private TourDto ToDto(Tour t, string? targetCurrency = null) => new TourDto
+        private static TourDto ToDto(Tour t) => new TourDto
         {
             Id               = t.Id,
             DestinationId    = t.DestinationId,
-            DestinationName  = t.Destination.Name,
-            DestinationCountry = t.Destination.Country,
             Name             = t.Name,
             Category         = t.Category,
             Description      = t.Description,
             ImageUrl         = t.ImageUrl,
-            Price            = targetCurrency == null ? t.Price : _currency.Convert(t.Price, t.Currency, targetCurrency),
-            Currency         = targetCurrency ?? t.Currency,
+            Price            = t.Price,
+            Currency         = t.Currency,
             DurationHours    = t.DurationHours,
             DefaultStartTime = t.DefaultStartTime,
             Latitude         = t.Latitude,

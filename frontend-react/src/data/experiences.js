@@ -4,6 +4,7 @@ const ellaImg =
   'https://images.unsplash.com/photo-1566296314736-6eaac1ca0cb9?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8ZWxsYXxlbnwwfHwwfHx8MA%3D%3D'
 import nuwaraEliyaImg from '../assets/photos/nuwara-eliya-1280.jpg'
 import mirissaImg from '../assets/photos/mirissa-1280.jpg'
+import yalaImg from '../assets/photos/yala-np.webp'
 import kandyImg from '../assets/photos/kandy-1280.jpg'
 
 export const experiences = [
@@ -31,7 +32,7 @@ export const experiences = [
     summary:
       'Private 4x4 with a tracker who works Block 5, park entry, and a hot breakfast at the waterhole hide.',
     icon: 'paw',
-    image: 'https://cdn.atrsafari.com/cdn/05explore/locations-and-lodges/asia/srilanka/yala/0/stills/00page/01-1920.jpg',
+    image: yalaImg,
   },
   {
     id: 'mirissa-whales',

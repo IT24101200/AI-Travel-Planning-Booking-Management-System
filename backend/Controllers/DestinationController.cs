@@ -46,19 +46,8 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Create([FromBody] CreateDestinationDto dto)
         {
-            try
-            {
-                var created = await _service.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
-            }
-            catch (DestinationConflictException ex)
-            {
-                return Conflict(new { message = ex.Message, references = ex.Details });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var created = await _service.CreateAsync(dto);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
         }
 
         // PUT /api/destinations/{id}
@@ -66,20 +55,9 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Update(int id, [FromBody] CreateDestinationDto dto)
         {
-            try
-            {
-                var updated = await _service.UpdateAsync(id, dto);
-                if (!updated) return NotFound();
-                return NoContent();
-            }
-            catch (DestinationConflictException ex)
-            {
-                return Conflict(new { message = ex.Message, references = ex.Details });
-            }
-            catch (ArgumentException ex)
-            {
-                return BadRequest(new { message = ex.Message });
-            }
+            var updated = await _service.UpdateAsync(id, dto);
+            if (!updated) return NotFound();
+            return NoContent();
         }
 
         // DELETE /api/destinations/{id}
@@ -87,16 +65,9 @@ namespace backend.Controllers
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            try
-            {
-                var deleted = await _service.DeleteAsync(id);
-                if (!deleted) return NotFound();
-                return NoContent();
-            }
-            catch (DestinationConflictException ex)
-            {
-                return Conflict(new { message = ex.Message, references = ex.Details });
-            }
+            var deleted = await _service.DeleteAsync(id);
+            if (!deleted) return NotFound();
+            return NoContent();
         }
     }
 }

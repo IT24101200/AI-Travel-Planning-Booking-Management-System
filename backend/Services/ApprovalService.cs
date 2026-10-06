@@ -4,7 +4,6 @@ using backend.Models;
 using backend.Models.Enums;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using System.Data;
 
 namespace backend.Services
 {
@@ -24,11 +23,7 @@ namespace backend.Services
             if (dto == null)
                 throw new ArgumentNullException(nameof(dto));
 
-            await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-            var booking = await _db.Bookings
-                .Include(b => b.Itinerary)
-                    .ThenInclude(i => i.TripRequest)
-                .FirstOrDefaultAsync(b => b.Id == dto.BookingId);
+            var booking = await _db.Bookings.FindAsync(dto.BookingId);
             if (booking == null)
                 throw new KeyNotFoundException($"Booking with ID {dto.BookingId} not found.");
 
@@ -76,20 +71,12 @@ namespace backend.Services
                     booking.Status = BookingStatus.Rejected;
                     break;
                 case ApprovalDecision.RevisionRequested:
-                    // Preserve this proposal and its audit history. A later agent callback
-                    // creates a new itinerary/booking for the same TripRequest.
-                    booking.Status = BookingStatus.Cancelled;
-                    booking.Itinerary.Status = ItineraryStatus.Discarded;
-                    booking.Itinerary.TripRequest.Status = TripRequestStatus.Planning;
-                    booking.Itinerary.TripRequest.PlanJson = null;
-                    booking.Itinerary.TripRequest.RetryCount = 0;
-                    booking.Itinerary.TripRequest.FailureReason = dto.Comment;
+                    booking.Status = BookingStatus.AwaitingApproval;
                     break;
             }
 
             booking.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
-            await transaction.CommitAsync();
 
             return new ApprovalDto
             {
@@ -121,15 +108,6 @@ namespace backend.Services
                 Comment = ba.Comment,
                 DecidedAt = ba.DecidedAt
             });
-        }
-
-        public async Task<int> GetTripRequestIdForBookingAsync(int bookingId)
-        {
-            var tripRequestId = await _db.Bookings
-                .Where(b => b.Id == bookingId)
-                .Select(b => (int?)b.Itinerary.TripRequestId)
-                .SingleOrDefaultAsync();
-            return tripRequestId ?? throw new KeyNotFoundException($"Booking with ID {bookingId} not found.");
         }
 
         public async Task<IEnumerable<ApprovalDto>> GetAllApprovalsAsync()

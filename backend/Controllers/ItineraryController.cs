@@ -28,39 +28,13 @@ namespace backend.Controllers
         [HttpPost]
         [ProducesResponseType(typeof(ItineraryDto), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] CreateItineraryRequest request)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-            string customerId;
-
-            if (isStaff)
-            {
-                if (string.IsNullOrWhiteSpace(request.CustomerId))
-                    return BadRequest(new { message = "CustomerId is required when creating an itinerary as staff." });
-
-                customerId = request.CustomerId;
-            }
-            else
-            {
-                if (string.IsNullOrWhiteSpace(userId))
-                    return Unauthorized();
-
-                if (!string.IsNullOrWhiteSpace(request.CustomerId) && request.CustomerId != userId)
-                    return StatusCode(StatusCodes.Status403Forbidden, new { message = "You can only create itineraries for yourself." });
-
-                customerId = userId;
-            }
-
-            if (request.EndDate < request.StartDate)
-                return BadRequest(new { message = "EndDate cannot be before StartDate." });
-
             var created = await _service.CreateItineraryAsync(
-                customerId,
+                request.CustomerId,
                 request.TripRequestId,
                 request.StartDate,
                 request.EndDate,
@@ -189,7 +163,7 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Updates an itinerary status according to staff and customer transition rules.
+        /// Updates the status of an existing Itinerary (e.g. Draft → Proposed → Accepted).
         /// </summary>
         [HttpPatch("{id}/status")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -201,18 +175,23 @@ namespace backend.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            // Ownership check before modifying
+            var itinerary = await _service.GetItineraryByIdAsync(id);
+            if (itinerary is null)
+                return NotFound(new { message = $"Itinerary with Id {id} was not found." });
+
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
-            var requestedStatus = request.NewStatus?.ToString() ?? request.Status;
-            var result = await _service.UpdateItineraryStatusAsync(id, requestedStatus, userId, isStaff);
 
-            return result.Outcome switch
-            {
-                ItineraryStatusUpdateOutcome.Updated => Ok(new { message = result.Message }),
-                ItineraryStatusUpdateOutcome.NotFound => NotFound(new { message = result.Message }),
-                ItineraryStatusUpdateOutcome.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new { message = result.Message }),
-                _ => BadRequest(new { message = result.Message })
-            };
+            if (!isStaff && itinerary.CustomerId != userId)
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "You do not have access to this itinerary." });
+
+            var (success, errorMessage) = await _service.UpdateItineraryStatusAsync(id, request.ResolvedStatus);
+
+            if (!success)
+                return NotFound(new { message = errorMessage });
+
+            return Ok(new { message = $"Itinerary status updated to {request.ResolvedStatus}." });
         }
     }
 
@@ -238,5 +217,16 @@ namespace backend.Controllers
         public ItineraryStatus? NewStatus { get; set; }
         public string? Status { get; set; }
         public string? Notes { get; set; }
+
+        public ItineraryStatus ResolvedStatus
+        {
+            get
+            {
+                if (NewStatus.HasValue) return NewStatus.Value;
+                if (!string.IsNullOrWhiteSpace(Status) && Enum.TryParse<ItineraryStatus>(Status, true, out var parsed))
+                    return parsed;
+                return ItineraryStatus.Proposed;
+            }
+        }
     }
 }

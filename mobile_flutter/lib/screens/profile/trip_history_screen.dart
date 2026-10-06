@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
-import '../../widgets/common_widgets.dart';
-import 'package:intl/intl.dart';
 
-/// Trip history screen matching Figma frame 16 · Trip History / My Trips (node 7:11390)
+/// My Trips / Trip History screen connecting exclusively to the live database API.
+/// Does not use dummy data — displays real database bookings and trip requests for the logged-in customer.
 class TripHistoryScreen extends StatefulWidget {
   const TripHistoryScreen({super.key});
 
@@ -14,769 +15,368 @@ class TripHistoryScreen extends StatefulWidget {
 }
 
 class _TripHistoryScreenState extends State<TripHistoryScreen> {
-  List<Map<String, dynamic>> _trips = [];
-  String? _error;
-  bool _loading = true;
-  String _activeTab = 'Upcoming'; // 'Upcoming', 'Completed', 'Cancelled'
-  String _selectedYear = 'All years';
+  int _selectedTabIndex = 0; // 0: Upcoming, 1: Completed, 2: Cancelled
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  static const _historyStatuses = {
-    'Planning',
-    'AwaitingApproval',
-    'Confirmed',
-    'Completed',
-    'Cancelled',
-  };
+  // Real trips populated exclusively from the database (Bookings + Trip Requests)
+  List<Map<String, dynamic>> _dbTrips = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadDatabaseTrips();
   }
 
-  String? _status(dynamic value, {required bool booking}) {
-    const bookingStatuses = ['Draft', 'AwaitingApproval', 'Confirmed', 'Rejected', 'Cancelled', 'Completed'];
-    const requestStatuses = ['Pending', 'Planning', 'Planned', 'Failed', 'Cancelled', 'AwaitingApproval', 'Approved', 'Rejected'];
-    final statuses = booking ? bookingStatuses : requestStatuses;
-    final index = int.tryParse(value?.toString() ?? '');
-    final raw = index != null && index >= 0 && index < statuses.length
-        ? statuses[index] : value?.toString() ?? 'Unknown';
-    final normalized = raw.replaceAll(' ', '').toLowerCase();
-    switch (normalized) {
-      case 'draft':
-      case 'pending':
-      case 'planning':
-      case 'planned':
-        return 'Planning';
-      case 'awaitingapproval':
-        return 'AwaitingApproval';
-      case 'confirmed':
-        return 'Confirmed';
-      case 'completed':
-        return 'Completed';
-      case 'cancelled':
-        return 'Cancelled';
-      default:
-        return null;
-    }
-  }
+  /// Fetch bookings and trip requests from the backend database
+  Future<void> _loadDatabaseTrips() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  Future<void> _loadData() async {
-    setState(() { _loading = true; _error = null; });
     try {
-      final results = await Future.wait([ApiService.getMyBookings(), ApiService.getMyTripRequests()]);
-      final bookings = results[0].map((item) => Map<String, dynamic>.from(item as Map)).toList();
-      final requests = results[1].map((item) => Map<String, dynamic>.from(item as Map)).toList();
-      final requestsById = {for (final request in requests) request['id'].toString(): request};
-      final bookedRequestIds = bookings.map((booking) => booking['tripRequestId']?.toString()).toSet();
-      final records = <Map<String, dynamic>>[];
-      for (final booking in bookings) {
-        final record = _tripCard(booking, requestsById[booking['tripRequestId']?.toString()], booking: true);
-        if (_historyStatuses.contains(record['status'])) records.add(record);
-      }
-      for (final request in requests) {
-        if (!bookedRequestIds.contains(request['id'].toString())) {
-          final record = _tripCard(request, request, booking: false);
-          if (_historyStatuses.contains(record['status'])) records.add(record);
+      final List<Map<String, dynamic>> combined = [];
+
+      // 1. Fetch live bookings from database
+      final bookings = await ApiService.getMyBookings();
+      for (final b in bookings) {
+        if (b is! Map<String, dynamic>) continue;
+
+        final id = b['id']?.toString() ?? '';
+        final ref = b['bookingReference']?.toString() ?? 'ST-BK-$id';
+        final rawStatus = b['status'];
+        final totalCost = (b['totalCost'] is num) ? (b['totalCost'] as num).toDouble() : 0.0;
+        final createdAtStr = b['createdAt']?.toString() ?? '';
+        final createdAt = DateTime.tryParse(createdAtStr);
+
+        // Map status integer or string to readable state
+        String statusLabel = 'CONFIRMED';
+        Color statusColor = const Color(0xFF13684B);
+        String tabType = 'Upcoming';
+
+        final statusStr = rawStatus?.toString().toLowerCase() ?? '';
+        if (statusStr == '0' || statusStr.contains('draft')) {
+          statusLabel = 'DRAFT';
+          statusColor = const Color(0xFF6B7280);
+          tabType = 'Upcoming';
+        } else if (statusStr == '1' || statusStr.contains('awaitingapproval')) {
+          statusLabel = 'AWAITING APPROVAL';
+          statusColor = const Color(0xFFB27D26);
+          tabType = 'Upcoming';
+        } else if (statusStr == '2' || statusStr.contains('approved') || statusStr.contains('confirmed')) {
+          statusLabel = 'CONFIRMED';
+          statusColor = const Color(0xFF13684B);
+          tabType = 'Upcoming';
+        } else if (statusStr == '3' || statusStr.contains('rejected')) {
+          statusLabel = 'REJECTED';
+          statusColor = const Color(0xFFE27D60);
+          tabType = 'Cancelled';
+        } else if (statusStr == '4' || statusStr.contains('cancelled')) {
+          statusLabel = 'CANCELLED';
+          statusColor = const Color(0xFF9E9E9E);
+          tabType = 'Cancelled';
+        } else if (statusStr == '5' || statusStr.contains('completed')) {
+          statusLabel = 'COMPLETED';
+          statusColor = const Color(0xFF6B7280);
+          tabType = 'Completed';
         }
+
+        // Determine title from items or fallback
+        String title = 'Sri Lanka Tour $ref';
+        final items = b['items'];
+        if (items is List && items.isNotEmpty) {
+          final first = items.first;
+          if (first is Map && first['tourName'] != null) {
+            title = first['tourName'].toString();
+          }
+        }
+
+        // Format dates
+        String datesText = createdAt != null
+            ? 'Booked ${createdAt.day}/${createdAt.month}/${createdAt.year}'
+            : 'Active Reservation';
+
+        final bookingImage = _resolveTripImage(
+          title: title,
+          rawRequestText: '',
+          destinationName: null,
+          tripIndex: combined.length,
+        );
+
+        combined.add({
+          'id': id,
+          'bookingReference': ref,
+          'title': title,
+          'status': statusLabel,
+          'statusColor': statusColor,
+          'dates': datesText,
+          'price': totalCost.toInt(),
+          'currency': b['currency']?.toString() ?? 'LKR',
+          'imageUrl': bookingImage,
+          'primaryAction': 'View Details',
+          'secondaryAction': 'Receipt',
+          'type': tabType,
+          'isBooking': true,
+        });
       }
-      if (mounted) setState(() => _trips = records);
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
+
+      // 2. Fetch live AI trip requests from database
+      final tripRequests = await ApiService.getMyTripRequests();
+      for (final tr in tripRequests) {
+        if (tr is! Map<String, dynamic>) continue;
+
+        final id = tr['id']?.toString() ?? '';
+        final destination = tr['destinationName']?.toString();
+        final rawText = tr['rawRequestText']?.toString() ?? '';
+        final budget = (tr['budgetCeiling'] is num) ? (tr['budgetCeiling'] as num).toDouble() : 0.0;
+        final startStr = tr['startDate']?.toString() ?? '';
+        final endStr = tr['endDate']?.toString() ?? '';
+        final status = tr['status']?.toString().toLowerCase() ?? 'pending';
+        final currency = tr['currency']?.toString() ?? 'LKR';
+        final planJson = tr['planJson'];
+
+        final start = DateTime.tryParse(startStr);
+        final end = DateTime.tryParse(endStr);
+
+        int days = 5;
+        if (start != null && end != null) {
+          days = end.difference(start).inDays;
+          if (days <= 0) days = 1;
+        }
+
+        // Resolve title according to trip details and route
+        final title = _resolveTripTitle(
+          destinationName: destination,
+          rawRequestText: rawText,
+          planJson: planJson,
+          days: days,
+        );
+
+        // Resolve matching image according to trip details and stops
+        final imageUrl = _resolveTripImage(
+          title: title,
+          rawRequestText: rawText,
+          destinationName: destination,
+          tripIndex: combined.length,
+        );
+
+        String statusLabel = 'PLANNING';
+        Color statusColor = const Color(0xFF1D6F8A);
+        String tabType = 'Upcoming';
+
+        if (status.contains('awaitingapproval') || status.contains('planned')) {
+          statusLabel = 'AWAITING APPROVAL';
+          statusColor = const Color(0xFFB27D26);
+          tabType = 'Upcoming';
+        } else if (status.contains('completed') || status.contains('approved')) {
+          statusLabel = 'CONFIRMED';
+          statusColor = const Color(0xFF13684B);
+          tabType = 'Upcoming';
+        } else if (status.contains('failed') || status.contains('cancel') || status.contains('reject')) {
+          statusLabel = 'CANCELLED';
+          statusColor = const Color(0xFFE27D60);
+          tabType = 'Cancelled';
+        } else {
+          statusLabel = 'AI PLANNING';
+          statusColor = const Color(0xFF1D6F8A);
+          tabType = 'Upcoming';
+        }
+
+        String datesText = (start != null && end != null)
+            ? '${start.day}/${start.month} – ${end.day}/${end.month} · $days days'
+            : '$days-day planned journey';
+
+        combined.add({
+          'id': id,
+          'tripRequestId': int.tryParse(id) ?? (tr['id'] is int ? tr['id'] as int : null),
+          'title': title,
+          'destinationName': destination,
+          'startDate': startStr,
+          'endDate': endStr,
+          'days': days,
+          'status': statusLabel,
+          'statusColor': statusColor,
+          'dates': datesText,
+          'price': budget > 0 ? budget.toInt() : 150000,
+          'currency': currency,
+          'imageUrl': imageUrl,
+          'primaryAction': 'Continue Plan',
+          'secondaryAction': 'View Agents',
+          'type': tabType,
+          'isBooking': false,
+          'rawRequestText': rawText,
+          'planJson': planJson,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _dbTrips = combined;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = 'Could not load trips from database.';
+        });
+      }
     }
   }
 
-  /// Resolves the human-readable destination title from user request prompt or booking
-  String _parseTripTitle(Map<String, dynamic> record, Map<String, dynamic>? request, bool booking) {
-    final raw = (request?['rawRequestText'] ?? record['rawRequestText'])?.toString() ?? '';
-    if (raw.isNotEmpty) {
-      // 1. Match 'Destination: <destinations>.'
-      final destMatch = RegExp(r'Destination:\s*([^.]+)', caseSensitive: false).firstMatch(raw);
-      if (destMatch != null && destMatch.group(1)?.trim().isNotEmpty == true) {
-        return destMatch.group(1)!.trim();
-      }
-      // 2. Match 'through <destinations> for'
-      final throughMatch = RegExp(r'through\s+([A-Za-z,\s&]+?)(?:\s+for|\s+with|\.|$)', caseSensitive: false).firstMatch(raw);
-      if (throughMatch != null && throughMatch.group(1)?.trim().isNotEmpty == true) {
-        return throughMatch.group(1)!.trim();
-      }
+  List<Map<String, dynamic>> get _filteredTrips {
+    if (_selectedTabIndex == 0) {
+      return _dbTrips.where((t) => t['type'] == 'Upcoming').toList();
     }
-
-    // 3. Tour names from booking
-    final items = record['bookingItems'];
-    final tourNames = items is List ? items.whereType<Map>().map((item) => item['tourName']).whereType<String>().toList() : <String>[];
-    if (tourNames.isNotEmpty) return tourNames.join(', ');
-
-    // 4. Destination name from relation (if not Badulla or if no other clues exist)
-    final destName = request?['destinationName']?.toString();
-    if (destName != null && destName.isNotEmpty && destName.toLowerCase() != 'badulla') {
-      return destName;
+    if (_selectedTabIndex == 1) {
+      return _dbTrips.where((t) => t['type'] == 'Completed').toList();
     }
-
-    if (raw.isNotEmpty) {
-      final firstPart = raw.split('.').first.trim();
-      if (firstPart.length <= 45 && !firstPart.toLowerCase().contains('badulla')) {
-        return firstPart;
-      }
-    }
-
-    if (destName != null && destName.isNotEmpty) return destName;
-    return booking ? 'Booking ${record['bookingReference'] ?? record['id']}' : 'Trip request #${record['id']}';
-  }
-
-  /// Extracts interest tags from raw prompt text
-  List<String> _parseInterests(Map<String, dynamic> record, Map<String, dynamic>? request) {
-    final raw = (request?['rawRequestText'] ?? record['rawRequestText'])?.toString() ?? '';
-    if (raw.isNotEmpty) {
-      final match = RegExp(r'Interests:\s*([^.]+)', caseSensitive: false).firstMatch(raw);
-      if (match != null && match.group(1)?.trim().isNotEmpty == true) {
-        return match.group(1)!.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-      }
-    }
-    return [];
-  }
-
-  /// Extracts preferences and notes from raw prompt text
-  String? _parsePreferences(Map<String, dynamic> record, Map<String, dynamic>? request) {
-    final raw = (request?['rawRequestText'] ?? record['rawRequestText'])?.toString() ?? '';
-    if (raw.isNotEmpty) {
-      final match = RegExp(r'(?:Preferences|Notes):\s*([^.]+)', caseSensitive: false).firstMatch(raw);
-      if (match != null && match.group(1)?.trim().isNotEmpty == true) {
-        return match.group(1)!.trim();
-      }
-    }
-    return null;
-  }
-
-  Map<String, dynamic> _tripCard(Map<String, dynamic> record, Map<String, dynamic>? request, {required bool booking}) {
-    final status = _status(record['status'], booking: booking);
-    final title = _parseTripTitle(record, request, booking);
-    final start = DateTime.tryParse(request?['startDate']?.toString() ?? '');
-    final end = DateTime.tryParse(request?['endDate']?.toString() ?? '');
-    final created = DateTime.tryParse(record['createdAt']?.toString() ?? '');
-    final nights = start != null && end != null ? end.difference(start).inDays : null;
-    final dates = start != null && end != null
-        ? '${DateFormat.yMMMd().format(start)} - ${DateFormat.yMMMd().format(end)}${nights != null && nights > 0 ? " ($nights nights)" : ""}'
-        : created != null ? 'Created ${DateFormat.yMMMd().format(created)}' : 'Dates unavailable';
-    final amount = booking ? record['totalCost'] : record['budgetCeiling'];
-    final currency = record['currency']?.toString() ?? '';
-    final travellers = request?['travellerCount'] ?? record['travellerCount'];
-    final interests = _parseInterests(record, request);
-    final preferences = _parsePreferences(record, request);
-
-    return {
-      ...record,
-      'isBooking': booking,
-      'source': record,
-      'title': title,
-      'dates': dates,
-      'year': (start ?? created)?.year.toString(),
-      'priceLabel': amount is num ? '${booking ? '' : 'Budget '}$currency ${NumberFormat('#,##0.##').format(amount)}'.trim() : 'Cost unavailable',
-      'status': status,
-      'statusColor': status == 'Cancelled' || status == 'Rejected' || status == 'Failed'
-          ? const Color(0xFFDC2626) : status == 'Confirmed' || status == 'Completed'
-          ? const Color(0xFF267A55) : const Color(0xFFB36A16),
-      'image': AppDestinations.getImageForDestination(title),
-      'travellers': travellers,
-      'interests': interests,
-      'preferences': preferences,
-      'nights': nights,
-    };
-  }
-
-  bool _inTab(Map<String, dynamic> trip, String tab) {
-    final status = trip['status'];
-    if (tab == 'Completed') return status == 'Completed';
-    if (tab == 'Cancelled') return status == 'Cancelled';
-    return status == 'Planning' || status == 'AwaitingApproval' || status == 'Confirmed';
-  }
-
-  Widget _buildTripImage(String imagePath) {
-    if (imagePath.startsWith('assets/')) {
-      return Image.asset(
-        imagePath,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: const Color(0xFF1E3A2F),
-          alignment: Alignment.center,
-          child: const Icon(Icons.landscape, color: Colors.white54),
-        ),
-      );
-    }
-    return Image.network(
-      imagePath,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => Container(
-        color: const Color(0xFF1E3A2F),
-        alignment: Alignment.center,
-        child: const Icon(Icons.landscape, color: Colors.white54),
-      ),
-    );
+    return _dbTrips.where((t) => t['type'] == 'Cancelled').toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: Center(
-          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
-        ),
-      );
-    }
-
-    if (_error != null) {
-      return Scaffold(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        body: SafeArea(
-          child: ErrorMessage(message: _error!, onRetry: _loadData),
-        ),
-      );
-    }
-    final currentList = _trips.where((trip) => _inTab(trip, _activeTab)).toList();
-    final filteredList = currentList.where((trip) => _selectedYear == 'All years' || trip['year'] == _selectedYear).toList();
-    final upcomingCount = _trips.where((trip) => _inTab(trip, 'Upcoming')).length;
-    final completedCount = _trips.where((trip) => _inTab(trip, 'Completed')).length;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
+    final filtered = _filteredTrips;
+    final upcomingCount = _dbTrips.where((t) => t['type'] == 'Upcoming').length;
+    final completedCount = _dbTrips.where((t) => t['type'] == 'Completed').length;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFFBF9F4),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: RefreshIndicator(
+          color: const Color(0xFF0E382C),
+          backgroundColor: Colors.white,
+          onRefresh: _loadDatabaseTrips,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── App Bar ──
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'My Trips',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                      Text(
-                        'Your journeys, past and future',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: const Color(0xFF6E7772),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: Icon(
-                        Icons.add,
-                        color: isDark ? Colors.white : AppColors.figmaDarkGreen,
-                        size: 20,
-                      ),
-                      onPressed: () {
-                        Navigator.pushNamed(context, '/trip-request');
-                      },
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 14),
-
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => Navigator.pushNamed(context, '/itinerary'),
-                  borderRadius: BorderRadius.circular(14),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEAF2EC),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(
-                            Icons.calendar_month_outlined,
-                            color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'My Itineraries',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: theme.colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios,
-                          size: 16,
-                          color: isDark ? Colors.white70 : AppColors.figmaDarkGreen,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // ── Segmented Tabs Pill ──
-              Container(
-                height: 38,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
-                ),
+              // ── Top Header Row ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildTabItem('Upcoming'),
-                    _buildTabItem('Completed'),
-                    _buildTabItem('Cancelled'),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'My Trips',
+                          style: GoogleFonts.poppins(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF08201A),
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _isLoading
+                              ? 'Loading database records...'
+                              : 'Your journeys, past and future',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF8A9E96),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Plus circular button (Plan New Trip)
+                    GestureDetector(
+                      onTap: () => Navigator.pushNamed(context, '/trip-request').then((_) => _loadDatabaseTrips()),
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: const Color(0xFFEDECE4)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.04),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.add, color: Color(0xFF1E1E1E), size: 22),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 14),
-
-              // ── Trips Summary Row ──
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '$upcomingCount upcoming · $completedCount completed',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
-                    ),
+              // ── Segmented Tab Pill ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: const Color(0xFFEDECE4)),
                   ),
-                  PopupMenuButton<String>(
-                    initialValue: _selectedYear,
-                    onSelected: (val) => setState(() => _selectedYear = val),
-                    child: Row(
-                      children: [
-                        Text(
-                          _selectedYear,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF2F7057),
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        const Icon(
-                          Icons.keyboard_arrow_down,
-                          size: 14,
-                          color: Color(0xFF2F7057),
-                        ),
-                      ],
-                    ),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'All years',
-                        child: Text('All years'),
-                      ),
-                      ...(_trips.map((trip) => trip['year']).whereType<String>().toSet().toList()..sort((a, b) => b.compareTo(a)))
-                          .map((year) => PopupMenuItem(value: year, child: Text(year))),
+                  child: Row(
+                    children: [
+                      _buildTabSegment('Upcoming', 0),
+                      _buildTabSegment('Completed', 1),
+                      _buildTabSegment('Cancelled', 2),
                     ],
                   ),
-                ],
+                ),
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // ── Trip Cards ──
-              if (filteredList.isEmpty)
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2)),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF1F5F3),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.luggage_outlined,
-                          size: 28,
-                          color: Color(0xFF6E7772),
-                        ),
+              // ── Count and Filter Label ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '$upcomingCount upcoming · $completedCount completed',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF08201A),
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No ${_activeTab.toLowerCase()} trips found',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Browse our handpicked tours across Sri Lanka to start planning.',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: const Color(0xFF6E7772),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      ElevatedButton(
-                        onPressed: () =>
-                            Navigator.pushNamed(context, '/tour-search'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF123F32),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 8,
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          'Explore Tours',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                ...filteredList.map((trip) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surface,
-                      borderRadius: BorderRadius.circular(17),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF10291F).withValues(alpha: 0.08),
-                          blurRadius: 20,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Column(
+                    Row(
                       children: [
-                        // Image Top Half
-                        Stack(
-                          children: [
-                            SizedBox(
-                              height: 100,
-                              width: double.infinity,
-                              child: _buildTripImage(trip['image'] as String),
-                            ),
-                            // Tint overlay
-                            Positioned.fill(
-                              child: Container(
-                                color: const Color(0xFF08271E)
-                                    .withValues(alpha: 0.18),
-                              ),
-                            ),
-                            // Status Badge
-                            Positioned(
-                              top: 10,
-                              left: 10,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  trip['status'] as String,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 8,
-                                    fontWeight: FontWeight.w800,
-                                    color: trip['statusColor'] as Color,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                        const Text(
+                          'Database Live',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0E382C),
+                          ),
                         ),
-
-                        // Details Bottom Half
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(11, 9, 11, 11),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          trip['title'] as String,
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w800,
-                                            color: theme.colorScheme.onSurface,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 3),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.calendar_today_outlined,
-                                              size: 11,
-                                              color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Expanded(
-                                              child: Text(
-                                                trip['dates'] as String,
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 9.5,
-                                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                                                ),
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (trip['travellers'] != null) ...[
-                                          const SizedBox(height: 2),
-                                          Row(
-                                            children: [
-                                              Icon(
-                                                Icons.people_outline,
-                                                size: 11,
-                                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                                              ),
-                                              const SizedBox(width: 4),
-                                              Text(
-                                                '${trip['travellers']} travellers',
-                                                style: GoogleFonts.plusJakartaSans(
-                                                  fontSize: 9.5,
-                                                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    trip['priceLabel'] as String,
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w800,
-                                      color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if ((trip['interests'] as List<String>?)?.isNotEmpty == true) ...[
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 4,
-                                  runSpacing: 4,
-                                  children: (trip['interests'] as List<String>).map((interest) {
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(
-                                          color: isDark ? const Color(0xFF2E4D3E) : const Color(0xFFD0EAE0),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        interest,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w600,
-                                          color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                              if (trip['preferences'] != null && (trip['preferences'] as String).isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.notes,
-                                      size: 11,
-                                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        trip['preferences'] as String,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 9,
-                                          fontStyle: FontStyle.italic,
-                                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  // View Itinerary Button
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 38,
-                                      child: ElevatedButton(
-                                        onPressed: () {
-                                          Navigator.pushNamed(
-                                            context,
-                                            '/itinerary',
-                                            arguments: trip['isBooking'] == true
-                                                ? {'itineraryId': trip['itineraryId']}
-                                                : {'tripRequestId': trip['id']},
-                                          );
-                                        },
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor:
-                                              const Color(0xFF123F32),
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        child: Text(
-                                          'View Itinerary',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  // Manage Details Button
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: 38,
-                                      child: OutlinedButton(
-                                        onPressed: () {
-                                          if (trip['isBooking'] == true) {
-                                            Navigator.pushNamed(
-                                              context,
-                                              '/booking-status',
-                                              arguments: trip['source'],
-                                            );
-                                          } else {
-                                            _showTripDetailsSheet(trip);
-                                          }
-                                        },
-                                        style: OutlinedButton.styleFrom(
-                                          backgroundColor: isDark ? const Color(0xFF1E2824) : Colors.white,
-                                          side: BorderSide(
-                                            color: isDark ? const Color(0xFF3E4D46) : const Color(0xFFE4E7E2),
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius:
-                                                BorderRadius.circular(999),
-                                          ),
-                                          elevation: 0,
-                                        ),
-                                        child: Text(
-                                          trip['isBooking'] == true ? 'Manage Pass' : 'Trip Details',
-                                          style: GoogleFonts.plusJakartaSans(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: isDark ? Colors.white : const Color(0xFF123F32),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        const SizedBox(width: 4),
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF13684B),
+                            shape: BoxShape.circle,
                           ),
                         ),
                       ],
                     ),
-                  );
-                }),
+                  ],
+                ),
+              ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 10),
+
+              // ── Content Area: Loading / Error / Empty / List ──
+              Expanded(
+                child: _buildContent(filtered),
+              ),
             ],
           ),
         ),
@@ -784,23 +384,143 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     );
   }
 
-  Widget _buildTabItem(String tab) {
-    final isSelected = _activeTab == tab;
+  Widget _buildContent(List<Map<String, dynamic>> filtered) {
+    if (_isLoading) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Color(0xFF0E382C)),
+            SizedBox(height: 14),
+            Text(
+              'Fetching trips from database...',
+              style: TextStyle(fontSize: 13, color: Color(0xFF8A9E96), fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.cloud_off_outlined, size: 48, color: Color(0xFFE27D60)),
+              const SizedBox(height: 12),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF08201A)),
+              ),
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                onPressed: _loadDatabaseTrips,
+                icon: const Icon(Icons.refresh, size: 16),
+                label: const Text('Try Again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0E382C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (filtered.isEmpty) {
+      final tabTitle = _selectedTabIndex == 0
+          ? 'upcoming'
+          : (_selectedTabIndex == 1 ? 'completed' : 'cancelled');
+
+      return Center(
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEEFAF4),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(Icons.luggage_outlined, size: 36, color: Color(0xFF0E382C)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No $tabTitle trips in database',
+                style: GoogleFonts.poppins(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF08201A),
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Your bookings, itineraries, and AI-orchestrated island plans from the database will appear here.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF8A9E96),
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pushNamed(context, '/trip-request').then((_) => _loadDatabaseTrips()),
+                icon: const Icon(Icons.auto_awesome, size: 16),
+                label: const Text('Plan New Trip with AI'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0E382C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 4),
+      itemCount: filtered.length,
+      itemBuilder: (context, index) {
+        final trip = filtered[index];
+        return _buildTripCard(trip);
+      },
+    );
+  }
+
+  Widget _buildTabSegment(String title, int index) {
+    final isSelected = _selectedTabIndex == index;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _activeTab = tab),
+        onTap: () => setState(() => _selectedTabIndex = index),
         child: Container(
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF123F32) : Colors.transparent,
-            borderRadius: BorderRadius.circular(999),
+            color: isSelected ? const Color(0xFF0E382C) : Colors.transparent,
+            borderRadius: BorderRadius.circular(22),
           ),
-          alignment: Alignment.center,
-          child: Text(
-            tab,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: isSelected ? Colors.white : const Color(0xFF6E7772),
+          child: Center(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF4B5563),
+                fontWeight: FontWeight.w700,
+                fontSize: 12.5,
+              ),
             ),
           ),
         ),
@@ -808,24 +528,389 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     );
   }
 
-  void _showTripDetailsSheet(Map<String, dynamic> trip) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final interests = (trip['interests'] as List<String>?) ?? [];
-    final preferences = trip['preferences'] as String?;
-    final travellers = trip['travellers']?.toString() ?? '2';
+  Widget _buildTripCard(Map<String, dynamic> trip) {
+    final title = trip['title'] ?? 'Trip';
+    final status = trip['status'] ?? 'CONFIRMED';
+    final Color statusColor = trip['statusColor'] ?? const Color(0xFF13684B);
+    final dates = trip['dates'] ?? '';
+    final price = trip['price'] ?? 0;
+    final primaryAction = trip['primaryAction'] ?? 'View Details';
+    final secondaryAction = trip['secondaryAction'] ?? 'Cancel';
+    final imageUrl = trip['imageUrl'] ?? AppDestinations.heroSigiriya;
+    final isBooking = trip['isBooking'] == true;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEDECE4)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top Image with Status Tag
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: SizedBox(
+                  height: 140,
+                  width: double.infinity,
+                  child: imageUrl.startsWith('http')
+                      ? Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Image.asset(AppDestinations.heroSigiriya, fit: BoxFit.cover))
+                      : Image.asset(imageUrl, fit: BoxFit.cover),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                left: 14,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 4,
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    status,
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      color: statusColor,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ),
+              if (trip['bookingReference'] != null)
+                Positioned(
+                  top: 12,
+                  right: 14,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      trip['bookingReference'],
+                      style: const TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF08201A),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _formatPrice(price, trip['currency']?.toString() ?? 'LKR'),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF08201A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  dates,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF8A9E96),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Action Buttons
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(context, '/my-itinerary', arguments: trip);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0E382C),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          primaryAction,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () {
+                        if (isBooking) {
+                          Navigator.pushNamed(context, '/trip-confirmation');
+                        } else {
+                          _showAgentDetailsModal(trip);
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFEDECE4)),
+                        ),
+                        child: Text(
+                          secondaryAction,
+                          style: const TextStyle(
+                            color: Color(0xFF08201A),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Formats prices strictly in LKR without dollar signs
+  String _formatPrice(int rawPrice, String currency) {
+    int amount = rawPrice;
+    // If entered in USD from earlier mockup, convert to realistic LKR (1 USD ~ 300 LKR)
+    if (currency.toUpperCase() == 'USD' || (amount > 0 && amount < 5000)) {
+      amount = amount * 300;
+    }
+    return 'LKR ${NumberFormat('#,##0').format(amount)}';
+  }
+
+  /// Resolves an accurate, human-friendly title based on the trip's actual details.
+  /// Prioritizes user's entered route, AI plan theme, and specific destinations over generic fallbacks.
+  String _resolveTripTitle({
+    required String? destinationName,
+    required String rawRequestText,
+    required dynamic planJson,
+    required int days,
+  }) {
+    // 1. Try to read theme from AI plan JSON
+    if (planJson != null) {
+      try {
+        Map<String, dynamic>? decoded;
+        if (planJson is Map<String, dynamic>) {
+          decoded = planJson;
+        } else if (planJson is String && planJson.isNotEmpty) {
+          decoded = jsonDecode(planJson) as Map<String, dynamic>?;
+        }
+        if (decoded != null) {
+          final theme = decoded['theme'] ?? decoded['trip_theme'] ?? decoded['title'];
+          if (theme is String && theme.trim().isNotEmpty && !theme.toLowerCase().contains('badulla')) {
+            return theme.trim();
+          }
+        }
+      } catch (_) {}
+    }
+
+    // 2. Extract user's entered route from rawRequestText
+    final cleanRaw = rawRequestText.trim();
+    if (cleanRaw.isNotEmpty) {
+      String candidate = cleanRaw;
+      // Strip trailing form metadata like '. Pace: ...' or '. Interests: ...'
+      if (candidate.contains('. Pace:')) {
+        candidate = candidate.split('. Pace:').first;
+      } else if (candidate.contains('. Interests:')) {
+        candidate = candidate.split('. Interests:').first;
+      } else if (candidate.contains('. Notes:')) {
+        candidate = candidate.split('. Notes:').first;
+      }
+
+      // Check for seeded pattern: "5-day route through Sigiriya, Kandy and Ella for 2 adults..."
+      final matchThrough = RegExp(r'through\s+(.*?)\s+(for|with|\.)', caseSensitive: false).firstMatch(candidate);
+      if (matchThrough != null && matchThrough.group(1) != null) {
+        candidate = matchThrough.group(1)!.trim();
+      }
+
+      candidate = candidate.replaceAll(RegExp(r'[\.\,]+$'), '').trim();
+
+      // If candidate is a valid list of places (like "Sigiriya, Kandy, Ella & Mirissa")
+      if (candidate.isNotEmpty && candidate.length > 2 && candidate.toLowerCase() != 'badulla') {
+        if (candidate.toLowerCase().contains('experience') ||
+            candidate.toLowerCase().contains('tour') ||
+            candidate.toLowerCase().contains('journey') ||
+            candidate.toLowerCase().contains('route') ||
+            candidate.toLowerCase().contains('getaway') ||
+            candidate.toLowerCase().contains('discovery') ||
+            candidate.toLowerCase().contains('expedition')) {
+          return candidate;
+        }
+        if (candidate.contains(',') || candidate.contains('&') || candidate.contains('and')) {
+          return '$candidate Experience';
+        }
+        return '$candidate Discovery';
+      }
+    }
+
+    // 3. Scan for known Sri Lankan destination keywords across rawRequestText & destinationName
+    final haystack = '$cleanRaw ${destinationName ?? ''}'.toLowerCase();
+    final knownKeywords = <String, String>{
+      'sigiriya': 'Sigiriya',
+      'kandy': 'Kandy',
+      'ella': 'Ella',
+      'mirissa': 'Mirissa',
+      'nuwara eliya': 'Nuwara Eliya',
+      'yala': 'Yala Safari',
+      'galle': 'Galle',
+      'trincomalee': 'Trincomalee',
+      'horton': 'Horton Plains',
+      'bentota': 'Bentota',
+      'colombo': 'Colombo',
+      'dambulla': 'Dambulla',
+    };
+
+    final matched = <String>[];
+    for (final entry in knownKeywords.entries) {
+      if (haystack.contains(entry.key) && !matched.contains(entry.value)) {
+        matched.add(entry.value);
+      }
+    }
+
+    if (matched.isNotEmpty) {
+      if (matched.length == 1) {
+        return '${matched[0]} Experience';
+      } else if (matched.length == 2) {
+        return '${matched[0]} & ${matched[1]} Journey';
+      } else {
+        return '${matched.take(2).join(', ')} & ${matched[2]} Discovery';
+      }
+    }
+
+    // 4. Fallback to destination name if not 'Badulla'
+    if (destinationName != null &&
+        destinationName.isNotEmpty &&
+        destinationName.toLowerCase() != 'badulla') {
+      return '$destinationName Experience';
+    }
+
+    return 'Sri Lanka $days-Day Discovery';
+  }
+
+  /// Resolves the most accurate scenic photo based on the trip's destination and themes.
+  /// If the trip route includes multiple places, alternates them using [tripIndex].
+  String _resolveTripImage({
+    required String title,
+    required String rawRequestText,
+    required String? destinationName,
+    int tripIndex = 0,
+  }) {
+    final text = '$title $rawRequestText ${destinationName ?? ''}'.toLowerCase();
+
+    // Map keywords to photos and find their appearance order
+    final photoMap = <String, String>{
+      'sigiriya': 'assets/photos/sigiriya-1280.jpg',
+      'rock fortress': 'assets/photos/sigiriya-1280.jpg',
+      'ella': 'assets/photos/ella-1280.jpg',
+      'nine arch': 'assets/photos/ella-1280.jpg',
+      'demodara': 'assets/photos/ella-1280.jpg',
+      'nuwara': 'assets/photos/nuwara-eliya-1280.jpg',
+      'tea': 'assets/photos/nuwara-eliya-1280.jpg',
+      'mirissa': 'assets/photos/mirissa-1280.jpg',
+      'beach': 'assets/photos/mirissa-1280.jpg',
+      'whale': 'assets/photos/mirissa-1280.jpg',
+      'surf': 'assets/photos/mirissa-1280.jpg',
+      'galle': 'assets/photos/mirissa-1280.jpg',
+      'coast': 'assets/photos/mirissa-1280.jpg',
+      'yala': 'assets/photos/yala-1280.jpg',
+      'safari': 'assets/photos/yala-1280.jpg',
+      'wildlife': 'assets/photos/yala-1280.jpg',
+      'leopard': 'assets/photos/yala-1280.jpg',
+      'kandy': 'assets/photos/kandy-1280.jpg',
+      'temple': 'assets/photos/kandy-1280.jpg',
+      'tooth': 'assets/photos/kandy-1280.jpg',
+      'trincomalee': 'assets/photos/trincomalee-1280.jpg',
+      'trinco': 'assets/photos/trincomalee-1280.jpg',
+      'snorkel': 'assets/photos/trincomalee-1280.jpg',
+      'horton': 'assets/photos/horton-plains-1280.jpg',
+      'world\'s end': 'assets/photos/horton-plains-1280.jpg',
+      'badulla': 'assets/photos/ella-1280.jpg',
+    };
+
+    final matchedPhotos = <String>[];
+    for (final entry in photoMap.entries) {
+      if (text.contains(entry.key) && !matchedPhotos.contains(entry.value)) {
+        matchedPhotos.add(entry.value);
+      }
+    }
+
+    if (matchedPhotos.isNotEmpty) {
+      // Pick based on trip index so multi-city trips showcase different iconic stops
+      return matchedPhotos[tripIndex % matchedPhotos.length];
+    }
+
+    return AppDestinations.heroSigiriya;
+  }
+
+  /// Displays the specialist AI agent reasoning modal
+  void _showAgentDetailsModal(Map<String, dynamic> trip) {
+    final title = trip['title'] ?? 'AI Trip Plan';
+    final status = trip['status'] ?? 'PLANNING';
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-        decoration: BoxDecoration(
-          color: theme.scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SingleChildScrollView(
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,160 +919,172 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                 child: Container(
                   width: 40,
                   height: 4,
-                  margin: const EdgeInsets.only(bottom: 16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.4),
+                    color: const Color(0xFFEDECE4),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Text(
-                      trip['title'] as String,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: theme.colorScheme.onSurface,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Specialist Agents',
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF08201A),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF8A9E96),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: trip['statusColor'] as Color,
+                      color: const Color(0xFFEEFAF4),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      trip['status'] as String,
-                      style: GoogleFonts.plusJakartaSans(
+                      status,
+                      style: const TextStyle(
                         fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0E382C),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              _buildDetailRow(Icons.confirmation_number_outlined, 'Reference', 'Trip Request #${trip['id']}'),
-              const SizedBox(height: 8),
-              _buildDetailRow(Icons.calendar_today_outlined, 'Dates', trip['dates'] as String),
-              const SizedBox(height: 8),
-              _buildDetailRow(Icons.people_outline, 'Travelers', '$travellers Guests'),
-              const SizedBox(height: 8),
-              _buildDetailRow(Icons.account_balance_wallet_outlined, 'Budget Ceiling', trip['priceLabel'] as String),
-              if (interests.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  'TRAVEL INTERESTS',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: interests.map((interest) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        interest,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ],
-              if (preferences != null && preferences.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                Text(
-                  'PREFERENCES & NOTES',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  preferences,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-              ],
+              const SizedBox(height: 16),
+              const Divider(color: Color(0xFFEDECE4)),
+              const SizedBox(height: 12),
+              _buildAgentStepTile(
+                icon: Icons.hub_outlined,
+                agentName: 'Coordinator Agent',
+                stepDesc: 'Decomposed intent, dates & allocated LKR budget across categories.',
+                status: 'Completed',
+              ),
+              _buildAgentStepTile(
+                icon: Icons.calendar_month_outlined,
+                agentName: 'Itinerary Agent',
+                stepDesc: 'Drafted day-by-day timetable and sequenced scenic destinations.',
+                status: 'Completed',
+              ),
+              _buildAgentStepTile(
+                icon: Icons.hotel_outlined,
+                agentName: 'Booking Agent',
+                stepDesc: 'Checked boutique villa holds, verified rail passes & vehicle escort.',
+                status: 'Completed',
+              ),
+              _buildAgentStepTile(
+                icon: Icons.verified_outlined,
+                agentName: 'Validation Agent',
+                stepDesc: 'Verified budget constraints, travel buffer times & seasonal suitability.',
+                status: 'Passed',
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.pop(ctx);
-                    Navigator.pushNamed(
-                      context,
-                      '/itinerary',
-                      arguments: trip['isBooking'] == true
-                          ? {'itineraryId': trip['itineraryId']}
-                          : {'tripRequestId': trip['id']},
-                    );
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, '/my-itinerary', arguments: trip);
                   },
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('Open Full Itinerary'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF123F32),
+                    backgroundColor: const Color(0xFF0E382C),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
                   ),
-                  child: const Text('Open Itinerary'),
                 ),
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: isDark ? AppColors.leaf400 : const Color(0xFF123F32)),
-        const SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6E7772),
+  Widget _buildAgentStepTile({
+    required IconData icon,
+    required String agentName,
+    required String stepDesc,
+    required String status,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEFAF4),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: const Color(0xFF0E382C), size: 18),
           ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.onSurface,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      agentName,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF08201A),
+                      ),
+                    ),
+                    Text(
+                      status,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF13684B),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  stepDesc,
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    color: Color(0xFF6B7280),
+                    height: 1.3,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
+

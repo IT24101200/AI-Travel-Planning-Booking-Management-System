@@ -9,12 +9,10 @@ namespace backend.Services
     public class TripRequestService : ITripRequestService
     {
         private readonly AppDbContext _db;
-        private readonly ICurrencyConversionService _currency;
 
-        public TripRequestService(AppDbContext db, ICurrencyConversionService? currency = null)
+        public TripRequestService(AppDbContext db)
         {
             _db = db;
-            _currency = currency ?? new CurrencyConversionService();
         }
 
         public async Task<TripRequestDto> CreateAsync(string customerId, TripRequestCreateDto dto)
@@ -30,8 +28,6 @@ namespace backend.Services
                 throw new ArgumentException("Budget ceiling must be greater than zero.");
             }
 
-            dto.Currency = _currency.Normalize(dto.Currency);
-
             // ── Preference Validation (Component A) ──
             // Cross-validate the incoming TripRequest against the customer's stored
             // Preference row (if one exists). Failures throw ArgumentException, which
@@ -44,12 +40,11 @@ namespace backend.Services
             {
                 // Reject if the trip's budget ceiling is below the customer's minimum budget.
                 // Only enforced when BudgetMin is a meaningful positive value.
-                var preferredMinimum = _currency.Convert(preference.BudgetMin, preference.Currency, dto.Currency);
-                if (preference.BudgetMin > 0 && dto.BudgetCeiling < preferredMinimum)
+                if (preference.BudgetMin > 0 && dto.BudgetCeiling < preference.BudgetMin)
                 {
                     throw new ArgumentException(
                         $"Budget ceiling ({dto.BudgetCeiling:F2} {dto.Currency}) is below your " +
-                        $"preferred minimum budget ({preferredMinimum:F2} {dto.Currency}). " +
+                        $"preferred minimum budget ({preference.BudgetMin:F2} {preference.Currency}). " +
                         $"Please raise your budget ceiling or update your preferences (BudgetMin).");
                 }
             }
@@ -280,23 +275,8 @@ namespace backend.Services
 
             if (trip == null) return null;
 
-            var parsedStatus = trip.Status;
-            if (!string.IsNullOrWhiteSpace(dto.Status) && !Enum.TryParse<TripRequestStatus>(dto.Status, true, out parsedStatus))
+            if (!string.IsNullOrWhiteSpace(dto.Status) && Enum.TryParse<TripRequestStatus>(dto.Status, true, out var parsedStatus))
             {
-                throw new ArgumentException($"Unknown TripRequest status '{dto.Status}'.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(dto.Status))
-            {
-                if (!IsAllowedAgentTransition(trip.Status, parsedStatus))
-                    throw new InvalidOperationException($"Agent cannot transition TripRequest from {trip.Status} to {parsedStatus}.");
-
-                if (parsedStatus == TripRequestStatus.Failed && string.IsNullOrWhiteSpace(dto.FailureReason))
-                    throw new ArgumentException("A failure reason is required when an agent marks a request as Failed.");
-
-                if (parsedStatus == TripRequestStatus.AwaitingApproval && !dto.PlanJson.HasValue)
-                    throw new ArgumentException("A plan is required before a request can enter AwaitingApproval.");
-
                 trip.Status = parsedStatus;
             }
 
@@ -317,17 +297,6 @@ namespace backend.Services
 
             await _db.SaveChangesAsync();
             return MapToDto(trip);
-        }
-
-        private static bool IsAllowedAgentTransition(TripRequestStatus current, TripRequestStatus next)
-        {
-            return current switch
-            {
-                TripRequestStatus.Pending => next is TripRequestStatus.Planning or TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
-                TripRequestStatus.Planning => next is TripRequestStatus.Planning or TripRequestStatus.Planned or TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
-                TripRequestStatus.Planned => next is TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
-                _ => false
-            };
         }
 
         private static TripRequestDto MapToDto(TripRequest t)

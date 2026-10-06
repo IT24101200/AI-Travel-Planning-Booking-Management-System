@@ -32,8 +32,6 @@ export function Navbar() {
   // Auto-close drawer if viewport becomes desktop width
   useEffect(() => {
     if (isDesktop && open) {
-      // The drawer must close when its responsive breakpoint changes.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(false)
     }
   }, [isDesktop, open])

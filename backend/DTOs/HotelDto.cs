@@ -9,7 +9,6 @@ namespace backend.DTOs
         public int DestinationId { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Address { get; set; }
-        public string? ImageUrl { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public int StarRating { get; set; }
@@ -35,9 +34,6 @@ namespace backend.DTOs
 
         [MaxLength(500, ErrorMessage = "Address cannot exceed 500 characters.")]
         public string? Address { get; set; }
-
-        [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
-        public string? ImageUrl { get; set; }
 
         public double Latitude { get; set; }
         public double Longitude { get; set; }
