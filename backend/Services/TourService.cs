@@ -153,16 +153,19 @@ namespace backend.Services
             return true;
         }
 
-        public async Task<bool> SoftDeleteAsync(int id)
+        public async Task<TourDeleteResult> DeleteAsync(int id)
         {
             var tour = await _context.Tours.FindAsync(id);
-            if (tour is null) return false;
+            if (tour is null) return TourDeleteResult.NotFound;
 
-            tour.Status    = "Inactive";
-            tour.UpdatedAt = DateTime.UtcNow;
+            var itineraryItems = await _context.ItineraryItems.CountAsync(item => item.TourId == id);
+            var bookingItems = await _context.BookingItems.CountAsync(item => item.TourId == id);
+            if (itineraryItems > 0 || bookingItems > 0)
+                return new TourDeleteResult(false, false, itineraryItems, bookingItems);
 
+            _context.Tours.Remove(tour);
             await _context.SaveChangesAsync();
-            return true;
+            return new TourDeleteResult(true, true, 0, 0);
         }
 
         // ── Mapping helper ────────────────────────────────────────────────────
@@ -186,5 +189,14 @@ namespace backend.Services
             CreatedAt        = t.CreatedAt,
             UpdatedAt        = t.UpdatedAt
         };
+    }
+
+    public sealed record TourDeleteResult(
+        bool Found,
+        bool Deleted,
+        int ItineraryItems,
+        int BookingItems)
+    {
+        public static TourDeleteResult NotFound => new(false, false, 0, 0);
     }
 }

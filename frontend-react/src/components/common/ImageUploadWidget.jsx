@@ -88,9 +88,15 @@ export function ImageUploadWidget({
 
   // Save manually entered URL
   function applyUrlInput() {
-    if (urlInput.trim()) {
-      onChange(urlInput.trim())
+    const candidate = urlInput.trim()
+    try {
+      const parsed = new URL(candidate)
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol')
+      onChange(candidate)
+      setUploadError(null)
       setIsUrlMode(false)
+    } catch {
+      setUploadError('Enter a valid HTTP(S) image URL.')
     }
   }
 
@@ -202,7 +208,7 @@ export function ImageUploadWidget({
               </button>
               <button
                 type="button"
-                className="btn-gold"
+                className="btn-gold media-library-button"
                 onClick={openLibraryModal}
                 style={{ height: '28px', padding: '0 8px', fontSize: '0.75rem' }}
               >
@@ -301,7 +307,7 @@ export function ImageUploadWidget({
 
             <button
               type="button"
-              className="btn-outline"
+              className="btn-outline media-library-button"
               onClick={openLibraryModal}
               style={{
                 height: '32px',
