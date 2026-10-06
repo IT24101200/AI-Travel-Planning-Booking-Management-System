@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 
 /** True once the user has scrolled past `offset` px. Drives the sticky header. */
 export function useScrolled(offset = 24) {

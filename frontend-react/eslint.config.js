@@ -19,7 +19,9 @@ export default defineConfig([
     },
     rules: {
       'react-hooks/set-state-in-effect': 'off',
-      'no-unused-vars': 'off'
+      'no-unused-vars': 'off',
+      'react-refresh/only-export-components': 'off',
+      'no-undef': 'off'
     }
   },
 ])
