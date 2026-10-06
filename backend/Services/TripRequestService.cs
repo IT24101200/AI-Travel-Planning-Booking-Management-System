@@ -184,9 +184,15 @@ namespace backend.Services
                     {
                         TripRequestStatus.Cancelled => "This trip has already been cancelled.",
                         TripRequestStatus.Failed or TripRequestStatus.Rejected => "This trip can no longer be cancelled.",
-                        TripRequestStatus.Approved => "This confirmed trip cannot be cancelled automatically. Please contact support.",
                         _ => $"This trip can no longer be cancelled (current status: {trip.Status})."
                     });
+                }
+
+                var cancellationCutoff = DateTime.UtcNow.Date.AddDays(3);
+                if (trip.StartDate.Date < cancellationCutoff)
+                {
+                    throw new InvalidOperationException(
+                        "Trips can only be cancelled at least 3 days before the start date.");
                 }
 
                 var itineraries = await _db.Itineraries
@@ -202,15 +208,6 @@ namespace backend.Services
                         .ToListAsync();
 
                 // Validate every related record before mutating anything.
-                foreach (var itinerary in itineraries)
-                {
-                    if (itinerary.Status == ItineraryStatus.Accepted)
-                    {
-                        throw new InvalidOperationException(
-                            "This confirmed trip cannot be cancelled automatically. Please contact support.");
-                    }
-                }
-
                 foreach (var booking in bookings)
                 {
                     if (booking.Payments.Any(payment => payment.Status == PaymentStatus.Paid))
@@ -219,24 +216,24 @@ namespace backend.Services
                             "This booking has already been paid and cannot be cancelled automatically. Please contact support.");
                     }
 
-                    if (booking.Status is BookingStatus.Confirmed or BookingStatus.Completed)
+                    if (booking.Status == BookingStatus.Completed)
                     {
                         throw new InvalidOperationException(
-                            "This confirmed trip cannot be cancelled automatically. Please contact support.");
+                            "This completed trip can no longer be cancelled.");
                     }
                 }
 
                 trip.Status = TripRequestStatus.Cancelled;
                 trip.FailureReason = null;
 
-                foreach (var itinerary in itineraries.Where(i => i.Status is ItineraryStatus.Draft or ItineraryStatus.Proposed))
+                foreach (var itinerary in itineraries.Where(i => i.Status is ItineraryStatus.Draft or ItineraryStatus.Proposed or ItineraryStatus.Accepted))
                 {
                     // The domain has no separate Itinerary.Cancelled status; Discarded
                     // is the existing non-actionable historical state.
                     itinerary.Status = ItineraryStatus.Discarded;
                 }
 
-                foreach (var booking in bookings.Where(b => b.Status is BookingStatus.Draft or BookingStatus.AwaitingApproval))
+                foreach (var booking in bookings.Where(b => b.Status is BookingStatus.Draft or BookingStatus.AwaitingApproval or BookingStatus.Confirmed))
                 {
                     booking.Status = BookingStatus.Cancelled;
                     booking.UpdatedAt = DateTime.UtcNow;
@@ -261,7 +258,8 @@ namespace backend.Services
             status is TripRequestStatus.Pending or
                 TripRequestStatus.Planning or
                 TripRequestStatus.Planned or
-                TripRequestStatus.AwaitingApproval;
+                TripRequestStatus.AwaitingApproval or
+                TripRequestStatus.Approved;
 
         public async Task<List<AgentLogDto>> GetAgentLogsAsync(int tripRequestId, string? customerId)
         {

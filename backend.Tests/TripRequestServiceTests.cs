@@ -173,6 +173,33 @@ namespace backend.Tests
         }
 
         [Fact]
+        public async Task CancelAsync_TripStartingInTwoDays_IsRejected()
+        {
+            await using var context = CreateContext();
+            var service = new TripRequestService(context);
+            var trip = new TripRequest
+            {
+                CustomerId = "cust-1",
+                RawRequestText = "Last-minute trip",
+                StartDate = DateTime.UtcNow.Date.AddDays(2),
+                EndDate = DateTime.UtcNow.Date.AddDays(5),
+                TravellerCount = 1,
+                BudgetCeiling = 1000,
+                Status = TripRequestStatus.Planning
+            };
+            context.TripRequests.Add(trip);
+            await context.SaveChangesAsync();
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => service.CancelAsync(trip.Id, "cust-1"));
+
+            Assert.Equal(
+                "Trips can only be cancelled at least 3 days before the start date.",
+                error.Message);
+            Assert.Equal(TripRequestStatus.Planning, trip.Status);
+        }
+
+        [Fact]
         public async Task CancelAsync_AwaitingApprovalTrip_CancelsRelatedProposalWithoutDeletingHistory()
         {
             await using var context = CreateContext();
@@ -245,7 +272,6 @@ namespace backend.Tests
         [InlineData(TripRequestStatus.Cancelled)]
         [InlineData(TripRequestStatus.Failed)]
         [InlineData(TripRequestStatus.Rejected)]
-        [InlineData(TripRequestStatus.Approved)]
         public async Task CancelAsync_TerminalTrip_IsRejected(TripRequestStatus status)
         {
             await using var context = CreateContext();
@@ -313,7 +339,7 @@ namespace backend.Tests
         }
 
         [Fact]
-        public async Task CancelAsync_AlreadyApprovedTrip_ThrowsInvalidOperationException()
+        public async Task CancelAsync_ApprovedUnpaidTrip_CancelsConfirmedBooking()
         {
             var context = CreateContext();
             var service = new TripRequestService(context);
@@ -328,10 +354,31 @@ namespace backend.Tests
                 BudgetCeiling = 2000,
                 Status = TripRequestStatus.Approved
             };
-            context.TripRequests.Add(trip);
+            var itinerary = new Itinerary
+            {
+                CustomerId = "cust-1",
+                TripRequest = trip,
+                StartDate = trip.StartDate,
+                EndDate = trip.EndDate,
+                Status = ItineraryStatus.Accepted,
+                Currency = "LKR"
+            };
+            var booking = new Booking
+            {
+                BookingReference = "TRV-APPROVED-CANCEL",
+                CustomerId = "cust-1",
+                Itinerary = itinerary,
+                Status = BookingStatus.Confirmed,
+                Currency = "LKR"
+            };
+            context.AddRange(trip, itinerary, booking);
             await context.SaveChangesAsync();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => service.CancelAsync(trip.Id, "cust-1"));
+            var cancelled = await service.CancelAsync(trip.Id, "cust-1");
+
+            Assert.Equal("Cancelled", cancelled!.Status);
+            Assert.Equal(ItineraryStatus.Discarded, itinerary.Status);
+            Assert.Equal(BookingStatus.Cancelled, booking.Status);
         }
 
         [Fact]

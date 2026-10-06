@@ -24,10 +24,15 @@ void main() {
     ApiService.mockGetMyBookings = null;
   });
 
-  Widget buildTestWidget({Map<String, WidgetBuilder>? routes}) {
+  Widget buildTestWidget({
+    Map<String, WidgetBuilder>? routes,
+    DateTime Function()? nowProvider,
+  }) {
     return MaterialApp(
       routes: routes ?? const {},
-      home: const MyItineraryScreen(),
+      home: MyItineraryScreen(
+        nowProvider: nowProvider ?? () => DateTime(2026, 10, 6),
+      ),
     );
   }
 
@@ -68,6 +73,13 @@ void main() {
         },
       ],
     };
+  }
+
+  Future<void> scrollJourneyToBottom(WidgetTester tester) async {
+    final journey = find.byKey(const ValueKey('journey-scroll'));
+    expect(journey, findsOneWidget);
+    await tester.drag(journey, const Offset(0, -3000));
+    await tester.pumpAndSettle();
   }
 
   testWidgets('1. Loading state displays indicator and loading text', (WidgetTester tester) async {
@@ -220,11 +232,11 @@ void main() {
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Cancel trip'));
+    await scrollJourneyToBottom(tester);
     await tester.tap(find.text('Cancel trip'));
     await tester.pumpAndSettle();
     expect(find.text('Cancel trip'), findsNWidgets(2));
-    expect(find.text('Are you sure you want to cancel this trip? This action cannot be undone.'), findsOneWidget);
+    expect(find.textContaining('Are you sure you want to cancel this trip?'), findsOneWidget);
 
     await tester.tap(find.text('Keep trip'));
     await tester.pumpAndSettle();
@@ -239,7 +251,7 @@ void main() {
     expect(find.text('Cancelled. This trip is no longer actionable.'), findsOneWidget);
   });
 
-  testWidgets('6b. Cancel trip is hidden for an approved trip', (WidgetTester tester) async {
+  testWidgets('6b. Cancel trip is available for an approved unpaid trip', (WidgetTester tester) async {
     final itinerary = createSampleItinerary(id: 42, status: 2);
     ApiService.mockGetMyItineraries = () async => [itinerary];
     ApiService.mockGetItinerary = (_) async => itinerary;
@@ -247,11 +259,42 @@ void main() {
 
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
+    await scrollJourneyToBottom(tester);
+
+    expect(find.text('Cancel trip'), findsOneWidget);
+  });
+
+  testWidgets('6c. Cancel trip is hidden inside the three-day cutoff', (WidgetTester tester) async {
+    final itinerary = createSampleItinerary(id: 42, status: 2);
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'Approved'};
+
+    await tester.pumpWidget(buildTestWidget(nowProvider: () => DateTime(2026, 10, 10)));
+    await tester.pumpAndSettle();
+    await scrollJourneyToBottom(tester);
 
     expect(find.text('Cancel trip'), findsNothing);
   });
 
-  testWidgets('6c. Cancellation failure keeps the existing itinerary state', (WidgetTester tester) async {
+  testWidgets('6d. Cancel trip is available exactly three days before departure', (WidgetTester tester) async {
+    final itinerary = createSampleItinerary(id: 42, status: 1);
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'AwaitingApproval'};
+
+    await tester.pumpWidget(buildTestWidget(nowProvider: () => DateTime(2026, 10, 9)));
+    await tester.pumpAndSettle();
+    await scrollJourneyToBottom(tester);
+
+    expect(find.text('Cancel trip'), findsOneWidget);
+    expect(
+      find.text('Cancellation is available until 3 days before departure.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('6e. Cancellation failure keeps the existing itinerary state', (WidgetTester tester) async {
     final itinerary = createSampleItinerary(id: 42, status: 1);
     ApiService.mockGetMyItineraries = () async => [itinerary];
     ApiService.mockGetItinerary = (_) async => itinerary;
@@ -259,7 +302,7 @@ void main() {
 
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Cancel trip'));
+    await scrollJourneyToBottom(tester);
     await tester.tap(find.text('Cancel trip'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cancel trip').last);
