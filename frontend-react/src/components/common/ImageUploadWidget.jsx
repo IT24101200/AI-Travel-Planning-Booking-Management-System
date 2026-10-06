@@ -188,7 +188,15 @@ export function ImageUploadWidget({
                 type="button"
                 className="btn-outline"
                 onClick={() => fileInputRef.current?.click()}
-                style={{ height: '28px', padding: '0 8px', fontSize: '0.75rem' }}
+                style={{
+                  height: '28px',
+                  padding: '0 8px',
+                  fontSize: '0.75rem',
+                  opacity: 1,
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
               >
                 {uploading ? 'Uploading…' : 'Replace'}
               </button>

@@ -136,9 +136,15 @@ export async function fetchTours(params) {
 
 export async function createTour(tour, image) {
   const formData = new FormData()
-  Object.entries(tour).forEach(([key, value]) => {
+  const { imageUrl, ...tourFields } = tour
+  Object.entries(tourFields).forEach(([key, value]) => {
     if (value !== null && value !== undefined) formData.append(key, value)
   })
+  // Set this explicitly after the other fields so a selected media-library
+  // URL is always present in the multipart request sent to ASP.NET Core.
+  if (typeof imageUrl === 'string' && imageUrl.trim()) {
+    formData.set('imageUrl', imageUrl.trim())
+  }
   if (image) formData.append('image', image)
   // Do not set Content-Type manually. The browser must add the multipart
   // boundary that ASP.NET Core uses to parse the form and uploaded file.
