@@ -254,7 +254,14 @@ export function ImageUploadWidget({
             type="button"
             className="btn-outline"
             onClick={() => setIsUrlMode(false)}
-            style={{ height: '38px', padding: '0 0.85rem', fontSize: '0.75rem' }}
+            style={{
+              height: '38px',
+              padding: '0 0.85rem',
+              fontSize: '0.75rem',
+              color: '#182126',
+              backgroundColor: '#ffffff',
+              borderColor: '#c8d1d4'
+            }}
           >
             Cancel
           </button>
@@ -298,11 +305,18 @@ export function ImageUploadWidget({
               <UploadIcon size={14} /> <span>Upload file</span>
             </button>
 
-              <button
-                type="button"
-                className="btn-outline media-library-button"
-                onClick={openLibraryModal}
-                style={{ height: '32px', padding: '0 0.85rem', fontSize: '0.75rem' }}
+            <button
+              type="button"
+              className="btn-outline media-library-button"
+              onClick={openLibraryModal}
+              style={{
+                height: '32px',
+                padding: '0 0.85rem',
+                fontSize: '0.75rem',
+                color: '#182126',
+                backgroundColor: '#ffffff',
+                borderColor: '#c8d1d4'
+              }}
             >
               <span>Media Library</span>
             </button>
@@ -382,7 +396,13 @@ export function ImageUploadWidget({
                 type="button"
                 className="btn-outline"
                 onClick={() => setShowLibraryModal(false)}
-                style={{ height: '30px', padding: '0 8px' }}
+                style={{
+                  height: '30px',
+                  padding: '0 8px',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
               >
                 ✕
               </button>
@@ -518,7 +538,13 @@ export function ImageUploadWidget({
                 type="button"
                 className="btn-outline"
                 onClick={() => setShowLibraryModal(false)}
-                style={{ height: '32px', padding: '0 1rem' }}
+                style={{
+                  height: '32px',
+                  padding: '0 1rem',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
               >
                 Close
               </button>

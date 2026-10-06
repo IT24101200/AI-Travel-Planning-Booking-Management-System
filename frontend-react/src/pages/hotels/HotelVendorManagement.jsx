@@ -470,7 +470,13 @@ export default function HotelVendorManagement() {
               <button
                 type="button"
                 className="btn-outline"
-                style={{ height: '32px', padding: '0 0.625rem' }}
+                style={{
+                  height: '32px',
+                  padding: '0 0.625rem',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
                 onClick={() => setDrawerMode(null)}
               >
                 <CloseIcon size={14} />
@@ -510,8 +516,19 @@ export default function HotelVendorManagement() {
                   Destination *
                 </label>
                 <select
-                  className="btn-outline"
-                  style={{ width: '100%', height: '38px', padding: '0 0.5rem', fontSize: '0.8125rem' }}
+                  className="staff-select"
+                  style={{
+                    width: '100%',
+                    height: '38px',
+                    padding: '0 0.5rem',
+                    fontSize: '0.8125rem',
+                    color: '#182126',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #c8d1d4',
+                    borderRadius: '8px',
+                    colorScheme: 'light',
+                    opacity: 1
+                  }}
                   value={formData.destinationId}
                   onChange={(e) => {
                     const sel = destinations.find(d => d.id === Number(e.target.value))
@@ -523,7 +540,9 @@ export default function HotelVendorManagement() {
                   }}
                 >
                   {destinations.map((d) => (
-                    <option key={d.id} value={d.id}>{d.name} · Central Province</option>
+                    <option key={d.id} value={d.id} style={{ color: '#182126', backgroundColor: '#ffffff' }}>
+                      {d.name} · Central Province
+                    </option>
                   ))}
                 </select>
               </div>
@@ -548,14 +567,25 @@ export default function HotelVendorManagement() {
                     Star rating
                   </label>
                   <select
-                    className="btn-outline"
-                    style={{ width: '100%', height: '38px', padding: '0 0.5rem', fontSize: '0.8125rem' }}
+                    className="staff-select"
+                    style={{
+                      width: '100%',
+                      height: '38px',
+                      padding: '0 0.5rem',
+                      fontSize: '0.8125rem',
+                      color: '#182126',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #c8d1d4',
+                      borderRadius: '8px',
+                      colorScheme: 'light',
+                      opacity: 1
+                    }}
                     value={formData.starRating}
                     onChange={(e) => setFormData({ ...formData, starRating: e.target.value })}
                   >
-                    <option value="5">5 Stars</option>
-                    <option value="4">4 Stars</option>
-                    <option value="3">3 Stars</option>
+                    <option value="5" style={{ color: '#182126', backgroundColor: '#ffffff' }}>5 Stars</option>
+                    <option value="4" style={{ color: '#182126', backgroundColor: '#ffffff' }}>4 Stars</option>
+                    <option value="3" style={{ color: '#182126', backgroundColor: '#ffffff' }}>3 Stars</option>
                   </select>
                 </div>
 
@@ -618,6 +648,11 @@ export default function HotelVendorManagement() {
                 <button
                   type="button"
                   className="btn-outline"
+                  style={{
+                    color: '#182126',
+                    backgroundColor: '#ffffff',
+                    borderColor: '#c8d1d4'
+                  }}
                   onClick={() => setDrawerMode(null)}
                 >
                   <CloseIcon size={14} />
@@ -627,6 +662,11 @@ export default function HotelVendorManagement() {
                   <button
                     type="button"
                     className="btn-outline"
+                    style={{
+                      color: '#182126',
+                      backgroundColor: '#ffffff',
+                      borderColor: '#c8d1d4'
+                    }}
                     onClick={() => toggleStatus(selectedHotel)}
                   >
                     {selectedHotel.status === 'Active' ? 'Set inactive' : 'Set active'}

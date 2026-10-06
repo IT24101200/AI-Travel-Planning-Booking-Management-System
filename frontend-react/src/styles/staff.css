@@ -518,37 +518,50 @@
   transform: translateY(-1px);
 }
 
-@media (prefers-color-scheme: dark) {
-  .btn-outline {
-    background-color: rgba(255, 255, 255, 0.07);
-    color: #f1f5f9;
-    border-color: rgba(255, 255, 255, 0.18);
-  }
-  .btn-outline:hover:not(:disabled) {
-    background-color: rgba(255, 255, 255, 0.14);
-    border-color: #35b183;
-    color: #6ee7b7;
-  }
-  .btn-action-edit {
-    background-color: rgba(16, 185, 129, 0.18);
-    color: #6ee7b7;
-    border-color: rgba(52, 211, 153, 0.4);
-  }
-  .btn-action-edit:hover {
-    background-color: #059669;
-    color: #ffffff;
-    border-color: #059669;
-  }
-  .btn-action-delete {
-    background-color: rgba(239, 68, 68, 0.18);
-    color: #fca5a5;
-    border-color: rgba(248, 113, 113, 0.4);
-  }
-  .btn-action-delete:hover {
-    background-color: #dc2626;
-    color: #ffffff;
-    border-color: #dc2626;
-  }
+/* ── Ensure High Contrast for Outline Buttons in Drawers, Cards, Modals ── */
+.staff .btn-outline,
+.detail-pane .btn-outline,
+.staff-card .btn-outline {
+  background-color: #ffffff;
+  color: #182126;
+  border: 1px solid #c8d1d4;
+}
+
+.staff .btn-outline:hover:not(:disabled),
+.detail-pane .btn-outline:hover:not(:disabled),
+.staff-card .btn-outline:hover:not(:disabled) {
+  background-color: #f0fdf4;
+  border-color: #166b4f;
+  color: #166b4f;
+}
+
+/* ── Standard Form Select for Drawers and Filter Bars ── */
+.staff-select {
+  display: block;
+  width: 100%;
+  height: 38px;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #182126 !important;
+  background-color: #ffffff !important;
+  border: 1px solid #c8d1d4;
+  border-radius: 8px;
+  outline: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  color-scheme: light;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.staff-select:focus {
+  border-color: #166b4f;
+  box-shadow: 0 0 0 2px rgba(22, 107, 79, 0.18);
+}
+
+.staff-select option {
+  color: #182126;
+  background-color: #ffffff;
 }
 
 /* ── Filter Tabs matching Figma ── */

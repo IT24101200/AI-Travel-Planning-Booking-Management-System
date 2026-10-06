@@ -700,7 +700,7 @@ export default function ItineraryReview() {
             {error && <AlertBanner type="error" message={error} onDismiss={() => setError('')} />}
             <label>
               Active tour
-              <select required className="btn-outline" style={{ width: '100%' }} value={activityTourId}
+              <select required className="staff-select" style={{ width: '100%' }} value={activityTourId}
                 disabled={loadingTours || addingActivity} onChange={event => setActivityTourId(event.target.value)}>
                 <option value="">{loadingTours ? 'Loading tours…' : 'Select a tour'}</option>
                 {activeTours.map(tour => <option key={tour.id} value={tour.id}>{tour.name} · {tour.durationHours} hrs · {tour.defaultStartTime?.slice(0, 5)}</option>)}
@@ -756,7 +756,7 @@ export default function ItineraryReview() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8125rem' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.35rem' }}>Coordinator Model</label>
-                <select className="btn-outline" style={{ width: '100%', height: '38px', padding: '0 0.75rem' }} defaultValue="gemini-2.0-flash">
+                <select className="staff-select" style={{ width: '100%', height: '38px', padding: '0 0.75rem' }} defaultValue="gemini-2.0-flash">
                   <option value="gemini-2.0-flash">Gemini 2.0 Flash (Fast & Balanced)</option>
                   <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Reasoning)</option>
                 </select>
@@ -770,7 +770,7 @@ export default function ItineraryReview() {
 
               <div>
                 <label style={{ display: 'block', fontWeight: 700, marginBottom: '0.35rem' }}>Maximum Travel Time per Day</label>
-                <select className="btn-outline" style={{ width: '100%', height: '38px', padding: '0 0.75rem' }} defaultValue="4">
+                <select className="staff-select" style={{ width: '100%', height: '38px', padding: '0 0.75rem' }} defaultValue="4">
                   <option value="3">3 hours max</option>
                   <option value="4">4 hours max (recommended for Sri Lanka)</option>
                   <option value="6">6 hours max</option>
