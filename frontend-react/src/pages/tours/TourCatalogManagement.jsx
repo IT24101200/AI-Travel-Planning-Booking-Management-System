@@ -20,8 +20,10 @@ import {
   CloseIcon
 } from '../../components/ui/Icons.jsx'
 import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
+import { TourLocationPicker } from '../../components/common/TourLocationPicker.jsx'
+import { readCoordinates } from '../../lib/coordinates.js'
 
-const CATEGORIES = ['All', 'Heritage', 'Wildlife', 'Cultural', 'Marine', 'Scenic', 'Adventure']
+const CATEGORIES = ['All', 'Heritage', 'Culture', 'Cultural', 'Nature', 'Sightseeing', 'Safari', 'Wildlife', 'Marine', 'Scenic', 'Adventure', 'Tea']
 
 /**
  * Serendib Trails — Tour Catalog Management
@@ -52,7 +54,9 @@ export default function TourCatalogManagement() {
     category: 'Heritage',
     defaultStartTime: '05:15',
     description: '',
-    imageUrl: ''
+    imageUrl: '',
+    latitude: '',
+    longitude: ''
   })
   const [busy, setBusy] = useState(false)
   const [statusUpdatingId, setStatusUpdatingId] = useState(null)
@@ -102,7 +106,9 @@ export default function TourCatalogManagement() {
               defaultStartTime: t.defaultStartTime?.slice(0, 5) || '05:15',
               status: t.status || 'Active',
               description: t.description || `Guided excursion in scenic ${destName}.`,
-              imageUrl: t.imageUrl || ''
+              imageUrl: t.imageUrl || '',
+              latitude: t.latitude ?? '',
+              longitude: t.longitude ?? ''
             }
           })
           setRows(mapped)
@@ -142,7 +148,9 @@ export default function TourCatalogManagement() {
       category: tour.category,
       defaultStartTime: tour.defaultStartTime,
       description: tour.description,
-      imageUrl: tour.imageUrl || ''
+      imageUrl: tour.imageUrl || '',
+      latitude: tour.latitude ?? '',
+      longitude: tour.longitude ?? ''
     })
   }
 
@@ -157,7 +165,9 @@ export default function TourCatalogManagement() {
       category: 'Heritage',
       defaultStartTime: '08:00',
       description: 'Exclusive guided experience operated by certified naturalists and historians.',
-      imageUrl: ''
+      imageUrl: '',
+      latitude: '',
+      longitude: ''
     })
   }
 
@@ -173,6 +183,11 @@ export default function TourCatalogManagement() {
     }
     if (!formData.imageUrl?.trim()) {
       setNotice({ type: 'error', message: 'Please select or upload a cover image for the tour.' })
+      return
+    }
+    const coordinates = readCoordinates(formData.latitude, formData.longitude)
+    if (!coordinates) {
+      setNotice({ type: 'error', message: 'Select a valid tour location on the map or enter its GPS coordinates.' })
       return
     }
     setBusy(true)
@@ -194,7 +209,9 @@ export default function TourCatalogManagement() {
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
           imageUrl,
-          status: 'Active'
+          status: 'Active',
+          latitude: coordinates[0],
+          longitude: coordinates[1]
         })
         setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
         setDrawerMode(null)
@@ -209,7 +226,9 @@ export default function TourCatalogManagement() {
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
           imageUrl: formData.imageUrl || selectedTour.imageUrl || '',
-          status: selectedTour.status
+          status: selectedTour.status,
+          latitude: coordinates[0],
+          longitude: coordinates[1]
         })
         setNotice({ type: 'success', message: `Tour "${formData.name}" updated successfully.` })
       }
@@ -583,7 +602,7 @@ export default function TourCatalogManagement() {
                       colorScheme: 'light'
                     }}
                     value={formData.destinationId}
-                    onChange={(e) => setFormData({ ...formData, destinationId: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, destinationId: e.target.value, latitude: '', longitude: '' })}
                   >
                     {destinations.length === 0 ? (
                       <option value="">No destinations available</option>
@@ -669,6 +688,13 @@ export default function TourCatalogManagement() {
                   />
                 </div>
               </div>
+
+              <TourLocationPicker
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                destination={destinations.find((destination) => String(destination.id) === String(formData.destinationId))}
+                onChange={(coordinates) => setFormData((previous) => ({ ...previous, ...coordinates }))}
+              />
 
               {/* Cover Image Upload & Media Library Selector */}
               <ImageUploadWidget
