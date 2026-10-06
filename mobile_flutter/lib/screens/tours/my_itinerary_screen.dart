@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -42,7 +43,9 @@ String normalizeItineraryStatus(dynamic status) {
 /// Displays real customer itinerary, scheduled tours timeline, live OSM preview,
 /// status badge, accept & request changes actions, and checkout transition.
 class MyItineraryScreen extends StatefulWidget {
-  const MyItineraryScreen({super.key});
+  const MyItineraryScreen({super.key, this.healthLoader = ApiService.getAgentHealth});
+
+  final Future<Map<String, dynamic>> Function() healthLoader;
 
   @override
   State<MyItineraryScreen> createState() => _MyItineraryScreenState();
@@ -55,6 +58,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   String? _agentStatus;
   String? _agentFailureReason;
   Map<String, dynamic>? _agentHealth;
+  String? _agentHealthError;
+  bool _isCheckingAgentHealth = false;
+  int _healthRequest = 0;
   bool _pending = false;
   int? _selectedItineraryId;
   Map<String, dynamic>? _itinerary;
@@ -75,12 +81,15 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   }
 
   Future<void> _fetchItinerary() async {
+    final healthRequest = ++_healthRequest;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
       _agentStatus = null;
       _agentFailureReason = null;
       _agentHealth = null;
+      _agentHealthError = null;
+      _isCheckingAgentHealth = false;
       _pending = false;
       _itinerary = null;
       _selectedJourneyIndex = null;
@@ -132,22 +141,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         tripRequest = await ApiService.getTripRequest(resolvedTripRequestId);
       }
 
-      Map<String, dynamic>? agentHealth;
       String? agentStatus;
       String? agentFailureReason;
       if (resolvedTripRequestId == null) {
         agentFailureReason = 'Agentic AI was not triggered because no trip request was found.';
       } else {
-        try {
-          agentHealth = await ApiService.getAgentHealth();
-          final healthStatus = agentHealth['status']?.toString().toLowerCase();
-          if (healthStatus != null && healthStatus != 'healthy') {
-            agentFailureReason = 'Agent server reported status: ${agentHealth['status']}.';
-          }
-        } catch (error) {
-          agentFailureReason = 'Agent server status is unavailable: $error';
-        }
-
         agentStatus = tripRequest?['status']?.toString();
         final normalizedStatus = agentStatus?.toLowerCase().replaceAll(' ', '');
         if (normalizedStatus == 'failed') {
@@ -158,19 +156,51 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         }
       }
 
-      if (!mounted) return;
+      if (!mounted || healthRequest != _healthRequest) return;
       setState(() {
         _itinerary = selected;
         _itineraries = choices;
-        _agentHealth = agentHealth;
         _agentStatus = agentStatus;
         _agentFailureReason = agentFailureReason;
         _pending = resolvedTripRequestId != null && selected == null;
       });
+      if (resolvedTripRequestId != null) {
+        unawaited(_checkAgentHealth(healthRequest));
+      }
     } catch (error) {
-      if (mounted) setState(() => _errorMessage = error.toString());
+      if (mounted && healthRequest == _healthRequest) {
+        setState(() => _errorMessage = error.toString());
+      }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted && healthRequest == _healthRequest) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _checkAgentHealth(int request) async {
+    setState(() {
+      _isCheckingAgentHealth = true;
+      _agentHealthError = null;
+    });
+    try {
+      final health = await widget.healthLoader();
+      if (!mounted || request != _healthRequest) return;
+      setState(() {
+        _agentHealth = health;
+        if (health['status']?.toString().toLowerCase() != 'healthy') {
+          _agentHealthError = 'Agent server reported status: ${health['status']}.';
+        }
+      });
+    } catch (_) {
+      if (!mounted || request != _healthRequest) return;
+      setState(() {
+        _agentHealthError = 'Agent connection is temporarily unavailable. Your saved itinerary is still available.';
+      });
+    } finally {
+      if (mounted && request == _healthRequest) {
+        setState(() => _isCheckingAgentHealth = false);
+      }
     }
   }
 
@@ -773,24 +803,26 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     final healthStatus = _agentHealth?['status']?.toString() ?? 'unknown';
     final serviceName = _agentHealth?['service']?.toString() ?? 'Agentic AI service';
     final isError = _agentFailureReason != null;
+    final isChecking = _isCheckingAgentHealth;
+    final isWarning = !isError && (isChecking || _agentHealthError != null);
 
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isError ? const Color(0xFFFFF1F2) : const Color(0xFFEAF8F0),
+        color: isError ? const Color(0xFFFFF1F2) : isWarning ? const Color(0xFFFFF8E1) : const Color(0xFFEAF8F0),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isError ? const Color(0xFFFCA5A5) : const Color(0xFF9AD7B3),
+          color: isError ? const Color(0xFFFCA5A5) : isWarning ? const Color(0xFFD4A346) : const Color(0xFF9AD7B3),
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: isError ? const Color(0xFFB91C1C) : const Color(0xFF18794E),
+            isError ? Icons.error_outline : isWarning ? Icons.info_outline : Icons.check_circle_outline,
+            color: isError ? const Color(0xFFB91C1C) : isWarning ? const Color(0xFF856000) : const Color(0xFF18794E),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -798,23 +830,32 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isError ? 'Agentic AI was not started' : 'Agentic AI started',
+                  isError ? 'Agentic AI needs attention' : isChecking ? 'Checking agent connection…' : isWarning ? 'Agent connection unavailable' : 'Agentic AI started',
                   style: TextStyle(
                     fontWeight: FontWeight.w800,
-                    color: isError ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                    color: isError ? const Color(0xFF991B1B) : isWarning ? const Color(0xFF856000) : const Color(0xFF166534),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isError
                       ? _agentFailureReason!
+                      : isChecking
+                      ? 'Checking the server; retrying temporary connection failures.\nPipeline status: ${_agentStatus ?? 'unknown'}'
+                      : _agentHealthError != null
+                      ? '$_agentHealthError\nPipeline status: ${_agentStatus ?? 'unknown'}'
                       : 'Agent server: $healthStatus\n$serviceName\nPipeline status: ${_agentStatus ?? 'running'}',
                   style: TextStyle(
                     fontSize: 12,
                     height: 1.35,
-                    color: isError ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                    color: isError ? const Color(0xFF991B1B) : isWarning ? const Color(0xFF856000) : const Color(0xFF166534),
                   ),
                 ),
+                if (_agentHealthError != null && !isChecking)
+                  TextButton(
+                    onPressed: () => unawaited(_checkAgentHealth(++_healthRequest)),
+                    child: const Text('Retry agent connection'),
+                  ),
               ],
             ),
           ),

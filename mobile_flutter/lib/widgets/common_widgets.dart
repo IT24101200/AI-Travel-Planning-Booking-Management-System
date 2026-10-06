@@ -40,6 +40,8 @@ class AppNetworkImage extends StatelessWidget {
     } else {
       imageWidget = Image.network(
         imageUrl,
+        // Public catalog hosts may allow browser images without allowing CORS.
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
         width: width,
         height: height,
         fit: fit,

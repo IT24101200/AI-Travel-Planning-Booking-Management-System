@@ -72,9 +72,14 @@ namespace backend.Services
                 case ApprovalDecision.Approved:
                     await RoomInventory.ValidateConfirmationAsync(_db, booking.Id);
                     booking.Status = BookingStatus.Confirmed;
+                    booking.Itinerary.Status = ItineraryStatus.Accepted;
+                    booking.Itinerary.TripRequest.Status = TripRequestStatus.Approved;
+                    booking.Itinerary.TripRequest.FailureReason = null;
                     break;
                 case ApprovalDecision.Rejected:
                     booking.Status = BookingStatus.Rejected;
+                    booking.Itinerary.Status = ItineraryStatus.Discarded;
+                    booking.Itinerary.TripRequest.Status = TripRequestStatus.Rejected;
                     break;
                 case ApprovalDecision.RevisionRequested:
                     // Preserve this proposal and its audit history. A later agent callback
