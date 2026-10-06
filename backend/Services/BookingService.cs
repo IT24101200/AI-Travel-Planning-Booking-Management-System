@@ -305,10 +305,15 @@ namespace backend.Services
                 .Include(b => b.Customer)
                 .Include(b => b.Itinerary)
                     .ThenInclude(i => i.TripRequest)
+                        .ThenInclude(t => t.Destination)
+                .Include(b => b.Itinerary)
+                    .ThenInclude(i => i.ItineraryItems)
+                        .ThenInclude(i => i.Tour)
                 .Include(b => b.BookingItems)
                     .ThenInclude(bi => bi.Tour)
                 .Include(b => b.BookingItems)
                     .ThenInclude(bi => bi.Room)
+                        .ThenInclude(r => r!.Hotel)
                 .Include(b => b.BookingItems)
                     .ThenInclude(bi => bi.TransportOption)
                 .Include(b => b.BookingApprovals)
@@ -386,6 +391,33 @@ namespace backend.Services
                 ItineraryId = b.ItineraryId,
                 TripRequestId = b.Itinerary?.TripRequestId ?? 0,
                 TravellerCount = b.Itinerary?.TripRequest?.TravellerCount,
+                DestinationName = b.Itinerary?.TripRequest?.Destination?.Name,
+                RequestText = b.Itinerary?.TripRequest?.RawRequestText,
+                StartDate = b.Itinerary?.StartDate,
+                EndDate = b.Itinerary?.EndDate,
+                Itinerary = b.Itinerary == null ? null : new ItineraryDto
+                {
+                    Id = b.Itinerary.Id,
+                    CustomerId = b.CustomerId,
+                    CustomerName = b.Customer?.FullName,
+                    TripRequestId = b.Itinerary.TripRequestId,
+                    TravellerCount = b.Itinerary.TripRequest?.TravellerCount,
+                    StartDate = b.Itinerary.StartDate,
+                    EndDate = b.Itinerary.EndDate,
+                    Status = b.Itinerary.Status,
+                    TotalEstimatedCost = b.Itinerary.TotalEstimatedCost,
+                    Currency = b.Itinerary.Currency,
+                    ExchangeRateToLkr = b.Itinerary.ExchangeRateToLkr,
+                    CreatedAt = b.Itinerary.CreatedAt,
+                    Items = b.Itinerary.ItineraryItems.OrderBy(i => i.DayNumber).ThenBy(i => i.SequenceOrder)
+                        .Select(i => new ItineraryItemDto
+                        {
+                            Id = i.Id, TourId = i.TourId, TourName = i.Tour?.Name ?? "Tour",
+                            DayNumber = i.DayNumber, SequenceOrder = i.SequenceOrder,
+                            StartTime = i.StartTime, EndTime = i.EndTime,
+                            PriceAtSelection = i.PriceAtSelection, Currency = i.Currency
+                        }).ToList()
+                },
                 Status = b.Status,
                 TotalCost = b.TotalCost,
                 Currency = b.Currency,
@@ -401,6 +433,20 @@ namespace backend.Services
                     TourName = bi.Tour?.Name,
                     RoomId = bi.RoomId,
                     TransportOptionId = bi.TransportOptionId,
+                    HotelId = bi.Room?.HotelId,
+                    HotelName = bi.Room?.Hotel?.Name,
+                    HotelAddress = bi.Room?.Hotel?.Address,
+                    HotelLatitude = bi.Room?.Hotel?.Latitude,
+                    HotelLongitude = bi.Room?.Hotel?.Longitude,
+                    RoomType = bi.Room?.RoomType,
+                    RoomCapacity = bi.Room?.Capacity,
+                    RateNotes = bi.Room?.RateNotes,
+                    TransportType = bi.TransportOption?.Type.ToString(),
+                    TransportProvider = bi.TransportOption?.Provider,
+                    RouteFrom = bi.TransportOption?.RouteFrom,
+                    RouteTo = bi.TransportOption?.RouteTo,
+                    DepartureTime = bi.TransportOption?.DepartureTime,
+                    ArrivalTime = bi.TransportOption?.ArrivalTime,
                     CheckInDate = bi.CheckInDate,
                     CheckOutDate = bi.CheckOutDate,
                     Quantity = bi.Quantity,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'app_navigation.dart';
+import 'agent_health_service.dart';
 
 // Override: flutter run --dart-define=API_BASE_URL=https://ai-travel-planning-booking-backend.onrender.com/api
 // Both a server root and a URL ending in /api are accepted.
@@ -585,14 +586,13 @@ class ApiService {
 
   /// Returns the current health/state reported by the agent service.
   static Future<Map<String, dynamic>> getAgentHealth() async {
-    final result = _object(await get('AgentTrigger/health', isAuth: true));
-    if (result == null) {
-      throw const ApiException('The agent service returned no health status.');
-    }
-    return result;
+    return AgentHealthService.fetch(request: () => get('AgentTrigger/health'));
   }
 
+  static Future<Map<String, dynamic>?> Function(int id)? mockGetTripRequest;
+
   static Future<Map<String, dynamic>?> getTripRequest(int id) async {
+    if (mockGetTripRequest != null) return mockGetTripRequest!(id);
     return _object(await get('triprequest/$id'));
   }
 

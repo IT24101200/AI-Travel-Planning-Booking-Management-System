@@ -53,6 +53,11 @@ namespace backend.DTOs
         public int ItineraryId { get; set; }
         public int TripRequestId { get; set; }
         public int? TravellerCount { get; set; }
+        public string? DestinationName { get; set; }
+        public string? RequestText { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public ItineraryDto? Itinerary { get; set; }
         public BookingStatus Status { get; set; }
         public decimal TotalCost { get; set; }
         public string Currency { get; set; } = "LKR";
@@ -75,6 +80,20 @@ namespace backend.DTOs
         public string? TourName { get; set; }
         public int? RoomId { get; set; }
         public int? TransportOptionId { get; set; }
+        public int? HotelId { get; set; }
+        public string? HotelName { get; set; }
+        public string? HotelAddress { get; set; }
+        public double? HotelLatitude { get; set; }
+        public double? HotelLongitude { get; set; }
+        public string? RoomType { get; set; }
+        public int? RoomCapacity { get; set; }
+        public string? RateNotes { get; set; }
+        public string? TransportType { get; set; }
+        public string? TransportProvider { get; set; }
+        public string? RouteFrom { get; set; }
+        public string? RouteTo { get; set; }
+        public DateTime? DepartureTime { get; set; }
+        public DateTime? ArrivalTime { get; set; }
         public DateTime? CheckInDate { get; set; }
         public DateTime? CheckOutDate { get; set; }
         public int Quantity { get; set; }
