@@ -48,7 +48,7 @@ export default function DestinationManagement() {
   const [page, setPage] = useState(1)
 
   // Drawer state
-  const [drawerMode, setDrawerMode] = useState('edit') // 'edit' | 'create' | null
+  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
   const [selectedDest, setSelectedDest] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
@@ -113,14 +113,14 @@ export default function DestinationManagement() {
           })
           setRows(mapped)
 
-          if (selectId) {
-            const target = mapped.find(d => d.id === selectId)
-            if (target) {
-              selectForEdit(target)
-            }
-          } else if (mapped.length === 0) {
+          if (mapped.length === 0) {
             setSelectedDest(null)
             setDrawerMode(null)
+          } else if (selectedDest) {
+            const target = mapped.find(d => d.id === selectedDest.id)
+            if (target) {
+              setSelectedDest(target)
+            }
           }
         } else {
           setRows([])
