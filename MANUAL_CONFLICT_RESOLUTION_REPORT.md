@@ -138,4 +138,4 @@ remote-only: 0
 READY FOR DEPLOYMENT
 ```
 
-The repository still contains pre-existing generated Flutter file changes, historical untracked reports, and isolated validation output directories; these were not deleted or overwritten.
+The repository still contains generated Flutter file changes and historical untracked reports that were already present. Isolated validation output directories were created during verification and were left in place; no current or untracked file was deleted or overwritten.
