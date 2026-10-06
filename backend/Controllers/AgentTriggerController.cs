@@ -40,10 +40,15 @@ namespace backend.Controllers
             try
             {
                 var client = _httpClientFactory.CreateClient();
-                client.Timeout = TimeSpan.FromSeconds(3);
-                var response = await client.GetAsync($"{agentBaseUrl}/health");
+                client.Timeout = AgentServiceTimeouts.Connection(_configuration);
+                using var response = await client.GetAsync($"{agentBaseUrl.TrimEnd('/')}/health");
                 var content = await response.Content.ReadAsStringAsync();
-                return Content(content, "application/json");
+                return new ContentResult
+                {
+                    Content = content,
+                    ContentType = "application/json",
+                    StatusCode = (int)response.StatusCode
+                };
             }
             catch (Exception ex)
             {
@@ -90,7 +95,9 @@ namespace backend.Controllers
 
             var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
             var client = _httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(runAsync ? 5 : 60);
+            client.Timeout = runAsync
+                ? AgentServiceTimeouts.Connection(_configuration)
+                : AgentServiceTimeouts.Pipeline(_configuration);
 
             var preference = await _preferenceService.GetByCustomerIdAsync(trip.CustomerId);
             var preferredActivities = string.IsNullOrWhiteSpace(preference?.PreferredActivities)
