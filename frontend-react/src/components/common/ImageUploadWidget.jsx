@@ -202,7 +202,7 @@ export function ImageUploadWidget({
               </button>
               <button
                 type="button"
-                className="btn-gold"
+                className="btn-gold media-library-button"
                 onClick={openLibraryModal}
                 style={{ height: '28px', padding: '0 8px', fontSize: '0.75rem' }}
               >
@@ -301,7 +301,7 @@ export function ImageUploadWidget({
 
             <button
               type="button"
-              className="btn-outline"
+              className="btn-outline media-library-button"
               onClick={openLibraryModal}
               style={{
                 height: '32px',

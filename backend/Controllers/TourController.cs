@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using backend.DTOs;
 using backend.Services;
 
@@ -110,13 +111,26 @@ namespace backend.Controllers
             }
         }
 
-        // DELETE /api/tour/{id} — soft delete only
+        // DELETE /api/tour/{id} — physical delete when no protected references exist
         [HttpDelete("{id}")]
         [Authorize(Roles = "TravelAgent,Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var deleted = await _service.SoftDeleteAsync(id);
-            if (!deleted) return NotFound();
+            var result = await _service.DeleteAsync(id);
+            if (!result.Found) return NotFound();
+            if (!result.Deleted)
+            {
+                return Conflict(new
+                {
+                    message = "Tour cannot be deleted because it is referenced by existing records.",
+                    references = new
+                    {
+                        itineraryItems = result.ItineraryItems,
+                        bookingItems = result.BookingItems
+                    }
+                });
+            }
+
             return NoContent();
         }
 
