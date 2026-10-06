@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.Models.Enums;
 using backend.Services;
 
 namespace backend.Tests
@@ -130,6 +131,59 @@ namespace backend.Tests
             Assert.NotNull(result);
             Assert.Equal("Ella", result.DestinationName);
             Assert.Equal("Sri Lanka", result.DestinationCountry);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_ReturnsNotFoundForMissingTour()
+        {
+            using var context = CreateContext();
+            var result = await new TourService(context).DeleteAsync(999);
+
+            Assert.False(result.Found);
+            Assert.False(result.Deleted);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_PhysicallyDeletesUnreferencedTour()
+        {
+            using var context = CreateContext();
+            context.Tours.Add(new Tour { Id = 1, Name = "Safe Tour", Category = "Scenic", Currency = "LKR" });
+            await context.SaveChangesAsync();
+
+            var result = await new TourService(context).DeleteAsync(1);
+
+            Assert.True(result.Deleted);
+            Assert.Null(await context.Tours.FindAsync(1));
+        }
+
+        [Fact]
+        public async Task DeleteAsync_BlocksTourReferencedByItineraryItem()
+        {
+            using var context = CreateContext();
+            context.Tours.Add(new Tour { Id = 1, Name = "Planned Tour", Category = "Scenic", Currency = "LKR" });
+            context.ItineraryItems.Add(new ItineraryItem { TourId = 1, ItineraryId = 10 });
+            await context.SaveChangesAsync();
+
+            var result = await new TourService(context).DeleteAsync(1);
+
+            Assert.False(result.Deleted);
+            Assert.Equal(1, result.ItineraryItems);
+            Assert.NotNull(await context.Tours.FindAsync(1));
+        }
+
+        [Fact]
+        public async Task DeleteAsync_BlocksTourReferencedByBookingItem()
+        {
+            using var context = CreateContext();
+            context.Tours.Add(new Tour { Id = 1, Name = "Booked Tour", Category = "Scenic", Currency = "LKR" });
+            context.BookingItems.Add(new BookingItem { TourId = 1, BookingId = 10, ItemType = BookingItemType.Tour });
+            await context.SaveChangesAsync();
+
+            var result = await new TourService(context).DeleteAsync(1);
+
+            Assert.False(result.Deleted);
+            Assert.Equal(1, result.BookingItems);
+            Assert.NotNull(await context.Tours.FindAsync(1));
         }
     }
 }

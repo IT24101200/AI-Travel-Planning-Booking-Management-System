@@ -55,6 +55,7 @@ export default function TourCatalogManagement() {
     imageUrl: ''
   })
   const [busy, setBusy] = useState(false)
+  const [statusUpdatingId, setStatusUpdatingId] = useState(null)
 
   usePageTitle('Tour Catalog · Serendib Trails')
 
@@ -220,25 +221,33 @@ export default function TourCatalogManagement() {
     }
   }
 
-  async function handleRestoreTour(tour) {
+  async function handleStatusChange(tour, status) {
+    if (status === tour.status) return
+    setStatusUpdatingId(tour.id)
+    setNotice(null)
     try {
-      await updateTour(tour.id, { ...tour.apiTour, status: 'Active' })
-      setSelectedTour((current) => current?.id === tour.id ? { ...current, status: 'Active' } : current)
-      setNotice({ type: 'success', message: `Tour "${tour.name}" restored.` })
+      await updateTour(tour.id, { ...tour.apiTour, status })
+      setRows((current) => current.map((row) => row.id === tour.id
+        ? { ...row, status, apiTour: { ...row.apiTour, status } }
+        : row))
+      setSelectedTour((current) => current?.id === tour.id ? { ...current, status, apiTour: { ...current.apiTour, status } } : current)
+      setNotice({ type: 'success', message: `Tour "${tour.name}" set to ${status}.` })
       await loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to restore tour.' })
+      setNotice({ type: 'error', message: err.response?.data?.message || err.message || `Failed to set tour to ${status}.` })
+    } finally {
+      setStatusUpdatingId(null)
     }
   }
 
   async function handleDeleteTour(id, name) {
-    if (!window.confirm(`Are you sure you want to deactivate "${name}"?`)) return
+    if (!window.confirm(`Delete this tour permanently?\n\n${name}`)) return
     try {
       await deleteTour(id)
-      setNotice({ type: 'success', message: `Tour "${name}" deactivated.` })
+      setNotice({ type: 'success', message: `Tour "${name}" deleted permanently.` })
       loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.message || 'Failed to deactivate tour.' })
+      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to delete tour.' })
     }
   }
 
@@ -424,10 +433,27 @@ export default function TourCatalogManagement() {
                         <span style={{ fontSize: '0.6875rem', color: '#64748b' }}> / person</span>
                       </td>
                       <td>
-                        <span className={`badge-pill ${tour.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
-                          <span className="badge-dot" />
-                          {tour.status}
-                        </span>
+                        <select
+                          aria-label={`Change status for ${tour.name}`}
+                          value={tour.status}
+                          disabled={statusUpdatingId === tour.id}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => handleStatusChange(tour, e.target.value)}
+                          style={{
+                            height: '30px',
+                            borderRadius: '999px',
+                            border: '1px solid #c8d1d4',
+                            padding: '0 0.5rem',
+                            color: '#182126',
+                            backgroundColor: tour.status === 'Active' ? '#dcfce7' : '#f1f5f6',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: statusUpdatingId === tour.id ? 'wait' : 'pointer'
+                          }}
+                        >
+                          <option value="Active">Active</option>
+                          <option value="Inactive">Inactive</option>
+                        </select>
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.375rem' }} onClick={(e) => e.stopPropagation()}>
@@ -443,11 +469,11 @@ export default function TourCatalogManagement() {
                           <button
                             type="button"
                             className="btn-action-delete"
-                            title={tour.status === 'Inactive' ? 'Restore' : 'Deactivate'}
-                            onClick={() => tour.status === 'Inactive' ? handleRestoreTour(tour) : handleDeleteTour(tour.id, tour.name)}
+                            title="Delete"
+                            onClick={() => handleDeleteTour(tour.id, tour.name)}
                           >
-                            {tour.status === 'Inactive' ? <CheckIcon size={12} /> : <TrashIcon size={12} />}
-                            <span>{tour.status === 'Inactive' ? 'Restore' : 'Delete'}</span>
+                            <TrashIcon size={12} />
+                            <span>Delete</span>
                           </button>
                         </div>
                       </td>
