@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
 import '../../widgets/itinerary_route_preview.dart';
+import '../../widgets/itinerary_journey_layout.dart';
 import '../../services/trip_selection_service.dart';
 
 /// Normalizes status for external callers if needed
@@ -57,6 +58,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   bool _pending = false;
   int? _selectedItineraryId;
   Map<String, dynamic>? _itinerary;
+  int? _selectedJourneyIndex;
   List<Map<String, dynamic>> _itineraries = [];
 
   @override
@@ -81,6 +83,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       _agentHealth = null;
       _pending = false;
       _itinerary = null;
+      _selectedJourneyIndex = null;
     });
     try {
       final args = ModalRoute.of(context)?.settings.arguments;
@@ -176,6 +179,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     if (id == null) return;
     setState(() {
       _selectedItineraryId = id;
+      _selectedJourneyIndex = null;
       _isLoading = true;
       _errorMessage = null;
     });
@@ -882,12 +886,109 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         ? '$currency ${NumberFormat('#,##0').format(totalCost)}'.trim()
         : 'Cost pending';
 
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return ItineraryJourneyLayout(
+      map: ItineraryRoutePreview(
+            itinerary: itinerary,
+            selectedItem: _selectedJourneyIndex != null &&
+                    _selectedJourneyIndex! < items.length
+                ? items[_selectedJourneyIndex!]
+                : null,
+          ),
+      heading: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Your journey',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              if (_isDraft(status) || _isProposed(status))
+                GestureDetector(
+                  onTap: _showRequestChangesDialog,
+                  child: Text(
+                    'Edit',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      children: [
+          // ── Timeline items from the API ──
+          if (items.isEmpty)
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFEDECE4)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: Color(0xFFD4A346), size: 22),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'No activities scheduled yet for this itinerary.',
+                      style: TextStyle(fontSize: 13, color: Color(0xFF5A7067)),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            ...items.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final item = entry.value;
+              final dayNum = item['dayNumber'] is int ? item['dayNumber'] as int : 1;
+
+              // Format date label for this day
+              String dateLabel = 'DAY $dayNum';
+              if (startDate != null) {
+                final itemDate = startDate.add(Duration(days: dayNum - 1));
+                dateLabel = DateFormat('dd MMM').format(itemDate).toUpperCase();
+              }
+
+              // Format time
+              String timeStr = 'Time pending';
+              if (item['startTime'] != null) {
+                final s = item['startTime'].toString();
+                timeStr = s.length >= 5 ? s.substring(0, 5) : s;
+              }
+
+              final tourTitle = item['tourName']?.toString() ?? 'Tour Activity';
+              final itemPrice = item['priceAtSelection'] ?? 0;
+              final subtitle = 'LKR ${NumberFormat('#,##0').format(itemPrice)} · Tickets & activities included';
+
+              final isSelected = idx == (_selectedJourneyIndex ?? 0);
+              final dotColor = isSelected
+                  ? const Color(0xFF7DD3FC)
+                  : const Color(0xFF0E382C);
+              final isLast = idx == items.length - 1;
+
+              return _buildTimelineItem(
+                dayLabel: 'DAY $dayNum',
+                dateLabel: dateLabel,
+                dotColor: dotColor,
+                icon: _getIconForIndex(idx),
+                time: timeStr,
+                title: tourTitle,
+                subtitle: subtitle,
+                showLine: !isLast,
+                selected: isSelected,
+                onTap: () => setState(() => _selectedJourneyIndex = idx),
+              );
+            }),
+
+          const SizedBox(height: 16),
+
           if (_agentStatus != null || _agentFailureReason != null) _buildAgentStateCard(),
           // ── Multi-Itinerary Selector Dropdown (if user has multiple itineraries) ──
           if (_itineraries.length > 1) ...[
@@ -1016,103 +1117,6 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
           const SizedBox(height: 12),
 
-          ItineraryRoutePreview(itinerary: itinerary),
-
-          const SizedBox(height: 20),
-
-          // Section Title: Your journey + Edit
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Your journey',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              if (_isDraft(status) || _isProposed(status))
-                GestureDetector(
-                  onTap: _showRequestChangesDialog,
-                  child: Text(
-                    'Edit',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
-          // ── Timeline items from the API ──
-          if (items.isEmpty)
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFEDECE4)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.info_outline, color: Color(0xFFD4A346), size: 22),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'No activities scheduled yet for this itinerary.',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF5A7067)),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            ...items.asMap().entries.map((entry) {
-              final idx = entry.key;
-              final item = entry.value;
-              final dayNum = item['dayNumber'] is int ? item['dayNumber'] as int : 1;
-
-              // Format date label for this day
-              String dateLabel = 'DAY $dayNum';
-              if (startDate != null) {
-                final itemDate = startDate.add(Duration(days: dayNum - 1));
-                dateLabel = DateFormat('dd MMM').format(itemDate).toUpperCase();
-              }
-
-              // Format time
-              String timeStr = 'Time pending';
-              if (item['startTime'] != null) {
-                final s = item['startTime'].toString();
-                timeStr = s.length >= 5 ? s.substring(0, 5) : s;
-              }
-
-              final tourTitle = item['tourName']?.toString() ?? 'Tour Activity';
-              final itemPrice = item['priceAtSelection'] ?? 0;
-              final subtitle = 'LKR ${NumberFormat('#,##0').format(itemPrice)} · Tickets & activities included';
-
-              final dotColor = idx == 0 ? const Color(0xFFD4A346) : const Color(0xFF0E382C);
-              final isLast = idx == items.length - 1;
-
-              return _buildTimelineItem(
-                dayLabel: 'DAY $dayNum',
-                dateLabel: dateLabel,
-                dotColor: dotColor,
-                icon: _getIconForIndex(idx),
-                time: timeStr,
-                title: tourTitle,
-                subtitle: subtitle,
-                showLine: !isLast,
-              );
-            }),
-
-          const SizedBox(height: 16),
-
           // ── Soft Sand Summary Box ──
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
@@ -1178,9 +1182,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           // ── Status Action Buttons ──
           if (items.isNotEmpty) _buildActionButtons(status),
 
-          const SizedBox(height: 24),
-        ],
-      ),
+      ],
     );
   }
 
@@ -1430,6 +1432,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     required String title,
     required String subtitle,
     required bool showLine,
+    required bool selected,
+    required VoidCallback onTap,
   }) {
     return IntrinsicHeight(
       child: Row(
@@ -1484,68 +1488,84 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
           // Card
           Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 14),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: InkWell(
+                onTap: onTap,
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEEFAF4),
-                      borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFF7DD3FC)
+                          : Theme.of(context).brightness == Brightness.dark
+                          ? const Color(0xFF2E3D36)
+                          : const Color(0xFFEDECE4),
                     ),
-                    child: Center(
-                      child: Icon(icon, color: const Color(0xFF13684B), size: 22),
-                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          time,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFD4A346),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEEFAF4),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Center(
+                          child: Icon(
+                            icon,
+                            color: const Color(0xFF13684B),
+                            size: 22,
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              time,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFFD4A346),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              title,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitle,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: Color(0xFF8A9E96),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          subtitle,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: Color(0xFF8A9E96),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

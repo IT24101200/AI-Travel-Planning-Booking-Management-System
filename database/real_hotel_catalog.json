@@ -1,0 +1,645 @@
+{
+  "checked_at": "2026-10-06",
+  "inventory_notes": "Retain existing configured allotments as authorized by owner. They are internal stock, not independently verified hotel inventory. Confirmed bookings consume rooms only for their stay dates. Additional room categories start with zero stock until staff assigns an allotment.",
+  "hotels": [
+    {
+      "id": 22,
+      "destination_id": 41,
+      "name": "Theva Residency",
+      "address": "11/B5/10-1, 6th Lane, Upper Tank Road, Hanthana, Kandy",
+      "latitude": 7.276025,
+      "longitude": 80.6356387,
+      "star_rating": 0,
+      "email": "thevaresidency@gmail.com",
+      "phone": "+94817388296",
+      "rate_source": "https://www.theva.lk/theva-offers/special-local-offers/",
+      "location_source": "https://www.openstreetmap.org/node/3631625050",
+      "rate_notes": "Sri Lankan resident offer; breakfast, taxes and service included; valid until 2026-12-15. Confirm dates and eligibility.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Deluxe - resident B&B",
+          "capacity": 2,
+          "price": 38000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Superior - resident B&B",
+          "capacity": 2,
+          "price": 45000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Saman Walawwa",
+      "original_room_ids": [
+        36,
+        37
+      ]
+    },
+    {
+      "id": null,
+      "destination_id": 41,
+      "name": "Hotel Royal Kandyan",
+      "address": "833, Peradeniya Road, Kandy",
+      "latitude": 7.2774176,
+      "longitude": 80.6159188,
+      "star_rating": 0,
+      "email": "reservation@royalkandyan.lk",
+      "phone": "+94812060467",
+      "rate_source": "https://www.royalkandyan.lk/rooms/deluxe-room/",
+      "location_source": "https://www.openstreetmap.org/node/12770415601",
+      "rate_notes": "Published room detail/calendar rate is USD 39; template also shows USD 25. Use the detailed tariff and confirm with property.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Deluxe Double or Twin",
+          "capacity": 2,
+          "price": 39,
+          "currency": "USD",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": null,
+      "original_room_ids": []
+    },
+    {
+      "id": 24,
+      "destination_id": 35,
+      "name": "Rock House Galle",
+      "address": "191/8, Woodward Road, Galle",
+      "latitude": 6.0534702,
+      "longitude": 80.2138423,
+      "star_rating": 0,
+      "email": null,
+      "phone": "+94777910499",
+      "rate_source": "https://rockhousegalle.com/rooms/",
+      "location_source": "https://www.google.com/maps?q=Rock+House+Galle+Sri+Lanka",
+      "rate_notes": "Published nightly from tariff; confirm dates, taxes and availability with the hotel.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Standard Double",
+          "capacity": 2,
+          "price": 8000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Superior Double",
+          "capacity": 2,
+          "price": 12000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Deluxe",
+          "capacity": 3,
+          "price": 15000,
+          "currency": "LKR",
+          "total_rooms": 0
+        }
+      ],
+      "original_name": "Demo Kamal Sewana",
+      "original_room_ids": [
+        40,
+        41
+      ]
+    },
+    {
+      "id": 25,
+      "destination_id": 35,
+      "name": "Tamarind Hill",
+      "address": "288, Galle Road, Dadalla, Galle",
+      "latitude": 6.04455,
+      "longitude": 80.1972539,
+      "star_rating": 0,
+      "email": "info@tamarindhill.lk",
+      "phone": "+94912226568",
+      "rate_source": "https://tamarindhill.lk/local-promotions/",
+      "location_source": "https://www.openstreetmap.org/node/3084241151",
+      "rate_notes": "Sri Lankan residents; web inquiry offer for half/full board; applicable taxes and final meal plan confirmed by hotel.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Crayford - resident web offer",
+          "capacity": 2,
+          "price": 21430,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Captain Suite - resident web offer",
+          "capacity": 2,
+          "price": 28573,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Sunil Muhudu Niwasa",
+      "original_room_ids": [
+        42,
+        43
+      ]
+    },
+    {
+      "id": 26,
+      "destination_id": 34,
+      "name": "Nine Arch Holiday Resort",
+      "address": "No. 43, Badulla Road, Hela Halpe, Ella",
+      "latitude": 6.8891584,
+      "longitude": 81.0465678,
+      "star_rating": 0,
+      "email": "reservations@ninearchresort.com",
+      "phone": "+94773609836",
+      "rate_source": "https://ninearchresort.com/accommodation",
+      "location_source": "https://ninearchresort.com/contact",
+      "rate_notes": "Published nightly from tariff; confirm dates, taxes and availability with the hotel.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Deluxe Double",
+          "capacity": 2,
+          "price": 10000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Superior Family",
+          "capacity": 4,
+          "price": 14000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Luxury Triple",
+          "capacity": 3,
+          "price": 13720,
+          "currency": "LKR",
+          "total_rooms": 0
+        }
+      ],
+      "original_name": "Demo Kasun Sewana",
+      "original_room_ids": [
+        44,
+        45
+      ]
+    },
+    {
+      "id": 28,
+      "destination_id": 45,
+      "name": "Terrabella Nuwara Eliya",
+      "address": "65/65H, Lady Horton Road, Bonavista, Nuwara Eliya",
+      "latitude": 6.9542726,
+      "longitude": 80.7760483,
+      "star_rating": 0,
+      "email": "terrabella.nuwaraeliya@gmail.com",
+      "phone": "+94716817509",
+      "rate_source": "https://terrabellanuwaraeliya.lk/rooms/",
+      "location_source": "https://steller.co/p/terrabella-nuwara-eliya-39sTVGnfDgGrvSnAsayhCRD",
+      "rate_notes": "Breakfast optional; published nightly tariffs, confirm selected dates.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Standard Double",
+          "capacity": 2,
+          "price": 10955,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Standard Triple",
+          "capacity": 3,
+          "price": 15519,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Ruwan Sewana",
+      "original_room_ids": [
+        48,
+        49
+      ]
+    },
+    {
+      "id": 29,
+      "destination_id": 45,
+      "name": "Sky Hotel Nuwara Eliya",
+      "address": "No. 04, Mihidupura, Nuwara Eliya",
+      "latitude": 6.9321297,
+      "longitude": 80.7833817,
+      "star_rating": 0,
+      "email": "skyhotelne@gmail.com",
+      "phone": "+94767474545",
+      "rate_source": "https://skyhotelnuwaraeliya.lk/index.php",
+      "location_source": "https://skyhotelnuwaraeliya.lk/index.php",
+      "rate_notes": "Published tariff ranges: Eco Couple 5000-10000; Luxury Family 10000-23000 LKR. Store lower nightly from rate; confirm dates.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Eco Couple",
+          "capacity": 2,
+          "price": 5000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Luxury Family",
+          "capacity": 6,
+          "price": 10000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Dinesh Mal Niwasa",
+      "original_room_ids": [
+        50,
+        51
+      ]
+    },
+    {
+      "id": 30,
+      "destination_id": 46,
+      "name": "Cassandra Culture Resort",
+      "address": "Sigiriya, Avudangawa",
+      "latitude": 7.9922857,
+      "longitude": 80.7336502,
+      "star_rating": 0,
+      "email": "info@cassandraresorts.com",
+      "phone": "+94664933636",
+      "rate_source": "https://www.cassandraresorts.com/",
+      "location_source": "https://www.google.com/maps?q=Cassandra+Culture+Resort+Sri+Lanka",
+      "rate_notes": "Published standard nightly rates; confirm occupancy, dates and taxes.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Deluxe Twin",
+          "capacity": 2,
+          "price": 28000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Junior Suite with Private Jacuzzi",
+          "capacity": 2,
+          "price": 38000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Pradeep Sewana",
+      "original_room_ids": [
+        52,
+        53
+      ]
+    },
+    {
+      "id": 32,
+      "destination_id": 47,
+      "name": "Hotel Randiya",
+      "address": "394/19A, Muditha Mawatha, Anuradhapura",
+      "latitude": 8.3302678,
+      "longitude": 80.4180252,
+      "star_rating": 0,
+      "email": "reservations@hotelrandiya.lk",
+      "phone": "+94252222868",
+      "rate_source": "https://www.hotelrandiya.lk/book",
+      "location_source": "https://www.openstreetmap.org/node/1401523395",
+      "rate_notes": "Published nightly from tariff; confirm dates, taxes and availability with the hotel.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double - room only",
+          "capacity": 2,
+          "price": 16500,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Triple - room only",
+          "capacity": 3,
+          "price": 19600,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Family - room only",
+          "capacity": 4,
+          "price": 23500,
+          "currency": "LKR",
+          "total_rooms": 0
+        }
+      ],
+      "original_name": "Demo Chaminda Sewana",
+      "original_room_ids": [
+        56,
+        57
+      ]
+    },
+    {
+      "id": 33,
+      "destination_id": 47,
+      "name": "Salubrious Resort",
+      "address": "Kurunegala Road, Haggamuwa, Srawasthipura, Anuradhapura",
+      "latitude": 8.311947,
+      "longitude": 80.3750228,
+      "star_rating": 0,
+      "email": "salubriousresort@gmail.com",
+      "phone": "+94252234278",
+      "rate_source": "https://salubriousresort.com/rooms",
+      "location_source": "https://www.google.com/maps?q=Salubrious+Resort+Sri+Lanka",
+      "rate_notes": "Published Deluxe Double 102 and Deluxe Family 104 tariffs; counts are configured allotments, not property room numbers.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Deluxe Double",
+          "capacity": 2,
+          "price": 9000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Deluxe Family",
+          "capacity": 4,
+          "price": 11000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Sampath Wewa Niwasa",
+      "original_room_ids": [
+        58,
+        59
+      ]
+    },
+    {
+      "id": 34,
+      "destination_id": 48,
+      "name": "Theevanni Resort",
+      "address": "05, Beach Road, Ales Garden, Trincomalee",
+      "latitude": 8.6148373,
+      "longitude": 81.2165163,
+      "star_rating": 0,
+      "email": "info@theevanniresort.com",
+      "phone": "+94262228887",
+      "rate_source": "https://theevanniresort.com/rooms",
+      "location_source": "https://www.google.com/maps?q=Theevanni+Resort+Sri+Lanka",
+      "rate_notes": "Published website from tariffs from indexed page; direct page currently unavailable. Confirm tariff and availability before approval.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double - non AC",
+          "capacity": 2,
+          "price": 14000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Triple - AC",
+          "capacity": 3,
+          "price": 20000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Isuru Sewana",
+      "original_room_ids": [
+        60,
+        61
+      ]
+    },
+    {
+      "id": 36,
+      "destination_id": 49,
+      "name": "Yal's Town Inn",
+      "address": "57/48, Stanley Road, Jaffna",
+      "latitude": 9.6699689,
+      "longitude": 80.0129622,
+      "star_rating": 0,
+      "email": "yalstowninnhotel@gmail.com",
+      "phone": "+94777031300",
+      "rate_source": "https://www.yalstowninn.com/",
+      "location_source": "https://www.google.com/maps?q=Yal's+Town+Inn+Sri+Lanka",
+      "rate_notes": "Official website gives 57/48 Stanley Road; map listing labels the same property at 66 Stanley Road. Phone matches.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double",
+          "capacity": 2,
+          "price": 6270,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Triple",
+          "capacity": 3,
+          "price": 7480,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Kannan Viduthi",
+      "original_room_ids": [
+        64,
+        65
+      ]
+    },
+    {
+      "id": 37,
+      "destination_id": 49,
+      "name": "Mango Mansion",
+      "address": "Aasaipillai Eetham, A9 Road, Mirusuvil, Jaffna",
+      "latitude": 9.6652724,
+      "longitude": 80.2585723,
+      "star_rating": 0,
+      "email": "mangomansionjaffna@gmail.com",
+      "phone": "+94779567526",
+      "rate_source": "https://www.mangomansionjaffna.com/",
+      "location_source": "https://www.mangomansionjaffna.com/contact",
+      "rate_notes": "Double tariffs published; property is in Mirusuvil, not Jaffna city centre.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double",
+          "capacity": 2,
+          "price": 13500,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Double with Garden View",
+          "capacity": 2,
+          "price": 13500,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Arul Illam",
+      "original_room_ids": [
+        66,
+        67
+      ]
+    },
+    {
+      "id": 38,
+      "destination_id": 50,
+      "name": "Seethevi Hotels",
+      "address": "182, New Kalmunai Road, Kallady, Batticaloa",
+      "latitude": 7.7135625,
+      "longitude": 81.7100625,
+      "star_rating": 0,
+      "email": "info@seethevi.com",
+      "phone": "+94652222747",
+      "rate_source": "https://seethevihotels.com/rooms",
+      "location_source": "https://www.google.com/maps?q=Seethevi+Hotels+Sri+Lanka",
+      "rate_notes": "Published nightly tariffs; confirm taxes and selected dates.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double",
+          "capacity": 2,
+          "price": 5500,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Triple",
+          "capacity": 3,
+          "price": 6500,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Double with Attached Bathroom",
+          "capacity": 2,
+          "price": 6500,
+          "currency": "LKR",
+          "total_rooms": 0
+        }
+      ],
+      "original_name": "Demo Farhan Guest House",
+      "original_room_ids": [
+        68,
+        69
+      ]
+    },
+    {
+      "id": 39,
+      "destination_id": 50,
+      "name": "Chill HutZ",
+      "address": "Mylambaveli, Batticaloa",
+      "latitude": 7.7652695,
+      "longitude": 81.6359376,
+      "star_rating": 0,
+      "email": null,
+      "phone": "+94772020394",
+      "rate_source": "https://www.chillhutz.lk/",
+      "location_source": "https://www.chillhutz.lk/",
+      "rate_notes": "Published nightly from tariff; confirm dates, taxes and availability with the hotel.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double with Garden View",
+          "capacity": 2,
+          "price": 10000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Selvan Illam",
+      "original_room_ids": [
+        70,
+        71
+      ]
+    },
+    {
+      "id": 40,
+      "destination_id": 51,
+      "name": "Rest House Kesbewa",
+      "address": "116, Rest House Road, Kesbewa, Colombo District",
+      "latitude": 6.7927235,
+      "longitude": 79.9389592,
+      "star_rating": 0,
+      "email": "resthousekesbewa@gmail.com",
+      "phone": "+94112602060",
+      "rate_source": "https://resthousekesbewa.com/",
+      "location_source": "https://www.openstreetmap.org/node/257676791",
+      "rate_notes": "Kesbewa is in Colombo District; room-only and breakfast tariffs are separate choices.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double - room only",
+          "capacity": 2,
+          "price": 9000,
+          "currency": "LKR",
+          "total_rooms": 20
+        },
+        {
+          "room_type": "Double - B&B",
+          "capacity": 2,
+          "price": 11500,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Demo Rizwan Guest House",
+      "original_room_ids": [
+        72,
+        73
+      ]
+    },
+    {
+      "id": null,
+      "destination_id": 51,
+      "name": "Galle Face Hotel",
+      "address": "2, Galle Road, Colombo 03",
+      "latitude": 6.9201212,
+      "longitude": 79.8461345,
+      "star_rating": 0,
+      "email": "information@gallefacehotel.com",
+      "phone": "+94117541010",
+      "rate_source": "https://gallefacehotel.com/promotion/residents-offer-stay-more-save-more/",
+      "location_source": "https://www.openstreetmap.org/way/1430312630",
+      "rate_notes": "Sri Lankan residents only; B&B double room nett tariff; valid 2026-09-01 to 2026-10-30, subject to availability.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double - resident B&B offer",
+          "capacity": 2,
+          "price": 25000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": null,
+      "original_room_ids": []
+    },
+    {
+      "id": 16,
+      "destination_id": 46,
+      "name": "Heritance Kandalama",
+      "address": "Heritance Kandalama, PO Box 11, Dambulla",
+      "latitude": 7.8711643,
+      "longitude": 80.7080307,
+      "star_rating": 5,
+      "email": "hkinfo@heritancehotels.com",
+      "phone": "+94665555000",
+      "rate_source": "https://www.heritancehotels.com/kandalama/offers/spence-escapes/",
+      "location_source": "https://www.openstreetmap.org/node/258031094",
+      "rate_notes": "Spence Escapes Sri Lankan resident full-board double from rate; stays/bookings through 2026-10-31.",
+      "checked_at": "2026-10-06",
+      "rooms": [
+        {
+          "room_type": "Double - resident full board offer",
+          "capacity": 2,
+          "price": 75000,
+          "currency": "LKR",
+          "total_rooms": 20
+        }
+      ],
+      "original_name": "Kandalama Hotel",
+      "original_room_ids": []
+    }
+  ]
+}

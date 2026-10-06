@@ -31,3 +31,10 @@ env
 student_d_guide.md
 SE3090_Travel_Planning_Complete_Master.md
 commits.txt
+
+backend.Tests/coverage/
+
+# Local audit backup and temporary research
+database/hotel_records_before_real_data.json
+.tmp-hotel-db/
+**/.pytest_cache/

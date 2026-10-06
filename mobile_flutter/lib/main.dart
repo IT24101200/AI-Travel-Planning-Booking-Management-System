@@ -9,6 +9,7 @@ import 'screens/tours/my_itinerary_screen.dart';
 import 'screens/accommodation/accommodation_options_screen.dart';
 import 'screens/accommodation/transport_options_screen.dart';
 import 'screens/accommodation/trip_map_screen.dart';
+import 'screens/accommodation/hotel_map_screen.dart';
 import 'screens/booking/checkout_payment_screen.dart';
 import 'screens/booking/booking_status_screen.dart';
 import 'screens/booking/trip_confirmation_screen.dart';
@@ -65,6 +66,7 @@ class TravelApp extends StatelessWidget {
             '/accommodation': (context) => const AuthGuard(child: AccommodationOptionsScreen()),
             '/transport': (context) => const AuthGuard(child: TransportOptionsScreen()),
             '/trip-map': (context) => const AuthGuard(child: TripMapScreen()),
+            '/hotel-map': (context) => const AuthGuard(child: HotelMapScreen()),
             '/checkout': (context) => const AuthGuard(child: CheckoutPaymentScreen()),
             '/booking-status': (context) => const AuthGuard(child: BookingStatusScreen()),
             '/trip-confirmation': (context) => const AuthGuard(child: TripConfirmationScreen()),

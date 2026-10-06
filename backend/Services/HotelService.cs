@@ -213,7 +213,7 @@ namespace backend.Services
 
         public async Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize, string? currency = null)
         {
-            var query = _context.Rooms.AsQueryable();
+            var query = _context.Rooms.Where(r => r.Hotel.Status == HotelStatus.Active);
 
             if (!string.IsNullOrWhiteSpace(roomType))
             {
@@ -276,7 +276,9 @@ namespace backend.Services
                 Capacity      = dto.Capacity,
                 TotalRooms    = dto.TotalRooms,
                 PricePerNight = dto.PricePerNight,
-                Currency      = dto.Currency
+                Currency      = dto.Currency,
+                RateSourceUrl = dto.RateSourceUrl,
+                RateNotes     = dto.RateNotes
             };
 
             _context.Rooms.Add(room);
@@ -297,6 +299,8 @@ namespace backend.Services
             room.TotalRooms    = dto.TotalRooms;
             room.PricePerNight = dto.PricePerNight;
             room.Currency      = dto.Currency;
+            room.RateSourceUrl = dto.RateSourceUrl;
+            room.RateNotes = dto.RateNotes;
 
             await _context.SaveChangesAsync();
             return true;
@@ -347,7 +351,9 @@ namespace backend.Services
             Capacity      = r.Capacity,
             TotalRooms    = r.TotalRooms,
             PricePerNight = targetCurrency == null ? r.PricePerNight : _currency.Convert(r.PricePerNight, r.Currency, targetCurrency),
-            Currency      = targetCurrency ?? r.Currency
+            Currency      = targetCurrency ?? r.Currency,
+            RateSourceUrl = r.RateSourceUrl,
+            RateNotes     = r.RateNotes
         };
     }
 }

@@ -49,6 +49,12 @@ namespace backend.Models
         [MaxLength(10)]
         public string Currency { get; set; } = "LKR";
 
+        [MaxLength(500)]
+        public string? RateSourceUrl { get; set; }
+
+        [MaxLength(1000)]
+        public string? RateNotes { get; set; }
+
         // ── Navigation ──
         [ForeignKey(nameof(HotelId))]
         public Hotel Hotel { get; set; } = null!;

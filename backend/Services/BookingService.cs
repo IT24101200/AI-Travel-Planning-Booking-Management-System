@@ -64,6 +64,8 @@ namespace backend.Services
                 {
                     throw new ArgumentException("CheckInDate and CheckOutDate are required when ItemType is Room.");
                 }
+                if (item.ItemType == BookingItemType.Room && item.CheckOutDate <= item.CheckInDate)
+                    throw new ArgumentException("Check-out must be after check-in.");
 
                 var subtotal = item.UnitPrice * item.Quantity;
                 calculatedTotal += subtotal;
@@ -86,12 +88,9 @@ namespace backend.Services
             var totalCost = dto.TotalCost > 0 ? dto.TotalCost : calculatedTotal;
             var bookingRef = await GenerateUniqueBookingReferenceAsync();
 
-            // ── Concurrency-safe write (Component C fix) ──
-            // Open a REPEATABLE READ transaction and lock each requested Room row
-            // with SELECT ... FOR UPDATE before re-checking availability.
-            // This ensures only one of two simultaneous requests for the last
-            // available unit can succeed: the second waits for the lock, then
-            // re-counts and finds zero available, and receives a clear 400 error.
+            // Proposals check confirmed room occupancy but do not reserve stock.
+            // Confirmation rechecks rooms in a serializable transaction. Transport
+            // retains its existing reservation policy and row locks.
             await using var transaction = await _db.Database
                 .BeginTransactionAsync(IsolationLevel.RepeatableRead);
             try
@@ -132,17 +131,13 @@ namespace backend.Services
                         throw new KeyNotFoundException(
                             $"Room with ID {item.RoomId} not found.");
 
-                    // Re-count overlapping active bookings under the lock —
+                    if (!await _db.Hotels.AnyAsync(h => h.Id == lockedRoom.HotelId && h.Status == HotelStatus.Active))
+                        throw new InvalidOperationException("This hotel is no longer accepting new bookings.");
+
+                    // Check peak confirmed occupancy for the requested dates.
                     // this read is now serialised with any concurrent writer.
-                    var bookedCount = await _db.BookingItems
-                        .Where(bi => bi.RoomId          == item.RoomId
-                                  && bi.ItemType        == BookingItemType.Room
-                                  && bi.CheckInDate.HasValue
-                                  && bi.CheckOutDate.HasValue
-                                  && bi.CheckInDate.Value  < item.CheckOutDate!.Value
-                                  && bi.CheckOutDate.Value > item.CheckInDate!.Value
-                                  && activeStatuses.Contains(bi.Booking.Status))
-                        .SumAsync(bi => bi.Quantity);
+                    var bookedCount = await RoomInventory.BookedPeakAsync(
+                        _db, lockedRoom.Id, item.CheckInDate!.Value, item.CheckOutDate!.Value);
 
                     var available = lockedRoom.TotalRooms - bookedCount;
                     if (available < item.Quantity)
@@ -267,6 +262,7 @@ namespace backend.Services
 
         public async Task<BookingDto> UpdateBookingStatusAsync(int id, BookingStatus newStatus)
         {
+            await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
             var booking = await GetBookingEntityQueryable().FirstOrDefaultAsync(b => b.Id == id);
             if (booking == null)
                 throw new KeyNotFoundException($"Booking with ID {id} not found.");
@@ -274,10 +270,14 @@ namespace backend.Services
             // Rule 1: Enforce valid status transition logic
             ValidateStatusTransition(booking.Status, newStatus);
 
+            if (newStatus == BookingStatus.Confirmed)
+                await RoomInventory.ValidateConfirmationAsync(_db, booking.Id);
+
             booking.Status = newStatus;
             booking.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
             return await MapToDtoAsync(booking);
         }
 
