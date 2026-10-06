@@ -4,13 +4,41 @@ import {
   deleteDestination,
   fetchDestinations,
   updateDestination,
+  fetchTours
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
+import { LoadingState } from '../../components/ui/LoadingState.jsx'
+import {
+  PlusIcon,
+  SearchIcon,
+  MapPinIcon,
+  RefreshIcon,
+  TrashIcon,
+  CloseIcon,
+  CheckIcon,
+  EditIcon
+} from '../../components/ui/Icons.jsx'
+import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
 
-const PAGE_SIZE = 6
+// Province mapping for Sri Lankan destinations
+const REGIONS = {
+  sigiriya: 'Central Province',
+  kandy: 'Central Province',
+  'nuwara eliya': 'Central Province',
+  ella: 'Uva Province',
+  mirissa: 'Southern Province',
+  yala: 'Southern Province',
+  trincomalee: 'Eastern Province',
+  colombo: 'Western Province',
+  galle: 'Southern Province',
+  jaffna: 'Northern Province'
+}
 
-/** Student B — Destination catalog management with full CRUD and pagination. */
+/**
+ * Serendib Trails — Destination Catalog
+ * Designed based on Figma Dev Mode Specifications (node-id: 2:27727)
+ */
 export default function DestinationManagement() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,34 +46,95 @@ export default function DestinationManagement() {
   const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
-  const [form, setForm] = useState({
+
+  // Drawer state
+  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
+  const [selectedDest, setSelectedDest] = useState(null)
+
+  // Visual Remove Modal State
+  const [destToDelete, setDestToDelete] = useState(null)
+  const [deleteBusy, setDeleteBusy] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
+
+  const [formData, setFormData] = useState({
     name: '',
     country: 'Sri Lanka',
     description: '',
     latitude: '',
     longitude: '',
+    imageUrl: ''
   })
-  // Edit mode state
-  const [editId, setEditId] = useState(null)
-  const [editForm, setEditForm] = useState({})
-  usePageTitle('Destinations · Staff')
+  const [busy, setBusy] = useState(false)
 
-  async function loadDestinations(cancelled = false) {
+  usePageTitle('Destination Catalog · Serendib Trails')
+
+  async function loadData(cancelled = false) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetchDestinations()
-      const live = Array.isArray(res) ? res : (res?.data || [])
+      const [destRes, tourRes] = await Promise.allSettled([
+        fetchDestinations(),
+        fetchTours({ pageSize: 1000 })
+      ])
+
       if (!cancelled) {
-        const mapped = live.map((d) => ({
-          id: d.id,
-          name: d.name,
-          country: d.country || 'Sri Lanka',
-          description: d.description || '',
-          latitude: d.latitude || 0,
-          longitude: d.longitude || 0,
-        }))
-        setRows(mapped)
+        const loadErrors = []
+        const counts = {}
+        if (tourRes.status === 'fulfilled') {
+          const tList = Array.isArray(tourRes.value) ? tourRes.value : (tourRes.value?.data || [])
+          tList.forEach(t => {
+            const dId = t.destinationId
+            counts[dId] = (counts[dId] || 0) + 1
+          })
+        } else {
+          loadErrors.push('Tour associations are unavailable.')
+        }
+        if (destRes.status === 'fulfilled') {
+          const live = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
+          const mapped = live.map((d, idx) => {
+            const nameLower = (d.name || '').toLowerCase()
+            let region = 'Not provided'
+            for (const [key, val] of Object.entries(REGIONS)) {
+              if (nameLower.includes(key)) {
+                region = val
+                break
+              }
+            }
+
+            return {
+              id: d.id,
+              code: `DEST-${String(idx + 1).padStart(3, '0')}`,
+              name: d.name,
+              country: d.country || 'Country not provided',
+              region,
+              imageUrl: d.imageUrl || '',
+              description: d.description || '',
+              latitude: d.latitude,
+              longitude: d.longitude,
+              associatedTours: Number.isFinite(Number(d.tourCount))
+                ? Number(d.tourCount)
+                : (tourRes.status === 'fulfilled' ? (counts[d.id] || 0) : null),
+              associatedHotels: Number.isFinite(Number(d.hotelCount)) ? Number(d.hotelCount) : null
+            }
+          })
+          setRows(mapped)
+
+          if (mapped.length === 0) {
+            setSelectedDest(null)
+            setDrawerMode(null)
+          } else if (selectedDest) {
+            const target = mapped.find(d => d.id === selectedDest.id)
+            if (target) {
+              setSelectedDest(target)
+            }
+          }
+        } else {
+          setRows([])
+          setSelectedDest(null)
+          setDrawerMode(null)
+          loadErrors.unshift('Unable to load destinations from the database.')
+        }
+        setError(loadErrors.length > 0 ? loadErrors.join(' ') : null)
       }
     } catch (err) {
       if (!cancelled) {
@@ -58,109 +147,150 @@ export default function DestinationManagement() {
 
   useEffect(() => {
     let cancelled = false
-    loadDestinations(cancelled)
+    // This starts an async API load; its state updates occur after the request.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData(cancelled)
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const view = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return rows.filter(
-      (r) => !q || r.name.toLowerCase().includes(q) || r.country.toLowerCase().includes(q) || r.description.toLowerCase().includes(q),
-    )
-  }, [rows, query])
-
-  const pages = Math.max(1, Math.ceil(view.length / PAGE_SIZE))
-  const pageRows = view.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-
-  // Add a new destination to database
-  async function add(e) {
-    e.preventDefault()
-    if (!form.name.trim() || !form.country.trim()) {
-      setNotice('Please provide a destination name and country.')
-      return
-    }
-
-    try {
-      await createDestination({
-        name: form.name.trim(),
-        country: form.country.trim(),
-        description: form.description.trim() || null,
-        latitude: Number(form.latitude) || 0,
-        longitude: Number(form.longitude) || 0,
-      })
-      setNotice(`Destination "${form.name.trim()}" added to database.`)
-      setForm({ name: '', country: 'Sri Lanka', description: '', latitude: '', longitude: '' })
-      await loadDestinations()
-    } catch (err) {
-      setNotice(`Failed to add destination: ${err.response?.data?.message || err.message}`)
-    }
-  }
-
-  // Start editing a destination
-  function startEdit(row) {
-    setEditId(row.id)
-    setEditForm({
-      name: row.name,
-      country: row.country,
-      description: row.description,
-      latitude: row.latitude,
-      longitude: row.longitude,
+  function selectForEdit(dest) {
+    setSelectedDest({
+      ...dest,
+      associatedTours: dest.associatedTours == null ? 'Unavailable' : String(dest.associatedTours),
+      associatedHotels: dest.associatedHotels == null ? 'Unavailable' : String(dest.associatedHotels)
+    })
+    setDrawerMode('edit')
+    setFormData({
+      name: dest.name,
+      country: dest.country,
+      description: dest.description,
+      latitude: dest.latitude,
+      longitude: dest.longitude,
+      imageUrl: dest.imageUrl || ''
     })
   }
 
-  // Save edit to database
-  async function saveEdit(id) {
-    if (!editForm.name.trim()) return
+  function startCreate() {
+    setDrawerMode('create')
+    setSelectedDest(null)
+    setFormData({
+      name: '',
+      country: 'Sri Lanka',
+      description: '',
+      latitude: '',
+      longitude: '',
+      imageUrl: ''
+    })
+  }
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return rows.filter(
+      (r) =>
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        r.region.toLowerCase().includes(q) ||
+        r.country.toLowerCase().includes(q)
+    )
+  }, [rows, query])
+
+  const pageSize = 7
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const view = filtered.slice((page - 1) * pageSize, page * pageSize)
+
+  async function handleSave(e) {
+    e.preventDefault()
+    if (!formData.name.trim() || !formData.country.trim()) {
+      setNotice('Please provide a destination name and country.')
+      return
+    }
+    setBusy(true)
+    setNotice('')
     try {
-      await updateDestination(id, {
-        name: editForm.name.trim(),
-        country: editForm.country.trim() || 'Sri Lanka',
-        description: editForm.description.trim() || null,
-        latitude: Number(editForm.latitude) || 0,
-        longitude: Number(editForm.longitude) || 0,
-      })
-      setNotice(`Destination #${id} updated in database.`)
-      setEditId(null)
-      await loadDestinations()
+      if (drawerMode === 'create') {
+        await createDestination({
+          name: formData.name.trim(),
+          country: formData.country.trim(),
+          description: formData.description.trim() || null,
+          imageUrl: formData.imageUrl?.trim() || null,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
+        })
+        setNotice(`Destination "${formData.name.trim()}" created successfully.`)
+      } else if (drawerMode === 'edit' && selectedDest) {
+        await updateDestination(selectedDest.id, {
+          name: formData.name.trim(),
+          country: formData.country.trim(),
+          description: formData.description.trim() || null,
+          imageUrl: formData.imageUrl?.trim() || null,
+          latitude: formData.latitude === '' ? null : Number(formData.latitude),
+          longitude: formData.longitude === '' ? null : Number(formData.longitude),
+        })
+        setNotice(`Destination #${selectedDest.id} updated successfully.`)
+      }
+      await loadData()
     } catch (err) {
-      setNotice(`Failed to update destination: ${err.response?.data?.message || err.message}`)
+      setNotice(`Failed to save destination: ${err.response?.data?.message || err.message}`)
+    } finally {
+      setBusy(false)
     }
   }
 
-  // Delete a destination from database
-  async function remove(id) {
-    if (!window.confirm(`Delete destination #${id}?`)) return
-    try {
-      await deleteDestination(id)
-      setNotice(`Destination #${id} deleted from database.`)
-      await loadDestinations()
-    } catch (err) {
-      setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
-    }
+  function requestRemove(dest) {
+    setDestToDelete(dest)
+    setDeleteError(null)
   }
 
-  function onSearchChange(val) {
-    setQuery(val)
-    setPage(1)
+  async function confirmRemove() {
+    if (!destToDelete) return
+    setDeleteBusy(true)
+    setDeleteError(null)
+    try {
+      await deleteDestination(destToDelete.id)
+      const name = destToDelete.name || `#${destToDelete.id}`
+      setNotice(`Destination "${name}" was permanently removed.`)
+      setDestToDelete(null)
+      if (selectedDest?.id === destToDelete.id) {
+        setDrawerMode(null)
+        setSelectedDest(null)
+      }
+      await loadData()
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete destination.')
+    } finally {
+      setDeleteBusy(false)
+    }
   }
 
   return (
     <div className="staff-page">
+      {/* ── Page Header matching Figma 2:27727 ── */}
       <header className="staff-page__head">
-        <div>
-          <p className="eyebrow">Component B · Destinations</p>
-          <h1>Destination catalog</h1>
+        <div className="staff-page__title-block">
+          <p className="staff-page__eyebrow">CATALOG / PLACES</p>
+          <h1 className="staff-page__title">Destination catalog</h1>
+          <p className="staff-page__subtitle">
+            Maintain geographic records referenced by tours, hotels, and route planning.
+          </p>
         </div>
-        <div className="staff-toolbar">
-          <input
-            className="input"
-            placeholder="Search destinations…"
-            value={query}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-          <button type="button" className="btn btn--sm" onClick={() => loadDestinations(false)} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
+        <div className="staff-page__actions">
+          <button
+            type="button"
+            className="btn-outline"
+            onClick={() => loadData(false)}
+            disabled={loading}
+          >
+            <RefreshIcon size={15} />
+            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
+          <button
+            type="button"
+            className="btn-gold"
+            onClick={startCreate}
+          >
+            <PlusIcon size={15} />
+            <span>Create destination</span>
           </button>
         </div>
       </header>
@@ -169,125 +299,590 @@ export default function DestinationManagement() {
         <AlertBanner
           type="error"
           message={error}
-          onRetry={() => loadDestinations(false)}
+          onRetry={() => loadData(false)}
           onDismiss={() => setError(null)}
         />
       )}
 
       {notice && (
         <AlertBanner
-          type={notice.includes('failed') || notice.includes('Failed') ? 'error' : 'success'}
+          type={notice.startsWith('Failed') || notice.startsWith('Delete failed') ? 'error' : 'success'}
           message={notice}
           onDismiss={() => setNotice('')}
         />
       )}
 
-      <form className="panel panel--solid staff-form" onSubmit={add}>
-        <b>Add destination to database</b>
-        <div className="staff-form__grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-          <input
-            className="input"
-            placeholder="Destination Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-          <input
-            className="input"
-            placeholder="Country"
-            value={form.country}
-            onChange={(e) => setForm({ ...form, country: e.target.value })}
-            required
-          />
-          <input
-            className="input"
-            placeholder="Description (optional)"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-          />
-          <input
-            className="input"
-            type="number"
-            step="any"
-            placeholder="Latitude"
-            value={form.latitude}
-            onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-          />
-          <input
-            className="input"
-            type="number"
-            step="any"
-            placeholder="Longitude"
-            value={form.longitude}
-            onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-          />
-          <button className="btn btn--sm" type="submit" disabled={loading}>Add</button>
-        </div>
-      </form>
+      {/* ── Split Workspace matching Figma 2:27727 ── */}
+      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 420px' : '1fr' }}>
+        {/* Left Table Card */}
+        <div className="staff-card">
+          <div className="staff-card__head">
+            <div>
+              <h3 className="staff-card__title">Sri Lanka destinations</h3>
+              <p className="staff-card__sub">
+                {rows.length} active records · {rows.reduce((acc, r) => acc + r.associatedTours, 0)} associated tours
+              </p>
+            </div>
+            <div className="staff-search-box">
+              <SearchIcon size={16} />
+              <input
+                type="text"
+                placeholder="Search destinations"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  setPage(1)
+                }}
+              />
+            </div>
+          </div>
 
-      <div className="panel panel--solid staff-table-wrap">
-        <table className="staff-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Country</th>
-              <th>Description</th>
-              <th>Coordinates</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6} className="staff-empty">Loading destinations from database…</td></tr>
-            ) : pageRows.length > 0 ? (
-              pageRows.map((d) => (
-                <tr key={d.id}>
-                  {editId === d.id ? (
-                    <>
-                      <td>{d.id}</td>
-                      <td><input className="input input--sm" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
-                      <td><input className="input input--sm" value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} /></td>
-                      <td><input className="input input--sm" value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} /></td>
-                      <td>
-                        <span className="staff-sub">{editForm.latitude}, {editForm.longitude}</span>
-                      </td>
-                      <td className="staff-row-actions">
-                        <button type="button" className="btn btn--sm" onClick={() => saveEdit(d.id)}>Save</button>
-                        <button type="button" className="staff-mini" onClick={() => setEditId(null)}>Cancel</button>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td><b>#{d.id}</b></td>
-                      <td><b>{d.name}</b></td>
-                      <td>{d.country}</td>
-                      <td>{d.description || '—'}</td>
-                      <td>
-                        <span className="staff-sub">{d.latitude.toFixed(2)}, {d.longitude.toFixed(2)}</span>
-                      </td>
-                      <td className="staff-row-actions">
-                        <button type="button" className="staff-mini" onClick={() => startEdit(d)}>Edit</button>
-                        <button type="button" className="staff-mini staff-mini--danger" onClick={() => remove(d.id)}>
-                          Delete
-                        </button>
-                      </td>
-                    </>
-                  )}
+          <div className="staff-table-wrap">
+            <table className="staff-table">
+              <thead>
+                <tr>
+                  <th>DESTINATION</th>
+                  <th>COUNTRY</th>
+                  <th>REGION</th>
+                  <th>LATITUDE / LONGITUDE</th>
+                  <th>ASSOCIATED TOURS</th>
+                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
                 </tr>
-              ))
-            ) : (
-              <tr><td colSpan={6} className="staff-empty">No destinations found in database.</td></tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '2.5rem' }}>
+                      <LoadingState message="Loading destination records from database…" />
+                    </td>
+                  </tr>
+                ) : view.length > 0 ? (
+                  view.map((d) => {
+                    const isSelected = selectedDest?.id === d.id && drawerMode === 'edit'
+                    return (
+                      <tr
+                        key={d.id}
+                        className={isSelected ? 'is-selected' : ''}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => selectForEdit(d)}
+                      >
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            {d.imageUrl ? (
+                              <img
+                                src={d.imageUrl}
+                                alt={d.name}
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  objectFit: 'cover'
+                                }}
+                                onError={(e) => {
+                                  e.target.onerror = null
+                                  e.target.style.display = 'none'
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '32px',
+                                  height: '32px',
+                                  borderRadius: '6px',
+                                  backgroundColor: '#e0f2fe',
+                                  color: '#0369a1',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <MapPinIcon size={16} />
+                              </div>
+                            )}
+                            <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{d.name}</strong>
+                          </div>
+                        </td>
+                        <td style={{ color: '#182126' }}>{d.country}</td>
+                        <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{d.region}</td>
+                        <td style={{ color: '#475569', fontSize: '0.75rem', fontFamily: 'monospace' }}>
+                          {Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))
+                            ? `${Number(d.latitude).toFixed(4)}, ${Number(d.longitude).toFixed(4)}`
+                            : 'Coordinates not provided'}
+                        </td>
+                        <td>
+                          <span className="badge-pill badge-blue">
+                            <span className="badge-dot" /> {d.associatedTours} tours
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+                            <button
+                              type="button"
+                              className="btn-action-edit"
+                              onClick={() => selectForEdit(d)}
+                              title="Edit destination"
+                            >
+                              <EditIcon size={12} />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-action-delete"
+                              onClick={() => requestRemove(d)}
+                              title="Delete destination"
+                            >
+                              <TrashIcon size={12} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
+                      {query ? `No destinations match “${query}”.` : 'No destinations in catalog.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="staff-pagination">
+            <span>
+              Showing {filtered.length > 0 ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} destinations
+            </span>
+            <div className="staff-pagination__btns">
+              <button
+                type="button"
+                className="staff-page-btn"
+                disabled={page <= 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                Previous
+              </button>
+              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`staff-page-btn ${page === p ? 'is-active' : ''}`}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="staff-page-btn"
+                disabled={page >= pages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Detail / Edit Drawer matching Figma 2:27727 */}
+        {drawerMode && (
+          <aside className="detail-pane" style={{ position: 'sticky', top: '5.5rem' }}>
+            <div className="detail-pane__head">
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.0625rem', fontWeight: 700, color: '#182126' }}>
+                  {drawerMode === 'create' ? 'Create destination' : 'Edit destination'}
+                </h3>
+                <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
+                  {drawerMode === 'create' ? 'New geographic record' : `Geographic ID · ${selectedDest?.code || 'DEST-001'}`}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{
+                  height: '32px',
+                  padding: '0 0.625rem',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
+                onClick={() => setDrawerMode(null)}
+              >
+                <CloseIcon size={14} />
+                <span>Close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  Destination name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sigiriya"
+                  className="staff-search-box"
+                  style={{ maxWidth: '100%', width: '100%' }}
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  Country *
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="staff-search-box"
+                  style={{ maxWidth: '100%', width: '100%' }}
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                  Description
+                </label>
+                <textarea
+                  rows={3}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid #c8d1d4',
+                    fontSize: '0.8125rem',
+                    boxSizing: 'border-box'
+                  }}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+
+              {/* Cover Image Upload & Media Library Selector */}
+              <ImageUploadWidget
+                value={formData.imageUrl}
+                onChange={(url) => setFormData((prev) => ({ ...prev, imageUrl: url }))}
+                category="destinations"
+                label="Destination Cover Image"
+              />
+
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                    value={formData.latitude}
+                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                    value={formData.longitude}
+                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              {/* Map Preview Block matching Figma */}
+              <div
+                style={{
+                  height: '80px',
+                  backgroundColor: '#e0f2fe',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.25rem',
+                  color: '#0369a1'
+                }}
+              >
+                <MapPinIcon size={24} />
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace' }}>
+                  {formData.latitude || 'Latitude not provided'}, {formData.longitude || 'Longitude not provided'}
+                </span>
+              </div>
+
+              {/* Removal guarded warning banner matching Figma */}
+              {drawerMode === 'edit' && (
+                <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
+                  <span>⚠️</span>
+                  <span>
+                    <strong>Removal guarded</strong> — {formData.name || 'This place'} has {selectedDest?.associatedTours ?? 'unavailable'} tour references and {selectedDest?.associatedHotels ?? 'unavailable'} hotel references.
+                  </span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn-outline"
+                  style={{
+                    color: '#182126',
+                    backgroundColor: '#ffffff',
+                    borderColor: '#c8d1d4'
+                  }}
+                  onClick={() => setDrawerMode(null)}
+                >
+                  <CloseIcon size={14} />
+                  <span>Cancel</span>
+                </button>
+                {drawerMode === 'edit' && selectedDest && (
+                  <button
+                    type="button"
+                    className="btn-danger-soft"
+                    onClick={() => requestRemove(selectedDest)}
+                  >
+                    <TrashIcon size={14} />
+                    <span>Remove destination</span>
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="btn-gold"
+                  disabled={busy}
+                >
+                  <CheckIcon size={14} />
+                  <span>{busy ? 'Saving…' : (drawerMode === 'create' ? 'Create destination' : 'Save changes')}</span>
+                </button>
+              </div>
+            </form>
+          </aside>
+        )}
       </div>
 
-      <div className="staff-pager">
-        <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button>
-        <span>Page {page} of {pages} · {view.length} destinations</span>
-        <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>Next →</button>
-      </div>
+      {/* ── Visual Delete Confirmation Modal ── */}
+      {destToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+          onClick={() => !deleteBusy && setDestToDelete(null)}
+        >
+          <div
+            className="staff-card"
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              padding: '1.75rem',
+              borderRadius: '16px',
+              boxShadow: '0 20px 40px -15px rgba(0,0,0,0.3)',
+              border: '1px solid #e2e8f0',
+              backgroundColor: '#ffffff'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Dialog Header with Trash Icon Badge */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '12px',
+                  backgroundColor: '#fee2e2',
+                  color: '#dc2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <TrashIcon size={22} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.125rem', fontWeight: 700, color: '#182126' }}>
+                  Remove destination?
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8125rem', color: '#64748b', lineHeight: 1.4 }}>
+                  Are you sure you want to permanently delete this location from the catalog database?
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ height: '30px', width: '30px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={() => !deleteBusy && setDestToDelete(null)}
+                disabled={deleteBusy}
+              >
+                <CloseIcon size={14} />
+              </button>
+            </div>
+
+            {/* Visual Destination Card Preview */}
+            <div
+              style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '1rem',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                gap: '0.875rem',
+                alignItems: 'center'
+              }}
+            >
+              {destToDelete.imageUrl ? (
+                <img
+                  src={destToDelete.imageUrl}
+                  alt={destToDelete.name}
+                  style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }}
+                  onError={(e) => { e.target.style.display = 'none' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '8px',
+                    backgroundColor: '#e0f2fe',
+                    color: '#0369a1',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <MapPinIcon size={22} />
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.9375rem', fontWeight: 700, color: '#0f172a' }}>
+                    {destToDelete.name}
+                  </h4>
+                  <span style={{ fontSize: '0.6875rem', padding: '1px 6px', borderRadius: '4px', backgroundColor: '#e2e8f0', color: '#475569', fontWeight: 600 }}>
+                    {destToDelete.code || `DEST-${String(destToDelete.id).padStart(3, '0')}`}
+                  </span>
+                </div>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
+                  {destToDelete.country} · {destToDelete.region}
+                </p>
+                <p style={{ margin: '0.2rem 0 0', fontSize: '0.6875rem', color: '#94a3b8', fontFamily: 'monospace' }}>
+                  GPS: {Number(destToDelete.latitude).toFixed(4)}, {Number(destToDelete.longitude).toFixed(4)}
+                </p>
+              </div>
+            </div>
+
+            {/* Warning about associated records */}
+            {destToDelete.associatedTours > 0 ? (
+              <div
+                style={{
+                  backgroundColor: '#fffbeb',
+                  border: '1px solid #fef3c7',
+                  borderRadius: '8px',
+                  padding: '0.75rem 0.875rem',
+                  marginBottom: '1.25rem',
+                  display: 'flex',
+                  gap: '0.625rem',
+                  alignItems: 'flex-start',
+                  fontSize: '0.8125rem',
+                  color: '#92400e'
+                }}
+              >
+                <span style={{ fontSize: '1rem', lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <strong>Linked records detected:</strong> This destination is referenced by <strong>{destToDelete.associatedTours} active tour(s)</strong>. Deleting it may impact itineraries and booking schedules.
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '0.625rem 0.875rem',
+                  marginBottom: '1.25rem',
+                  fontSize: '0.75rem',
+                  color: '#64748b'
+                }}
+              >
+                ℹ️ This destination currently has <strong>0 associated tours</strong>. It can be safely removed.
+              </div>
+            )}
+
+            {/* Error Alert inside modal */}
+            {deleteError && (
+              <div
+                style={{
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  color: '#b91c1c',
+                  padding: '0.625rem 0.875rem',
+                  borderRadius: '8px',
+                  fontSize: '0.8125rem',
+                  marginBottom: '1.25rem'
+                }}
+              >
+                {deleteError}
+              </div>
+            )}
+
+            {/* Modal Footer Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.625rem' }}>
+              <button
+                type="button"
+                className="btn-outline"
+                onClick={() => setDestToDelete(null)}
+                disabled={deleteBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={{
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '0 1rem',
+                  height: '38px',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: deleteBusy ? 'not-allowed' : 'pointer',
+                  opacity: deleteBusy ? 0.7 : 1,
+                  transition: 'background-color 0.15s ease'
+                }}
+                onClick={confirmRemove}
+                disabled={deleteBusy}
+              >
+                <TrashIcon size={15} />
+                <span>{deleteBusy ? 'Deleting destination…' : 'Delete destination'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
