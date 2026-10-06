@@ -79,6 +79,12 @@ export async function updateDestination(id, dest) {
   return data
 }
 
+export async function addItineraryItem(itineraryId, item) {
+  const { data } = await api.post(`/Itinerary/${itineraryId}/items`, item)
+  return data
+}
+
+
 /** DELETE /api/Destination/{id} - delete destination */
 export async function deleteDestination(id) {
   const { data } = await api.delete(`/Destination/${id}`)
@@ -246,6 +252,20 @@ export async function updateHotel(id, hotel) {
 
 export async function updateTransport(id, transport) {
   const { data } = await api.put(`/Transport/${id}`, transport)
+  return data
+}
+
+export async function uploadMedia(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await api.post('/Media/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+  return data
+}
+
+export async function fetchMedia() {
+  const { data } = await api.get('/Media')
   return data
 }
 
