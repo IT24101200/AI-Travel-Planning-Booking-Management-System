@@ -5,11 +5,22 @@ import 'package:mobile_flutter/screens/tours/my_itinerary_screen.dart';
 import 'package:mobile_flutter/services/api_service.dart';
 
 void main() {
+  setUp(() {
+    ApiService.mockGetAgentHealth = () async => {'status': 'healthy'};
+    ApiService.mockGetAgentLogs = (_) async => [];
+    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'Planned'};
+    ApiService.mockGetMyBookings = () async => [];
+  });
+
   tearDown(() {
     ApiService.mockGetMyItineraries = null;
     ApiService.mockGetItinerary = null;
     ApiService.mockAcceptItinerary = null;
     ApiService.mockRequestItineraryChanges = null;
+    ApiService.mockGetAgentHealth = null;
+    ApiService.mockGetAgentLogs = null;
+    ApiService.mockGetTripRequest = null;
+    ApiService.mockGetMyBookings = null;
   });
 
   Widget buildTestWidget({Map<String, WidgetBuilder>? routes}) {

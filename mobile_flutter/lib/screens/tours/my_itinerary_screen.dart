@@ -7,6 +7,7 @@ import '../../services/api_service.dart';
 import '../../widgets/itinerary_route_preview.dart';
 import '../../widgets/itinerary_journey_layout.dart';
 import '../../services/trip_selection_service.dart';
+import '../../widgets/agent_workflow_card.dart';
 
 /// Normalizes status for external callers if needed
 String normalizeItineraryStatus(dynamic status) {
@@ -66,6 +67,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   Map<String, dynamic>? _itinerary;
   int? _selectedJourneyIndex;
   List<Map<String, dynamic>> _itineraries = [];
+  int? _resolvedTripRequestId;
+  Map<String, dynamic>? _booking;
+  List<dynamic> _agentLogs = [];
 
   @override
   void initState() {
@@ -125,20 +129,24 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
       Map<String, dynamic>? latestTripRequest;
       if (resolvedTripRequestId == null && selected == null) {
-        final requests = await ApiService.getMyTripRequests();
-        final records = requests
-            .whereType<Map>()
-            .map((record) => Map<String, dynamic>.from(record))
-            .toList();
-        if (records.isNotEmpty) {
-          latestTripRequest = records.first;
-          resolvedTripRequestId = _positiveId(latestTripRequest['id']);
-        }
+        try {
+          final requests = await ApiService.getMyTripRequests();
+          final records = requests
+              .whereType<Map>()
+              .map((record) => Map<String, dynamic>.from(record))
+              .toList();
+          if (records.isNotEmpty) {
+            latestTripRequest = records.first;
+            resolvedTripRequestId = _positiveId(latestTripRequest['id']);
+          }
+        } catch (_) {}
       }
 
       Map<String, dynamic>? tripRequest = latestTripRequest;
       if (resolvedTripRequestId != null && tripRequest == null) {
-        tripRequest = await ApiService.getTripRequest(resolvedTripRequestId);
+        try {
+          tripRequest = await ApiService.getTripRequest(resolvedTripRequestId);
+        } catch (_) {}
       }
 
       String? agentStatus;
@@ -162,11 +170,13 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         _itineraries = choices;
         _agentStatus = agentStatus;
         _agentFailureReason = agentFailureReason;
+        _resolvedTripRequestId = resolvedTripRequestId;
         _pending = resolvedTripRequestId != null && selected == null;
       });
       if (resolvedTripRequestId != null) {
         unawaited(_checkAgentHealth(healthRequest));
       }
+      unawaited(_loadAuxiliaryDetails(resolvedTripRequestId, _positiveId(selected?['id'])));
     } catch (error) {
       if (mounted && healthRequest == _healthRequest) {
         setState(() => _errorMessage = error.toString());
@@ -175,6 +185,39 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       if (mounted && healthRequest == _healthRequest) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _loadAuxiliaryDetails(int? tripRequestId, int? itineraryId) async {
+    if (!mounted) return;
+    try {
+      final bookings = await ApiService.getMyBookings();
+      Map<String, dynamic>? booking;
+      for (final b in bookings) {
+        if (b is Map) {
+          final bItinId = _positiveId(b['itineraryId']);
+          final bTripId = _positiveId(b['tripRequestId']);
+          if (itineraryId != null && bItinId == itineraryId) {
+            booking = Map<String, dynamic>.from(b);
+            break;
+          } else if (tripRequestId != null && bTripId == tripRequestId) {
+            booking = Map<String, dynamic>.from(b);
+            break;
+          }
+        }
+      }
+      if (mounted && booking != null) {
+        setState(() => _booking = booking);
+      }
+    } catch (_) {}
+
+    if (tripRequestId != null && tripRequestId > 0) {
+      try {
+        final logs = await ApiService.getAgentLogs(tripRequestId);
+        if (mounted && logs.isNotEmpty) {
+          setState(() => _agentLogs = logs);
+        }
+      } catch (_) {}
     }
   }
 
@@ -695,98 +738,112 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
     if (_itinerary == null) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  _pending ? Icons.auto_awesome_outlined : Icons.map_outlined,
-                  size: 36,
-                  color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (_agentStatus != null || _agentFailureReason != null) _buildAgentStateCard(),
-              if (_pending) ...[
+      return SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(28.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE8F5E9),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isDark ? const Color(0xFF81C784) : const Color(0xFF81C784),
+                    color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEEFAF4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _pending ? Icons.auto_awesome_outlined : Icons.map_outlined,
+                    size: 36,
+                    color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                if (_agentStatus != null || _agentFailureReason != null) _buildAgentStateCard(),
+                if (_pending) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE8F5E9),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFF81C784) : const Color(0xFF81C784),
+                      ),
+                    ),
+                    child: Text(
+                      'AI PLANNING IN PROGRESS',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? const Color(0xFF81C784) : const Color(0xFF1B5E20),
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                  child: Text(
-                    'AI PLANNING IN PROGRESS',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? const Color(0xFF81C784) : const Color(0xFF1B5E20),
-                      letterSpacing: 0.5,
+                  const SizedBox(height: 10),
+                ],
+                Text(
+                  _pending ? 'Your itinerary is pending' : 'No itinerary yet',
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _pending
+                      ? 'Your trip request was submitted. Our 4 AI agents (Coordinator, Itinerary, Booking & Validation) are analyzing destinations and availability. Check again once planning is complete.'
+                      : 'You do not have any travel itineraries yet.',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF8A9E96), height: 1.4),
+                ),
+                if (_resolvedTripRequestId != null && _resolvedTripRequestId! > 0) ...[
+                  const SizedBox(height: 16),
+                  AgentWorkflowCard(
+                    tripRequestId: _resolvedTripRequestId!,
+                    initialLogs: _agentLogs,
+                    pipelineStatus: _agentStatus,
+                    failureReason: _agentFailureReason,
+                    onLogsUpdated: (updatedLogs) {
+                      _agentLogs = updatedLogs;
+                    },
+                  ),
+                ],
+                const SizedBox(height: 22),
+                if (_pending) ...[
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/trip-history'),
+                    icon: const Icon(Icons.history, size: 18),
+                    label: const Text('View in Trip History'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0E382C),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                   ),
-                ),
-                const SizedBox(height: 10),
-              ],
-              Text(
-                _pending ? 'Your itinerary is pending' : 'No itinerary yet',
-                style: TextStyle(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w800,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _pending
-                    ? 'Your trip request was submitted. Our 4 AI agents (Coordinator, Itinerary, Booking & Validation) are analyzing destinations and availability. Check again once planning is complete.'
-                    : 'You do not have any travel itineraries yet.',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: Color(0xFF8A9E96), height: 1.4),
-              ),
-              const SizedBox(height: 22),
-              if (_pending) ...[
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/trip-history'),
-                  icon: const Icon(Icons.history, size: 18),
-                  label: const Text('View in Trip History'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0E382C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  const SizedBox(height: 10),
+                  TextButton.icon(
+                    onPressed: _fetchItinerary,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Retry'),
                   ),
-                ),
-                const SizedBox(height: 10),
-                TextButton.icon(
-                  onPressed: _fetchItinerary,
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('Retry'),
-                ),
-              ] else ...[
-                TextButton(onPressed: _fetchItinerary, child: const Text('Retry')),
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.pushNamed(context, '/tour-search'),
-                  icon: const Icon(Icons.explore_outlined, size: 18),
-                  label: const Text('Explore Tours'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0E382C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ] else ...[
+                  TextButton(onPressed: _fetchItinerary, child: const Text('Retry')),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/tour-search'),
+                    icon: const Icon(Icons.explore_outlined, size: 18),
+                    label: const Text('Explore Tours'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0E382C),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       );
@@ -1031,6 +1088,22 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           const SizedBox(height: 16),
 
           if (_agentStatus != null || _agentFailureReason != null) _buildAgentStateCard(),
+
+          // ── 4-Agent Live Execution & Reasoning Workflow Card ──
+          if (_resolvedTripRequestId != null && _resolvedTripRequestId! > 0)
+            AgentWorkflowCard(
+              tripRequestId: _resolvedTripRequestId!,
+              initialLogs: _agentLogs,
+              pipelineStatus: _agentStatus,
+              failureReason: _agentFailureReason,
+              onLogsUpdated: (updatedLogs) {
+                _agentLogs = updatedLogs;
+              },
+            ),
+
+          // ── Reserved Hotel & Transport Section (when available) ──
+          _buildReservedInventorySection(),
+
           // ── Multi-Itinerary Selector Dropdown (if user has multiple itineraries) ──
           if (_itineraries.length > 1) ...[
             Container(
@@ -1217,6 +1290,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ],
             ),
           ),
+
+          // ── Commercial Package Price Breakdown ──
+          _buildPriceBreakdownSection(totalCost is num ? totalCost : 0, currency),
 
           const SizedBox(height: 18),
 
@@ -1612,6 +1688,388 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildReservedInventorySection() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bookingItemsRaw = _booking?['bookingItems'] ?? _itinerary?['bookingItems'];
+    final List<Map<String, dynamic>> bookingItems = [];
+    if (bookingItemsRaw is List) {
+      for (var it in bookingItemsRaw) {
+        if (it is Map) {
+          bookingItems.add(Map<String, dynamic>.from(it));
+        }
+      }
+    }
+
+    Map<String, dynamic>? hotelItem;
+    Map<String, dynamic>? transportItem;
+
+    for (final it in bookingItems) {
+      final type = it['itemType']?.toString().toLowerCase() ?? '';
+      if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
+        hotelItem ??= it;
+      } else if (type == 'transport' || it['vehicleType'] != null || it['transportProvider'] != null) {
+        transportItem ??= it;
+      }
+    }
+
+    final hasInventory = hotelItem != null || transportItem != null;
+
+    if (!hasInventory) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B2620) : const Color(0xFFF4F9F6),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFD4E5DC)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0E382C).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.verified_outlined, color: Color(0xFF0E382C), size: 20),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'AI Commercial Package Integration',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Hotels and private transport are coordinated dynamically by our Booking Agent upon request submission.',
+                    style: TextStyle(fontSize: 11.5, color: Color(0xFF5A7067)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        Text(
+          'Reserved Accommodations & Transport',
+          style: GoogleFonts.poppins(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: theme.colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Booked Hotel Card
+        if (hotelItem != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2824) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFD1E3D9)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.hotel_outlined, color: Color(0xFF1B5E20), size: 22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              hotelItem['hotelName']?.toString() ?? 'Reserved Hotel',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'BOOKED',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1B5E20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Room: ${hotelItem['roomTypeName'] ?? 'Standard Room'}${hotelItem['capacity'] != null ? ' · Up to ${hotelItem['capacity']} guests' : ''}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF5A7067)),
+                      ),
+                      if (hotelItem['checkInDate'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Check-in: ${hotelItem['checkInDate'].toString().split('T').first}${hotelItem['checkOutDate'] != null ? ' · Check-out: ${hotelItem['checkOutDate'].toString().split('T').first}' : ''}',
+                          style: const TextStyle(fontSize: 10.5, color: Color(0xFF8A9E96)),
+                        ),
+                      ],
+                      if (hotelItem['totalPrice'] != null || hotelItem['unitPrice'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'LKR ${NumberFormat('#,##0').format(hotelItem['totalPrice'] ?? hotelItem['unitPrice'])}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0E382C),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Booked Transport Card
+        if (transportItem != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2824) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFD1E3D9)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.directions_car_outlined, color: Color(0xFF0369A1), size: 22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
+                              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'ASSIGNED',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0369A1),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Provider: ${transportItem['transportProvider'] ?? 'Island Chauffeur Services'}',
+                        style: const TextStyle(fontSize: 11.5, color: Color(0xFF5A7067)),
+                      ),
+                      if (transportItem['pickupLocation'] != null || transportItem['dropoffLocation'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Route: ${transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['dropoffLocation'] ?? 'Destination'}',
+                          style: const TextStyle(fontSize: 10.5, color: Color(0xFF8A9E96)),
+                        ),
+                      ],
+                      if (transportItem['totalPrice'] != null || transportItem['unitPrice'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'LKR ${NumberFormat('#,##0').format(transportItem['totalPrice'] ?? transportItem['unitPrice'])}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0E382C),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPriceBreakdownSection(num totalCost, String currency) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final bookingItemsRaw = _booking?['bookingItems'] ?? _itinerary?['bookingItems'];
+    num hotelCost = 0;
+    num transportCost = 0;
+    num tourCost = 0;
+
+    if (bookingItemsRaw is List) {
+      for (var it in bookingItemsRaw) {
+        if (it is Map) {
+          final type = it['itemType']?.toString().toLowerCase() ?? '';
+          final p = it['totalPrice'] ?? it['unitPrice'] ?? 0;
+          if (p is num) {
+            if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
+              hotelCost += p;
+            } else if (type == 'transport' || it['vehicleType'] != null || it['transportProvider'] != null) {
+              transportCost += p;
+            } else {
+              tourCost += p;
+            }
+          }
+        }
+      }
+    }
+
+    if (tourCost == 0 && hotelCost == 0 && transportCost == 0) {
+      tourCost = totalCost;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E2824) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'COMMERCIAL BREAKDOWN',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Icon(Icons.receipt_long_outlined, size: 16, color: Color(0xFF8A9E96)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildBreakdownRow('Tours & Experiences', tourCost, currency),
+          if (hotelCost > 0) ...[
+            const SizedBox(height: 6),
+            _buildBreakdownRow('Hotel Accommodation', hotelCost, currency),
+          ],
+          if (transportCost > 0) ...[
+            const SizedBox(height: 6),
+            _buildBreakdownRow('Private Transport & Driver', transportCost, currency),
+          ],
+          const SizedBox(height: 6),
+          _buildBreakdownRow('Taxes & Agent Handling', 0, currency, freeLabel: 'Included'),
+          const Divider(height: 20, color: Color(0xFFE4E7E2)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Total Commercial Cost',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+              ),
+              Text(
+                '$currency ${NumberFormat('#,##0').format(totalCost > 0 ? totalCost : (tourCost + hotelCost + transportCost))}'.trim(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  color: Color(0xFF0E382C),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownRow(String label, num amount, String currency, {String? freeLabel}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF5A7067)),
+        ),
+        Text(
+          freeLabel ?? '$currency ${NumberFormat('#,##0').format(amount)}'.trim(),
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      ],
     );
   }
 }

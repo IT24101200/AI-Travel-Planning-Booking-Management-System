@@ -61,6 +61,11 @@ export default function BookingApprovalDashboard() {
             requested: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : 'Date unavailable',
             status: statusStr,
             agentLogs: b.agentLogs || [],
+            bookingItems: b.bookingItems || [],
+            itinerary: b.itinerary || null,
+            startDate: b.startDate || null,
+            endDate: b.endDate || null,
+            destinationName: b.destinationName || null,
           }
         })
         setRows(mapped)
@@ -425,7 +430,7 @@ export default function BookingApprovalDashboard() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: '#182126' }}>
-                  {active.customer}{active.travellerCount != null ? ` - ${active.travellerCount} travellers` : ''}
+                  {active.customer}{active.travellerCount != null ? ` · ${active.travellerCount} travellers` : ''}
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#66747b' }}>
                   Total Package: {active.total != null ? formatPrice(active.total, active.currency) : 'Not available'}
@@ -433,11 +438,105 @@ export default function BookingApprovalDashboard() {
               </div>
             </div>
 
+            {/* AI Generated Commercial Proposal Details */}
+            {active.bookingItems && active.bookingItems.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                <h4 style={{ margin: '0.25rem 0 0', fontSize: '0.8125rem', fontWeight: 700, color: '#182126' }}>
+                  Reserved Inventory & Package Details
+                </h4>
+
+                {/* Hotel Reservation Card */}
+                {active.bookingItems.filter(item => item.itemType === 1 || item.itemType === 'Room' || item.hotelName).map((roomItem, idx) => (
+                  <div
+                    key={`room-${idx}`}
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '6px',
+                      backgroundColor: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 700, color: '#166534' }}>
+                        🏨 Booked Hotel: {roomItem.hotelName || 'Selected Hotel'}
+                      </span>
+                      <span style={{ fontWeight: 700, color: '#15803d' }}>
+                        {formatPrice(roomItem.subtotal || roomItem.unitPrice, roomItem.currency || active.currency)}
+                      </span>
+                    </div>
+                    <div style={{ color: '#374151', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {roomItem.hotelAddress && <div>📍 {roomItem.hotelAddress}</div>}
+                      <div>🛏️ {roomItem.roomType || 'Standard Room'} {roomItem.roomCapacity ? `(Capacity: ${roomItem.roomCapacity} Guests)` : ''}</div>
+                      {roomItem.checkInDate && roomItem.checkOutDate && (
+                        <div style={{ color: '#6b7280', fontSize: '0.6875rem' }}>
+                          📅 {new Date(roomItem.checkInDate).toLocaleDateString()} – {new Date(roomItem.checkOutDate).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Transport Reservation Card */}
+                {active.bookingItems.filter(item => item.itemType === 2 || item.itemType === 'Transport' || item.transportType).map((transItem, idx) => (
+                  <div
+                    key={`trans-${idx}`}
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '6px',
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 700, color: '#1e40af' }}>
+                        🚗 Booked Transport: {transItem.transportType || 'Private Vehicle'}
+                      </span>
+                      <span style={{ fontWeight: 700, color: '#1d4ed8' }}>
+                        {formatPrice(transItem.subtotal || transItem.unitPrice, transItem.currency || active.currency)}
+                      </span>
+                    </div>
+                    <div style={{ color: '#374151', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <div>Provider: {transItem.transportProvider || 'Island Transit Fleet'}</div>
+                      {transItem.routeFrom && transItem.routeTo && (
+                        <div>Route: {transItem.routeFrom} ➔ {transItem.routeTo}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Scheduled Tours Card */}
+                {active.bookingItems.filter(item => item.itemType === 0 || item.itemType === 'Tour' || item.tourName).length > 0 && (
+                  <div
+                    style={{
+                      padding: '0.75rem',
+                      borderRadius: '6px',
+                      backgroundColor: '#fefce8',
+                      border: '1px solid #fef08a',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: '#854d0e', marginBottom: '4px' }}>
+                      🎯 Scheduled Activities & Tours
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#374151' }}>
+                      {active.bookingItems.filter(item => item.itemType === 0 || item.itemType === 'Tour' || item.tourName).map((tourItem, idx) => (
+                        <li key={`tour-${idx}`} style={{ marginBottom: '2px' }}>
+                          <b>{tourItem.tourName || 'Tour Activity'}</b> — {formatPrice(tourItem.subtotal || tourItem.unitPrice, tourItem.currency || active.currency)}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* AI Reasoning Trail matching Figma */}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                 <h4 style={{ margin: 0, fontSize: '0.8125rem', fontWeight: 700, color: '#182126' }}>
-                  AI reasoning trail
+                  AI 4-Agent Reasoning Trail
                 </h4>
                 <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>
                   {agentLogs.length > 0 ? `${agentLogs.length} log entries` : 'No recorded agent logs'}
@@ -445,45 +544,67 @@ export default function BookingApprovalDashboard() {
               </div>
 
               {logsLoading ? (
-                <p style={{ fontSize: '0.75rem', color: '#66747b' }}>Loading agent reasoning traceâ€¦</p>
+                <p style={{ fontSize: '0.75rem', color: '#66747b' }}>Loading agent reasoning trace…</p>
               ) : agentLogs.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    {agentLogs.map((log, index) => (
-                      <div key={log.id || `${log.agentName || 'agent'}-${log.timestamp || index}`} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                        <div
-                          style={{
-                            width: '22px',
-                            height: '22px',
-                            borderRadius: '50%',
-                            backgroundColor: log.status?.toLowerCase() === 'failed' ? '#dc2626' : '#166b4f',
-                            color: '#f7faf9',
-                            fontSize: '0.6875rem',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            marginTop: '1px',
-                          }}
-                        >
-                          {index + 1}
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>{log.agentName || 'Agent unavailable'}</span>
-                            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: log.status?.toLowerCase() === 'failed' ? '#b91c1c' : '#15803d' }}>{log.status || 'Status unavailable'}</span>
+                    {agentLogs.map((log, index) => {
+                      const isFailed = log.status?.toLowerCase() === 'failed'
+                      return (
+                        <div key={log.id || `${log.agentName || 'agent'}-${log.timestamp || index}`} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
+                          <div
+                            style={{
+                              width: '22px',
+                              height: '22px',
+                              borderRadius: '50%',
+                              backgroundColor: isFailed ? '#dc2626' : '#166b4f',
+                              color: '#f7faf9',
+                              fontSize: '0.6875rem',
+                              fontWeight: 700,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              marginTop: '1px',
+                            }}
+                          >
+                            {index + 1}
                           </div>
-                          <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#66747b', lineHeight: 1.35 }}>
-                            {log.stepName || log.output || 'No step details recorded.'}
-                          </p>
-                          {log.timestamp && (
-                            <p style={{ margin: '2px 0 0', fontSize: '0.625rem', color: '#8a969b' }}>
-                              {new Date(log.timestamp).toLocaleString()}
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>{log.agentName || 'Agent'}</span>
+                              <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: isFailed ? '#b91c1c' : '#15803d' }}>{log.status || 'Success'}</span>
+                            </div>
+                            <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#4b5563', lineHeight: 1.35, fontWeight: 600 }}>
+                              {log.stepName || 'Reasoning step executed'}
                             </p>
-                          )}
+                            {log.output && log.output !== log.stepName && (
+                              <div
+                                style={{
+                                  margin: '3px 0 0',
+                                  padding: '4px 6px',
+                                  backgroundColor: isFailed ? '#fef2f2' : '#f8fafc',
+                                  border: `1px solid ${isFailed ? '#fecaca' : '#e2e8f0'}`,
+                                  borderRadius: '4px',
+                                  fontSize: '0.65rem',
+                                  color: isFailed ? '#991b1b' : '#334155',
+                                  fontFamily: 'monospace',
+                                  whiteSpace: 'pre-wrap',
+                                  maxHeight: '120px',
+                                  overflowY: 'auto',
+                                }}
+                              >
+                                {log.output}
+                              </div>
+                            )}
+                            {log.timestamp && (
+                              <p style={{ margin: '2px 0 0', fontSize: '0.625rem', color: '#8a969b' }}>
+                                {new Date(log.timestamp).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <p style={{ fontSize: '0.75rem', color: '#66747b' }}>No agent logs recorded for this booking.</p>
@@ -525,7 +646,7 @@ export default function BookingApprovalDashboard() {
                     disabled={loading}
                   >
                     <CheckIcon size={16} />
-                    <span>Approve Booking</span>
+                    <span>Approve Booking (Holds Hotel & Transport)</span>
                   </button>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -566,7 +687,7 @@ export default function BookingApprovalDashboard() {
                 }}
               >
                 {active.status.toLowerCase() === 'confirmed'
-                  ? 'âœ“ This booking is already Confirmed.'
+                  ? '✓ This booking is Confirmed and ready for customer payment.'
                   : `Decision recorded: ${active.status}.`}
               </div>
             )}

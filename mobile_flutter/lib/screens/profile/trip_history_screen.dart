@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/agent_workflow_card.dart';
 import 'package:intl/intl.dart';
 
 /// Trip history screen matching Figma frame 16 · Trip History / My Trips (node 7:11390)
@@ -931,6 +932,12 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                     fontSize: 12,
                     color: theme.colorScheme.onSurface,
                   ),
+                ),
+              ],
+              if ((trip['isBooking'] == true ? trip['tripRequestId'] : trip['id']) is int && ((trip['isBooking'] == true ? trip['tripRequestId'] : trip['id']) as int) > 0) ...[
+                const SizedBox(height: 16),
+                AgentWorkflowCard(
+                  tripRequestId: (trip['isBooking'] == true ? trip['tripRequestId'] : trip['id']) as int,
                 ),
               ],
               const SizedBox(height: 20),
