@@ -475,7 +475,13 @@ export default function TourCatalogManagement() {
               <button
                 type="button"
                 className="btn-outline"
-                style={{ height: '28px', padding: '0 8px' }}
+                style={{
+                  height: '28px',
+                  padding: '0 8px',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
                 onClick={() => setDrawerMode(null)}
               >
                 ✕
@@ -506,7 +512,7 @@ export default function TourCatalogManagement() {
                     Destination *
                   </label>
                   <select
-                    className="btn-outline"
+                    className="staff-select"
                     style={{
                       width: '100%',
                       height: '38px',
@@ -514,6 +520,8 @@ export default function TourCatalogManagement() {
                       fontSize: '0.8125rem',
                       color: '#182126',
                       backgroundColor: '#ffffff',
+                      border: '1px solid #c8d1d4',
+                      borderRadius: '8px',
                       opacity: 1,
                       colorScheme: 'light'
                     }}
@@ -533,7 +541,7 @@ export default function TourCatalogManagement() {
                     Category *
                   </label>
                   <select
-                    className="btn-outline"
+                    className="staff-select"
                     style={{
                       width: '100%',
                       height: '38px',
@@ -541,6 +549,8 @@ export default function TourCatalogManagement() {
                       fontSize: '0.8125rem',
                       color: '#182126',
                       backgroundColor: '#ffffff',
+                      border: '1px solid #c8d1d4',
+                      borderRadius: '8px',
                       opacity: 1,
                       colorScheme: 'light'
                     }}

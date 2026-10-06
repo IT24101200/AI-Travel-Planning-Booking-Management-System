@@ -501,7 +501,13 @@ export default function DestinationManagement() {
               <button
                 type="button"
                 className="btn-outline"
-                style={{ height: '32px', padding: '0 0.625rem' }}
+                style={{
+                  height: '32px',
+                  padding: '0 0.625rem',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
                 onClick={() => setDrawerMode(null)}
               >
                 <CloseIcon size={14} />
@@ -632,6 +638,11 @@ export default function DestinationManagement() {
                 <button
                   type="button"
                   className="btn-outline"
+                  style={{
+                    color: '#182126',
+                    backgroundColor: '#ffffff',
+                    borderColor: '#c8d1d4'
+                  }}
                   onClick={() => setDrawerMode(null)}
                 >
                   <CloseIcon size={14} />
