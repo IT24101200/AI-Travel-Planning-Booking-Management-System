@@ -16,7 +16,8 @@ import {
   RefreshIcon,
   TrashIcon,
   CloseIcon,
-  CheckIcon
+  CheckIcon,
+  EditIcon
 } from '../../components/ui/Icons.jsx'
 import { ImageUploadWidget } from '../../components/common/ImageUploadWidget.jsx'
 
