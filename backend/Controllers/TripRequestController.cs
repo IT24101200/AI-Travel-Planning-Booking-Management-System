@@ -62,6 +62,8 @@ namespace backend.Controllers
             {
                 var result = await _tripRequestService.CreateAsync(userId, dto);
 
+                _logger.LogInformation("TripRequest #{TripRequestId} created for customer {CustomerId}.", result.Id, userId);
+
                 var planning = await _tripRequestService.UpdateAgentPlanAsync(result.Id, new TripRequestAgentUpdateDto
                 {
                     Status = "Planning"
@@ -431,6 +433,7 @@ namespace backend.Controllers
 
         private void TriggerAgentPipelineAsync(TripRequestDto trip, string authorizationHeader)
         {
+            _logger.LogInformation("TriggerAgentPipelineAsync started for TripRequest #{TripRequestId}.", trip.Id);
             _ = Task.Run(async () =>
             {
                 try
@@ -439,6 +442,8 @@ namespace backend.Controllers
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                     var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
+                    var endpoint = $"{agentBaseUrl}/run-pipeline-async";
+                    _logger.LogInformation("Dispatching TripRequest #{TripRequestId} to {AgentEndpoint}.", trip.Id, endpoint);
                     var client = _httpClientFactory.CreateClient();
                     client.Timeout = TimeSpan.FromSeconds(5);
 
@@ -477,11 +482,15 @@ namespace backend.Controllers
                     HttpResponseMessage? response = null;
                     try
                     {
-                        response = await client.PostAsync($"{agentBaseUrl}/run-pipeline-async", content);
+                        response = await client.PostAsync(endpoint, content);
+                        _logger.LogInformation(
+                            "Agent dispatch response for TripRequest #{TripRequestId}: HTTP {StatusCode}.",
+                            trip.Id,
+                            (int)response.StatusCode);
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning("Agent service offline at {Url}: {Message}.", agentBaseUrl, ex.Message);
+                        _logger.LogWarning(ex, "Agent service request failed for TripRequest #{TripRequestId} at {Url}.", trip.Id, endpoint);
                     }
 
                     if (response != null && response.IsSuccessStatusCode)
@@ -495,7 +504,7 @@ namespace backend.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{Id}.", trip.Id);
+                    _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{TripRequestId}.", trip.Id);
                 }
             });
         }

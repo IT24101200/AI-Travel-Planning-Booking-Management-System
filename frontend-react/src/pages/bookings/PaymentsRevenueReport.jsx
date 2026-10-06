@@ -32,7 +32,7 @@ export default function PaymentsRevenueReport() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [notice, setNotice] = useState('')
-  usePageTitle('Revenue · Staff')
+  usePageTitle('Revenue - Staff')
 
   async function loadPayments(cancelled = false) {
     setLoading(true)
@@ -44,28 +44,32 @@ export default function PaymentsRevenueReport() {
       ])
 
       if (!cancelled) {
-        if (livePayments.status === 'fulfilled') {
-          const pArr = Array.isArray(livePayments.value) ? livePayments.value : (livePayments.value?.data || [])
-          const mapped = pArr.map((p, idx) => ({
-            id: p.transactionId || `TXN-${784920 + (p.id || idx + 1)}`,
-            dbId: p.id,
-            reference: p.bookingReference || `ST-BK-${1000 + (p.bookingId || p.id || idx + 1)}`,
-            customer: p.customerName || (p.customerId ? `Customer ${p.customerId.substring(0, 8)}…` : 'Travel Guest'),
-            amount: p.amount || 0,
-            currency: p.currency || 'LKR',
-            status: typeof p.status === 'number' ? (PAYMENT_STATUSES[p.status] || 'Paid') : (p.status || 'Paid'),
-            date: p.paymentDate ? p.paymentDate.split('T')[0] : '2026-09-28',
-          }))
-          setPayments(mapped)
+        if (livePayments.status === 'rejected') {
+          throw livePayments.reason
         }
+
+        const pArr = Array.isArray(livePayments.value) ? livePayments.value : (livePayments.value?.data || [])
+        const mapped = pArr.map((p) => ({
+          id: p.stripeReference || (p.id != null ? `Payment #${p.id}` : 'Reference unavailable'),
+          dbId: p.id,
+          reference: p.bookingReference || 'Reference unavailable',
+          customer: p.customerName || 'Customer unavailable',
+          amount: p.amount ?? null,
+          currency: p.currency || null,
+          status: typeof p.status === 'number' ? (PAYMENT_STATUSES[p.status] || 'Payment status unavailable') : (p.status || 'Payment status unavailable'),
+          date: p.paymentDate || p.paidAt || p.createdAt || p.updatedAt || null,
+        }))
+        setPayments(mapped)
 
         if (liveSummary.status === 'fulfilled' && liveSummary.value) {
           setSummaryData(liveSummary.value)
         }
       }
-    } catch (err) {
+    } catch {
       if (!cancelled) {
-        setError(err.response?.data?.message || err.message || 'Failed to load revenue data from database.')
+        setPayments([])
+        setSummaryData(null)
+        setError('Unable to load payment data.')
       }
     } finally {
       if (!cancelled) setLoading(false)
@@ -94,27 +98,39 @@ export default function PaymentsRevenueReport() {
     const paidList = payments.filter((p) => p.status.toLowerCase() === 'paid')
     const pendingList = payments.filter((p) => p.status.toLowerCase() === 'pending')
 
-    const paidSum = summaryData?.totalRevenue != null ? summaryData.totalRevenue : paidList.reduce((s, p) => s + (Number(p.amount) || 0), 0)
+    const paymentRevenueByCurrency = paidList.reduce((groups, payment) => {
+      if (payment.currency && payment.amount != null) {
+        groups[payment.currency] = (groups[payment.currency] || 0) + Number(payment.amount)
+      }
+      return groups
+    }, {})
+    const summaryRevenueByCurrency = summaryData?.revenueByCurrency || {}
+    const revenueByCurrency = Object.keys(summaryRevenueByCurrency).length > 0
+      ? summaryRevenueByCurrency
+      : paymentRevenueByCurrency
     const paidCount = summaryData?.paidPaymentsCount != null ? summaryData.paidPaymentsCount : paidList.length
-    const pendingSum = summaryData?.pendingEscrowAmount != null ? summaryData.pendingEscrowAmount : pendingList.reduce((s, p) => s + (Number(p.amount) || 0), 0)
     const pendingCount = summaryData?.pendingPaymentsCount != null ? summaryData.pendingPaymentsCount : pendingList.length
-    const abv = paidCount > 0 ? Math.round(paidSum / paidCount) : 0
-
-    const currencyMap = summaryData?.revenueByCurrency && Object.keys(summaryData.revenueByCurrency).length > 0
-      ? summaryData.revenueByCurrency
-      : paidList.reduce((groups, payment) => {
-          const curr = payment.currency || 'LKR'
-          groups[curr] = (groups[curr] || 0) + (Number(payment.amount) || 0)
-          return groups
-        }, {})
+    const averageByCurrency = paidList.reduce((groups, payment) => {
+      if (payment.currency && payment.amount != null) {
+        if (!groups[payment.currency]) groups[payment.currency] = { total: 0, count: 0 }
+        groups[payment.currency].total += Number(payment.amount)
+        groups[payment.currency].count += 1
+      }
+      return groups
+    }, {})
+    const pendingByCurrency = pendingList.reduce((groups, payment) => {
+      if (payment.currency && payment.amount != null) {
+        groups[payment.currency] = (groups[payment.currency] || 0) + Number(payment.amount)
+      }
+      return groups
+    }, {})
 
     return {
-      grossRevenue: paidSum,
+      grossRevenue: revenueByCurrency,
       completedCount: paidCount,
-      abv,
-      pendingEscrow: pendingSum,
+      averageByCurrency,
       pendingCount: pendingCount,
-      revenueByCurrency: currencyMap,
+      pendingByCurrency,
     }
   }, [payments, summaryData])
 
@@ -134,6 +150,21 @@ export default function PaymentsRevenueReport() {
       default:
         return 'badge-gray'
     }
+  }
+
+  function formatTimestamp(value) {
+    if (!value) return 'Not available'
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString()
+  }
+
+  function renderCurrencyTotals(values, emptyLabel = 'Not available') {
+    const entries = Object.entries(values || {})
+    return entries.length > 0
+      ? entries.map(([currency, amount]) => (
+        <span key={currency} style={{ display: 'block' }}>{formatPrice(amount, currency)}</span>
+      ))
+      : emptyLabel
   }
 
   function exportStatement() {
@@ -194,15 +225,9 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            {Object.entries(totals.revenueByCurrency).length > 0
-              ? Object.entries(totals.revenueByCurrency).map(([currency, amount]) => (
-                <span key={currency} style={{ display: 'block' }}>{formatPrice(amount, currency)}</span>
-              ))
-              : formatPrice(totals.grossRevenue)}
+            {loading ? 'Loading...' : renderCurrencyTotals(totals.grossRevenue)}
           </p>
-          <p className="kpi-card__sub">
-            {totals.completedCount > 0 ? '↑ 12.4% vs last month' : 'No recorded revenue yet'}
-          </p>
+            <p className="kpi-card__sub">Payment records from the booking system</p>
         </div>
 
         <div className="kpi-card">
@@ -213,11 +238,9 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            {totals.completedCount}
+            {loading ? 'Loading...' : totals.completedCount}
           </p>
-          <p className="kpi-card__sub">
-            {totals.completedCount > 0 ? '↑ 38 this month' : '0 this month'}
-          </p>
+            <p className="kpi-card__sub">Paid payment records</p>
         </div>
 
         <div className="kpi-card">
@@ -228,28 +251,32 @@ export default function PaymentsRevenueReport() {
             </div>
           </div>
           <p className="kpi-card__val">
-            {formatPrice(totals.abv)}
+            {loading
+              ? 'Loading...'
+              : Object.entries(totals.averageByCurrency).length > 0
+                ? Object.entries(totals.averageByCurrency).map(([currency, values]) => (
+                  <span key={currency} style={{ display: 'block' }}>{formatPrice(Math.round(values.total / values.count), currency)}</span>
+                ))
+                : 'Not available'}
           </p>
-          <p className="kpi-card__sub">
-            {totals.completedCount > 0 ? '↑ 4.8% vs last month' : 'No paid bookings yet'}
-          </p>
+            <p className="kpi-card__sub">Calculated separately by currency</p>
         </div>
 
         <div className="kpi-card">
           <div className="kpi-card__head">
-            <p className="kpi-card__label">Pending escrow</p>
+            <p className="kpi-card__label">Pending payments</p>
             <div className="kpi-card__icon-box">
               <BankIcon size={16} />
             </div>
           </div>
           <p className="kpi-card__val">
-            {formatPrice(totals.pendingEscrow)}
+            {loading ? 'Loading...' : renderCurrencyTotals(totals.pendingByCurrency)}
           </p>
           <p
             className="kpi-card__sub"
             style={{ color: totals.pendingCount > 0 ? '#a16207' : undefined }}
           >
-            {totals.pendingCount > 0 ? `${totals.pendingCount} settlements pending` : 'No settlements pending'}
+            {totals.pendingCount > 0 ? `${totals.pendingCount} payment records pending` : 'No pending payment records'}
           </p>
         </div>
       </div>
@@ -259,7 +286,7 @@ export default function PaymentsRevenueReport() {
         <div className="staff-card__head" style={{ flexWrap: 'wrap' }}>
           <div>
             <h3 className="staff-card__title">Transaction ledger</h3>
-            <p className="staff-card__sub">Synced with payment gateway 2 minutes ago</p>
+            <p className="staff-card__sub">Payment records from the booking system</p>
           </div>
           <div className="staff-search-box">
             <SearchIcon size={15} />
@@ -312,7 +339,7 @@ export default function PaymentsRevenueReport() {
               {loading ? (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                    Loading transactions from database…
+                    Loading transactions from database...
                   </td>
                 </tr>
               ) : pageRows.length > 0 ? (
@@ -326,10 +353,10 @@ export default function PaymentsRevenueReport() {
                     </td>
                     <td>{p.customer}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                      {formatPrice(p.amount, p.currency)}
+                      {p.amount != null && p.currency ? formatPrice(p.amount, p.currency) : 'Not available'}
                     </td>
                     <td style={{ color: '#66747b' }}>{p.currency}</td>
-                    <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{p.date}</td>
+                    <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{formatTimestamp(p.date)}</td>
                     <td>
                       <span className={`badge-pill ${getBadgeClass(p.status)}`}>
                         <span className="badge-dot" />
@@ -341,7 +368,7 @@ export default function PaymentsRevenueReport() {
               ) : (
                 <tr>
                   <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                    No payment records match the selected filter.
+                    {payments.length === 0 ? 'No payment transactions available.' : 'No payment records match the selected filter.'}
                   </td>
                 </tr>
               )}
@@ -352,7 +379,7 @@ export default function PaymentsRevenueReport() {
         {/* Pagination Footer */}
         <div className="staff-pagination">
           <span>
-            Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} transactions
+            Showing {filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} transactions
           </span>
           <div className="staff-pagination__btns">
             <button

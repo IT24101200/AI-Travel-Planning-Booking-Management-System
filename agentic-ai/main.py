@@ -4,6 +4,7 @@ Exposes REST endpoints for the ASP.NET Core backend to trigger multi-agent workf
 """
 
 import os
+import logging
 import uvicorn
 from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +12,8 @@ from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 
 from graph import run_travel_planning_pipeline
+
+logger = logging.getLogger("AgentService")
 
 app = FastAPI(
     title="AI Travel Planning Multi-Agent Subsystem",
@@ -86,6 +89,7 @@ def run_pipeline_async(payload: TripPipelineRequest, background_tasks: Backgroun
     Asynchronously triggers the planning pipeline in the background (Option A fire-and-forget).
     Immediately returns HTTP 202 Accepted. Updates the backend upon completion.
     """
+    logger.info("/run-pipeline-async received for TripRequest #%s", payload.trip_request_id)
     input_data = payload.model_dump()
     background_tasks.add_task(run_travel_planning_pipeline, input_data)
     return {

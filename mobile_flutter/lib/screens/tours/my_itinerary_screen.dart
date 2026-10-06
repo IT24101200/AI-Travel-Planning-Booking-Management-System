@@ -52,6 +52,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   bool _isLoading = true;
   bool _isActionLoading = false;
   String? _errorMessage;
+  String? _agentStatus;
+  String? _agentFailureReason;
+  Map<String, dynamic>? _agentHealth;
   bool _pending = false;
   int? _selectedItineraryId;
   Map<String, dynamic>? _itinerary;
@@ -74,6 +77,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _agentStatus = null;
+      _agentFailureReason = null;
+      _agentHealth = null;
       _pending = false;
       _itinerary = null;
     });
@@ -86,6 +92,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                   (args.containsKey('items') ? _positiveId(args['id']) : null)
               : _selectedItineraryId;
       final tripRequestId = args is Map ? _positiveId(args['tripRequestId']) : null;
+      var resolvedTripRequestId = tripRequestId;
       Map<String, dynamic>? selected;
       List<Map<String, dynamic>> choices = [];
       if (directId != null) {
@@ -102,11 +109,61 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           selected = await ApiService.getItinerary(id);
         }
       }
+
+      resolvedTripRequestId ??= _positiveId(selected?['tripRequestId']);
+
+      Map<String, dynamic>? latestTripRequest;
+      if (resolvedTripRequestId == null && selected == null) {
+        final requests = await ApiService.getMyTripRequests();
+        final records = requests
+            .whereType<Map>()
+            .map((record) => Map<String, dynamic>.from(record))
+            .toList();
+        if (records.isNotEmpty) {
+          latestTripRequest = records.first;
+          resolvedTripRequestId = _positiveId(latestTripRequest['id']);
+        }
+      }
+
+      Map<String, dynamic>? tripRequest = latestTripRequest;
+      if (resolvedTripRequestId != null && tripRequest == null) {
+        tripRequest = await ApiService.getTripRequest(resolvedTripRequestId!);
+      }
+
+      Map<String, dynamic>? agentHealth;
+      String? agentStatus;
+      String? agentFailureReason;
+      if (resolvedTripRequestId == null) {
+        agentFailureReason = 'Agentic AI was not triggered because no trip request was found.';
+      } else {
+        try {
+          agentHealth = await ApiService.getAgentHealth();
+          final healthStatus = agentHealth['status']?.toString().toLowerCase();
+          if (healthStatus != null && healthStatus != 'healthy') {
+            agentFailureReason = 'Agent server reported status: ${agentHealth['status']}.';
+          }
+        } catch (error) {
+          agentFailureReason = 'Agent server status is unavailable: $error';
+        }
+
+        agentStatus = tripRequest?['status']?.toString();
+        final normalizedStatus = agentStatus?.toLowerCase().replaceAll(' ', '');
+        if (normalizedStatus == 'failed') {
+          agentFailureReason = tripRequest?['failureReason']?.toString() ??
+              'The agentic AI pipeline failed to start.';
+        } else if (normalizedStatus == 'pending') {
+          agentFailureReason ??= 'Agentic AI was not triggered for this trip request yet.';
+        }
+      }
+
       if (!mounted) return;
       setState(() {
         _itinerary = selected;
         _itineraries = choices;
-        _pending = tripRequestId != null && selected == null;
+        _agentHealth = agentHealth;
+        _agentStatus = agentStatus;
+        _agentFailureReason = agentFailureReason;
+        _pending = resolvedTripRequestId != null && selected == null;
       });
     } catch (error) {
       if (mounted) setState(() => _errorMessage = error.toString());
@@ -665,6 +722,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 ),
               ),
               const SizedBox(height: 18),
+              if (_agentStatus != null || _agentFailureReason != null) _buildAgentStateCard(),
               if (_pending) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -748,6 +806,60 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     );
   }
 
+  Widget _buildAgentStateCard() {
+    final healthStatus = _agentHealth?['status']?.toString() ?? 'unknown';
+    final serviceName = _agentHealth?['service']?.toString() ?? 'Agentic AI service';
+    final isError = _agentFailureReason != null;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isError ? const Color(0xFFFFF1F2) : const Color(0xFFEAF8F0),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isError ? const Color(0xFFFCA5A5) : const Color(0xFF9AD7B3),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.check_circle_outline,
+            color: isError ? const Color(0xFFB91C1C) : const Color(0xFF18794E),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isError ? 'Agentic AI was not started' : 'Agentic AI started',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: isError ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isError
+                      ? _agentFailureReason!
+                      : 'Agent server: $healthStatus\n$serviceName\nPipeline status: ${_agentStatus ?? 'running'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.35,
+                    color: isError ? const Color(0xFF991B1B) : const Color(0xFF166534),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildItineraryContent() {
     final itinerary = _itinerary!;
     final status = itinerary['status'];
@@ -819,6 +931,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (_agentStatus != null || _agentFailureReason != null) _buildAgentStateCard(),
           // ── Multi-Itinerary Selector Dropdown (if user has multiple itineraries) ──
           if (_itineraries.length > 1) ...[
             Container(
