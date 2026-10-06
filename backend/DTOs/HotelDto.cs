@@ -41,13 +41,10 @@ namespace backend.DTOs
         [Range(1, 5, ErrorMessage = "Star rating must be between 1 and 5.")]
         public int StarRating { get; set; }
 
-        // Optional contact details (validated only when provided)
-        [EmailAddress(ErrorMessage = "Please enter a valid contact email.")]
-        [MaxLength(256, ErrorMessage = "Contact email cannot exceed 256 characters.")]
+        [MaxLength(200)]
         public string? ContactEmail { get; set; }
 
-        [RegularExpression(@"^\+?[0-9 ()\-]{7,20}$", ErrorMessage = "Please enter a valid contact phone number.")]
-        [MaxLength(30, ErrorMessage = "Contact phone cannot exceed 30 characters.")]
+        [MaxLength(20)]
         public string? ContactPhone { get; set; }
 
         public string? Status { get; set; }

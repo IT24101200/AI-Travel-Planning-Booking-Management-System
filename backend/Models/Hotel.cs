@@ -33,11 +33,10 @@ namespace backend.Models
         [Range(1, 5)]
         public int StarRating { get; set; }
 
-        // ── Contact details for reservations ──
-        [MaxLength(256)]
+        [MaxLength(200)]
         public string? ContactEmail { get; set; }
 
-        [MaxLength(30)]
+        [MaxLength(20)]
         public string? ContactPhone { get; set; }
 
         // ── Soft delete: Active or Inactive ──
