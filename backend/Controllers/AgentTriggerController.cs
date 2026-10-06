@@ -1,4 +1,5 @@
 using backend.Services;
+using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -52,10 +53,11 @@ namespace backend.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Agent health check failed for {AgentBaseUrl}.", agentBaseUrl);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
                     status = "unavailable",
-                    message = $"Agent service at {agentBaseUrl} could not be reached: {ex.Message}"
+                    message = "The planning service is temporarily unavailable."
                 });
             }
         }
@@ -80,17 +82,28 @@ namespace backend.Controllers
                 return Forbid();
             }
 
-            var authorization = Request.Headers.Authorization.ToString();
-            const string bearerPrefix = "Bearer ";
-            if (!authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
-            {
-                return Unauthorized(new { message = "A Bearer token is required to run the agent pipeline." });
-            }
+            if (runAsync && string.Equals(trip.Status, "Planning", StringComparison.OrdinalIgnoreCase))
+                return Conflict(new { message = "This trip request is already being planned." });
 
-            var accessToken = authorization[bearerPrefix.Length..].Trim();
-            if (string.IsNullOrWhiteSpace(accessToken))
+            if (runAsync && string.Equals(trip.Status, "Failed", StringComparison.OrdinalIgnoreCase))
             {
-                return Unauthorized(new { message = "The Bearer token is empty." });
+                try
+                {
+                    var retry = await _tripRequestService.UpdateAgentPlanAsync(id, new TripRequestAgentUpdateDto
+                    {
+                        Status = "Planning",
+                        RetryCount = trip.RetryCount + 1,
+                        FailureReason = null
+                    });
+                    if (retry == null)
+                        return NotFound(new { message = $"Trip request #{id} not found." });
+                    trip = retry;
+                }
+                catch (InvalidOperationException ex)
+                {
+                    _logger.LogWarning(ex, "TripRequest #{TripRequestId} could not be retried.", id);
+                    return Conflict(new { message = "This trip request cannot be retried yet." });
+                }
             }
 
             var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
@@ -118,11 +131,12 @@ namespace backend.Controllers
                 budget_ceiling = (double)trip.BudgetCeiling,
                 currency = trip.Currency,
                 retry_count = trip.RetryCount,
-                preferred_activities = preferredActivities,
-                access_token = accessToken
+                preferred_activities = preferredActivities
             };
 
-            var endpoint = runAsync ? $"{agentBaseUrl}/run-pipeline-async" : $"{agentBaseUrl}/run-pipeline";
+            var endpoint = runAsync
+                ? $"{agentBaseUrl.TrimEnd('/')}/run-pipeline-async"
+                : $"{agentBaseUrl.TrimEnd('/')}/run-pipeline";
 
             try
             {
@@ -139,19 +153,24 @@ namespace backend.Controllers
                     return StatusCode((int)response.StatusCode, new
                     {
                         message = "Agent service returned an error.",
-                        details = responseBody
+                        tripRequestId = id
                     });
                 }
 
-                return Content(responseBody, "application/json");
+                return new ContentResult
+                {
+                    Content = responseBody,
+                    ContentType = "application/json",
+                    StatusCode = (int)response.StatusCode
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to invoke agent service for TripRequest #{Id}", id);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, new
                 {
-                    message = $"Agent service at {agentBaseUrl} could not be reached.",
-                    error = ex.Message
+                    message = "The planning service is temporarily unavailable.",
+                    tripRequestId = id
                 });
             }
         }

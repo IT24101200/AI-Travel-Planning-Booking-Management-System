@@ -94,7 +94,7 @@ public class AgentTriggerControllerTests
     }
 
     [Fact]
-    public async Task TriggerPipeline_Owner_ForwardsRawJwtAsAccessToken()
+    public async Task TriggerPipeline_Owner_DoesNotForwardRawJwtAcrossAgentBoundary()
     {
         var handler = new CaptureHandler();
         var controller = CreateController("customer-1", "customer-1", handler);
@@ -104,8 +104,33 @@ public class AgentTriggerControllerTests
         Assert.IsType<ContentResult>(result);
         Assert.NotNull(handler.RequestBody);
         using var document = JsonDocument.Parse(handler.RequestBody!);
-        Assert.Equal("test-jwt", document.RootElement.GetProperty("access_token").GetString());
+        Assert.False(document.RootElement.TryGetProperty("access_token", out _));
         Assert.Equal("customer-1", document.RootElement.GetProperty("customer_id").GetString());
+    }
+
+    [Fact]
+    public async Task TriggerPipelineAsync_PreservesAcceptedStatus()
+    {
+        var handler = new CaptureHandler { StatusCode = HttpStatusCode.Accepted };
+        var controller = CreateController("customer-1", "customer-1", handler);
+
+        var result = await controller.TriggerPipeline(123, runAsync: true);
+
+        var content = Assert.IsType<ContentResult>(result);
+        Assert.Equal(202, content.StatusCode);
+    }
+
+    [Fact]
+    public async Task TriggerPipeline_UpstreamFailureReturnsSafeError()
+    {
+        var handler = new CaptureHandler { StatusCode = HttpStatusCode.BadGateway };
+        var controller = CreateController("customer-1", "customer-1", handler);
+
+        var result = await controller.TriggerPipeline(123);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(502, objectResult.StatusCode);
+        Assert.DoesNotContain("test-jwt", System.Text.Json.JsonSerializer.Serialize(objectResult.Value));
     }
 
     [Fact]

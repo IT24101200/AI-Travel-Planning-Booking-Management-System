@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using backend.Data;
@@ -49,18 +48,15 @@ public sealed class RevisionPlanningService : IRevisionPlanningService
             retry_count = 0,
             revision_feedback = revisionComment,
             preferred_activities = activities,
-            access_token = authorizationHeader["Bearer ".Length..].Trim()
         };
 
         var baseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/run-pipeline-async")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/run-pipeline-async")
         {
             Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
         };
-        request.Headers.Authorization = AuthenticationHeaderValue.Parse(authorizationHeader);
-
         var client = _httpClientFactory.CreateClient();
-        client.Timeout = TimeSpan.FromSeconds(5);
+        client.Timeout = AgentServiceTimeouts.Connection(_configuration);
         using var response = await client.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"Agent revision planning returned HTTP {(int)response.StatusCode}.");

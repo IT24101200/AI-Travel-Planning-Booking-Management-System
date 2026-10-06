@@ -25,14 +25,14 @@ namespace backend.Controllers
         /// </summary>
         [HttpGet]
         [ProducesResponseType(typeof(PreferenceDto), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> GetMyPreferences()
         {
             var userId = GetUserId();
             var pref = await _preferenceService.GetByCustomerIdAsync(userId);
 
             if (pref == null)
-                return NotFound(new { message = "Preferences not found. Please create your preferences first." });
+                return NoContent();
 
             return Ok(pref);
         }

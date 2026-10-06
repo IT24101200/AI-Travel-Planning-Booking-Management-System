@@ -385,6 +385,8 @@ namespace backend.Services
                     throw new ArgumentException("A plan is required before a request can enter AwaitingApproval.");
 
                 trip.Status = parsedStatus;
+                if (parsedStatus == TripRequestStatus.Planning)
+                    trip.FailureReason = null;
             }
 
             if (dto.PlanJson.HasValue)
@@ -416,6 +418,7 @@ namespace backend.Services
                 TripRequestStatus.Pending => next is TripRequestStatus.Planning or TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
                 TripRequestStatus.Planning => next is TripRequestStatus.Planning or TripRequestStatus.Planned or TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
                 TripRequestStatus.Planned => next is TripRequestStatus.AwaitingApproval or TripRequestStatus.Failed,
+                TripRequestStatus.Failed => next is TripRequestStatus.Planning,
                 _ => false
             };
         }

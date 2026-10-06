@@ -7,6 +7,7 @@ import os
 import logging
 import uvicorn
 from fastapi import FastAPI, BackgroundTasks, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
@@ -44,8 +45,7 @@ class TripPipelineRequest(BaseModel):
     budget_ceiling: float = Field(..., description="Budget ceiling")
     currency: str = Field("USD", description="Currency code")
     retry_count: Optional[int] = Field(0, description="Initial retry count")
-    preferred_activities: Optional[list[str]] = []
-    access_token: Optional[str] = Field(None, description="Backend bearer token; never logged or returned")
+    preferred_activities: Optional[list[str]] = Field(default_factory=list)
 
 
 @app.get("/")
@@ -79,8 +79,9 @@ def run_pipeline_sync(payload: TripPipelineRequest):
             "failure_reason": result.get("failure_reason"),
             "plan_json": result.get("plan_json")
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Pipeline execution error: {str(e)}")
+    except Exception:
+        logger.exception("Synchronous pipeline execution failed for TripRequest #%s", payload.trip_request_id)
+        raise HTTPException(status_code=500, detail="Pipeline execution failed. Please retry.")
 
 
 @app.post("/run-pipeline-async")
@@ -92,14 +93,17 @@ def run_pipeline_async(payload: TripPipelineRequest, background_tasks: Backgroun
     logger.info("/run-pipeline-async received for TripRequest #%s", payload.trip_request_id)
     input_data = payload.model_dump()
     background_tasks.add_task(run_travel_planning_pipeline, input_data)
-    return {
-        "success": True,
-        "message": f"Trip planning pipeline started in background for request #{payload.trip_request_id}.",
-        "trip_request_id": payload.trip_request_id,
-        "status": "Planning"
-    }
+    return JSONResponse(
+        status_code=202,
+        content={
+            "success": True,
+            "message": f"Trip planning pipeline accepted for request #{payload.trip_request_id}.",
+            "trip_request_id": payload.trip_request_id,
+            "status": "Planning",
+        },
+    )
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8005))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

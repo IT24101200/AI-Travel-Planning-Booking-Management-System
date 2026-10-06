@@ -2,9 +2,9 @@ namespace backend.Services;
 
 internal static class AgentServiceTimeouts
 {
-    // Allow a sleeping hosted service to start before declaring it unavailable.
+    // This budget is only for health/async acknowledgement, not the full LLM pipeline.
     public static TimeSpan Connection(IConfiguration configuration) =>
-        Read(configuration, "AgentService:ConnectionTimeoutSeconds", 120);
+        Read(configuration, "AgentService:ConnectionTimeoutSeconds", 15);
 
     public static TimeSpan Pipeline(IConfiguration configuration) =>
         Read(configuration, "AgentService:PipelineTimeoutSeconds", 180);

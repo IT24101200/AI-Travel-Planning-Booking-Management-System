@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,10 +13,11 @@ const String kApiBaseUrl = String.fromEnvironment(
 );
 
 class ApiException implements Exception {
-  const ApiException(this.message, {this.statusCode});
+  const ApiException(this.message, {this.statusCode, this.errorCode});
 
   final String message;
   final int? statusCode;
+  final String? errorCode;
 
   @override
   String toString() => message;
@@ -31,6 +33,7 @@ class AgentLogStreamEvent {
 /// Single HTTP client for all backend API calls.
 /// Stores JWT token via flutter_secure_storage and attaches it to every request.
 class ApiService {
+  static const _requestTimeout = Duration(seconds: 30);
   // ── Backend URLs ──
   static String get baseUrl {
     final url = kApiBaseUrl.replaceFirst(RegExp(r'/+$'), '');
@@ -41,7 +44,9 @@ class ApiService {
   static String resolveMediaUrl(String? path) {
     if (path == null || path.trim().isEmpty) return '';
     final value = path.trim();
-    if (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('assets/')) {
+    if (value.startsWith('http://') ||
+        value.startsWith('https://') ||
+        value.startsWith('assets/')) {
       return value;
     }
     final serverRoot = baseUrl.endsWith('/api')
@@ -124,29 +129,41 @@ class ApiService {
     return favorites.contains(tourId);
   }
 
-
-  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockUpdateProfile;
-  static Future<http.Response> Function(Map<String, dynamic>)? mockUpdatePreferences;
-  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateTripRequest;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
+  mockUpdateProfile;
+  static Future<http.Response> Function(Map<String, dynamic>)?
+  mockUpdatePreferences;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
+  mockCreateTripRequest;
   static Future<List<dynamic>> Function()? mockGetMyTripRequests;
   static Future<List<dynamic>> Function()? mockGetMyBookings;
   static Future<List<dynamic>> Function({String? currency})? mockGetHotels;
   static Future<List<dynamic>> Function({String? currency})?
-      mockGetTransportOptions;
-  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreateBooking;
+  mockGetTransportOptions;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
+  mockCreateBooking;
   static Future<Map<String, dynamic>?> Function(int id)? mockGetBooking;
-  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)? mockCreatePayment;
-  static Future<Map<String, dynamic>> Function({required String email, required String password})? mockLogin;
+  static Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
+  mockCreatePayment;
+  static Future<Map<String, dynamic>> Function({
+    required String email,
+    required String password,
+  })?
+  mockLogin;
   static Future<Map<String, dynamic>> Function({
     required String email,
     required String password,
     required String fullName,
     required String phone,
-  })? mockRegister;
+  })?
+  mockRegister;
 
   static void _requireSuccess(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw ApiException(_responseError(response, 'Request failed'), statusCode: response.statusCode);
+      throw ApiException(
+        _responseError(response, 'Request failed'),
+        statusCode: response.statusCode,
+      );
     }
   }
 
@@ -156,7 +173,9 @@ class ApiService {
     try {
       return jsonDecode(response.body);
     } on FormatException {
-      throw const ApiException('The server returned an invalid response. Please retry.');
+      throw const ApiException(
+        'The server returned an invalid response. Please retry.',
+      );
     }
   }
 
@@ -164,15 +183,21 @@ class ApiService {
     final decoded = _decode(response);
     if (decoded == null) return [];
     if (decoded is List) return decoded;
-    if (decoded is Map && decoded['data'] is List) return decoded['data'] as List<dynamic>;
-    throw const ApiException('The server returned an invalid list. Please retry.');
+    if (decoded is Map && decoded['data'] is List)
+      return decoded['data'] as List<dynamic>;
+    throw const ApiException(
+      'The server returned an invalid list. Please retry.',
+    );
   }
 
   static Map<String, dynamic>? _object(http.Response response) {
     final decoded = _decode(response);
     if (decoded == null) return null;
-    if (decoded is Map<String, dynamic>) return decoded.isEmpty ? null : decoded;
-    throw const ApiException('The server returned an invalid record. Please retry.');
+    if (decoded is Map<String, dynamic>)
+      return decoded.isEmpty ? null : decoded;
+    throw const ApiException(
+      'The server returned an invalid record. Please retry.',
+    );
   }
 
   static Future<void>? _sessionExpiry;
@@ -194,7 +219,10 @@ class ApiService {
       } finally {
         if (identical(_sessionExpiry, expiry)) _sessionExpiry = null;
       }
-      throw ApiException(_responseError(response, 'Please sign in again'), statusCode: 401);
+      throw ApiException(
+        _responseError(response, 'Please sign in again'),
+        statusCode: 401,
+      );
     }
     return response;
   }
@@ -215,37 +243,47 @@ class ApiService {
   }
 
   static String _responseError(http.Response response, String fallback) {
+    return switch (response.statusCode) {
+      401 => 'Your session has expired. Please sign in again.',
+      403 => 'You do not have permission to perform this action.',
+      404 => 'The requested information could not be found.',
+      408 ||
+      504 => 'The planning service took too long to respond. Please retry.',
+      429 => 'The service is busy. Please retry shortly.',
+      500 ||
+      502 ||
+      503 => 'The planning service is temporarily unavailable. Please retry.',
+      _ => fallback,
+    };
+  }
+
+  static Future<T> _withTimeout<T>(Future<T> request) async {
     try {
-      final decoded = jsonDecode(response.body);
-      if (decoded is Map<String, dynamic>) {
-        final message = decoded['message'] ?? decoded['title'] ?? decoded['error'];
-        if (message != null && message.toString().trim().isNotEmpty) {
-          return message.toString();
-        }
-
-        final errors = decoded['errors'];
-        if (errors is Map) {
-          final messages = errors.values
-              .expand((value) => value is List ? value : [value])
-              .map((value) => value.toString())
-              .where((value) => value.trim().isNotEmpty)
-              .toList();
-          if (messages.isNotEmpty) return messages.join('\n');
-        }
-      }
-    } catch (_) {
-      // Use the supplied fallback when the server response is not JSON.
+      return await request.timeout(_requestTimeout);
+    } on TimeoutException {
+      throw const ApiException(
+        'The service is temporarily unavailable. Please retry.',
+        errorCode: 'REQUEST_TIMEOUT',
+      );
+    } on http.ClientException {
+      throw const ApiException(
+        'The service is temporarily unavailable. Please retry.',
+        errorCode: 'NETWORK_ERROR',
+      );
     }
-
-    return '$fallback (${response.statusCode})';
   }
 
   /// Generic GET request
-  static Future<http.Response> get(String endpoint, {bool isAuth = false}) async {
+  static Future<http.Response> get(
+    String endpoint, {
+    bool isAuth = false,
+  }) async {
     final headers = await _headers();
     final isAuthReq = isAuth || endpoint.startsWith('auth/');
     return _handleResponse(
-      await http.get(Uri.parse('$baseUrl/$endpoint'), headers: headers),
+      await _withTimeout(
+        http.get(Uri.parse('$baseUrl/$endpoint'), headers: headers),
+      ),
       isAuth: isAuthReq,
     );
   }
@@ -259,10 +297,12 @@ class ApiService {
     final headers = await _headers();
     final isAuthReq = isAuth || endpoint.startsWith('auth/');
     return _handleResponse(
-      await http.post(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-        body: jsonEncode(body),
+      await _withTimeout(
+        http.post(
+          Uri.parse('$baseUrl/$endpoint'),
+          headers: headers,
+          body: jsonEncode(body),
+        ),
       ),
       isAuth: isAuthReq,
     );
@@ -277,10 +317,12 @@ class ApiService {
     final headers = await _headers();
     final isAuthReq = isAuth || endpoint.startsWith('auth/');
     return _handleResponse(
-      await http.put(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-        body: jsonEncode(body),
+      await _withTimeout(
+        http.put(
+          Uri.parse('$baseUrl/$endpoint'),
+          headers: headers,
+          body: jsonEncode(body),
+        ),
       ),
       isAuth: isAuthReq,
     );
@@ -295,10 +337,12 @@ class ApiService {
     final headers = await _headers();
     final isAuthReq = isAuth || endpoint.startsWith('auth/');
     return _handleResponse(
-      await http.patch(
-        Uri.parse('$baseUrl/$endpoint'),
-        headers: headers,
-        body: jsonEncode(body),
+      await _withTimeout(
+        http.patch(
+          Uri.parse('$baseUrl/$endpoint'),
+          headers: headers,
+          body: jsonEncode(body),
+        ),
       ),
       isAuth: isAuthReq,
     );
@@ -340,7 +384,8 @@ class ApiService {
       // Save token and user info on successful registration
       if (data['token'] != null) await saveToken(data['token'].toString());
       if (data['userId'] != null) await saveUserId(data['userId'].toString());
-      if (data['fullName'] != null) await saveUserName(data['fullName'].toString());
+      if (data['fullName'] != null)
+        await saveUserName(data['fullName'].toString());
     }
     return {'statusCode': response.statusCode, ...data};
   }
@@ -369,7 +414,8 @@ class ApiService {
     if (response.statusCode == 200) {
       if (data['token'] != null) await saveToken(data['token'].toString());
       if (data['userId'] != null) await saveUserId(data['userId'].toString());
-      if (data['fullName'] != null) await saveUserName(data['fullName'].toString());
+      if (data['fullName'] != null)
+        await saveUserName(data['fullName'].toString());
     }
     return {'statusCode': response.statusCode, ...data};
   }
@@ -386,7 +432,9 @@ class ApiService {
     return {'statusCode': data == null ? 204 : response.statusCode, ...?data};
   }
 
-  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateProfile(
+    Map<String, dynamic> data,
+  ) async {
     if (mockUpdateProfile != null) return mockUpdateProfile!(data);
     final response = await put('customer/me', data);
     _requireSuccess(response);
@@ -396,12 +444,13 @@ class ApiService {
   static Future<http.Response> getPreferences() async {
     if (mockGetPreferences != null) return mockGetPreferences!();
     final response = await get('preference');
-    // The controller explicitly returns 404 when preferences have not been created.
-    if (response.statusCode != 404) _requireSuccess(response);
+    _requireSuccess(response);
     return response;
   }
 
-  static Future<http.Response> updatePreferences(Map<String, dynamic> data) async {
+  static Future<http.Response> updatePreferences(
+    Map<String, dynamic> data,
+  ) async {
     if (mockUpdatePreferences != null) return mockUpdatePreferences!(data);
     final response = await put('preference', data);
     _requireSuccess(response);
@@ -417,9 +466,15 @@ class ApiService {
     return _list(await get('destination'));
   }
 
-  static Future<List<dynamic>> Function({String? search, String? sortBy})? mockGetTours;
+  static Future<List<dynamic>> Function({String? search, String? sortBy})?
+  mockGetTours;
+  static Future<Map<String, dynamic>?> Function(int id)? mockGetTour;
 
-  static Future<List<dynamic>> getTours({String? search, String? sortBy, String? currency}) async {
+  static Future<List<dynamic>> getTours({
+    String? search,
+    String? sortBy,
+    String? currency,
+  }) async {
     if (mockGetTours != null) {
       return await mockGetTours!(search: search, sortBy: sortBy);
     }
@@ -431,7 +486,8 @@ class ApiService {
     if (sortBy != null) {
       params.add('sortBy=${Uri.encodeQueryComponent(sortBy)}');
     }
-    if (currency != null) params.add('currency=${Uri.encodeQueryComponent(currency)}');
+    if (currency != null)
+      params.add('currency=${Uri.encodeQueryComponent(currency)}');
     if (params.isNotEmpty) endpoint += '?${params.join('&')}';
 
     final response = await get(endpoint);
@@ -444,12 +500,25 @@ class ApiService {
     );
   }
 
-  static Future<Map<String, dynamic>?> getTour(int id, {String? currency}) async {
-    return _object(await get('tour/$id${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
+  static Future<Map<String, dynamic>?> getTour(
+    int id, {
+    String? currency,
+  }) async {
+    if (mockGetTour != null) return mockGetTour!(id);
+    return _object(
+      await get(
+        'tour/$id${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}',
+      ),
+    );
   }
 
-  static Future<Map<String, dynamic>> getTourOrThrow(int id, {String? currency}) async {
-    final response = await get('tour/$id${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}');
+  static Future<Map<String, dynamic>> getTourOrThrow(
+    int id, {
+    String? currency,
+  }) async {
+    final response = await get(
+      'tour/$id${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}',
+    );
     if (response.statusCode == 200) {
       return jsonDecode(response.body) as Map<String, dynamic>;
     }
@@ -466,14 +535,18 @@ class ApiService {
   static Future<List<dynamic>> Function()? mockGetMyItineraries;
   static Future<Map<String, dynamic>?> Function(int id)? mockGetItinerary;
   static Future<bool> Function(int itineraryId)? mockAcceptItinerary;
-  static Future<bool> Function(int itineraryId, String comment)? mockRequestItineraryChanges;
-  static Future<Map<String, dynamic>> Function(int tripRequestId)? mockCancelTripRequest;
+  static Future<bool> Function(int itineraryId, String comment)?
+  mockRequestItineraryChanges;
+  static Future<Map<String, dynamic>> Function(int tripRequestId)?
+  mockCancelTripRequest;
 
   static Future<List<dynamic>> getMyItineraries() async {
     if (mockGetMyItineraries != null) return mockGetMyItineraries!();
     final userId = await getUserId();
     if (userId == null || userId.isEmpty) {
-      throw const ApiException('Your session is missing a customer ID. Please sign in again.');
+      throw const ApiException(
+        'Your session is missing a customer ID. Please sign in again.',
+      );
     }
     return _list(await get('itinerary/customer/$userId'));
   }
@@ -495,16 +568,22 @@ class ApiService {
     if (userId == null || userId.isEmpty) {
       throw const ApiException('Please sign in again.');
     }
-    return _object(await post('itinerary', {
-      'customerId': userId,
-      'tripRequestId': tripRequestId,
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-      'currency': currency,
-    }));
+    return _object(
+      await post('itinerary', {
+        'customerId': userId,
+        'tripRequestId': tripRequestId,
+        'startDate': startDate.toIso8601String(),
+        'endDate': endDate.toIso8601String(),
+        'currency': currency,
+      }),
+    );
   }
 
-  static Future<bool> updateItineraryStatus(int itineraryId, String status, {String? notes}) async {
+  static Future<bool> updateItineraryStatus(
+    int itineraryId,
+    String status, {
+    String? notes,
+  }) async {
     final response = await patch('itinerary/$itineraryId/status', {
       'status': status,
       if (notes != null && notes.isNotEmpty) 'notes': notes,
@@ -523,23 +602,32 @@ class ApiService {
   }
 
   /// Requests changes by setting status back to Draft with customer comment notes
-  static Future<bool> requestItineraryChanges(int itineraryId, [String comment = '']) async {
+  static Future<bool> requestItineraryChanges(
+    int itineraryId, [
+    String comment = '',
+  ]) async {
     if (mockRequestItineraryChanges != null) {
       return await mockRequestItineraryChanges!(itineraryId, comment);
     }
     // TODO(backend): No customer revision endpoint persists notes. The status
     // controller only permits customers to set Discarded and ignores Notes.
-    throw const ApiException('Change requests are not supported by the API yet. Please contact your travel agent.');
+    throw const ApiException(
+      'Change requests are not supported by the API yet. Please contact your travel agent.',
+    );
   }
 
-  static Future<Map<String, dynamic>> cancelTripRequest(int tripRequestId) async {
+  static Future<Map<String, dynamic>> cancelTripRequest(
+    int tripRequestId,
+  ) async {
     if (mockCancelTripRequest != null) {
       return mockCancelTripRequest!(tripRequestId);
     }
     final response = await patch('triprequest/$tripRequestId/cancel', {});
     final result = _object(response);
     if (result == null) {
-      throw const ApiException('The server returned no cancellation result. Please retry.');
+      throw const ApiException(
+        'The server returned no cancellation result. Please retry.',
+      );
     }
     return result;
   }
@@ -569,7 +657,6 @@ class ApiService {
     );
   }
 
-
   // ── Hotels ──
 
   static Future<List<dynamic>> getHotels({String? currency}) async {
@@ -578,11 +665,17 @@ class ApiService {
     var page = 1;
     var totalPages = 1;
     do {
-      final query = Uri(queryParameters: {
-        'status': 'Active', 'pageSize': '50', 'page': '$page',
-        'currency': ?currency,
-      }).query;
-      final response = await get('hotel?$query').timeout(const Duration(seconds: 60));
+      final query = Uri(
+        queryParameters: {
+          'status': 'Active',
+          'pageSize': '50',
+          'page': '$page',
+          'currency': ?currency,
+        },
+      ).query;
+      final response = await get(
+        'hotel?$query',
+      ).timeout(const Duration(seconds: 60));
       hotels.addAll(_list(response));
       final body = jsonDecode(response.body);
       totalPages = body is Map ? int.tryParse('${body['totalPages']}') ?? 1 : 1;
@@ -595,14 +688,23 @@ class ApiService {
     if (mockGetTransportOptions != null) {
       return mockGetTransportOptions!(currency: currency);
     }
-    return _list(await get('transport${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
+    return _list(
+      await get(
+        'transport${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}',
+      ),
+    );
   }
 
-  static Future<Map<String, dynamic>> createTripRequest(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> createTripRequest(
+    Map<String, dynamic> data,
+  ) async {
     if (mockCreateTripRequest != null) return mockCreateTripRequest!(data);
     final response = await post('triprequest', data);
     final result = _object(response);
-    if (result == null) throw const ApiException('The server returned no trip request. Please retry.');
+    if (result == null)
+      throw const ApiException(
+        'The server returned no trip request. Please retry.',
+      );
     return {...result, 'statusCode': response.statusCode};
   }
 
@@ -612,11 +714,52 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> Function()? mockGetAgentHealth;
+  static Future<Map<String, dynamic>> Function(int tripRequestId)?
+  mockTriggerAgentPipeline;
 
   /// Returns the current health/state reported by the agent service.
   static Future<Map<String, dynamic>> getAgentHealth() async {
     if (mockGetAgentHealth != null) return mockGetAgentHealth!();
     return AgentHealthService.fetch(request: () => get('AgentTrigger/health'));
+  }
+
+  static Future<Map<String, dynamic>> triggerAgentPipeline(
+    int tripRequestId,
+  ) async {
+    if (mockTriggerAgentPipeline != null) {
+      return mockTriggerAgentPipeline!(tripRequestId);
+    }
+    final response = await post(
+      'AgentTrigger/trigger/$tripRequestId?runAsync=true',
+      {},
+    );
+    return {...?_object(response), 'statusCode': response.statusCode};
+  }
+
+  static String userMessage(Object error) {
+    if (error is ApiException) return error.message;
+    if (error is TimeoutException || error is http.ClientException) {
+      return 'The service is temporarily unavailable. Please retry.';
+    }
+    return 'Something went wrong. Please retry.';
+  }
+
+  static String safeAgentFailureMessage(String? reason) {
+    if (reason == null || reason.trim().isEmpty) {
+      return 'The planning service is temporarily unavailable. Please retry.';
+    }
+    final lower = reason.toLowerCase();
+    final unsafe =
+        lower.contains('exception') ||
+        lower.contains('stack trace') ||
+        lower.contains('traceback') ||
+        lower.contains('httpclient') ||
+        lower.contains('sql') ||
+        lower.contains('apikey') ||
+        lower.contains('api key');
+    return unsafe
+        ? 'The planning service is temporarily unavailable. Please retry.'
+        : reason;
   }
 
   static Future<Map<String, dynamic>?> Function(int id)? mockGetTripRequest;
@@ -627,6 +770,8 @@ class ApiService {
   }
 
   static Future<List<dynamic>> Function(int tripRequestId)? mockGetAgentLogs;
+  static Stream<AgentLogStreamEvent> Function(int tripRequestId)?
+  mockStreamAgentLogs;
 
   static Future<List<dynamic>> getAgentLogs(int tripRequestId) async {
     if (mockGetAgentLogs != null) return mockGetAgentLogs!(tripRequestId);
@@ -639,27 +784,45 @@ class ApiService {
   }
 
   static Stream<AgentLogStreamEvent> streamAgentLogs(int tripRequestId) async* {
+    if (mockStreamAgentLogs != null) {
+      yield* mockStreamAgentLogs!(tripRequestId);
+      return;
+    }
     final client = http.Client();
     try {
       final token = await getToken();
-      final request = http.Request('GET', Uri.parse('$baseUrl/triprequest/$tripRequestId/logs/stream'))
-        ..headers.addAll({
-          'Accept': 'text/event-stream',
-          if (token != null) 'Authorization': 'Bearer $token',
-        });
+      final request =
+          http.Request(
+              'GET',
+              Uri.parse('$baseUrl/triprequest/$tripRequestId/logs/stream'),
+            )
+            ..headers.addAll({
+              'Accept': 'text/event-stream',
+              if (token != null) 'Authorization': 'Bearer $token',
+            });
       final response = await client.send(request);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         await response.stream.drain();
-        throw ApiException('Unable to connect to live agent updates.', statusCode: response.statusCode);
+        throw ApiException(
+          'Unable to connect to live agent updates.',
+          statusCode: response.statusCode,
+        );
       }
       var eventName = 'message';
       var dataLines = <String>[];
-      await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+      await for (final line
+          in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         if (line.isEmpty) {
           if (dataLines.isNotEmpty) {
             try {
               final decoded = jsonDecode(dataLines.join('\n'));
-              if (decoded is Map) yield AgentLogStreamEvent(eventName, Map<String, dynamic>.from(decoded));
+              if (decoded is Map)
+                yield AgentLogStreamEvent(
+                  eventName,
+                  Map<String, dynamic>.from(decoded),
+                );
             } catch (_) {}
           }
           eventName = 'message';
@@ -682,7 +845,9 @@ class ApiService {
     return _list(await get('booking/my'));
   }
 
-  static Future<Map<String, dynamic>> createBooking(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> createBooking(
+    Map<String, dynamic> data,
+  ) async {
     if (mockCreateBooking != null) return mockCreateBooking!(data);
     final response = await post('booking', data);
     _requireSuccess(response);
@@ -695,7 +860,9 @@ class ApiService {
     return _object(await get('booking/$id'));
   }
 
-  static Future<Map<String, dynamic>> createPayment(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> createPayment(
+    Map<String, dynamic> data,
+  ) async {
     if (mockCreatePayment != null) return mockCreatePayment!(data);
     final response = await post('payment', data);
     try {

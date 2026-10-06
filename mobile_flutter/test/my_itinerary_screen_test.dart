@@ -8,8 +8,18 @@ void main() {
   setUp(() {
     ApiService.mockGetAgentHealth = () async => {'status': 'healthy'};
     ApiService.mockGetAgentLogs = (_) async => [];
-    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'Planned'};
+    ApiService.mockStreamAgentLogs = (_) =>
+        const Stream<AgentLogStreamEvent>.empty();
+    ApiService.mockGetTripRequest = (_) async => {
+      'id': 10,
+      'status': 'Planned',
+    };
     ApiService.mockGetMyBookings = () async => [];
+    ApiService.mockGetMyTripRequests = () async => [];
+    ApiService.mockGetTour = (_) async => {
+      'latitude': 7.29,
+      'longitude': 80.63,
+    };
   });
 
   tearDown(() {
@@ -20,8 +30,11 @@ void main() {
     ApiService.mockCancelTripRequest = null;
     ApiService.mockGetAgentHealth = null;
     ApiService.mockGetAgentLogs = null;
+    ApiService.mockStreamAgentLogs = null;
     ApiService.mockGetTripRequest = null;
     ApiService.mockGetMyBookings = null;
+    ApiService.mockGetMyTripRequests = null;
+    ApiService.mockGetTour = null;
   });
 
   Widget buildTestWidget({
@@ -78,11 +91,16 @@ void main() {
   Future<void> scrollJourneyToBottom(WidgetTester tester) async {
     final journey = find.byKey(const ValueKey('journey-scroll'));
     expect(journey, findsOneWidget);
-    await tester.drag(journey, const Offset(0, -3000));
+    for (var attempt = 0; attempt < 4; attempt++) {
+      await tester.fling(journey, const Offset(0, -1000), 1000);
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
   }
 
-  testWidgets('1. Loading state displays indicator and loading text', (WidgetTester tester) async {
+  testWidgets('1. Loading state displays indicator and loading text', (
+    WidgetTester tester,
+  ) async {
     final completer = Completer<List<dynamic>>();
     ApiService.mockGetMyItineraries = () => completer.future;
 
@@ -96,18 +114,24 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('2. Empty state displays No itinerary yet and Explore Tours button', (WidgetTester tester) async {
-    ApiService.mockGetMyItineraries = () async => [];
+  testWidgets(
+    '2. Empty state displays No itinerary yet and Explore Tours button',
+    (WidgetTester tester) async {
+      ApiService.mockGetMyItineraries = () async => [];
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
 
-    expect(find.text('No itinerary yet'), findsOneWidget);
-    expect(find.text('Explore Tours'), findsOneWidget);
-  });
+      expect(find.text('No itinerary yet'), findsOneWidget);
+      expect(find.text('Explore Tours'), findsOneWidget);
+    },
+  );
 
-  testWidgets('3. Error state displays retry button and error message', (WidgetTester tester) async {
-    ApiService.mockGetMyItineraries = () async => throw Exception('Network timeout');
+  testWidgets('3. Error state displays retry button and error message', (
+    WidgetTester tester,
+  ) async {
+    ApiService.mockGetMyItineraries = () async =>
+        throw Exception('Network timeout');
 
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
@@ -116,85 +140,110 @@ void main() {
     expect(find.text('Retry'), findsOneWidget);
   });
 
-  testWidgets('4. Real data renders timeline items, total, and prices in LKR (no \$)', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(status: 1);
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (id) async => itinerary;
+  testWidgets(
+    '4. Real data renders timeline items, total, and prices in LKR (no \$)',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(status: 1);
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (id) async => itinerary;
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
 
-    // Verify timeline items rendered
-    expect(find.text('Sigiriya Rock Fortress'), findsOneWidget);
-    expect(find.text('Temple of the Tooth'), findsOneWidget);
-    expect(find.text('DAY 1'), findsOneWidget);
-    expect(find.text('DAY 2'), findsOneWidget);
+      // Verify timeline items rendered
+      expect(find.text('Sigiriya Rock Fortress'), findsOneWidget);
+      expect(find.text('Temple of the Tooth'), findsOneWidget);
+      expect(find.text('DAY 1'), findsOneWidget);
+      expect(find.text('DAY 2'), findsOneWidget);
+      await tester.drag(
+        find.byKey(const ValueKey('journey-scroll')),
+        const Offset(0, -1000),
+      );
+      await tester.pumpAndSettle();
 
-    // Verify LKR formatted prices
-    expect(find.text('LKR 7,500'), findsOneWidget);
-    expect(find.text('PROPOSED'), findsOneWidget);
+      // Verify LKR formatted prices
+      expect(find.text('LKR 7,500'), findsNWidgets(3));
+      expect(find.text('PROPOSED'), findsOneWidget);
 
-    // Verify NO $ symbol is displayed anywhere on screen
-    expect(find.textContaining(r'$'), findsNothing);
-  });
+      // Verify NO $ symbol is displayed anywhere on screen
+      expect(find.textContaining(r'$'), findsNothing);
+    },
+  );
 
-  testWidgets('5a. Button visibility: Proposed status shows Accept & Request Changes, hides Checkout', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(status: 1); // Proposed
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (id) async => itinerary;
+  testWidgets(
+    '5a. Button visibility: Proposed status shows Accept & Request Changes, hides Checkout',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(status: 1); // Proposed
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (id) async => itinerary;
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+      await tester.ensureVisible(find.text('Accept Itinerary'));
+      expect(find.text('Accept Itinerary'), findsOneWidget);
+      expect(find.text('Request Changes'), findsOneWidget);
+      expect(find.text('Continue to Checkout'), findsNothing);
+    },
+  );
 
-    await tester.ensureVisible(find.text('Accept Itinerary'));
-    expect(find.text('Accept Itinerary'), findsOneWidget);
-    expect(find.text('Request Changes'), findsOneWidget);
-    expect(find.text('Continue to Checkout'), findsNothing);
-  });
+  testWidgets(
+    '5b. Button visibility: Draft status shows Request Changes, hides Accept & Checkout',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(status: 0); // Draft
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (id) async => itinerary;
 
-  testWidgets('5b. Button visibility: Draft status shows Request Changes, hides Accept & Checkout', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(status: 0); // Draft
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (id) async => itinerary;
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+      await tester.ensureVisible(find.text('Request Changes'));
+      expect(find.text('Request Changes'), findsOneWidget);
+      expect(find.text('Accept Itinerary'), findsNothing);
+      expect(find.text('Continue to Checkout'), findsNothing);
+    },
+  );
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+  testWidgets(
+    '5c. Button visibility: Accepted status shows Continue to Checkout, hides Accept & Request Changes',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(status: 2); // Accepted
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (id) async => itinerary;
 
-    await tester.ensureVisible(find.text('Request Changes'));
-    expect(find.text('Request Changes'), findsOneWidget);
-    expect(find.text('Accept Itinerary'), findsNothing);
-    expect(find.text('Continue to Checkout'), findsNothing);
-  });
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+      await tester.ensureVisible(find.text('Continue to Checkout'));
+      expect(find.text('Continue to Checkout'), findsOneWidget);
+      expect(find.text('Accept Itinerary'), findsNothing);
+      expect(find.text('Request Changes'), findsNothing);
+    },
+  );
 
-  testWidgets('5c. Button visibility: Accepted status shows Continue to Checkout, hides Accept & Request Changes', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(status: 2); // Accepted
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (id) async => itinerary;
+  testWidgets(
+    '5d. Button visibility: Discarded status hides all action buttons and shows notice',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(status: 3); // Discarded
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (id) async => itinerary;
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+      expect(find.text('Accept Itinerary'), findsNothing);
+      expect(find.text('Request Changes'), findsNothing);
+      expect(find.text('Continue to Checkout'), findsNothing);
+      expect(
+        find.text('This itinerary proposal was discarded.'),
+        findsOneWidget,
+      );
+    },
+  );
 
-    await tester.ensureVisible(find.text('Continue to Checkout'));
-    expect(find.text('Continue to Checkout'), findsOneWidget);
-    expect(find.text('Accept Itinerary'), findsNothing);
-    expect(find.text('Request Changes'), findsNothing);
-  });
-
-  testWidgets('5d. Button visibility: Discarded status hides all action buttons and shows notice', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(status: 3); // Discarded
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (id) async => itinerary;
-
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
-
-    expect(find.text('Accept Itinerary'), findsNothing);
-    expect(find.text('Request Changes'), findsNothing);
-    expect(find.text('Continue to Checkout'), findsNothing);
-    expect(find.text('This itinerary proposal was discarded.'), findsOneWidget);
-  });
-
-  testWidgets('6. Accept Itinerary invokes accept API', (WidgetTester tester) async {
+  testWidgets('6. Accept Itinerary invokes accept API', (
+    WidgetTester tester,
+  ) async {
     final itinerary = createSampleItinerary(id: 42, status: 1); // Proposed
     int? acceptedId;
 
@@ -207,7 +256,7 @@ void main() {
 
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
-
+    await scrollJourneyToBottom(tester);
     final acceptBtnFinder = find.text('Accept Itinerary');
     await tester.ensureVisible(acceptBtnFinder);
     await tester.tap(acceptBtnFinder);
@@ -216,46 +265,66 @@ void main() {
     expect(acceptedId, equals(42));
   });
 
-  testWidgets('6a. Cancel trip requires confirmation and refreshes cancelled state', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(id: 42, status: 1);
-    var tripStatus = 'Planning';
-    int? cancelledId;
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': tripStatus};
-    ApiService.mockCancelTripRequest = (id) async {
-      cancelledId = id;
-      tripStatus = 'Cancelled';
-      return {'status': 'Cancelled', 'message': 'Your trip has been cancelled.'};
-    };
+  testWidgets(
+    '6a. Cancel trip requires confirmation and refreshes cancelled state',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(id: 42, status: 1);
+      var tripStatus = 'Planning';
+      int? cancelledId;
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+      ApiService.mockGetTripRequest = (_) async => {
+        'id': 10,
+        'status': tripStatus,
+      };
+      ApiService.mockCancelTripRequest = (id) async {
+        cancelledId = id;
+        tripStatus = 'Cancelled';
+        return {
+          'status': 'Cancelled',
+          'message': 'Your trip has been cancelled.',
+        };
+      };
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
 
-    await scrollJourneyToBottom(tester);
-    await tester.tap(find.text('Cancel trip'));
-    await tester.pumpAndSettle();
-    expect(find.text('Cancel trip'), findsNWidgets(2));
-    expect(find.textContaining('Are you sure you want to cancel this trip?'), findsOneWidget);
+      await scrollJourneyToBottom(tester);
+      await tester.tap(find.text('Cancel trip'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cancel trip'), findsNWidgets(2));
+      expect(
+        find.textContaining('Are you sure you want to cancel this trip?'),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.text('Keep trip'));
-    await tester.pumpAndSettle();
-    expect(cancelledId, isNull);
+      await tester.tap(find.text('Keep trip'));
+      await tester.pumpAndSettle();
+      expect(cancelledId, isNull);
 
-    await tester.tap(find.text('Cancel trip'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel trip').last);
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel trip'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel trip').last);
+      await tester.pumpAndSettle();
 
-    expect(cancelledId, 10);
-    expect(find.text('Cancelled. This trip is no longer actionable.'), findsOneWidget);
-  });
+      expect(cancelledId, 10);
+      expect(
+        find.text('Cancelled. This trip is no longer actionable.'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('6b. Cancel trip is available for an approved unpaid trip', (WidgetTester tester) async {
+  testWidgets('6b. Cancel trip is available for an approved unpaid trip', (
+    WidgetTester tester,
+  ) async {
     final itinerary = createSampleItinerary(id: 42, status: 2);
     ApiService.mockGetMyItineraries = () async => [itinerary];
     ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'Approved'};
+    ApiService.mockGetTripRequest = (_) async => {
+      'id': 10,
+      'status': 'Approved',
+    };
 
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
@@ -264,41 +333,59 @@ void main() {
     expect(find.text('Cancel trip'), findsOneWidget);
   });
 
-  testWidgets('6c. Cancel trip is hidden inside the three-day cutoff', (WidgetTester tester) async {
+  testWidgets('6c. Cancel trip is hidden inside the three-day cutoff', (
+    WidgetTester tester,
+  ) async {
     final itinerary = createSampleItinerary(id: 42, status: 2);
     ApiService.mockGetMyItineraries = () async => [itinerary];
     ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'Approved'};
+    ApiService.mockGetTripRequest = (_) async => {
+      'id': 10,
+      'status': 'Approved',
+    };
 
-    await tester.pumpWidget(buildTestWidget(nowProvider: () => DateTime(2026, 10, 10)));
+    await tester.pumpWidget(
+      buildTestWidget(nowProvider: () => DateTime(2026, 10, 10)),
+    );
     await tester.pumpAndSettle();
     await scrollJourneyToBottom(tester);
 
     expect(find.text('Cancel trip'), findsNothing);
   });
 
-  testWidgets('6d. Cancel trip is available exactly three days before departure', (WidgetTester tester) async {
+  testWidgets(
+    '6d. Cancel trip is available exactly three days before departure',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(id: 42, status: 1);
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+      ApiService.mockGetTripRequest = (_) async => {
+        'id': 10,
+        'status': 'AwaitingApproval',
+      };
+
+      await tester.pumpWidget(
+        buildTestWidget(nowProvider: () => DateTime(2026, 10, 9)),
+      );
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+
+      expect(find.text('Cancel trip'), findsOneWidget);
+      expect(
+        find.text('Cancellation is available until 3 days before departure.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('6e. Cancellation failure keeps the existing itinerary state', (
+    WidgetTester tester,
+  ) async {
     final itinerary = createSampleItinerary(id: 42, status: 1);
     ApiService.mockGetMyItineraries = () async => [itinerary];
     ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'AwaitingApproval'};
-
-    await tester.pumpWidget(buildTestWidget(nowProvider: () => DateTime(2026, 10, 9)));
-    await tester.pumpAndSettle();
-    await scrollJourneyToBottom(tester);
-
-    expect(find.text('Cancel trip'), findsOneWidget);
-    expect(
-      find.text('Cancellation is available until 3 days before departure.'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('6e. Cancellation failure keeps the existing itinerary state', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(id: 42, status: 1);
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockCancelTripRequest = (_) async => throw const ApiException('This trip can no longer be cancelled.');
+    ApiService.mockCancelTripRequest = (_) async =>
+        throw const ApiException('This trip can no longer be cancelled.');
 
     await tester.pumpWidget(buildTestWidget());
     await tester.pumpAndSettle();
@@ -312,54 +399,70 @@ void main() {
     expect(find.text('Accept Itinerary'), findsOneWidget);
   });
 
-  testWidgets('7. Request Changes dialog validates required comment and invokes API', (WidgetTester tester) async {
-    final itinerary = createSampleItinerary(id: 42, status: 1); // Proposed
-    String? submittedComment;
+  testWidgets(
+    '7. Request Changes dialog validates required comment and invokes API',
+    (WidgetTester tester) async {
+      final itinerary = createSampleItinerary(id: 42, status: 1); // Proposed
+      String? submittedComment;
 
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (id) async => itinerary;
-    ApiService.mockRequestItineraryChanges = (id, comment) async {
-      submittedComment = comment;
-      return true;
-    };
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (id) async => itinerary;
+      ApiService.mockRequestItineraryChanges = (id, comment) async {
+        submittedComment = comment;
+        return true;
+      };
 
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
 
-    // Open Request Changes dialog via Edit link or button
-    final editFinder = find.text('Edit');
-    await tester.ensureVisible(editFinder);
-    await tester.tap(editFinder);
-    await tester.pumpAndSettle();
+      // Open Request Changes dialog via Edit link or button
+      final editFinder = find.text('Edit');
+      await tester.ensureVisible(editFinder);
+      await tester.tap(editFinder);
+      await tester.pumpAndSettle();
 
-    // Verify dialog opened
-    expect(find.text('Request Changes'), findsWidgets);
-    expect(find.text('Submit Request'), findsOneWidget);
+      // Verify dialog opened
+      expect(find.text('Request Changes'), findsWidgets);
+      expect(find.text('Submit Request'), findsOneWidget);
 
-    // Try submitting empty comment
-    await tester.tap(find.text('Submit Request'));
-    await tester.pumpAndSettle();
+      // Try submitting empty comment
+      await tester.tap(find.text('Submit Request'));
+      await tester.pumpAndSettle();
 
-    // Validation error should appear
-    expect(find.text('Comment is required to request changes'), findsOneWidget);
-    expect(submittedComment, isNull);
+      // Validation error should appear
+      expect(
+        find.text('Comment is required to request changes'),
+        findsOneWidget,
+      );
+      expect(submittedComment, isNull);
 
-    // Enter comment and submit
-    await tester.enterText(find.byType(TextFormField), 'Please add a morning tea plantation visit');
-    await tester.tap(find.text('Submit Request'));
-    await tester.pump();
+      // Enter comment and submit
+      await tester.enterText(
+        find.byType(TextFormField),
+        'Please add a morning tea plantation visit',
+      );
+      await tester.tap(find.text('Submit Request'));
+      await tester.pump();
 
-    expect(submittedComment, equals('Please add a morning tea plantation visit'));
-  });
+      expect(
+        submittedComment,
+        equals('Please add a morning tea plantation visit'),
+      );
+    },
+  );
 
-  testWidgets('8. A submitted trip without an API itinerary stays pending', (tester) async {
+  testWidgets('8. A submitted trip without an API itinerary stays pending', (
+    tester,
+  ) async {
     ApiService.mockGetMyItineraries = () async => [];
-    await tester.pumpWidget(MaterialApp(
-      onGenerateRoute: (_) => MaterialPageRoute(
-        settings: const RouteSettings(arguments: {'tripRequestId': 10}),
-        builder: (_) => const MyItineraryScreen(),
+    await tester.pumpWidget(
+      MaterialApp(
+        onGenerateRoute: (_) => MaterialPageRoute(
+          settings: const RouteSettings(arguments: {'tripRequestId': 10}),
+          builder: (_) => const MyItineraryScreen(),
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     expect(find.text('Your itinerary is pending'), findsOneWidget);
     expect(find.text('Accept Itinerary'), findsNothing);
@@ -368,56 +471,78 @@ void main() {
     expect(find.text('Retry'), findsOneWidget);
   });
 
-  testWidgets('9. Empty API items never generate activities or a cost', (tester) async {
+  testWidgets('9. Empty API items never generate activities or a cost', (
+    tester,
+  ) async {
     final itinerary = createSampleItinerary()..['items'] = [];
     itinerary.remove('totalEstimatedCost');
     ApiService.mockGetMyItineraries = () async => [itinerary];
     ApiService.mockGetItinerary = (_) async => itinerary;
-    await tester.pumpWidget(buildTestWidget());
+    await tester.pumpWidget(
+      buildTestWidget(nowProvider: () => DateTime(2026, 10, 10)),
+    );
     await tester.pumpAndSettle();
-    expect(find.text('No activities scheduled yet for this itinerary.'), findsOneWidget);
+    expect(
+      find.text('No activities scheduled yet for this itinerary.'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Cost pending'),
+      300,
+      scrollable: find.byType(Scrollable),
+    );
     expect(find.text('Cost pending'), findsOneWidget);
     expect(find.text('Sigiriya Rock Fortress'), findsNothing);
     expect(find.text('Accept Itinerary'), findsNothing);
   });
 
-  testWidgets('10. Failed acceptance retains Proposed status and offers retry', (tester) async {
-    final itinerary = createSampleItinerary();
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockAcceptItinerary = (_) async => throw const ApiException('Approval denied');
-    await tester.pumpWidget(buildTestWidget());
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Accept Itinerary'));
-    await tester.tap(find.text('Accept Itinerary'));
-    await tester.pumpAndSettle();
-    expect(find.text('Approval denied'), findsOneWidget);
-    expect(find.text('Continue to Checkout'), findsNothing);
-    expect(itinerary['status'], 1);
-  });
+  testWidgets(
+    '10. Failed acceptance retains Proposed status and offers retry',
+    (tester) async {
+      final itinerary = createSampleItinerary();
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+      ApiService.mockAcceptItinerary = (_) async =>
+          throw const ApiException('Approval denied');
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+      await tester.ensureVisible(find.text('Accept Itinerary'));
+      await tester.tap(find.text('Accept Itinerary'));
+      await tester.pumpAndSettle();
+      expect(find.text('Approval denied'), findsOneWidget);
+      expect(find.text('Continue to Checkout'), findsNothing);
+      expect(itinerary['status'], 1);
+    },
+  );
 
-  testWidgets('11. VIEW FULL ROUTE button is tappable and navigates to /trip-map', (tester) async {
-    final itinerary = createSampleItinerary();
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (_) async => itinerary;
-    bool navigatedToMap = false;
+  testWidgets(
+    '11. VIEW FULL ROUTE button is tappable and navigates to /trip-map',
+    (tester) async {
+      final itinerary = createSampleItinerary();
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+      bool navigatedToMap = false;
 
-    await tester.pumpWidget(buildTestWidget(
-      routes: {
-        '/trip-map': (context) {
-          navigatedToMap = true;
-          return const Scaffold(body: Text('Mock Trip Map'));
-        },
-      },
-    ));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        buildTestWidget(
+          routes: {
+            '/trip-map': (context) {
+              navigatedToMap = true;
+              return const Scaffold(body: Text('Mock Trip Map'));
+            },
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    final viewRouteBtn = find.text('VIEW FULL ROUTE');
-    expect(viewRouteBtn, findsOneWidget);
-    await tester.tap(viewRouteBtn);
-    await tester.pumpAndSettle();
+      final viewRouteBtn = find.text('VIEW FULL ROUTE');
+      expect(viewRouteBtn, findsOneWidget);
+      await tester.tap(viewRouteBtn);
+      await tester.pumpAndSettle();
 
-    expect(navigatedToMap, isTrue);
-    expect(find.text('Mock Trip Map'), findsOneWidget);
-  });
+      expect(navigatedToMap, isTrue);
+      expect(find.text('Mock Trip Map'), findsOneWidget);
+    },
+  );
 }
