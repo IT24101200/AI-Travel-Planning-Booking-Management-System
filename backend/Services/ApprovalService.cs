@@ -70,6 +70,7 @@ namespace backend.Services
             switch (dto.Decision)
             {
                 case ApprovalDecision.Approved:
+                    await RoomInventory.ValidateConfirmationAsync(_db, booking.Id);
                     booking.Status = BookingStatus.Confirmed;
                     break;
                 case ApprovalDecision.Rejected:

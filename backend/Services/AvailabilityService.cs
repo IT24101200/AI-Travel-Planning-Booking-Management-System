@@ -6,25 +6,10 @@ using backend.Models.Enums;
 namespace backend.Services
 {
     /// <summary>
-    /// Checks real inventory availability for rooms and transport.
-    /// 
-    /// HOW IT WORKS:
-    /// - Room availability = TotalRooms − (rooms already booked for overlapping dates)
-    /// - Transport availability = Capacity − (seats already booked)
-    /// 
-    /// PHASE 1 (current):
-    ///   BookingItem doesn't exist yet (Student D hasn't built it).
-    ///   So we return TotalRooms/Capacity as-is (BookedRooms = 0).
-    ///   
-    /// PHASE 2 (after Student D creates BookingItem):
-    ///   We'll add the overlapping-booking query. The interface stays the same,
-    ///   only the internal logic changes. This is why interfaces are useful!
-    /// 
-    /// WHY THIS MATTERS FOR THE VIVA:
-    ///   The spec says: "availability check that counts existing overlapping bookings
-    ///   and subtracts from TotalRooms, wrapped in a database transaction to prevent
-    ///   two customers booking the last room simultaneously."
-    ///   Phase 2 will add the transaction + overlap logic.
+    /// Room availability counts peak confirmed occupancy for overlapping stays.
+    /// Pending proposals do not reserve rooms. Checkout is exclusive, so rooms
+    /// become available again for subsequent dates without changing TotalRooms.
+    /// Transport availability counts seats in active bookings.
     /// </summary>
     public class AvailabilityService : IAvailabilityService
     {
@@ -39,8 +24,8 @@ namespace backend.Services
         /// Check room availability for a date range.
         /// 
         /// Example: Room has TotalRooms = 10.
-        ///   Phase 1: returns AvailableRooms = 10 (no bookings exist yet).
-        ///   Phase 2: if 3 rooms are booked for overlapping dates, returns 7.
+        /// If peak confirmed occupancy is 3 for the requested dates,
+        /// returns AvailableRooms = 7. Pending proposals do not reduce it.
         /// </summary>
         public async Task<RoomAvailabilityDto?> CheckRoomAvailabilityAsync(
             int roomId, DateTime checkIn, DateTime checkOut)
@@ -49,20 +34,12 @@ namespace backend.Services
             if (room is null) return null;
 
             // ── Real Availability Calculation ──
-            // Count rooms booked in active bookings (Draft, AwaitingApproval, Confirmed)
+            // Only human-confirmed stays consume room inventory.
             // where check-in and check-out dates overlap:
             //   existing.CheckInDate < requested.checkOut AND existing.CheckOutDate > requested.checkIn
-            var activeStatuses = new[] { BookingStatus.Draft, BookingStatus.AwaitingApproval, BookingStatus.Confirmed };
-
-            var bookedRooms = await _context.BookingItems
-                .Where(bi => bi.RoomId == roomId 
-                          && bi.ItemType == BookingItemType.Room
-                          && bi.CheckInDate.HasValue 
-                          && bi.CheckOutDate.HasValue
-                          && bi.CheckInDate.Value < checkOut 
-                          && bi.CheckOutDate.Value > checkIn
-                          && activeStatuses.Contains(bi.Booking.Status))
-                .SumAsync(bi => bi.Quantity);
+            if (checkOut <= checkIn)
+                throw new ArgumentException("Check-out must be after check-in.");
+            var bookedRooms = await RoomInventory.BookedPeakAsync(_context, roomId, checkIn, checkOut);
 
             return new RoomAvailabilityDto
             {

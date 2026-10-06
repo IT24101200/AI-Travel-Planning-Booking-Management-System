@@ -12,6 +12,8 @@ namespace backend.DTOs
         public int TotalRooms { get; set; }
         public decimal PricePerNight { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public string? RateSourceUrl { get; set; }
+        public string? RateNotes { get; set; }
     }
 
     // ── Input DTO — HotelId comes from the URL, not the body ──
@@ -24,7 +26,7 @@ namespace backend.DTOs
         [Range(1, 20, ErrorMessage = "Capacity must be between 1 and 20 guests.")]
         public int Capacity { get; set; }
 
-        [Range(1, 1000, ErrorMessage = "Total rooms must be at least 1.")]
+        [Range(0, 1000, ErrorMessage = "Total rooms must be between 0 and 1000.")]
         public int TotalRooms { get; set; }
 
         [Range(0, 1000000, ErrorMessage = "Price per night must be greater than or equal to 0.")]
@@ -32,6 +34,12 @@ namespace backend.DTOs
 
         [MaxLength(10, ErrorMessage = "Currency code cannot exceed 10 characters.")]
         public string Currency { get; set; } = "LKR";
+
+        [MaxLength(500)]
+        public string? RateSourceUrl { get; set; }
+
+        [MaxLength(1000)]
+        public string? RateNotes { get; set; }
     }
 
     // ── Availability response — returned by the availability endpoint ──

@@ -549,7 +549,21 @@ class ApiService {
   // ── Hotels ──
 
   static Future<List<dynamic>> getHotels({String? currency}) async {
-    return _list(await get('hotel${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}'));
+    final hotels = <dynamic>[];
+    var page = 1;
+    var totalPages = 1;
+    do {
+      final query = Uri(queryParameters: {
+        'status': 'Active', 'pageSize': '50', 'page': '$page',
+        'currency': ?currency,
+      }).query;
+      final response = await get('hotel?$query').timeout(const Duration(seconds: 60));
+      hotels.addAll(_list(response));
+      final body = jsonDecode(response.body);
+      totalPages = body is Map ? int.tryParse('${body['totalPages']}') ?? 1 : 1;
+      page++;
+    } while (page <= totalPages);
+    return hotels;
   }
 
   static Future<List<dynamic>> getTransportOptions({String? currency}) async {

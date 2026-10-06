@@ -7,6 +7,7 @@ using backend.Data;
 using backend.DTOs;
 using backend.Models;
 using backend.Models.Enums;
+using backend.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -238,16 +239,16 @@ namespace backend.Tests
         }
 
         // ---------------------------------------------------------------------
-        //  TEST 1 -- Two concurrent requests for the last available Room
+        //  TEST 1 -- Concurrent room proposals, followed by capacity-checked confirmation
         //
         //  Asserts:
-        //  - Exactly one 201 Created
-        //  - Exactly one 400 Bad Request (capacity exhausted, clear error body)
+        //  - Two pending proposals can be created
+        //  - Only one can be confirmed for the last room
         //  - No 5xx crashes
-        //  - Database contains exactly one BookingItem for RoomId=1
+        //  - Database contains two proposals, but only one confirmed booking
         // ---------------------------------------------------------------------
         [Fact]
-        public async Task ConcurrentRoom_LastUnit_ExactlyOneSucceeds()
+        public async Task ConcurrentRoom_ProposalsDoNotReserve_OnlyOneCanBeConfirmed()
         {
             await SeedDatabaseAsync();
 
@@ -290,7 +291,7 @@ namespace backend.Tests
             Console.WriteLine($"[ConcurrentRoom] Response 1: {(int)results[0].StatusCode}  Body: {body1}");
             Console.WriteLine($"[ConcurrentRoom] Response 2: {(int)results[1].StatusCode}  Body: {body2}");
 
-            // Core assertion: exactly one success, exactly one failure
+            // Pending proposals do not consume room stock.
             var successCount = results.Count(r =>
                 r.StatusCode == HttpStatusCode.Created ||
                 r.StatusCode == HttpStatusCode.OK);
@@ -299,12 +300,12 @@ namespace backend.Tests
                 r.StatusCode == HttpStatusCode.BadRequest ||
                 r.StatusCode == HttpStatusCode.Conflict);
 
-            Assert.True(successCount == 1,
-                $"Expected exactly 1 success (201/200) but got {successCount}. " +
+            Assert.True(successCount == 2,
+                $"Expected 2 pending proposals (201/200) but got {successCount}. " +
                 $"Statuses: [{string.Join(", ", statuses)}]");
 
-            Assert.True(failureCount == 1,
-                $"Expected exactly 1 failure (400/409) but got {failureCount}. " +
+            Assert.True(failureCount == 0,
+                $"Expected no rejection before approval (400/409) but got {failureCount}. " +
                 $"Statuses: [{string.Join(", ", statuses)}]");
 
             // Verify no 5xx crashes occurred
@@ -312,14 +313,21 @@ namespace backend.Tests
                 results.Any(r => (int)r.StatusCode >= 500),
                 "A 5xx server error means the guard threw an unhandled exception.");
 
-            // Verify the DB has exactly one booking item for this room
+            // Confirmation is the point at which room stock is consumed.
             using var scope = _factory.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var roomBookings = await db.BookingItems
                 .Where(bi => bi.RoomId == 1 && bi.ItemType == BookingItemType.Room)
                 .CountAsync();
 
-            Assert.Equal(1, roomBookings);
+            Assert.Equal(2, roomBookings);
+            var pending = await db.Bookings.Where(b => b.BookingItems.Any(i => i.RoomId == 1))
+                .OrderBy(b => b.Id).Select(b => b.Id).ToListAsync();
+            var service = new BookingService(db);
+            await service.UpdateBookingStatusAsync(pending[0], BookingStatus.Confirmed);
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.UpdateBookingStatusAsync(pending[1], BookingStatus.Confirmed));
+            Assert.Equal(1, await db.Bookings.CountAsync(b => b.Status == BookingStatus.Confirmed));
         }
 
         // ---------------------------------------------------------------------

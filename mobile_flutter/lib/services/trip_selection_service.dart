@@ -1,8 +1,12 @@
-/// Shared state holder for selected trip components (Accommodation, Transport, Itinerary, Booking).
-/// Ensures hotel, vehicle, and itinerary choices stay consistent across screens.
+import 'package:latlong2/latlong.dart';
+
+/// Keeps hotel, vehicle, itinerary and booking choices consistent across screens.
+
 class TripSelectionService {
   // Currently selected hotel or resort from AccommodationOptionsScreen
   static Map<String, dynamic>? selectedHotel;
+  static LatLng? hotelDirectionsOrigin;
+  static String? hotelDirectionsOriginLabel;
 
   // Currently selected vehicle or transfer from TransportOptionsScreen
   static Map<String, dynamic>? selectedTransport;
@@ -16,6 +20,8 @@ class TripSelectionService {
   /// Resets all in-memory selections
   static void reset() {
     selectedHotel = null;
+    hotelDirectionsOrigin = null;
+    hotelDirectionsOriginLabel = null;
     selectedTransport = null;
     activeItinerary = null;
     activeBookingId = null;

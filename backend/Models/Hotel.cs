@@ -42,8 +42,8 @@ namespace backend.Models
         public double Latitude { get; set; }
         public double Longitude { get; set; }
 
-        // ── 1 to 5 star rating ──
-        [Range(1, 5)]
+        // Zero means no independently verified star classification.
+        [Range(0, 5)]
         public int StarRating { get; set; }
 
         // ── Soft delete: Active or Inactive ──
