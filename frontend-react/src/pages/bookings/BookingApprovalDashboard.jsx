@@ -56,7 +56,9 @@ export default function BookingApprovalDashboard() {
             customer: b.customerName || 'Customer unavailable',
             total: b.totalCost ?? null,
             currency: b.currency || null,
-            requested: b.createdAt ? b.createdAt.split('T')[0] : 'Date unavailable',
+            travellerCount: b.travellerCount ?? null,
+            createdAt: b.createdAt || null,
+            requested: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : 'Date unavailable',
             status: statusStr,
             agentLogs: b.agentLogs || [],
           }
@@ -273,7 +275,7 @@ export default function BookingApprovalDashboard() {
               </div>
               <span className="badge-pill badge-amber">
                 <span className="badge-dot" />
-                <span>SLA 01:42</span>
+                <span>{awaitingCount} awaiting approval</span>
               </span>
             </div>
 
@@ -311,7 +313,7 @@ export default function BookingApprovalDashboard() {
                         </td>
                         <td>{r.customer}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>
-                          {formatPrice(r.total, r.currency)}
+                          {r.total != null ? formatPrice(r.total, r.currency) : 'Not available'}
                         </td>
                         <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{r.requested}</td>
                         <td>
@@ -325,7 +327,11 @@ export default function BookingApprovalDashboard() {
                   ) : (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                        No bookings match the selected filter.
+                        {rows.length === 0
+                          ? 'No bookings available.'
+                          : filter === 'AwaitingApproval'
+                            ? 'Nothing awaiting approval.'
+                            : 'No bookings match the selected filter.'}
                       </td>
                     </tr>
                   )}
@@ -379,7 +385,7 @@ export default function BookingApprovalDashboard() {
                   {active.reference}
                 </h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#66747b' }}>
-                  Created {active.requested} Â· 09:42 LKT
+                  Created {active.requested}
                 </p>
               </div>
               <span className={`badge-pill ${getBadgeClass(active.status)}`}>
@@ -419,10 +425,10 @@ export default function BookingApprovalDashboard() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: '#182126' }}>
-                  {active.customer} Â· 2 travellers
+                  {active.customer}{active.travellerCount != null ? ` - ${active.travellerCount} travellers` : ''}
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#66747b' }}>
-                  Total Package: {formatPrice(active.total, active.currency)}
+                  Total Package: {active.total != null ? formatPrice(active.total, active.currency) : 'Not available'}
                 </p>
               </div>
             </div>

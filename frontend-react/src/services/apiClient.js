@@ -291,13 +291,8 @@ export async function updateTransport(id, transport) {
 
 // Agent log trail — shown alongside bookings in the approval dashboard
 export async function fetchAgentLogs(tripRequestId) {
-  try {
-    const { data } = await api.get(`/TripRequest/${tripRequestId}/logs`)
-    return data
-  } catch {
-    const { data } = await api.get(`/AgentLog/${tripRequestId}`)
-    return data
-  }
+  const { data } = await api.get(`/TripRequest/${tripRequestId}/logs`)
+  return data
 }
 
 // ─────────────────────────────────────────────────────────────
