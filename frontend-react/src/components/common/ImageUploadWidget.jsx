@@ -274,7 +274,7 @@ export function ImageUploadWidget({
             JPEG, PNG, WebP up to 5 MB
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
             <button
               type="button"
               className="btn-gold"
