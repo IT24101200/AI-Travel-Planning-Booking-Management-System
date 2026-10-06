@@ -569,6 +569,15 @@ class ApiService {
     return _list(await get('triprequest/my'));
   }
 
+  /// Returns the current health/state reported by the agent service.
+  static Future<Map<String, dynamic>> getAgentHealth() async {
+    final result = _object(await get('AgentTrigger/health', isAuth: true));
+    if (result == null) {
+      throw const ApiException('The agent service returned no health status.');
+    }
+    return result;
+  }
+
   static Future<Map<String, dynamic>?> getTripRequest(int id) async {
     return _object(await get('triprequest/$id'));
   }

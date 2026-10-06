@@ -6,6 +6,7 @@ CoordinatorAgent -> ItineraryAgent -> BookingAgent -> ValidationAgent -> Retry /
 
 import sys
 import os
+import logging
 from typing import TypedDict, Optional, Dict, Any
 from langgraph.graph import StateGraph, START, END
 
@@ -18,6 +19,8 @@ from agents.booking_agent import booking_node
 from agents.validation_agent import validation_node
 from logger import log_agent_step, BACKEND_URL, agent_service_headers
 import httpx
+
+logger = logging.getLogger("AgentService")
 
 
 class TripPlanningState(TypedDict, total=False):
@@ -60,11 +63,11 @@ def build_travel_planning_graph():
     workflow = StateGraph(TripPlanningState)
 
     # Register the 4 agent nodes + 1 evaluation node
-    workflow.add_node("coordinator", coordinator_plan)
-    workflow.add_node("itinerary", itinerary_node)
-    workflow.add_node("booking", booking_node)
-    workflow.add_node("validation", validation_node)
-    workflow.add_node("evaluator", coordinator_retry_evaluator)
+    workflow.add_node("coordinator", lambda state: _run_logged_node("CoordinatorAgent", coordinator_plan, state))
+    workflow.add_node("itinerary", lambda state: _run_logged_node("ItineraryAgent", itinerary_node, state))
+    workflow.add_node("booking", lambda state: _run_logged_node("BookingAgent", booking_node, state))
+    workflow.add_node("validation", lambda state: _run_logged_node("ValidationAgent", validation_node, state))
+    workflow.add_node("evaluator", lambda state: _run_logged_node("CoordinatorEvaluator", coordinator_retry_evaluator, state))
 
     # Linear execution flow
     workflow.add_edge(START, "coordinator")
@@ -84,6 +87,23 @@ def build_travel_planning_graph():
     )
 
     return workflow.compile()
+
+
+def _run_logged_node(agent_name: str, node, state: TripPlanningState) -> dict:
+    trip_id = state.get("trip_request_id", 0)
+    logger.info("%s started for TripRequest #%s", agent_name, trip_id)
+    try:
+        result = node(state)
+        logger.info(
+            "%s completed for TripRequest #%s with status=%s",
+            agent_name,
+            trip_id,
+            result.get("status", "unknown"),
+        )
+        return result
+    except Exception:
+        logger.exception("%s failed for TripRequest #%s", agent_name, trip_id)
+        raise
 
 
 # Pre-compile the graph for efficient reuse
@@ -112,10 +132,12 @@ def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, ret
 
     try:
         url = f"{BACKEND_URL}/api/triprequest/{trip_id}/agent-update"
+        logger.info("Final callback started for TripRequest #%s", trip_id)
         with httpx.Client(timeout=httpx.Timeout(10.0, connect=3.0)) as client:
-            client.patch(url, json=payload, headers=agent_service_headers())
+            response = client.patch(url, json=payload, headers=agent_service_headers())
+            logger.info("Final callback response for TripRequest #%s: HTTP %s", trip_id, response.status_code)
     except Exception as e:
-        print(f"[Warning] Could not push final plan to backend API: {e}")
+        logger.exception("Final callback failed for TripRequest #%s: %s", trip_id, e)
 
 
 def run_travel_planning_pipeline(initial_data: dict) -> dict:
@@ -123,6 +145,7 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
     Executes the multi-agent graph with the given initial trip request payload.
     """
     trip_id = initial_data.get("trip_request_id", 0)
+    logger.info("Pipeline started for TripRequest #%s", trip_id)
 
     # Never persist credentials in AgentLog input snapshots.
     safe_initial_data = {
@@ -142,7 +165,11 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
     )
 
     # Execute graph
-    final_state = travel_app.invoke(initial_data)
+    try:
+        final_state = travel_app.invoke(initial_data)
+    except Exception:
+        logger.exception("Pipeline failed for TripRequest #%s", trip_id)
+        raise
 
     # Determine final state values
     final_status = final_state.get("status", "Planned")
@@ -158,5 +185,7 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
         retry_count=retries,
         failure_reason=failure_reason
     )
+
+    logger.info("Pipeline completed for TripRequest #%s with status=%s", trip_id, final_status)
 
     return final_state
