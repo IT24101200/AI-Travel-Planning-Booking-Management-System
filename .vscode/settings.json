@@ -1,4 +1,4 @@
 {
-    "java.configuration.updateBuildConfiguration": "disabled",
+    "java.configuration.updateBuildConfiguration": "interactive",
     "cmake.ignoreCMakeListsMissing": true
 }
