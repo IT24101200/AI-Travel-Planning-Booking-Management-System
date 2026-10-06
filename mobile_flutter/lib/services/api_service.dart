@@ -584,8 +584,11 @@ class ApiService {
     return _list(await get('triprequest/my'));
   }
 
+  static Future<Map<String, dynamic>> Function()? mockGetAgentHealth;
+
   /// Returns the current health/state reported by the agent service.
   static Future<Map<String, dynamic>> getAgentHealth() async {
+    if (mockGetAgentHealth != null) return mockGetAgentHealth!();
     return AgentHealthService.fetch(request: () => get('AgentTrigger/health'));
   }
 
@@ -596,8 +599,16 @@ class ApiService {
     return _object(await get('triprequest/$id'));
   }
 
+  static Future<List<dynamic>> Function(int tripRequestId)? mockGetAgentLogs;
+
   static Future<List<dynamic>> getAgentLogs(int tripRequestId) async {
-    return _list(await get('triprequest/$tripRequestId/logs'));
+    if (mockGetAgentLogs != null) return mockGetAgentLogs!(tripRequestId);
+    try {
+      final response = await get('triprequest/$tripRequestId/logs');
+      return _list(response);
+    } catch (_) {
+      return [];
+    }
   }
 
   static Future<List<dynamic>> getMyBookings() async {

@@ -6,6 +6,8 @@ import '../../services/api_service.dart';
 import '../../services/currency_notifier.dart';
 import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
+import '../../widgets/agent_workflow_card.dart';
+import 'package:intl/intl.dart';
 
 /// Booking status screen matching Figma frame 12 · Booking Status (node 7:11041)
 class BookingStatusScreen extends StatefulWidget {
@@ -616,6 +618,17 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 ),
               ],
 
+              // ── Booked Accommodations & Transport Detail Section ──
+              _buildBookingItemsDetailSection(theme, isDark),
+
+              // ── 4-Agent Execution and Reasoning Output Card ──
+              if (_booking?['tripRequestId'] is int && (_booking!['tripRequestId'] as int) > 0) ...[
+                const SizedBox(height: 16),
+                AgentWorkflowCard(
+                  tripRequestId: _booking!['tripRequestId'] as int,
+                ),
+              ],
+
               const SizedBox(height: 18),
 
               // ── Payment Action: If booking is approved by agent but unpaid ──
@@ -895,6 +908,229 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBookingItemsDetailSection(ThemeData theme, bool isDark) {
+    final rawItems = _booking?['bookingItems'] as List? ?? [];
+    final List<Map<String, dynamic>> items = [];
+    for (var it in rawItems) {
+      if (it is Map) items.add(Map<String, dynamic>.from(it));
+    }
+
+    if (items.isEmpty) return const SizedBox.shrink();
+
+    Map<String, dynamic>? hotelItem;
+    Map<String, dynamic>? transportItem;
+
+    for (var it in items) {
+      final type = it['itemType']?.toString().toLowerCase() ?? '';
+      if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
+        hotelItem ??= it;
+      } else if (type == 'transport' || it['vehicleType'] != null || it['transportProvider'] != null) {
+        transportItem ??= it;
+      }
+    }
+
+    if (hotelItem == null && transportItem == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 18),
+        Text(
+          'BOOKED ACCOMMODATIONS & TRANSPORT',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            color: isDark ? const Color(0xFF81C784) : const Color(0xFF13684B),
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Hotel card
+        if (hotelItem != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.hotel_outlined, color: Color(0xFF1B5E20), size: 22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              hotelItem['hotelName']?.toString() ?? 'Reserved Hotel',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.5,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'HOTEL',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF1B5E20),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Room: ${hotelItem['roomTypeName'] ?? 'Standard Room'}${hotelItem['capacity'] != null ? ' · Up to ${hotelItem['capacity']} guests' : ''}',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
+                      ),
+                      if (hotelItem['checkInDate'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Check-in: ${hotelItem['checkInDate'].toString().split('T').first}${hotelItem['checkOutDate'] != null ? ' · Check-out: ${hotelItem['checkOutDate'].toString().split('T').first}' : ''}',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
+                        ),
+                      ],
+                      if (hotelItem['totalPrice'] != null || hotelItem['unitPrice'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          formatMoney(hotelItem['totalPrice'] ?? hotelItem['unitPrice'], _booking?['currency']?.toString() ?? 'LKR'),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppColors.figmaGold : AppColors.figmaDarkGreen,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // Transport card
+        if (transportItem != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: theme.cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0F2FE),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.directions_car_outlined, color: Color(0xFF0369A1), size: 22),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.5,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE0F2FE),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'TRANSPORT',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0369A1),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Provider: ${transportItem['transportProvider'] ?? 'Island Chauffeur Services'}',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
+                      ),
+                      if (transportItem['pickupLocation'] != null || transportItem['dropoffLocation'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Route: ${transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['dropoffLocation'] ?? 'Destination'}',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
+                        ),
+                      ],
+                      if (transportItem['totalPrice'] != null || transportItem['unitPrice'] != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          formatMoney(transportItem['totalPrice'] ?? transportItem['unitPrice'], _booking?['currency']?.toString() ?? 'LKR'),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? AppColors.figmaGold : AppColors.figmaDarkGreen,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
