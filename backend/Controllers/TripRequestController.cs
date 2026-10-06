@@ -445,7 +445,7 @@ namespace backend.Controllers
                     var endpoint = $"{agentBaseUrl}/run-pipeline-async";
                     _logger.LogInformation("Dispatching TripRequest #{TripRequestId} to {AgentEndpoint}.", trip.Id, endpoint);
                     var client = _httpClientFactory.CreateClient();
-                    client.Timeout = TimeSpan.FromSeconds(5);
+                    client.Timeout = AgentServiceTimeouts.Connection(_configuration);
 
                     var preference = await db.Preferences
                         .AsNoTracking()
@@ -499,8 +499,11 @@ namespace backend.Controllers
                     }
                     else
                     {
-                        await MarkAgentPipelineFailedAsync(trip.Id, "Agent service did not accept the pipeline request.");
+                        var tripService = scope.ServiceProvider.GetRequiredService<ITripRequestService>();
+                        await MarkAgentPipelineFailedAsync(tripService, trip.Id,
+                            $"Agent service did not accept the pipeline request (HTTP {((int?)response?.StatusCode)?.ToString() ?? "no response"}; timeout {client.Timeout.TotalSeconds:0}s).");
                     }
+                    response?.Dispose();
                 }
                 catch (Exception ex)
                 {
@@ -509,11 +512,11 @@ namespace backend.Controllers
             });
         }
 
-        private async Task MarkAgentPipelineFailedAsync(int tripRequestId, string reason)
+        private async Task MarkAgentPipelineFailedAsync(ITripRequestService tripService, int tripRequestId, string reason)
         {
             try
             {
-                await _tripRequestService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
+                await tripService.UpdateAgentPlanAsync(tripRequestId, new TripRequestAgentUpdateDto
                 {
                     Status = "Failed",
                     FailureReason = reason

@@ -22,6 +22,26 @@ Flutter receives its API URL through `--dart-define=API_BASE_URL=...`. A
 publishable Stripe key, if required by the client, must be `pk_test_...`; the
 server-only `STRIPE_SECRET_KEY` must never be passed to Flutter.
 
+## Checking hosted Python startup
+
+Run this twice in PowerShell to compare the first response with the next one:
+
+```powershell
+curl.exe -sS --max-time 120 -w '\nHTTP %{http_code}; total %{time_total}s\n' https://ai-travel-planning-booking-management-focq.onrender.com/health
+```
+
+A slow first request followed by a fast healthy response suggests a cold start.
+Confirm it in the Python service's Render logs by looking for startup messages
+at the same time. Avoid calling the health endpoint while waiting for the service
+to become idle, because those calls keep it active.
+
+The ASP.NET backend waits up to 120 seconds for Python health checks and
+asynchronous pipeline acceptance, and 180 seconds for synchronous planning.
+Override these on the backend Render service with
+`AgentService__ConnectionTimeoutSeconds` and `AgentService__PipelineTimeoutSeconds`.
+Redeploy the backend after applying the code changes. Automatic trip dispatch
+still happens in the background, so creating a trip does not wait for Python startup.
+
 ## Startup order
 
 1. Start PostgreSQL and ensure the target database exists.

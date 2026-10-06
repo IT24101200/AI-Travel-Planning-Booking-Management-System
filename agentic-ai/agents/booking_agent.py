@@ -1,6 +1,7 @@
 import json
 import os
 import requests
+from decimal import Decimal
 from dotenv import load_dotenv
 from logger import log_agent_step
 from tools.availability_tools import (
@@ -202,13 +203,8 @@ Rules:
         # Deterministic fallback: pick cheapest available room and transport
         best_room = min(available_rooms, key=lambda r: float(r.get("price_per_night", 0)))
         best_transport = min(available_transports, key=lambda t: float(t.get("price", 0)))
-        itinerary_cost = float(itinerary.get("total_cost", 0.0))
-        room_cost = float(best_room.get("price_per_night", 0.0)) * nights
-        transport_cost = float(best_transport.get("price", 0.0)) * traveller_count
-        total_pkg_cost = itinerary_cost + room_cost + transport_cost
         parsed_result = {
             "booking_package_id": None,
-            "total_package_cost": round(total_pkg_cost, 2),
             "currency": currency,
             "itinerary": itinerary,
             "selected_room": {
@@ -245,6 +241,29 @@ Rules:
     # reproduce its database ID or schedule without alteration.
     parsed_result["itinerary"] = itinerary
     parsed_result["currency"] = currency
+
+    # The model selects inventory; database prices and quantities determine cost.
+    # Itinerary producers may expose total_estimated_cost rather than total_cost,
+    # so calculate from the preserved schedule instead of either summary field.
+    selected_room = next(room for room in available_rooms
+                         if room["room_id"] == selected_room["room_id"])
+    selected_transport = next(option for option in available_transports
+                              if option["transport_id"] == selected_transport["transport_id"])
+    parsed_result["selected_room"] = dict(selected_room)
+    parsed_result["selected_transport"] = dict(selected_transport)
+    tour_cost = sum(
+        (Decimal(str(tour["price"])) * traveller_count
+         for day in itinerary.get("schedule", [])
+         for tour in day.get("items", [])),
+        Decimal("0"),
+    )
+    total_cost = (
+        tour_cost
+        + Decimal(str(selected_room["price_per_night"])) * nights
+        + Decimal(str(selected_transport["price"])) * traveller_count
+    )
+    parsed_result["total_package_cost"] = float(total_cost)
+    parsed_result["total_cost"] = float(total_cost)
 
     try:
         log_agent_step(

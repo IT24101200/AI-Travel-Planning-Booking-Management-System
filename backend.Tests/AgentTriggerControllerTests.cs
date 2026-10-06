@@ -17,6 +17,7 @@ public class AgentTriggerControllerTests
     private sealed class CaptureHandler : HttpMessageHandler
     {
         public string? RequestBody { get; private set; }
+        public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.OK;
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -24,7 +25,7 @@ public class AgentTriggerControllerTests
             RequestBody = request.Content is null
                 ? null
                 : await request.Content.ReadAsStringAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(StatusCode)
             {
                 Content = new StringContent("{\"status\":\"AwaitingApproval\"}")
             };
@@ -79,6 +80,17 @@ public class AgentTriggerControllerTests
         context.Request.Headers.Authorization = $"Bearer {bearerToken}";
         controller.ControllerContext = new ControllerContext { HttpContext = context };
         return controller;
+    }
+
+    [Fact]
+    public async Task CheckAgentHealth_PreservesUpstreamFailureStatus()
+    {
+        var handler = new CaptureHandler { StatusCode = HttpStatusCode.ServiceUnavailable };
+        var controller = CreateController("customer-1", "customer-1", handler);
+
+        var result = Assert.IsType<ContentResult>(await controller.CheckAgentHealth());
+
+        Assert.Equal(503, result.StatusCode);
     }
 
     [Fact]
