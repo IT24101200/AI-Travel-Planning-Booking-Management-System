@@ -162,23 +162,36 @@ export default function TourCatalogManagement() {
 
   async function handleSaveTour(e) {
     e.preventDefault()
+    if (!formData.name?.trim()) {
+      setNotice({ type: 'error', message: 'Please enter a tour name.' })
+      return
+    }
+    if (!formData.destinationId) {
+      setNotice({ type: 'error', message: 'Please select a destination.' })
+      return
+    }
+    if (!formData.imageUrl?.trim()) {
+      setNotice({ type: 'error', message: 'Please select or upload a cover image for the tour.' })
+      return
+    }
     setBusy(true)
     setNotice(null)
     try {
       if (drawerMode === 'create') {
         const res = await createTour({
           destinationId: Number(formData.destinationId),
-          name: formData.name,
+          name: formData.name.trim(),
           category: formData.category,
           price: Number(formData.price),
           currency: 'LKR',
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
-          imageUrl: formData.imageUrl || '',
+          imageUrl: formData.imageUrl.trim(),
           status: 'Active'
         })
         setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
+        setDrawerMode(null)
       } else if (drawerMode === 'edit' && selectedTour) {
         await updateTour(selectedTour.id, {
           destinationId: Number(formData.destinationId),
@@ -462,7 +475,13 @@ export default function TourCatalogManagement() {
               <button
                 type="button"
                 className="btn-outline"
-                style={{ height: '28px', padding: '0 8px' }}
+                style={{
+                  height: '28px',
+                  padding: '0 8px',
+                  color: '#182126',
+                  backgroundColor: '#ffffff',
+                  borderColor: '#c8d1d4'
+                }}
                 onClick={() => setDrawerMode(null)}
               >
                 ✕
@@ -493,7 +512,7 @@ export default function TourCatalogManagement() {
                     Destination *
                   </label>
                   <select
-                    className="btn-outline"
+                    className="staff-select"
                     style={{
                       width: '100%',
                       height: '38px',
@@ -501,6 +520,8 @@ export default function TourCatalogManagement() {
                       fontSize: '0.8125rem',
                       color: '#182126',
                       backgroundColor: '#ffffff',
+                      border: '1px solid #c8d1d4',
+                      borderRadius: '8px',
                       opacity: 1,
                       colorScheme: 'light'
                     }}
@@ -520,7 +541,7 @@ export default function TourCatalogManagement() {
                     Category *
                   </label>
                   <select
-                    className="btn-outline"
+                    className="staff-select"
                     style={{
                       width: '100%',
                       height: '38px',
@@ -528,6 +549,8 @@ export default function TourCatalogManagement() {
                       fontSize: '0.8125rem',
                       color: '#182126',
                       backgroundColor: '#ffffff',
+                      border: '1px solid #c8d1d4',
+                      borderRadius: '8px',
                       opacity: 1,
                       colorScheme: 'light'
                     }}
@@ -626,6 +649,7 @@ export default function TourCatalogManagement() {
                   type="button"
                   className="btn-outline"
                   onClick={() => setDrawerMode(null)}
+                  style={{ opacity: 1, color: '#182126', backgroundColor: '#ffffff' }}
                 >
                   <CloseIcon size={14} />
                   <span>Cancel</span>
