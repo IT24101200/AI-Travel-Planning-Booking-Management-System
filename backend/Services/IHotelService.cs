@@ -17,6 +17,7 @@ namespace backend.Services
         Task<HotelDto> CreateAsync(CreateHotelDto dto);
         Task<bool> UpdateAsync(int id, CreateHotelDto dto);
         Task<bool> SoftDeleteAsync(int id);
+        Task<bool> DeleteAsync(int id);
 
         // ── Room CRUD (nested under a hotel) ──
         Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId);

@@ -39,25 +39,14 @@ export default function TourCatalogManagement() {
   const [category, setCategory] = useState('All')
   const [statusFilter] = useState('All')
   const [page, setPage] = useState(1)
-  const pageSize = 8
-
-  // Selection & Right Drawer / Edit Mode
-  const [selectedTour, setSelectedTour] = useState(null)
-  const [drawerMode, setDrawerMode] = useState(null) // 'create' | 'edit' | null
-  const [formData, setFormData] = useState({
-    name: '',
-    destinationId: '',
-    price: '',
-    durationHours: 8,
-    category: 'Heritage',
-    defaultStartTime: '05:15',
-    description: '',
-    imageUrl: ''
-  })
-  const [busy, setBusy] = useState(false)
-  const [statusUpdatingId, setStatusUpdatingId] = useState(null)
-
-  usePageTitle('Tour Catalog · Serendib Trails')
+  const [form, setForm] = useState({ name: '', destinationId: '', price: '', duration: '', category: 'Heritage', defaultStartTime: '09:00' })
+  const [image, setImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState('')
+  const [imageInputKey, setImageInputKey] = useState(0)
+  // Edit mode state
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  usePageTitle('Tours · Staff')
 
   async function loadTours(cancelled = false) {
     setLoading(true)
@@ -210,54 +199,41 @@ export default function TourCatalogManagement() {
       }
       await loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Operation failed.' })
-    } finally {
-      setBusy(false)
+      setNotice(`Failed to update tour: ${err.response?.data?.message || err.message}`)
     }
   }
 
-  async function handleStatusChange(tour, status) {
-    if (status === tour.status) return
-    setStatusUpdatingId(tour.id)
-    setNotice(null)
+  // Toggle status (Active / Inactive)
+  async function toggle(row) {
+    const nextStatus = row.status === 'Active' ? 'Inactive' : 'Active'
     try {
-      await updateTour(tour.id, { ...tour.apiTour, status })
-      setRows((current) => current.map((row) => row.id === tour.id
-        ? { ...row, status, apiTour: { ...row.apiTour, status } }
-        : row))
-      setSelectedTour((current) => current?.id === tour.id ? { ...current, status, apiTour: { ...current.apiTour, status } } : current)
-      setNotice({ type: 'success', message: `Tour "${tour.name}" set to ${status}.` })
+      await updateTour(row.id, {
+        name: row.name,
+        price: row.price,
+        durationHours: row.durationHours,
+        category: row.category,
+        defaultStartTime: row.defaultStartTime,
+        destinationId: row.destinationId || 1,
+        status: nextStatus,
+      })
+      setNotice(`Tour #${row.id} set to ${nextStatus}.`)
       await loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.response?.data?.message || err.message || `Failed to set tour to ${status}.` })
-    } finally {
-      setStatusUpdatingId(null)
+      setNotice(`Status update failed: ${err.response?.data?.message || err.message}`)
     }
   }
 
-  async function handleDeleteTour(id, name) {
-    if (!window.confirm(`Delete this tour permanently?\n\n${name}`)) return
+  // Delete a tour from database
+  async function remove(id) {
+    if (!window.confirm(`Delete tour #${id}?`)) return
     try {
       await deleteTour(id)
-      setNotice({ type: 'success', message: `Tour "${name}" deleted permanently.` })
-      loadTours()
+      setNotice(`Tour #${id} deleted from database.`)
+      await loadTours()
     } catch (err) {
-      setNotice({ type: 'error', message: err.response?.data?.message || err.message || 'Failed to delete tour.' })
+      setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
     }
   }
-
-  // Filtered & Paginated records
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return rows.filter((r) => {
-      if (category !== 'All' && r.category.toLowerCase() !== category.toLowerCase()) return false
-      if (statusFilter !== 'All' && r.status.toLowerCase() !== statusFilter.toLowerCase()) return false
-      return !q || r.name.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q)
-    })
-  }, [rows, query, category, statusFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize)
 
   return (
     <div className="staff-page">
@@ -340,150 +316,51 @@ export default function TourCatalogManagement() {
         />
       )}
 
-      {/* ── Split Layout: Table on Left (65%), Edit Drawer on Right (35%) matching Figma ── */}
-      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 380px' : '1fr' }}>
-        <div className="staff-table-wrap">
-          {loading ? (
-            <LoadingState label="Loading tour catalog from database…" />
+      <form className="panel panel--solid staff-form" onSubmit={addTour}>
+        <b>Add tour to database</b>
+        <div className="staff-form__grid">
+          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          {destinations.length > 0 ? (
+            <select className="select" value={form.destinationId} onChange={(e) => setForm({ ...form, destinationId: e.target.value })}>
+              {destinations.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
           ) : (
-            <table className="staff-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '56px' }}>Photo</th>
-                  <th>Tour Name & Region</th>
-                  <th>Category</th>
-                  <th>Duration</th>
-                  <th>Departure</th>
-                  <th>Price</th>
-                  <th>Status</th>
-                  <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedRows.map((tour) => {
-                  const isSelected = selectedTour?.id === tour.id
-                  return (
-                    <tr
-                      key={tour.id}
-                      style={{ cursor: 'pointer', backgroundColor: isSelected ? '#f5fbf7' : undefined }}
-                      onClick={() => selectForEdit(tour)}
-                    >
-                      <td>
-                        <img
-                          src={tour.imageUrl}
-                          alt={tour.name}
-                          style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }}
-                        />
-                      </td>
-                      <td>
-                        <strong style={{ display: 'block', color: '#182126', fontSize: '0.875rem' }}>
-                          {tour.name}
-                        </strong>
-                        <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
-                          📍 {tour.destination}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="badge-pill badge-gold">
-                          <span className="badge-dot" />
-                          {tour.category}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '0.8125rem', color: '#334155' }}>
-                        {tour.durationHours} hrs
-                      </td>
-                      <td style={{ fontSize: '0.8125rem', color: '#334155' }}>
-                        {tour.defaultStartTime}
-                      </td>
-                      <td>
-                        <strong style={{ color: '#182126', fontSize: '0.875rem' }}>
-                          {formatPrice(tour.price)}
-                        </strong>
-                        <span style={{ fontSize: '0.6875rem', color: '#64748b' }}> / person</span>
-                      </td>
-                      <td>
-                        <select
-                          aria-label={`Change status for ${tour.name}`}
-                          value={tour.status}
-                          disabled={statusUpdatingId === tour.id}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => handleStatusChange(tour, e.target.value)}
-                          style={{
-                            height: '30px',
-                            borderRadius: '999px',
-                            border: '1px solid #c8d1d4',
-                            padding: '0 0.5rem',
-                            color: '#182126',
-                            backgroundColor: tour.status === 'Active' ? '#dcfce7' : '#f1f5f6',
-                            fontSize: '0.75rem',
-                            fontWeight: 700,
-                            cursor: statusUpdatingId === tour.id ? 'wait' : 'pointer'
-                          }}
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Inactive">Inactive</option>
-                        </select>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.375rem' }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="btn-action-edit"
-                            title="Edit Tour"
-                            onClick={() => selectForEdit(tour)}
-                          >
-                            <EditIcon size={12} />
-                            <span>Edit</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="btn-action-delete"
-                            title="Delete"
-                            onClick={() => handleDeleteTour(tour.id, tour.name)}
-                          >
-                            <TrashIcon size={12} />
-                            <span>Delete</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {pagedRows.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ textAlign: 'center', padding: '3rem', color: '#66747b' }}>
-                      No tours match your current filters.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <input className="input" value="No destinations available" disabled aria-label="No destinations available" />
           )}
-
-          {/* Pagination Footer */}
-          <div className="table-footer">
-            <span style={{ fontSize: '0.8125rem', color: '#66747b' }}>
-              Showing {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} tours
-            </span>
-            <div className="table-pagination">
-              <button
-                type="button"
-                className="table-page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-              >
-                ‹ Prev
-              </button>
-              <button
-                type="button"
-                className="table-page-btn"
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => p + 1)}
-              >
-                Next ›
-              </button>
-            </div>
-          </div>
+          <input className="input" type="number" min="1" placeholder="Price USD" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
+          <input className="input" placeholder="Duration (e.g. 4 hrs)" value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} />
+          <select className="select" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+            <option>Heritage</option>
+            <option>Rail journey</option>
+            <option>Safari</option>
+            <option>Marine</option>
+            <option>Tea</option>
+            <option>Snorkelling</option>
+          </select>
+          <label>
+            Start Time
+            <input className="input" type="time" value={form.defaultStartTime} onChange={(e) => setForm({ ...form, defaultStartTime: e.target.value })} />
+          </label>
+          <input
+            key={imageInputKey}
+            className="input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={selectImage}
+            required
+            aria-label="Tour image"
+          />
+          <button
+            className="btn btn--sm"
+            type="submit"
+            disabled={loading || destinations.length === 0}
+            title={destinations.length === 0 ? 'Create a destination first' : 'Add tour'}
+            style={destinations.length === 0 ? { opacity: 0.55, cursor: 'not-allowed' } : undefined}
+          >
+            Add
+          </button>
         </div>
 
         {/* ── Edit / Create Drawer matching Figma Spec ── */}

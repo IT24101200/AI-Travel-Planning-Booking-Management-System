@@ -1,22 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createHotel, fetchHotels, updateHotel, fetchDestinations } from '../../services/apiClient.js'
+import { createHotel, deleteHotel, fetchDestinations, fetchHotels, updateHotel } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
-import { LoadingState } from '../../components/ui/LoadingState.jsx'
-import {
-  PlusIcon,
-  SearchIcon,
-  RefreshIcon,
-  CloseIcon,
-  CheckIcon,
-  EditIcon
-} from '../../components/ui/Icons.jsx'
-import ImageUploadWidget from '../../components/common/ImageUploadWidget.jsx'
 
-/**
- * Serendib Trails — Hotel Vendor Console
- * Designed based on Figma Dev Mode Specifications (node-id: 2:28195)
- */
+const PAGE_SIZE = 6
+
+/** Student C — hotel & vendor management with real database CRUD (add/edit/delete), room stats & pagination. */
 export default function HotelVendorManagement() {
   const [rows, setRows] = useState([])
   const [destinations, setDestinations] = useState([])
@@ -25,436 +14,198 @@ export default function HotelVendorManagement() {
   const [notice, setNotice] = useState('')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
+  const [form, setForm] = useState({ name: '', location: '', stars: '3', destinationId: '' })
+  // Edit mode state
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  usePageTitle('Hotels · Staff')
 
-  // Drawer state
-  const [drawerMode, setDrawerMode] = useState(null) // 'edit' | 'create' | null
-  const [selectedHotel, setSelectedHotel] = useState(null)
-  const [formData, setFormData] = useState({
-    name: '',
-    destinationId: null,
-    destinationName: 'Destination not provided',
-    address: '',
-    starRating: 5,
-    roomCount: 36,
-    email: '',
-    phone: '',
-    imageUrl: '',
-    status: 'Active'
-  })
-  const [busy, setBusy] = useState(false)
-
-  usePageTitle('Hotel Vendor Console · Serendib Trails')
-
-  async function loadData(cancelled = false) {
+  async function loadHotels(cancelled = false) {
     setLoading(true)
     setError(null)
     try {
-      const [hotelRes, destRes] = await Promise.allSettled([
+      const [hotelsRes, destsRes] = await Promise.allSettled([
         fetchHotels(),
-        fetchDestinations()
+        fetchDestinations(),
       ])
 
       if (!cancelled) {
-        let destList = []
-        if (destRes.status === 'fulfilled') {
-          destList = Array.isArray(destRes.value) ? destRes.value : (destRes.value?.data || [])
+        if (destsRes.status === 'fulfilled') {
+          const destList = Array.isArray(destsRes.value) ? destsRes.value : (destsRes.value?.data || [])
           setDestinations(destList)
+          if (destList.length > 0) {
+            setForm((f) => ({ ...f, destinationId: f.destinationId || destList[0].id }))
+          }
         }
 
-        if (hotelRes.status === 'fulfilled') {
-          const live = Array.isArray(hotelRes.value) ? hotelRes.value : (hotelRes.value?.data || [])
-          const mapped = live.map((h, idx) => {
+        if (hotelsRes.status === 'fulfilled') {
+          const live = Array.isArray(hotelsRes.value) ? hotelsRes.value : (hotelsRes.value?.data || [])
+          const mapped = live.map((h) => {
             const rooms = Array.isArray(h.rooms) ? h.rooms : []
-            const roomCount = rooms.reduce((acc, r) => acc + (Number(r.totalRooms) || 0), 0)
-            const occupancy = null
-            const destName = h.destinationName || h.destination?.name || 'Destination not provided'
+            const roomCount = rooms.reduce((acc, r) => acc + (r.totalRooms || 1), 0)
+            const validPrices = rooms.map((r) => Number(r.pricePerNight) || 0).filter((p) => p > 0)
+            const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null
+
             return {
               id: h.id,
-              code: `HTL-01${idx + 4}`,
               name: h.name,
-              destination: destName,
-              destinationId: h.destinationId,
-              address: h.address || 'Address not provided',
-              stars: h.starRating,
-              roomCount,
-              occupancy,
-              committedRooms: null,
-              priceRange: null,
-              email: h.email || 'Email not provided',
-              phone: h.phone || 'Phone not provided',
-              imageUrl: h.imageUrl || '',
-              status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Status not provided'),
+              location: h.destinationName || h.address || 'Sri Lanka',
+              address: h.address || '',
+              destinationId: h.destinationId || 1,
+              stars: h.starRating || 3,
+              roomCount: roomCount || (rooms.length > 0 ? rooms.length : 0),
+              minPrice,
+              status: typeof h.status === 'number' ? (h.status === 0 ? 'Active' : 'Inactive') : (h.status || 'Active'),
             }
           })
           setRows(mapped)
         }
       }
     } catch (err) {
-      if (!cancelled) {
-        setError(err.response?.data?.message || err.message || 'Failed to load hotels from database.')
-      }
+      setError(err.response?.data?.message || err.message || 'Failed to load hotels from database.')
+      return null
     } finally {
-      if (!cancelled) setLoading(false)
+      setLoading(false)
     }
   }
 
   useEffect(() => {
     let cancelled = false
-    // This starts an async API load; its state updates occur after the request.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData(cancelled)
+    loadHotels(cancelled)
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function selectForEdit(hotel) {
-    setSelectedHotel(hotel)
-    setDrawerMode('edit')
-    setFormData({
-      name: hotel.name,
-      destinationId: hotel.destinationId,
-      destinationName: hotel.destination,
-      address: hotel.address,
-      starRating: hotel.stars,
-      roomCount: hotel.roomCount,
-      email: hotel.email,
-      phone: hotel.phone,
-      imageUrl: hotel.imageUrl || '',
-      status: hotel.status
-    })
-  }
-
-  function startCreate() {
-    setDrawerMode('create')
-    setSelectedHotel(null)
-    setFormData({
-      name: '',
-      destinationId: destinations[0]?.id || null,
-      destinationName: destinations[0]?.name || 'Destination not provided',
-      address: '',
-      starRating: 5,
-      roomCount: 24,
-      email: 'reservations@hotel.lk',
-      phone: '+94 11 234 5678',
-      imageUrl: '',
-      status: 'Active'
-    })
-  }
-
-  const filtered = useMemo(() => {
+  const view = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return rows.filter((r) => !q || r.name.toLowerCase().includes(q) || r.destination.toLowerCase().includes(q))
+    return rows.filter((r) => !q || r.name.toLowerCase().includes(q) || r.location.toLowerCase().includes(q))
   }, [rows, query])
 
-  const pageSize = 6
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
-  const view = filtered.slice((page - 1) * pageSize, page * pageSize)
+  const pages = Math.max(1, Math.ceil(view.length / PAGE_SIZE))
+  const pageRows = view.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  const totalRoomsLive = useMemo(() => rows.filter(r => r.status === 'Active').reduce((sum, r) => sum + r.roomCount, 0), [rows])
-  const avgOccupancy = useMemo(() => {
-    const active = rows.filter(r => r.status === 'Active')
-    if (active.length === 0 || active.some(r => r.occupancy == null)) return null
-    return Math.round(active.reduce((sum, r) => sum + r.occupancy, 0) / active.length)
-  }, [rows])
-
-  async function handleSave(e) {
+  // Add a new hotel to the database
+  async function add(e) {
     e.preventDefault()
-    if (!formData.name.trim() || !formData.address.trim()) {
-      setNotice('Please provide a hotel name and address.')
+    if (!form.name.trim() || !form.location.trim()) {
+      setNotice('Please provide a name and address.')
       return
     }
-    setBusy(true)
-    setNotice('')
+
     try {
-      const destId = Number(formData.destinationId)
-      if (!Number.isInteger(destId) || destId <= 0) {
-        setNotice('Please select a destination from the database.')
-        setBusy(false)
-        return
-      }
-      if (drawerMode === 'create') {
-        await createHotel({
-          name: formData.name.trim(),
-          destinationId: destId,
-          address: formData.address.trim(),
-          imageUrl: formData.imageUrl || '',
-          starRating: Number(formData.starRating) || 5,
-        })
-        setNotice(`Hotel "${formData.name.trim()}" created successfully.`)
-      } else if (drawerMode === 'edit' && selectedHotel) {
-        await updateHotel(selectedHotel.id, {
-          name: formData.name.trim(),
-          destinationId: destId,
-          address: formData.address.trim(),
-          imageUrl: formData.imageUrl || '',
-          starRating: Number(formData.starRating) || 5,
-          status: formData.status
-        })
-        setNotice(`Hotel #${selectedHotel.id} updated successfully.`)
-      }
-      await loadData()
+      await createHotel({
+        name: form.name.trim(),
+        destinationId: Number(form.destinationId) || (destinations[0]?.id || 1),
+        address: form.location.trim(),
+        starRating: Number(form.stars) || 3,
+      })
+      setNotice(`Hotel "${form.name.trim()}" added to database.`)
+      setForm({ name: '', location: '', stars: '3', destinationId: destinations[0]?.id || '' })
+      await loadHotels()
     } catch (err) {
-      setNotice(`Failed to save hotel: ${err.response?.data?.message || err.message}`)
-    } finally {
-      setBusy(false)
+      setNotice(`Failed to add hotel: ${err.response?.data?.message || err.message}`)
     }
   }
 
-  async function toggleStatus(hotel) {
-    const nextStatus = hotel.status === 'Active' ? 'Inactive' : 'Active'
+  // Start editing a hotel row
+  function startEdit(row) {
+    setEditId(row.id)
+    setEditForm({
+      name: row.name,
+      location: row.address || row.location,
+      destinationId: row.destinationId || 1,
+      stars: row.stars,
+    })
+  }
+
+  // Save the edit to the database
+  async function saveEdit(id) {
+    if (!editForm.name.trim()) return
+
     try {
-      await updateHotel(hotel.id, {
-        name: hotel.name,
-        destinationId: hotel.destinationId,
-        address: hotel.address,
-        starRating: hotel.stars,
-        status: nextStatus
+      await updateHotel(id, {
+        name: editForm.name.trim(),
+        address: editForm.location.trim(),
+        destinationId: Number(editForm.destinationId) || 1,
+        starRating: Number(editForm.stars) || 3,
       })
-      setRows(prev => prev.map(h => h.id === hotel.id ? { ...h, status: nextStatus } : h))
-      if (selectedHotel?.id === hotel.id) {
-        setSelectedHotel(prev => ({ ...prev, status: nextStatus }))
-        setFormData(prev => ({ ...prev, status: nextStatus }))
-      }
-      setNotice(`Hotel status set to ${nextStatus}.`)
+      setNotice(`Hotel #${id} updated in database.`)
+      setEditId(null)
+      await loadHotels()
     } catch (err) {
-      setNotice(`Failed to toggle status: ${err.response?.data?.message || err.message}`)
+      setNotice(`Failed to update hotel: ${err.response?.data?.message || err.message}`)
+    }
+  }
+
+  // Delete a hotel from database
+  async function remove(id) {
+    if (!window.confirm(`Delete hotel #${id}?`)) return
+    try {
+      await deleteHotel(id)
+      setNotice(`Hotel #${id} deleted from database.`)
+      await loadHotels()
+    } catch (err) {
+      setNotice(`Delete failed: ${err.response?.data?.message || err.message}`)
     }
   }
 
   return (
     <div className="staff-page">
-      {/* ── Page Header matching Figma 2:28195 ── */}
       <header className="staff-page__head">
-        <div className="staff-page__title-block">
-          <p className="staff-page__eyebrow">PARTNERS / ACCOMMODATION</p>
-          <h1 className="staff-page__title">Hotel vendor console</h1>
-          <p className="staff-page__subtitle">
-            Manage accommodation partners, room inventory, contacts, and overbooking risk.
-          </p>
+        <div>
+          <p className="eyebrow">Component C · Accommodation</p>
+          <h1>Hotels & vendors</h1>
         </div>
-        <div className="staff-page__actions">
-          <button
-            type="button"
-            className="btn-outline"
-            onClick={() => loadData(false)}
-            disabled={loading}
-          >
-            <RefreshIcon size={15} />
-            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
-          </button>
-          <button
-            type="button"
-            className="btn-gold"
-            onClick={startCreate}
-          >
-            <PlusIcon size={15} />
-            <span>Add hotel</span>
+        <div className="staff-toolbar">
+          <input className="input" placeholder="Search hotels…" value={query} onChange={(e) => onSearchChange(e.target.value)} />
+          <button type="button" className="btn btn--sm" onClick={() => loadHotels(false)} disabled={loading}>
+            {loading ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
       </header>
-
-      {/* ── Filter Toolbar with KPI Status Pills matching Figma ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-        <div className="staff-search-box" style={{ maxWidth: '320px' }}>
-          <SearchIcon size={16} />
-          <input
-            type="text"
-            placeholder="Search hotel or destination"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value)
-              setPage(1)
-            }}
-          />
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <span className="badge-pill badge-green" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
-            <span className="badge-dot" /> {totalRoomsLive} rooms live
-          </span>
-          <span className="badge-pill badge-amber" style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}>
-            <span className="badge-dot" /> {avgOccupancy == null ? 'Occupancy unavailable' : `${avgOccupancy}% average occupancy`}
-          </span>
-        </div>
-      </div>
 
       {error && (
         <AlertBanner
           type="error"
           message={error}
-          onRetry={() => loadData(false)}
+          onRetry={() => loadHotels(false)}
           onDismiss={() => setError(null)}
         />
       )}
 
       {notice && (
         <AlertBanner
-          type={notice.startsWith('Failed') ? 'error' : 'success'}
+          type={notice.includes('failed') || notice.includes('Failed') ? 'error' : 'success'}
           message={notice}
           onDismiss={() => setNotice('')}
         />
       )}
 
-      {/* ── Split Workspace matching Figma 2:28195 ── */}
-      <div className="split-workspace" style={{ gridTemplateColumns: drawerMode ? 'minmax(0, 1fr) 420px' : '1fr' }}>
-        {/* Left Table Card */}
-        <div className="staff-card">
-          <div className="staff-card__head">
-            <div>
-              <h3 className="staff-card__title">Hotel partners</h3>
-              <p className="staff-card__sub">{filtered.length} shown · live occupancy from booking inventory</p>
-            </div>
-          </div>
-
-          <div className="staff-table-wrap">
-            <table className="staff-table">
-              <thead>
-                <tr>
-                  <th>HOTEL NAME</th>
-                  <th>DESTINATION / REGION</th>
-                  <th>RATING</th>
-                  <th>ROOMS</th>
-                  <th>PRICE / NIGHT</th>
-                  <th>STATUS</th>
-                  <th style={{ textAlign: 'right' }}>ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem' }}>
-                      <LoadingState message="Loading hotel partners from database…" />
-                    </td>
-                  </tr>
-                ) : view.length > 0 ? (
-                  view.map((h) => {
-                    const isSelected = selectedHotel?.id === h.id && drawerMode === 'edit'
-                    return (
-                      <tr
-                        key={h.id}
-                        className={isSelected ? 'is-selected' : ''}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() => selectForEdit(h)}
-                      >
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            {h.imageUrl ? (
-                              <img
-                                src={h.imageUrl}
-                                alt={h.name}
-                                style={{
-                                  width: '48px',
-                                  height: '38px',
-                                  objectFit: 'cover',
-                                  borderRadius: '5px',
-                                  border: '1px solid #d0d7de',
-                                  flexShrink: 0
-                                }}
-                                onError={(e) => { e.target.style.display = 'none' }}
-                              />
-                            ) : (
-                              <div
-                                style={{
-                                  width: '48px',
-                                  height: '38px',
-                                  background: '#f1f5f9',
-                                  borderRadius: '5px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  color: '#64748b',
-                                  fontSize: '0.625rem',
-                                  fontWeight: 700,
-                                  flexShrink: 0
-                                }}
-                              >
-                                HOTEL
-                              </div>
-                            )}
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <strong style={{ color: '#182126', fontSize: '0.8125rem' }}>{h.name}</strong>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '4px' }}>
-                                <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>
-                                  Occupancy unavailable
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td style={{ color: '#66747b', fontSize: '0.75rem' }}>{h.destination}</td>
-                        <td>
-                          <span style={{ color: '#b7791f', letterSpacing: '1px', fontSize: '0.75rem' }}>
-                            {'★'.repeat(h.stars)}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 600, color: '#182126' }}>{h.roomCount}</td>
-                        <td style={{ fontWeight: 700, color: '#182126' }}>Not provided</td>
-                        <td>
-                          <span className={`badge-pill ${h.status === 'Active' ? 'badge-green' : 'badge-gray'}`}>
-                            <span className="badge-dot" /> {h.status}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="btn-action-edit"
-                            title="Edit Hotel"
-                            onClick={() => selectForEdit(h)}
-                          >
-                            <EditIcon size={12} />
-                            <span>Edit</span>
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                      {query ? `No hotels match “${query}”.` : 'No hotels in console.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="staff-pagination">
-            <span>
-              Showing {filtered.length > 0 ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} hotels
-            </span>
-            <div className="staff-pagination__btns">
-              <button
-                type="button"
-                className="staff-page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage(p => p - 1)}
-              >
-                Previous
-              </button>
-              {Array.from({ length: pages }, (_, i) => i + 1).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className={`staff-page-btn ${page === p ? 'is-active' : ''}`}
-                  onClick={() => setPage(p)}
-                >
-                  {p}
-                </button>
-              ))}
-              <button
-                type="button"
-                className="staff-page-btn"
-                disabled={page >= pages}
-                onClick={() => setPage(p => p + 1)}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+      <form className="panel panel--solid staff-form" onSubmit={add}>
+        <b>Add hotel to database</b>
+        <div className="staff-form__grid">
+          <input className="input" placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <input className="input" placeholder="Address / Location" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} required />
+          <select
+            className="select"
+            value={form.destinationId}
+            onChange={(e) => setForm({ ...form, destinationId: e.target.value })}
+            aria-label="Destination"
+          >
+            {destinations.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name}
+              </option>
+            ))}
+          </select>
+          <select className="select" value={form.stars} onChange={(e) => setForm({ ...form, stars: e.target.value })}>
+            <option value="3">3 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="5">5 Stars</option>
+          </select>
+          <button className="btn btn--sm" type="submit" disabled={loading}>Add</button>
         </div>
 
+<<<<<<<<< Temporary merge branch 1
         {/* Right Detail / Edit Drawer matching Figma 2:28195 */}
         {drawerMode && (
           <aside className="detail-pane" style={{ position: 'sticky', top: '5.5rem' }}>
@@ -464,40 +215,33 @@ export default function HotelVendorManagement() {
                   {drawerMode === 'create' ? 'Add hotel partner' : 'Edit hotel partner'}
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: '#66747b' }}>
-                  {drawerMode === 'create' ? 'New vendor agreement' : `Vendor ID · ${selectedHotel?.code || 'HTL-014'}`}
+                  {drawerMode === 'create' ? 'New vendor agreement' : `Vendor ID · ${selectedHotel?.code}`}
                 </span>
               </div>
               <button
                 type="button"
                 className="btn-outline"
-                style={{
-                  height: '32px',
-                  padding: '0 0.625rem',
-                  color: '#182126',
-                  backgroundColor: '#ffffff',
-                  borderColor: '#c8d1d4'
-                }}
-                onClick={() => setDrawerMode(null)}
+                style={{ height: '32px', padding: '0 0.625rem', color: '#182126', backgroundColor: '#ffffff', borderColor: '#c8d1d4' }}
+                onClick={closeDrawer}
               >
                 <CloseIcon size={14} />
                 <span>Close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+            <form onSubmit={handleSave} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Hotel name *
-                </label>
+                <label htmlFor="hotel-name" style={labelStyle}>Hotel name *</label>
                 <input
+                  id="hotel-name"
                   type="text"
-                  required
                   placeholder="e.g. Jetwing Vil Uyana"
                   className="staff-search-box"
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
+                {formErrors.name && <span style={errorStyle}>{formErrors.name}</span>}
               </div>
 
               {/* Cover Image Upload & Media Selection */}
@@ -512,135 +256,102 @@ export default function HotelVendorManagement() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Destination *
-                </label>
+                <label htmlFor="hotel-destination" style={labelStyle}>Destination *</label>
                 <select
+                  id="hotel-destination"
                   className="staff-select"
-                  style={{
-                    width: '100%',
-                    height: '38px',
-                    padding: '0 0.5rem',
-                    fontSize: '0.8125rem',
-                    color: '#182126',
-                    backgroundColor: '#ffffff',
-                    border: '1px solid #c8d1d4',
-                    borderRadius: '8px',
-                    colorScheme: 'light',
-                    opacity: 1
-                  }}
+                  style={selectStyle}
                   value={formData.destinationId}
-                  onChange={(e) => {
-                    const sel = destinations.find(d => d.id === Number(e.target.value))
-                    setFormData({
-                      ...formData,
-                      destinationId: e.target.value,
-                      destinationName: sel?.name || 'Destination not provided'
-                    })
-                  }}
+                  onChange={(e) => setFormData({ ...formData, destinationId: e.target.value })}
                 >
+                  <option value="" style={optionStyle}>Select a destination</option>
                   {destinations.map((d) => (
-                    <option key={d.id} value={d.id} style={{ color: '#182126', backgroundColor: '#ffffff' }}>
-                      {d.name} · Central Province
+                    <option key={d.id} value={d.id} style={optionStyle}>
+                      {d.name}{d.country ? ` · ${d.country}` : ''}
                     </option>
                   ))}
                 </select>
+                {formErrors.destinationId && <span style={errorStyle}>{formErrors.destinationId}</span>}
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Address
-                </label>
+                <label htmlFor="hotel-address" style={labelStyle}>Address *</label>
                 <input
+                  id="hotel-address"
                   type="text"
-                  required
+                  placeholder="e.g. 123 Main Street, Galle"
                   className="staff-search-box"
                   style={{ maxWidth: '100%', width: '100%' }}
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 />
+                {formErrors.address && <span style={errorStyle}>{formErrors.address}</span>}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Star rating
-                  </label>
+                  <label htmlFor="hotel-email" style={labelStyle}>Contact Email</label>
+                  <input
+                    id="hotel-email"
+                    type="email"
+                    placeholder="e.g. info@hotel.com"
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                    value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })}
+                  />
+                  {formErrors.contactEmail && <span style={errorStyle}>{formErrors.contactEmail}</span>}
+                </div>
+                <div>
+                  <label htmlFor="hotel-phone" style={labelStyle}>Contact Phone</label>
+                  <input
+                    id="hotel-phone"
+                    type="text"
+                    placeholder="e.g. +94 77 123 4567"
+                    className="staff-search-box"
+                    style={{ maxWidth: '100%', width: '100%' }}
+                    value={formData.contactPhone}
+                    onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })}
+                  />
+                  {formErrors.contactPhone && <span style={errorStyle}>{formErrors.contactPhone}</span>}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div>
+                  <label htmlFor="hotel-stars" style={labelStyle}>Star rating *</label>
                   <select
+                    id="hotel-stars"
                     className="staff-select"
-                    style={{
-                      width: '100%',
-                      height: '38px',
-                      padding: '0 0.5rem',
-                      fontSize: '0.8125rem',
-                      color: '#182126',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #c8d1d4',
-                      borderRadius: '8px',
-                      colorScheme: 'light',
-                      opacity: 1
-                    }}
+                    style={selectStyle}
                     value={formData.starRating}
                     onChange={(e) => setFormData({ ...formData, starRating: e.target.value })}
                   >
-                    <option value="5" style={{ color: '#182126', backgroundColor: '#ffffff' }}>5 Stars</option>
-                    <option value="4" style={{ color: '#182126', backgroundColor: '#ffffff' }}>4 Stars</option>
-                    <option value="3" style={{ color: '#182126', backgroundColor: '#ffffff' }}>3 Stars</option>
+                    {[5, 4, 3, 2, 1].map(n => (
+                      <option key={n} value={n} style={optionStyle}>{n} Star{n > 1 ? 's' : ''}</option>
+                    ))}
                   </select>
+                  {formErrors.starRating && <span style={errorStyle}>{formErrors.starRating}</span>}
                 </div>
 
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                    Total rooms
-                  </label>
+                  <label htmlFor="hotel-rooms" style={labelStyle}>Total rooms</label>
                   <input
-                    type="number"
-                    min="1"
-                    required
+                    id="hotel-rooms"
+                    type="text"
+                    readOnly
                     className="staff-search-box"
-                    style={{ maxWidth: '100%', width: '100%' }}
-                    value={formData.roomCount}
-                    onChange={(e) => setFormData({ ...formData, roomCount: e.target.value })}
+                    style={{ maxWidth: '100%', width: '100%', backgroundColor: '#f8fafc' }}
+                    value={drawerMode === 'edit' ? selectedHotel?.roomCount ?? 0 : 0}
+                    title="Calculated from the hotel's room types"
                   />
                 </div>
               </div>
 
-              <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Contact email
-                </label>
-                <input
-                  type="email"
-                  required
-                  className="staff-search-box"
-                  style={{ maxWidth: '100%', width: '100%' }}
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: '0.6875rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
-                  Contact phone
-                </label>
-                <input
-                  type="text"
-                  required
-                  className="staff-search-box"
-                  style={{ maxWidth: '100%', width: '100%' }}
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-
-              {/* Overbooking Guard Warning matching Figma 2:28195 */}
               {drawerMode === 'edit' && selectedHotel && (
-                <div className="banner-warning" style={{ fontSize: '0.75rem' }}>
-                  <span>⚠️</span>
-                  <span>
-                    <strong>Overbooking guard active</strong> — {selectedHotel.committedRooms} of {selectedHotel.roomCount} rooms are committed on peak dates. New holds are capped at 4 rooms.
-                  </span>
-                </div>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: '#66747b' }}>
+                  Current status: <strong>{selectedHotel.status}</strong>
+                </p>
               )}
 
               {/* Actions */}
@@ -648,35 +359,35 @@ export default function HotelVendorManagement() {
                 <button
                   type="button"
                   className="btn-outline"
-                  style={{
-                    color: '#182126',
-                    backgroundColor: '#ffffff',
-                    borderColor: '#c8d1d4'
-                  }}
-                  onClick={() => setDrawerMode(null)}
+                  style={{ color: '#182126', backgroundColor: '#ffffff', borderColor: '#c8d1d4' }}
+                  onClick={closeDrawer}
                 >
                   <CloseIcon size={14} />
                   <span>Cancel</span>
                 </button>
                 {drawerMode === 'edit' && selectedHotel && (
-                  <button
-                    type="button"
-                    className="btn-outline"
-                    style={{
-                      color: '#182126',
-                      backgroundColor: '#ffffff',
-                      borderColor: '#c8d1d4'
-                    }}
-                    onClick={() => toggleStatus(selectedHotel)}
-                  >
-                    {selectedHotel.status === 'Active' ? 'Set inactive' : 'Set active'}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      disabled={busy}
+                      style={{ color: '#182126', backgroundColor: '#ffffff', borderColor: '#c8d1d4' }}
+                      onClick={() => toggleStatus(selectedHotel)}
+                    >
+                      {selectedHotel.status === 'Active' ? 'Set inactive' : 'Set active'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-danger-soft"
+                      disabled={busy}
+                      onClick={() => handleDelete(selectedHotel)}
+                    >
+                      <TrashIcon size={14} />
+                      <span>Delete hotel</span>
+                    </button>
+                  </>
                 )}
-                <button
-                  type="submit"
-                  className="btn-gold"
-                  disabled={busy}
-                >
+                <button type="submit" className="btn-gold" disabled={busy}>
                   <CheckIcon size={14} />
                   <span>{busy ? 'Saving…' : (drawerMode === 'create' ? 'Add hotel' : 'Save changes')}</span>
                 </button>
@@ -687,4 +398,13 @@ export default function HotelVendorManagement() {
       </div>
     </div>
   )
+}
+
+// Read a readable error message from an API error
+function getErrorMessage(err) {
+  const data = err.response?.data
+  if (data?.message) return data.message
+  if (data?.errors) return Object.values(data.errors).flat().join(' ')
+  if (data?.title) return data.title
+  return err.message
 }
