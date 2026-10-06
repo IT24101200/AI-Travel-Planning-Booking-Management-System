@@ -43,7 +43,6 @@ export default function BookingApprovalDashboard() {
             currency: b.currency || 'USD',
             requested: b.createdAt ? b.createdAt.split('T')[0] : 'N/A',
             status: statusStr,
-            bookingItems: b.bookingItems || [],
             agentLogs: b.agentLogs || [],
             trail: (b.bookingApprovals && b.bookingApprovals.length > 0)
               ? b.bookingApprovals.map((a) => {
@@ -277,29 +276,13 @@ export default function BookingApprovalDashboard() {
               <div className="staff-sub" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
                 {agentLogs.map((l) => (
                   <div key={l.id} style={{ padding: '0.3rem 0.5rem', background: 'rgba(0,0,0,0.03)', borderRadius: '4px' }}>
-                    <b>[{l.agentName || 'Agent'}]</b> {l.stepName} — {l.output || l.input || 'Step completed'}
+                    <b>[{l.agentName || 'Agent'}]</b> {l.stepName} — {l.detailsJson || 'Step completed'}
                   </div>
                 ))}
               </div>
             ) : (
               <p className="staff-sub">No autonomous agent logs recorded for this trip request.</p>
             )}
-
-            <h4 style={{ margin: '1rem 0 0.5rem' }}>AI Travel Plan Details</h4>
-            <div className="staff-sub" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
-              {active.bookingItems && active.bookingItems.length > 0 ? (
-                active.bookingItems.map((item, idx) => (
-                  <div key={item.id || idx} style={{ padding: '0.3rem 0.5rem', background: 'rgba(0,0,0,0.03)', borderRadius: '4px' }}>
-                    <b>{item.itemType === 0 ? 'Tour' : item.itemType === 1 ? 'Hotel' : 'Transport'}</b>:{' '}
-                    {item.tourName || `Item #${item.roomId || item.transportOptionId}`} — 
-                    Quantity: {item.quantity} — Subtotal: ${item.subtotal}
-                    {item.checkInDate && item.checkOutDate ? ` (${item.checkInDate.substring(0,10)} to ${item.checkOutDate.substring(0,10)})` : ''}
-                  </div>
-                ))
-              ) : (
-                <p>No plan details found.</p>
-              )}
-            </div>
 
             <h4 style={{ margin: '1rem 0 0.5rem' }}>Decision Audit Trail</h4>
             <div className="staff-sub" style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

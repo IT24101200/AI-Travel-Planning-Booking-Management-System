@@ -353,18 +353,8 @@ namespace backend.Controllers
                     }
                     catch (Exception ex)
                     {
-                        using var scope = _scopeFactory.CreateScope();
-                        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                        var logger = scope.ServiceProvider.GetRequiredService<ILogger<TripRequestController>>();
+                        var logger = _scopeFactory.CreateScope().ServiceProvider.GetRequiredService<ILogger<TripRequestController>>();
                         logger.LogError(ex, "Failed to create Booking/Itinerary from TripRequest #{Id} PlanJson.", id);
-                        
-                        var tr = db.TripRequests.Find(id);
-                        if (tr != null)
-                        {
-                            tr.Status = backend.Models.Enums.TripRequestStatus.Failed;
-                            tr.FailureReason = $"Failed to create Booking: {ex.Message}";
-                            db.SaveChanges();
-                        }
                     }
                 });
             }
@@ -422,27 +412,11 @@ namespace backend.Controllers
                     else
                     {
                         _logger.LogWarning("Agent service returned HTTP {Status} for TripRequest #{Id}.", response.StatusCode, trip.Id);
-                        var tr = db.TripRequests.Find(trip.Id);
-                        if (tr != null)
-                        {
-                            tr.Status = backend.Models.Enums.TripRequestStatus.Failed;
-                            tr.FailureReason = $"Agent service returned HTTP {response.StatusCode}. Is the Python server running?";
-                            db.SaveChanges();
-                        }
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{Id}.", trip.Id);
-                    using var scope2 = _scopeFactory.CreateScope();
-                    var db2 = scope2.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var tr = db2.TripRequests.Find(trip.Id);
-                    if (tr != null)
-                    {
-                        tr.Status = backend.Models.Enums.TripRequestStatus.Failed;
-                        tr.FailureReason = $"Could not connect to Agent service: {ex.Message}";
-                        db2.SaveChanges();
-                    }
                 }
             });
         }
