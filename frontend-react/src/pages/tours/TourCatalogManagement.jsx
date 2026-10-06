@@ -162,23 +162,36 @@ export default function TourCatalogManagement() {
 
   async function handleSaveTour(e) {
     e.preventDefault()
+    if (!formData.name?.trim()) {
+      setNotice({ type: 'error', message: 'Please enter a tour name.' })
+      return
+    }
+    if (!formData.destinationId) {
+      setNotice({ type: 'error', message: 'Please select a destination.' })
+      return
+    }
+    if (!formData.imageUrl?.trim()) {
+      setNotice({ type: 'error', message: 'Please select or upload a cover image for the tour.' })
+      return
+    }
     setBusy(true)
     setNotice(null)
     try {
       if (drawerMode === 'create') {
         const res = await createTour({
           destinationId: Number(formData.destinationId),
-          name: formData.name,
+          name: formData.name.trim(),
           category: formData.category,
           price: Number(formData.price),
           currency: 'LKR',
           durationHours: Number(formData.durationHours),
           defaultStartTime: `${formData.defaultStartTime}:00`,
           description: formData.description,
-          imageUrl: formData.imageUrl || '',
+          imageUrl: formData.imageUrl.trim(),
           status: 'Active'
         })
         setNotice({ type: 'success', message: `Tour "${res.name || formData.name}" created successfully.` })
+        setDrawerMode(null)
       } else if (drawerMode === 'edit' && selectedTour) {
         await updateTour(selectedTour.id, {
           destinationId: Number(formData.destinationId),
