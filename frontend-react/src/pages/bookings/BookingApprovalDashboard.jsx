@@ -12,10 +12,10 @@ import {
 } from '../../components/ui/Icons.jsx'
 
 const STATUS_NAMES = ['Draft', 'AwaitingApproval', 'Confirmed', 'Rejected', 'Cancelled', 'Completed']
-const DECISION_NAMES = ['Approved', 'Rejected', 'RevisionRequested']
+
 
 /**
- * Student D — Booking Approval Dashboard
+ * Student D â€” Booking Approval Dashboard
  * Designed according to Figma Dev Mode Specifications (node-id: 2:26639)
  * Features:
  * - Master review queue with status tabs & SLA pill
@@ -36,7 +36,7 @@ export default function BookingApprovalDashboard() {
   const [note, setNote] = useState('')
   const [agentLogs, setAgentLogs] = useState([])
   const [logsLoading, setLogsLoading] = useState(false)
-  usePageTitle('Approvals · Staff')
+  usePageTitle('Approvals Â· Staff')
 
   async function loadBookings(cancelled = false) {
     setLoading(true)
@@ -46,26 +46,19 @@ export default function BookingApprovalDashboard() {
       const live = Array.isArray(res) ? res : (res?.data || [])
       if (!cancelled) {
         const mapped = live.map((b) => {
-          const statusStr = typeof b.status === 'number' ? (STATUS_NAMES[b.status] || 'AwaitingApproval') : (b.status || 'AwaitingApproval')
+          const statusStr = typeof b.status === 'number'
+            ? (STATUS_NAMES[b.status] || 'Status unavailable')
+            : (b.status || 'Status unavailable')
           return {
             id: b.id,
-            reference: b.bookingReference || `ST-BK-${b.id}`,
+            reference: b.bookingReference || 'Reference unavailable',
             tripRequestId: b.tripRequestId,
-            customer: b.customerName || (b.customerId ? `Customer ${b.customerId.substring(0, 8)}…` : 'Customer'),
-            total: b.totalCost || 0,
-            currency: b.currency || 'LKR',
-            requested: b.createdAt ? b.createdAt.split('T')[0] : '2026-09-28',
+            customer: b.customerName || 'Customer unavailable',
+            total: b.totalCost ?? null,
+            currency: b.currency || null,
+            requested: b.createdAt ? b.createdAt.split('T')[0] : 'Date unavailable',
             status: statusStr,
             agentLogs: b.agentLogs || [],
-            trail: (b.bookingApprovals && b.bookingApprovals.length > 0)
-              ? b.bookingApprovals.map((a) => {
-                  const dec = typeof a.decision === 'number' ? (DECISION_NAMES[a.decision] || 'Reviewed') : (a.decision || 'Reviewed')
-                  return {
-                    agent: a.travelAgentName || 'Agent',
-                    text: `${dec}: ${a.comment || 'No comment'} (${a.decidedAt ? a.decidedAt.replace('T', ' ').substring(0, 16) : ''})`,
-                  }
-                })
-              : [{ agent: 'System', text: 'Booking submitted and awaiting travel agent approval.' }],
           }
         })
         setRows(mapped)
@@ -207,7 +200,7 @@ export default function BookingApprovalDashboard() {
           </button>
           <button type="button" className="btn-gold" onClick={() => loadBookings(false)} disabled={loading}>
             <RefreshIcon size={15} />
-            <span>{loading ? 'Refreshing…' : 'Refresh'}</span>
+            <span>{loading ? 'Refreshingâ€¦' : 'Refresh'}</span>
           </button>
         </div>
       </header>
@@ -299,7 +292,7 @@ export default function BookingApprovalDashboard() {
                   {loading ? (
                     <tr>
                       <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#66747b' }}>
-                        Loading bookings from database…
+                        Loading bookings from databaseâ€¦
                       </td>
                     </tr>
                   ) : pageRows.length > 0 ? (
@@ -342,7 +335,7 @@ export default function BookingApprovalDashboard() {
 
             <div className="staff-pagination">
               <span>
-                Showing {view.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, view.length)} of {view.length} bookings
+                Showing {view.length === 0 ? 0 : (page - 1) * pageSize + 1}â€“{Math.min(page * pageSize, view.length)} of {view.length} bookings
               </span>
               <div className="staff-pagination__btns">
                 <button
@@ -386,7 +379,7 @@ export default function BookingApprovalDashboard() {
                   {active.reference}
                 </h3>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#66747b' }}>
-                  Created {active.requested} · 09:42 LKT
+                  Created {active.requested} Â· 09:42 LKT
                 </p>
               </div>
               <span className={`badge-pill ${getBadgeClass(active.status)}`}>
@@ -426,7 +419,7 @@ export default function BookingApprovalDashboard() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontWeight: 700, fontSize: '0.875rem', color: '#182126' }}>
-                  {active.customer} · 2 travellers
+                  {active.customer} Â· 2 travellers
                 </p>
                 <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: '#66747b' }}>
                   Total Package: {formatPrice(active.total, active.currency)}
@@ -441,139 +434,54 @@ export default function BookingApprovalDashboard() {
                   AI reasoning trail
                 </h4>
                 <span style={{ fontSize: '0.6875rem', color: '#66747b' }}>
-                  {agentLogs.length > 0 ? `${agentLogs.length} agents recorded` : '4 agents · 8.4 sec'}
+                  {agentLogs.length > 0 ? `${agentLogs.length} log entries` : 'No recorded agent logs'}
                 </span>
               </div>
 
               {logsLoading ? (
-                <p style={{ fontSize: '0.75rem', color: '#66747b' }}>Loading agent reasoning trace…</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {/* Step 1: Coordinator */}
-                  <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                    <div
-                      style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '50%',
-                        backgroundColor: '#166b4f',
-                        color: '#f7faf9',
-                        fontSize: '0.6875rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        marginTop: '1px',
-                      }}
-                    >
-                      1
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>CoordinatorAgent</span>
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#15803d' }}>Trip brief parsed</span>
+                <p style={{ fontSize: '0.75rem', color: '#66747b' }}>Loading agent reasoning traceâ€¦</p>
+              ) : agentLogs.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {agentLogs.map((log, index) => (
+                      <div key={log.id || `${log.agentName || 'agent'}-${log.timestamp || index}`} style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
+                        <div
+                          style={{
+                            width: '22px',
+                            height: '22px',
+                            borderRadius: '50%',
+                            backgroundColor: log.status?.toLowerCase() === 'failed' ? '#dc2626' : '#166b4f',
+                            color: '#f7faf9',
+                            fontSize: '0.6875rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            marginTop: '1px',
+                          }}
+                        >
+                          {index + 1}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>{log.agentName || 'Agent unavailable'}</span>
+                            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: log.status?.toLowerCase() === 'failed' ? '#b91c1c' : '#15803d' }}>{log.status || 'Status unavailable'}</span>
+                          </div>
+                          <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#66747b', lineHeight: 1.35 }}>
+                            {log.stepName || log.output || 'No step details recorded.'}
+                          </p>
+                          {log.timestamp && (
+                            <p style={{ margin: '2px 0 0', fontSize: '0.625rem', color: '#8a969b' }}>
+                              {new Date(log.timestamp).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#66747b', lineHeight: 1.35 }}>
-                        Matched cultural triangle itinerary with guest budget and preferences.
-                      </p>
-                    </div>
+                    ))}
                   </div>
-
-                  {/* Step 2: Itinerary */}
-                  <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                    <div
-                      style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '50%',
-                        backgroundColor: '#166b4f',
-                        color: '#f7faf9',
-                        fontSize: '0.6875rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        marginTop: '1px',
-                      }}
-                    >
-                      2
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>ItineraryAgent</span>
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#15803d' }}>Route assembled</span>
-                      </div>
-                      <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#66747b', lineHeight: 1.35 }}>
-                        Colombo → Sigiriya → Kandy → Ella → Mirissa day-by-day excursion schedule.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Step 3: Booking */}
-                  <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                    <div
-                      style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '50%',
-                        backgroundColor: '#166b4f',
-                        color: '#f7faf9',
-                        fontSize: '0.6875rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        marginTop: '1px',
-                      }}
-                    >
-                      3
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>BookingAgent</span>
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#15803d' }}>Inventory held</span>
-                      </div>
-                      <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#66747b', lineHeight: 1.35 }}>
-                        Hotel rooms and dedicated private AC van held until 18:00 LKT.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Step 4: Validation */}
-                  <div style={{ display: 'flex', gap: '0.625rem', alignItems: 'flex-start' }}>
-                    <div
-                      style={{
-                        width: '22px',
-                        height: '22px',
-                        borderRadius: '50%',
-                        backgroundColor: '#10b981',
-                        color: '#ffffff',
-                        fontSize: '0.6875rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        marginTop: '1px',
-                      }}
-                    >
-                      4
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#182126' }}>ValidationAgent</span>
-                        <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#15803d' }}>Checks passed</span>
-                      </div>
-                      <p style={{ margin: '2px 0 0', fontSize: '0.6875rem', color: '#66747b', lineHeight: 1.35 }}>
-                        Budget, timing, occupancy, and accessibility validated without conflicts.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
+                ) : (
+                  <p style={{ fontSize: '0.75rem', color: '#66747b' }}>No agent logs recorded for this booking.</p>
+                )}
             </div>
 
             {/* Audit Comment Form & Decision Controls */}
@@ -652,7 +560,7 @@ export default function BookingApprovalDashboard() {
                 }}
               >
                 {active.status.toLowerCase() === 'confirmed'
-                  ? '✓ This booking is already Confirmed.'
+                  ? 'âœ“ This booking is already Confirmed.'
                   : `Decision recorded: ${active.status}.`}
               </div>
             )}
