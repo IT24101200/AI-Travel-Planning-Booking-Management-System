@@ -21,6 +21,13 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+class AgentLogStreamEvent {
+  const AgentLogStreamEvent(this.event, this.data);
+
+  final String event;
+  final Map<String, dynamic> data;
+}
+
 /// Single HTTP client for all backend API calls.
 /// Stores JWT token via flutter_secure_storage and attaches it to every request.
 class ApiService {
@@ -621,6 +628,45 @@ class ApiService {
       return _list(response);
     } catch (_) {
       return [];
+    }
+  }
+
+  static Stream<AgentLogStreamEvent> streamAgentLogs(int tripRequestId) async* {
+    final client = http.Client();
+    try {
+      final token = await getToken();
+      final request = http.Request('GET', Uri.parse('$baseUrl/triprequest/$tripRequestId/logs/stream'))
+        ..headers.addAll({
+          'Accept': 'text/event-stream',
+          if (token != null) 'Authorization': 'Bearer $token',
+        });
+      final response = await client.send(request);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        await response.stream.drain();
+        throw ApiException('Unable to connect to live agent updates.', statusCode: response.statusCode);
+      }
+      var eventName = 'message';
+      var dataLines = <String>[];
+      await for (final line in response.stream.transform(utf8.decoder).transform(const LineSplitter())) {
+        if (line.isEmpty) {
+          if (dataLines.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(dataLines.join('\n'));
+              if (decoded is Map) yield AgentLogStreamEvent(eventName, Map<String, dynamic>.from(decoded));
+            } catch (_) {}
+          }
+          eventName = 'message';
+          dataLines = <String>[];
+        } else if (line.startsWith(':')) {
+          continue;
+        } else if (line.startsWith('event:')) {
+          eventName = line.substring(6).trim();
+        } else if (line.startsWith('data:')) {
+          dataLines.add(line.substring(5).trimLeft());
+        }
+      }
+    } finally {
+      client.close();
     }
   }
 

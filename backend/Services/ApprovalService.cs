@@ -12,11 +12,16 @@ namespace backend.Services
     {
         private readonly AppDbContext _db;
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly IAgentLogStreamService? _logStream;
 
-        public ApprovalService(AppDbContext db, UserManager<IdentityUser> userManager)
+        public ApprovalService(
+            AppDbContext db,
+            UserManager<IdentityUser> userManager,
+            IAgentLogStreamService? logStream = null)
         {
             _db = db;
             _userManager = userManager;
+            _logStream = logStream;
         }
 
         public async Task<ApprovalDto> CreateApprovalAsync(string travelAgentUserId, ApprovalCreateDto dto)
@@ -96,6 +101,10 @@ namespace backend.Services
             booking.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
+            _logStream?.PublishTripStatus(
+                booking.Itinerary.TripRequest.Id,
+                booking.Itinerary.TripRequest.Status.ToString(),
+                booking.Itinerary.TripRequest.FailureReason);
 
             return new ApprovalDto
             {

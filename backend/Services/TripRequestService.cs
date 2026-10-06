@@ -12,11 +12,16 @@ namespace backend.Services
     {
         private readonly AppDbContext _db;
         private readonly ICurrencyConversionService _currency;
+        private readonly IAgentLogStreamService? _logStream;
 
-        public TripRequestService(AppDbContext db, ICurrencyConversionService? currency = null)
+        public TripRequestService(
+            AppDbContext db,
+            ICurrencyConversionService? currency = null,
+            IAgentLogStreamService? logStream = null)
         {
             _db = db;
             _currency = currency ?? new CurrencyConversionService();
+            _logStream = logStream;
         }
 
         public async Task<TripRequestDto> CreateAsync(string customerId, TripRequestCreateDto dto)
@@ -244,6 +249,7 @@ namespace backend.Services
 
                 await _db.SaveChangesAsync();
                 if (transaction != null) await transaction.CommitAsync();
+                _logStream?.PublishTripStatus(trip.Id, trip.Status.ToString(), trip.FailureReason);
                 return MapToDto(trip);
             }
             catch
@@ -340,8 +346,7 @@ namespace backend.Services
 
             _db.AgentLogs.Add(log);
             await _db.SaveChangesAsync();
-
-            return new AgentLogDto
+            var result = new AgentLogDto
             {
                 Id = log.Id,
                 TripRequestId = log.TripRequestId,
@@ -352,6 +357,8 @@ namespace backend.Services
                 Status = log.Status,
                 Timestamp = log.Timestamp
             };
+            _logStream?.PublishAgentLog(result);
+            return result;
         }
 
         public async Task<TripRequestDto?> UpdateAgentPlanAsync(int tripRequestId, TripRequestAgentUpdateDto dto)
@@ -398,7 +405,10 @@ namespace backend.Services
             }
 
             await _db.SaveChangesAsync();
-            return MapToDto(trip);
+            var result = MapToDto(trip);
+            if (!string.IsNullOrWhiteSpace(dto.Status))
+                _logStream?.PublishTripStatus(trip.Id, result.Status, result.FailureReason);
+            return result;
         }
 
         private static bool IsAllowedAgentTransition(TripRequestStatus current, TripRequestStatus next)
