@@ -7,6 +7,7 @@ using backend.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace backend.Controllers
 {
@@ -22,6 +23,7 @@ namespace backend.Controllers
         private readonly IConfiguration _configuration;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<TripRequestController> _logger;
+        private readonly IAgentLogStreamService _logStream;
 
         public TripRequestController(
             ITripRequestService tripRequestService,
@@ -30,7 +32,8 @@ namespace backend.Controllers
             IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             IServiceScopeFactory scopeFactory,
-            ILogger<TripRequestController> logger)
+            ILogger<TripRequestController> logger,
+            IAgentLogStreamService? logStream = null)
         {
             _tripRequestService = tripRequestService;
             _proposalPersistenceService = proposalPersistenceService;
@@ -39,6 +42,7 @@ namespace backend.Controllers
             _configuration = configuration;
             _scopeFactory = scopeFactory;
             _logger = logger;
+            _logStream = logStream ?? new AgentLogStreamService();
         }
 
         /// <summary>
@@ -202,6 +206,87 @@ namespace backend.Controllers
 
             return Ok(logs);
         }
+
+        /// <summary>
+        /// Streams persisted agent logs and TripRequest status changes for one request.
+        /// </summary>
+        [HttpGet("{id}/logs/stream")]
+        public async Task StreamAgentLogs(int id)
+        {
+            var isStaff = User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+            var userId = isStaff ? null : GetUserId();
+            var trip = isStaff
+                ? await _tripRequestService.GetByIdAsync(id)
+                : await _tripRequestService.GetStatusAsync(id, userId!);
+
+            if (trip is null)
+            {
+                Response.StatusCode = StatusCodes.Status404NotFound;
+                return;
+            }
+
+            Response.StatusCode = StatusCodes.Status200OK;
+            Response.ContentType = "text/event-stream";
+            Response.Headers.CacheControl = "no-cache, no-transform";
+            Response.Headers["X-Accel-Buffering"] = "no";
+            await Response.StartAsync(HttpContext.RequestAborted);
+
+            using var subscription = _logStream.Subscribe(id);
+            var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+
+            async Task WriteEventAsync(string name, object payload)
+            {
+                var json = JsonSerializer.Serialize(payload, serializerOptions);
+                await Response.WriteAsync($"event: {name}\ndata: {json}\n\n", HttpContext.RequestAborted);
+                await Response.Body.FlushAsync(HttpContext.RequestAborted);
+            }
+
+            await WriteEventAsync("trip-status", new
+            {
+                tripRequestId = trip.Id,
+                status = trip.Status,
+                failureReason = trip.FailureReason
+            });
+
+            if (IsTerminalStatus(trip.Status)) return;
+
+            try
+            {
+                while (!HttpContext.RequestAborted.IsCancellationRequested)
+                {
+                    var readTask = subscription.Reader.WaitToReadAsync(HttpContext.RequestAborted).AsTask();
+                    var heartbeatTask = Task.Delay(TimeSpan.FromSeconds(15), HttpContext.RequestAborted);
+                    var completed = await Task.WhenAny(readTask, heartbeatTask);
+
+                    if (completed == heartbeatTask)
+                    {
+                        await Response.WriteAsync(": heartbeat\n\n", HttpContext.RequestAborted);
+                        await Response.Body.FlushAsync(HttpContext.RequestAborted);
+                        continue;
+                    }
+
+                    if (!await readTask) break;
+                    while (subscription.Reader.TryRead(out var streamEvent))
+                    {
+                        await WriteEventAsync(streamEvent.EventName, streamEvent.Payload);
+                        if (streamEvent.EventName == "trip-status" &&
+                            streamEvent.Payload is not null &&
+                            IsTerminalStatus(GetStatusFromPayload(streamEvent.Payload)))
+                            return;
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                // Normal client disconnect; the subscription is disposed below.
+            }
+        }
+
+        private static bool IsTerminalStatus(string? status) => status is
+            "AwaitingApproval" or "Failed" or "Cancelled" or "Rejected" or "Approved";
+
+        private static string? GetStatusFromPayload(object payload) =>
+            payload.GetType().GetProperty("status")?.GetValue(payload)?.ToString();
 
         /// <summary>
         /// Search trip requests globally. TravelAgent or Admin only.

@@ -76,6 +76,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   DateTime? _tripStartDate;
   Map<String, dynamic>? _booking;
   List<dynamic> _agentLogs = [];
+  StreamSubscription<AgentLogStreamEvent>? _agentStreamSubscription;
+  bool _reconnectLiveUpdates = true;
+  bool _refetchedFinalItinerary = false;
 
   @override
   void initState() {
@@ -224,11 +227,97 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     if (tripRequestId != null && tripRequestId > 0) {
       try {
         final logs = await ApiService.getAgentLogs(tripRequestId);
-        if (mounted && logs.isNotEmpty) {
-          setState(() => _agentLogs = logs);
+        if (mounted) {
+          setState(() => _agentLogs = _mergeAgentLogs(_agentLogs, logs));
+          _startAgentLogStream(tripRequestId);
         }
       } catch (_) {}
     }
+  }
+
+  List<dynamic> _mergeAgentLogs(List<dynamic> current, List<dynamic> incoming) {
+    final merged = <dynamic>[...current];
+    final ids = <String>{for (final item in merged) if (item is Map && item['id'] != null) item['id'].toString()};
+    for (final item in incoming) {
+      if (item is! Map) continue;
+      final id = item['id']?.toString();
+      if (id == null || ids.add(id)) merged.add(item);
+    }
+    merged.sort((a, b) {
+      final at = a is Map ? DateTime.tryParse('${a['timestamp'] ?? ''}') : null;
+      final bt = b is Map ? DateTime.tryParse('${b['timestamp'] ?? ''}') : null;
+      return (at ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(bt ?? DateTime.fromMillisecondsSinceEpoch(0));
+    });
+    return merged;
+  }
+
+  void _startAgentLogStream(int tripRequestId) {
+    _agentStreamSubscription?.cancel();
+    _reconnectLiveUpdates = true;
+    _agentStreamSubscription = ApiService.streamAgentLogs(tripRequestId).listen(
+      (event) => _handleAgentStreamEvent(tripRequestId, event),
+      onDone: () => _scheduleAgentReconnect(tripRequestId),
+      onError: (_, __) => _scheduleAgentReconnect(tripRequestId),
+      cancelOnError: true,
+    );
+  }
+
+  Future<void> _handleAgentStreamEvent(int tripRequestId, AgentLogStreamEvent event) async {
+    if (!mounted || !_reconnectLiveUpdates) return;
+    if (event.event == 'agent-log') {
+      setState(() => _agentLogs = _mergeAgentLogs(_agentLogs, [event.data]));
+    } else if (event.event == 'trip-status') {
+      final status = event.data['status']?.toString();
+      setState(() {
+        _agentStatus = status;
+        _agentFailureReason = status?.toLowerCase() == 'failed' ? event.data['failureReason']?.toString() : null;
+        _pending = _resolvedTripRequestId != null && _itinerary == null && status != 'Failed';
+      });
+      if (status == 'AwaitingApproval' && !_refetchedFinalItinerary) {
+        _refetchedFinalItinerary = true;
+        await _refetchFinalItinerary(tripRequestId);
+      }
+      if (_isTerminalTripStatus(status)) {
+        _reconnectLiveUpdates = false;
+        await _agentStreamSubscription?.cancel();
+      }
+    }
+  }
+
+  Future<void> _scheduleAgentReconnect(int tripRequestId) async {
+    if (mounted && _reconnectLiveUpdates && !_isTerminalTripStatus(_agentStatus)) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted || !_reconnectLiveUpdates) return;
+      try {
+        final logs = await ApiService.getAgentLogs(tripRequestId);
+        if (mounted) setState(() => _agentLogs = _mergeAgentLogs(_agentLogs, logs));
+      } catch (_) {}
+      _startAgentLogStream(tripRequestId);
+    }
+  }
+
+  bool _isTerminalTripStatus(String? status) => const {
+        'AwaitingApproval', 'Failed', 'Cancelled', 'Rejected', 'Approved'
+      }.contains(status);
+
+  Future<void> _refetchFinalItinerary(int tripRequestId) async {
+    try {
+      final itineraryId = _positiveId(_itinerary?['id']);
+      Map<String, dynamic>? latest;
+      if (itineraryId != null) {
+        latest = await ApiService.getItinerary(itineraryId);
+      } else {
+        final records = await ApiService.getMyItineraries();
+        for (final record in records.whereType<Map>()) {
+          final recordId = _positiveId(record['id']);
+          if (_positiveId(record['tripRequestId']) == tripRequestId && recordId != null) {
+            latest = await ApiService.getItinerary(recordId);
+            break;
+          }
+        }
+      }
+      if (mounted && latest != null) setState(() => _itinerary = latest);
+    } catch (_) {}
   }
 
   Future<void> _checkAgentHealth(int request) async {
@@ -313,6 +402,13 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     if (status == 3 || status == '3') return true;
     final s = status?.toString().toLowerCase() ?? '';
     return s == 'discarded' || s.contains('discard') || s.contains('cancel');
+  }
+
+  @override
+  void dispose() {
+    _reconnectLiveUpdates = false;
+    _agentStreamSubscription?.cancel();
+    super.dispose();
   }
 
   bool _isTripCancelled() {

@@ -161,6 +161,7 @@ builder.Services.AddScoped<IPreferenceService, PreferenceService>();
 builder.Services.AddSingleton<ICurrencyConversionService, CurrencyConversionService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<ITripRequestService, TripRequestService>();
+builder.Services.AddSingleton<IAgentLogStreamService, AgentLogStreamService>();
 builder.Services.AddScoped<IAgentProposalPersistenceService, AgentProposalPersistenceService>();
 builder.Services.AddScoped<IItineraryService, ItineraryService>();
 
