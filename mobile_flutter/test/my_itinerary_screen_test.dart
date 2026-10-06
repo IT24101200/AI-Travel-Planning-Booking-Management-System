@@ -17,6 +17,7 @@ void main() {
     ApiService.mockGetItinerary = null;
     ApiService.mockAcceptItinerary = null;
     ApiService.mockRequestItineraryChanges = null;
+    ApiService.mockCancelTripRequest = null;
     ApiService.mockGetAgentHealth = null;
     ApiService.mockGetAgentLogs = null;
     ApiService.mockGetTripRequest = null;
@@ -201,6 +202,71 @@ void main() {
     await tester.pump();
 
     expect(acceptedId, equals(42));
+  });
+
+  testWidgets('6a. Cancel trip requires confirmation and refreshes cancelled state', (WidgetTester tester) async {
+    final itinerary = createSampleItinerary(id: 42, status: 1);
+    var tripStatus = 'Planning';
+    int? cancelledId;
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': tripStatus};
+    ApiService.mockCancelTripRequest = (id) async {
+      cancelledId = id;
+      tripStatus = 'Cancelled';
+      return {'status': 'Cancelled', 'message': 'Your trip has been cancelled.'};
+    };
+
+    await tester.pumpWidget(buildTestWidget());
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Cancel trip'));
+    await tester.tap(find.text('Cancel trip'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancel trip'), findsNWidgets(2));
+    expect(find.text('Are you sure you want to cancel this trip? This action cannot be undone.'), findsOneWidget);
+
+    await tester.tap(find.text('Keep trip'));
+    await tester.pumpAndSettle();
+    expect(cancelledId, isNull);
+
+    await tester.tap(find.text('Cancel trip'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel trip').last);
+    await tester.pumpAndSettle();
+
+    expect(cancelledId, 10);
+    expect(find.text('Cancelled. This trip is no longer actionable.'), findsOneWidget);
+  });
+
+  testWidgets('6b. Cancel trip is hidden for an approved trip', (WidgetTester tester) async {
+    final itinerary = createSampleItinerary(id: 42, status: 2);
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    ApiService.mockGetTripRequest = (_) async => {'id': 10, 'status': 'Approved'};
+
+    await tester.pumpWidget(buildTestWidget());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Cancel trip'), findsNothing);
+  });
+
+  testWidgets('6c. Cancellation failure keeps the existing itinerary state', (WidgetTester tester) async {
+    final itinerary = createSampleItinerary(id: 42, status: 1);
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    ApiService.mockCancelTripRequest = (_) async => throw const ApiException('This trip can no longer be cancelled.');
+
+    await tester.pumpWidget(buildTestWidget());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Cancel trip'));
+    await tester.tap(find.text('Cancel trip'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel trip').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('This trip can no longer be cancelled.'), findsOneWidget);
+    expect(find.text('Accept Itinerary'), findsOneWidget);
   });
 
   testWidgets('7. Request Changes dialog validates required comment and invokes API', (WidgetTester tester) async {

@@ -457,6 +457,7 @@ class ApiService {
   static Future<Map<String, dynamic>?> Function(int id)? mockGetItinerary;
   static Future<bool> Function(int itineraryId)? mockAcceptItinerary;
   static Future<bool> Function(int itineraryId, String comment)? mockRequestItineraryChanges;
+  static Future<Map<String, dynamic>> Function(int tripRequestId)? mockCancelTripRequest;
 
   static Future<List<dynamic>> getMyItineraries() async {
     if (mockGetMyItineraries != null) return mockGetMyItineraries!();
@@ -519,6 +520,18 @@ class ApiService {
     // TODO(backend): No customer revision endpoint persists notes. The status
     // controller only permits customers to set Discarded and ignores Notes.
     throw const ApiException('Change requests are not supported by the API yet. Please contact your travel agent.');
+  }
+
+  static Future<Map<String, dynamic>> cancelTripRequest(int tripRequestId) async {
+    if (mockCancelTripRequest != null) {
+      return mockCancelTripRequest!(tripRequestId);
+    }
+    final response = await patch('triprequest/$tripRequestId/cancel', {});
+    final result = _object(response);
+    if (result == null) {
+      throw const ApiException('The server returned no cancellation result. Please retry.');
+    }
+    return result;
   }
 
   static Future<Map<String, dynamic>> addItineraryItem(

@@ -3,6 +3,8 @@ using backend.DTOs;
 using backend.Models;
 using backend.Models.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
 
 namespace backend.Services
 {
@@ -155,31 +157,111 @@ namespace backend.Services
 
         public async Task<TripRequestDto?> CancelAsync(int tripRequestId, string customerId)
         {
-            var trip = await _db.TripRequests
-                .Include(t => t.Destination)
-                .FirstOrDefaultAsync(t => t.Id == tripRequestId && t.CustomerId == customerId);
-
-            if (trip == null) return null;
-
-            // Only allow cancellation for requests that haven't been completed or already cancelled
-            var nonCancellableStatuses = new[]
+            // Keep cancellation and the related state changes in one transaction.
+            // InMemory is used by a few unit tests and does not support transactions.
+            IDbContextTransaction? transaction = null;
+            if (_db.Database.IsRelational())
             {
-                TripRequestStatus.Cancelled,
-                TripRequestStatus.Approved,
-                TripRequestStatus.Rejected
-            };
-
-            if (nonCancellableStatuses.Contains(trip.Status))
-            {
-                throw new InvalidOperationException(
-                    $"Cannot cancel a trip request with status '{trip.Status}'.");
+                transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+                if (_db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    await _db.Database.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock({0})", new object[] { tripRequestId });
+                }
             }
 
-            trip.Status = TripRequestStatus.Cancelled;
-            await _db.SaveChangesAsync();
+            try
+            {
+                var trip = await _db.TripRequests
+                    .Include(t => t.Destination)
+                    .FirstOrDefaultAsync(t => t.Id == tripRequestId && t.CustomerId == customerId);
 
-            return MapToDto(trip);
+                if (trip == null) return null;
+
+                if (!IsCustomerCancellableStatus(trip.Status))
+                {
+                    throw new InvalidOperationException(trip.Status switch
+                    {
+                        TripRequestStatus.Cancelled => "This trip has already been cancelled.",
+                        TripRequestStatus.Failed or TripRequestStatus.Rejected => "This trip can no longer be cancelled.",
+                        TripRequestStatus.Approved => "This confirmed trip cannot be cancelled automatically. Please contact support.",
+                        _ => $"This trip can no longer be cancelled (current status: {trip.Status})."
+                    });
+                }
+
+                var itineraries = await _db.Itineraries
+                    .Where(i => i.TripRequestId == tripRequestId)
+                    .Include(i => i.ItineraryItems)
+                    .ToListAsync();
+                var itineraryIds = itineraries.Select(i => i.Id).ToList();
+                var bookings = itineraryIds.Count == 0
+                    ? new List<Booking>()
+                    : await _db.Bookings
+                        .Where(b => itineraryIds.Contains(b.ItineraryId))
+                        .Include(b => b.Payments)
+                        .ToListAsync();
+
+                // Validate every related record before mutating anything.
+                foreach (var itinerary in itineraries)
+                {
+                    if (itinerary.Status == ItineraryStatus.Accepted)
+                    {
+                        throw new InvalidOperationException(
+                            "This confirmed trip cannot be cancelled automatically. Please contact support.");
+                    }
+                }
+
+                foreach (var booking in bookings)
+                {
+                    if (booking.Payments.Any(payment => payment.Status == PaymentStatus.Paid))
+                    {
+                        throw new InvalidOperationException(
+                            "This booking has already been paid and cannot be cancelled automatically. Please contact support.");
+                    }
+
+                    if (booking.Status is BookingStatus.Confirmed or BookingStatus.Completed)
+                    {
+                        throw new InvalidOperationException(
+                            "This confirmed trip cannot be cancelled automatically. Please contact support.");
+                    }
+                }
+
+                trip.Status = TripRequestStatus.Cancelled;
+                trip.FailureReason = null;
+
+                foreach (var itinerary in itineraries.Where(i => i.Status is ItineraryStatus.Draft or ItineraryStatus.Proposed))
+                {
+                    // The domain has no separate Itinerary.Cancelled status; Discarded
+                    // is the existing non-actionable historical state.
+                    itinerary.Status = ItineraryStatus.Discarded;
+                }
+
+                foreach (var booking in bookings.Where(b => b.Status is BookingStatus.Draft or BookingStatus.AwaitingApproval))
+                {
+                    booking.Status = BookingStatus.Cancelled;
+                    booking.UpdatedAt = DateTime.UtcNow;
+                }
+
+                await _db.SaveChangesAsync();
+                if (transaction != null) await transaction.CommitAsync();
+                return MapToDto(trip);
+            }
+            catch
+            {
+                if (transaction != null) await transaction.RollbackAsync();
+                throw;
+            }
+            finally
+            {
+                if (transaction != null) await transaction.DisposeAsync();
+            }
         }
+
+        private static bool IsCustomerCancellableStatus(TripRequestStatus status) =>
+            status is TripRequestStatus.Pending or
+                TripRequestStatus.Planning or
+                TripRequestStatus.Planned or
+                TripRequestStatus.AwaitingApproval;
 
         public async Task<List<AgentLogDto>> GetAgentLogsAsync(int tripRequestId, string? customerId)
         {

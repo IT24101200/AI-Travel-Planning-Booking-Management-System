@@ -180,6 +180,23 @@ public class AgentProposalPersistenceTests
     }
 
     [Fact]
+    public async Task CancelledTrip_RejectsLateAgentCallbackWithoutCreatingCommercialRecords()
+    {
+        var (context, connection) = await CreateContextAsync(TripRequestStatus.Cancelled);
+        await using (context)
+        await using (connection)
+        {
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, Proposal(), 0));
+
+            Assert.Equal("INVALID_TRIP_STATE", ex.Code);
+            Assert.Empty(await context.Itineraries.ToListAsync());
+            Assert.Empty(await context.Bookings.ToListAsync());
+            Assert.Equal(TripRequestStatus.Cancelled, (await context.TripRequests.SingleAsync()).Status);
+        }
+    }
+
+    [Fact]
     public async Task OverBudgetProposal_DoesNotPersistCommercialRecords()
     {
         var (context, connection) = await CreateContextAsync(budget: 100m);
