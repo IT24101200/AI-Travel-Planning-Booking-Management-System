@@ -204,10 +204,14 @@ void main() {
     ];
     await tester.pumpWidget(const MaterialApp(home: TripHistoryScreen()));
     await tester.pumpAndSettle();
-    expect(find.text('Confirmed'), findsOneWidget);
+    expect(find.text('Confirmed'), findsNothing);
     expect(find.text('AwaitingApproval'), findsOneWidget);
     expect(find.text('Planning'), findsOneWidget);
     expect(find.text('Booking REAL-COMPLETED'), findsNothing);
+    await tester.tap(find.text('Booked'));
+    await tester.pumpAndSettle();
+    expect(find.text('Booking REAL-CONFIRMED'), findsOneWidget);
+    expect(find.text('Confirmed'), findsOneWidget);
     await tester.tap(find.text('Completed'));
     await tester.pumpAndSettle();
     expect(find.text('Booking REAL-COMPLETED'), findsOneWidget);

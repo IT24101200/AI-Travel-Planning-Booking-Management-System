@@ -18,7 +18,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   List<Map<String, dynamic>> _trips = [];
   String? _error;
   bool _loading = true;
-  String _activeTab = 'Upcoming'; // 'Upcoming', 'Completed', 'Cancelled'
+  String _activeTab = 'Upcoming';
   String _selectedYear = 'All years';
 
   static const _historyStatuses = {
@@ -166,6 +166,14 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     final travellers = request?['travellerCount'] ?? record['travellerCount'];
     final interests = _parseInterests(record, request);
     final preferences = _parsePreferences(record, request);
+    final bookingItems = record['bookingItems'] is List
+        ? (record['bookingItems'] as List)
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList()
+        : <Map<String, dynamic>>[];
+    final hotelItems = bookingItems.where(_isHotelItem).toList();
+    final transportItems = bookingItems.where(_isTransportItem).toList();
 
     return {
       ...record,
@@ -184,14 +192,216 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
       'interests': interests,
       'preferences': preferences,
       'nights': nights,
+      'hotelItems': hotelItems,
+      'transportItems': transportItems,
+      'hasBookedInventory': hotelItems.isNotEmpty || transportItems.isNotEmpty,
     };
+  }
+
+  bool _isHotelItem(Map<String, dynamic> item) {
+    final type = item['itemType'];
+    final normalized = type?.toString().toLowerCase() ?? '';
+    return type == 1 || normalized == 'room' || normalized == 'hotel' || item['hotelName'] != null;
+  }
+
+  bool _isTransportItem(Map<String, dynamic> item) {
+    final type = item['itemType'];
+    final normalized = type?.toString().toLowerCase() ?? '';
+    return type == 2 || normalized == 'transport' || item['transportType'] != null;
   }
 
   bool _inTab(Map<String, dynamic> trip, String tab) {
     final status = trip['status'];
+    if (tab == 'Booked') {
+      return trip['isBooking'] == true && status == 'Confirmed';
+    }
     if (tab == 'Completed') return status == 'Completed';
     if (tab == 'Cancelled') return status == 'Cancelled';
-    return status == 'Planning' || status == 'AwaitingApproval' || status == 'Confirmed';
+    return status == 'Planning' || status == 'AwaitingApproval';
+  }
+
+  String _itemPrice(Map<String, dynamic> item) {
+    final amount = item['subtotal'] ?? item['unitPrice'];
+    if (amount is! num) return '';
+    final currency = item['currency']?.toString() ?? 'LKR';
+    return '$currency ${NumberFormat('#,##0.##').format(amount)}';
+  }
+
+  String _dateLabel(dynamic value) {
+    final date = DateTime.tryParse(value?.toString() ?? '');
+    return date == null ? '' : DateFormat.yMMMd().format(date);
+  }
+
+  Widget _buildBookedInventory(Map<String, dynamic> trip, bool isDark) {
+    final hotelItems = (trip['hotelItems'] as List<Map<String, dynamic>>?) ?? [];
+    final transportItems = (trip['transportItems'] as List<Map<String, dynamic>>?) ?? [];
+    final cards = <Widget>[
+      ...hotelItems.map((item) => _buildInventoryCard(
+            icon: Icons.hotel_outlined,
+            category: 'HOTEL STAY',
+            title: item['hotelName']?.toString() ?? 'Reserved hotel',
+            details: [
+              [item['roomType']?.toString(), item['roomCapacity'] != null ? 'Up to ${item['roomCapacity']} guests' : null]
+                  .whereType<String>()
+                  .where((value) => value.isNotEmpty)
+                  .join(' · '),
+              [_dateLabel(item['checkInDate']), _dateLabel(item['checkOutDate'])]
+                  .where((value) => value.isNotEmpty)
+                  .join(' → '),
+              item['hotelAddress']?.toString() ?? '',
+            ],
+            price: _itemPrice(item),
+            isDark: isDark,
+          )),
+      ...transportItems.map((item) => _buildInventoryCard(
+            icon: Icons.directions_transit_outlined,
+            category: 'TRANSIT',
+            title: [item['transportType'], item['transportProvider']]
+                .whereType<Object>()
+                .map((value) => value.toString())
+                .where((value) => value.isNotEmpty)
+                .join(' · '),
+            details: [
+              [item['routeFrom'], item['routeTo']]
+                  .whereType<Object>()
+                  .map((value) => value.toString())
+                  .where((value) => value.isNotEmpty)
+                  .join(' → '),
+              _dateLabel(item['departureTime']),
+            ],
+            price: _itemPrice(item),
+            isDark: isDark,
+          )),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF122E25) : const Color(0xFFF2FAF6),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? const Color(0xFF285241) : const Color(0xFFCDE8DA)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome, size: 14, color: Color(0xFF2F9B70)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'BOOKED BY THE 4 AI AGENTS',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? const Color(0xFF81C7A7) : const Color(0xFF13684B),
+                    letterSpacing: 0.4,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final cardWidth = constraints.maxWidth >= 560
+                  ? (constraints.maxWidth - 8) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: cards.map((card) => SizedBox(width: cardWidth, child: card)).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInventoryCard({
+    required IconData icon,
+    required String category,
+    required String title,
+    required List<String> details,
+    required String price,
+    required bool isDark,
+  }) {
+    final visibleDetails = details.where((value) => value.isNotEmpty).toList();
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1A382E) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF285241) : const Color(0xFFE2F3EA),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 18, color: const Color(0xFF267A55)),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF2F9B70),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title.isEmpty ? category : title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white : const Color(0xFF123F32),
+                  ),
+                ),
+                ...visibleDetails.map((detail) => Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        detail,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 9,
+                          color: isDark ? const Color(0xFFB7C5BE) : const Color(0xFF6E7772),
+                        ),
+                      ),
+                    )),
+                if (price.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    price,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? AppColors.leaf400 : const Color(0xFF267A55),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildTripImage(String imagePath) {
@@ -239,6 +449,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
     final currentList = _trips.where((trip) => _inTab(trip, _activeTab)).toList();
     final filteredList = currentList.where((trip) => _selectedYear == 'All years' || trip['year'] == _selectedYear).toList();
     final upcomingCount = _trips.where((trip) => _inTab(trip, 'Upcoming')).length;
+    final bookedCount = _trips.where((trip) => _inTab(trip, 'Booked')).length;
     final completedCount = _trips.where((trip) => _inTab(trip, 'Completed')).length;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -255,9 +466,10 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                       Text(
                         'My Trips',
                         style: GoogleFonts.plusJakartaSans(
@@ -273,9 +485,13 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                           color: const Color(0xFF6E7772),
                           fontWeight: FontWeight.w500,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Container(
                     width: 38,
                     height: 38,
@@ -372,6 +588,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                 child: Row(
                   children: [
                     _buildTabItem('Upcoming'),
+                    _buildTabItem('Booked'),
                     _buildTabItem('Completed'),
                     _buildTabItem('Cancelled'),
                   ],
@@ -384,14 +601,18 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    '$upcomingCount upcoming · $completedCount completed',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
+                  Expanded(
+                    child: Text(
+                      '$upcomingCount upcoming · $bookedCount booked · $completedCount completed',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: theme.colorScheme.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  const SizedBox(width: 8),
                   PopupMenuButton<String>(
                     initialValue: _selectedYear,
                     onSelected: (val) => setState(() => _selectedYear = val),
@@ -691,6 +912,8 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
                                   ],
                                 ),
                               ],
+                              if (_activeTab == 'Booked' && trip['hasBookedInventory'] == true)
+                                _buildBookedInventory(trip, isDark),
                               const SizedBox(height: 10),
                               Row(
                                 children: [
