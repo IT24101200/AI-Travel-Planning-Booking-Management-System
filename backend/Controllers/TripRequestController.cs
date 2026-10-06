@@ -160,7 +160,7 @@ namespace backend.Controllers
         /// Cancel a trip request.
         /// </summary>
         [HttpPatch("{id}/cancel")]
-        [ProducesResponseType(typeof(TripRequestDto), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Cancel(int id)
@@ -174,7 +174,12 @@ namespace backend.Controllers
                 if (result == null)
                     return NotFound(new { message = "Trip request not found." });
 
-                return Ok(result);
+                return Ok(new
+                {
+                    status = result.Status,
+                    message = "Your trip has been cancelled.",
+                    tripRequest = result
+                });
             }
             catch (InvalidOperationException ex)
             {

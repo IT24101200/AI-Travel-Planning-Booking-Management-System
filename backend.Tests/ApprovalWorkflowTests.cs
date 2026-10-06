@@ -85,4 +85,58 @@ public sealed class ApprovalWorkflowTests
         Assert.Equal("Please reduce the daily travel time.", trip.FailureReason);
         Assert.Single(await context.BookingApprovals.ToListAsync());
     }
+
+    [Fact]
+    public async Task ApprovalAfterCustomerCancellation_IsRejected()
+    {
+        await using var context = CreateContext();
+        context.Users.Add(new IdentityUser { Id = "agent-8", UserName = "agent-8" });
+        context.Customers.Add(new Customer { Id = "customer-2", FullName = "Customer" });
+        context.TripRequests.Add(new TripRequest
+        {
+            Id = 43,
+            CustomerId = "customer-2",
+            RawRequestText = "Cancelled trip",
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(2),
+            TravellerCount = 1,
+            BudgetCeiling = 1000,
+            Currency = "USD",
+            Status = TripRequestStatus.Cancelled
+        });
+        context.Itineraries.Add(new Itinerary
+        {
+            Id = 8,
+            CustomerId = "customer-2",
+            TripRequestId = 43,
+            StartDate = DateTime.UtcNow.Date,
+            EndDate = DateTime.UtcNow.Date.AddDays(2),
+            Status = ItineraryStatus.Discarded,
+            Currency = "USD"
+        });
+        context.Bookings.Add(new Booking
+        {
+            Id = 10,
+            BookingReference = "ST-CANCELLED-10",
+            CustomerId = "customer-2",
+            ItineraryId = 8,
+            Status = BookingStatus.Cancelled,
+            Currency = "USD"
+        });
+        await context.SaveChangesAsync();
+
+        var userStore = new Mock<IUserStore<IdentityUser>>();
+        var userManager = new Mock<UserManager<IdentityUser>>(
+            userStore.Object, null!, null!, null!, null!, null!, null!, null!, null!);
+        var service = new ApprovalService(context, userManager.Object);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateApprovalAsync("agent-8", new ApprovalCreateDto
+        {
+            BookingId = 10,
+            Decision = ApprovalDecision.Approved,
+            Comment = "Stale approval attempt"
+        }));
+
+        Assert.Empty(await context.BookingApprovals.ToListAsync());
+    }
 }

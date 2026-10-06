@@ -300,6 +300,20 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     return s == 'discarded' || s.contains('discard') || s.contains('cancel');
   }
 
+  bool _isTripCancelled() {
+    final value = _agentStatus?.toLowerCase().replaceAll(' ', '');
+    return value == 'cancelled' || value == 'canceled';
+  }
+
+  bool _canCancelTrip() {
+    if (_resolvedTripRequestId == null || _isTripCancelled()) return false;
+    final value = _agentStatus?.toLowerCase().replaceAll(' ', '');
+    return value == 'pending' ||
+        value == 'planning' ||
+        value == 'planned' ||
+        value == 'awaitingapproval';
+  }
+
   /// Status badge widget matching Serendib theme
   Widget _buildStatusBadge(dynamic status) {
     final label = _getStatusLabel(status);
@@ -604,7 +618,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                             ),
                             if (_itinerary != null) ...[
                               const SizedBox(width: 8),
-                              _buildStatusBadge(_itinerary!['status']),
+                              _buildStatusBadge(_isTripCancelled() ? 'Cancelled' : _itinerary!['status']),
                             ],
                           ],
                         ),
@@ -823,6 +837,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     ),
                   ),
+                  if (_canCancelTrip()) ...[
+                    const SizedBox(height: 10),
+                    _buildCancelTripButton(),
+                  ],
                   const SizedBox(height: 10),
                   TextButton.icon(
                     onPressed: _fetchItinerary,
@@ -1297,7 +1315,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           const SizedBox(height: 18),
 
           // ── Status Action Buttons ──
-          if (items.isNotEmpty) _buildActionButtons(status),
+          if (items.isNotEmpty || _canCancelTrip()) _buildActionButtons(status),
 
       ],
     );
@@ -1309,6 +1327,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   /// - Accepted: Continue to checkout button (Accept & Request changes hidden)
   /// - Discarded: Both hidden, shows notice
   Widget _buildActionButtons(dynamic status) {
+    if (_isTripCancelled()) return _buildCancelledNotice();
+
     if (_isProposed(status)) {
       return Column(
         children: [
@@ -1378,6 +1398,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ),
             ),
           ),
+          if (_canCancelTrip()) ...[
+            const SizedBox(height: 12),
+            _buildCancelTripButton(),
+          ],
         ],
       );
     }
@@ -1435,6 +1459,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ),
             ),
           ),
+          if (_canCancelTrip()) ...[
+            const SizedBox(height: 12),
+            _buildCancelTripButton(),
+          ],
         ],
       );
     }
@@ -1525,6 +1553,99 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
 
     return const SizedBox.shrink();
+  }
+
+  Widget _buildCancelTripButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: OutlinedButton.icon(
+        onPressed: _isActionLoading ? null : _confirmTripCancellation,
+        icon: _isActionLoading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFC62828)),
+              )
+            : const Icon(Icons.cancel_outlined, size: 19),
+        label: const Text('Cancel trip'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFC62828),
+          side: const BorderSide(color: Color(0xFFC62828), width: 1.3),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCancelledNotice() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFFCDD2)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.cancel_outlined, color: Color(0xFFC62828), size: 22),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Cancelled. This trip is no longer actionable.',
+              style: TextStyle(fontSize: 13, color: Color(0xFFB71C1C), fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmTripCancellation() async {
+    if (!_canCancelTrip() || _isActionLoading) return;
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel trip?'),
+        content: const Text('Are you sure you want to cancel this trip? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep trip'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFFC62828)),
+            child: const Text('Cancel trip'),
+          ),
+        ],
+      ),
+    );
+    if (shouldCancel == true) await _cancelTrip();
+  }
+
+  Future<void> _cancelTrip() async {
+    final tripRequestId = _resolvedTripRequestId;
+    if (tripRequestId == null || _isActionLoading) return;
+    setState(() => _isActionLoading = true);
+    try {
+      await ApiService.cancelTripRequest(tripRequestId);
+      await _fetchItinerary();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Your trip has been cancelled.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.toString())),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isActionLoading = false);
+    }
   }
 
   IconData _getIconForIndex(int index) {
