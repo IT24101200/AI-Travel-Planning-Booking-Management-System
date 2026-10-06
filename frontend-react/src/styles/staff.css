@@ -418,6 +418,27 @@
   transform: none;
 }
 
+/* Media Library is an active secondary action, not a disabled control. */
+.image-uploader .media-library-button {
+  background: #ffffff;
+  color: #166b4f;
+  border: 1px solid #166b4f;
+  opacity: 1;
+  cursor: pointer;
+}
+
+.image-uploader .media-library-button:hover:not(:disabled) {
+  background: #f0fdf4;
+  color: #11533d;
+  border-color: #11533d;
+  box-shadow: 0 2px 8px rgba(22, 107, 79, 0.15);
+}
+
+.image-uploader .media-library-button:focus-visible {
+  outline: 3px solid rgba(31, 140, 102, 0.35);
+  outline-offset: 2px;
+}
+
 .btn-danger-soft {
   background-color: #fee2e2;
   color: #991b1b;
