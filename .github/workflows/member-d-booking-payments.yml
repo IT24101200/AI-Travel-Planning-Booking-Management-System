@@ -1,0 +1,45 @@
+name: Member D - Booking and Payments
+
+on:
+  push:
+    branches:
+      - main
+      - feature/d-booking-payments
+      - 'issue/**'
+  pull_request:
+    branches:
+      - main
+      - feature/d-booking-payments
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  member-d-booking-payments:
+    name: Booking, payment, and booked-inventory tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Run booking and payment backend tests
+        run: dotnet test backend.Tests/backend.Tests.csproj --filter "FullyQualifiedName~BookingServiceTests|FullyQualifiedName~PaymentServiceTests" --verbosity normal
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Run booked-inventory and trip-history Flutter tests
+        working-directory: mobile_flutter
+        run: |
+          flutter pub get
+          flutter test test/booked_inventory_pages_test.dart test/trip_history_screen_test.dart
