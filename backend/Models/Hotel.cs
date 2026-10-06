@@ -39,6 +39,13 @@ namespace backend.Models
         [Range(1, 5)]
         public int StarRating { get; set; }
 
+        // ── Contact details for reservations ──
+        [MaxLength(256)]
+        public string? ContactEmail { get; set; }
+
+        [MaxLength(30)]
+        public string? ContactPhone { get; set; }
+
         // ── Soft delete: Active or Inactive ──
         [Required]
         public HotelStatus Status { get; set; } = HotelStatus.Active;

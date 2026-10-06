@@ -203,9 +203,23 @@ export async function addItineraryItem(itineraryId, item) {
 // Student C — Hotels & Transport API endpoints
 // ─────────────────────────────────────────────────────────────
 
-export async function fetchHotels(search) {
-  const { data } = await api.get('/Hotel', { params: { search } })
+// Get hotels (backend returns { data, totalCount, ... }). Max pageSize on backend is 50.
+export async function fetchHotels(params = {}) {
+  const query = typeof params === 'string' ? { search: params } : params
+  const { data } = await api.get('/Hotel', { params: { pageSize: 50, ...query } })
   return data
+}
+
+// Staff view: load Active and Inactive hotels separately and merge them.
+// (Works on both old and new backend versions.)
+export async function fetchAllHotelsForStaff() {
+  const [active, inactive] = await Promise.all([
+    fetchHotels({ status: 'Active' }),
+    fetchHotels({ status: 'Inactive' })
+  ])
+  const activeList = Array.isArray(active) ? active : (active?.data || [])
+  const inactiveList = Array.isArray(inactive) ? inactive : (inactive?.data || [])
+  return [...activeList, ...inactiveList]
 }
 
 export async function createHotel(hotel) {
@@ -213,8 +227,9 @@ export async function createHotel(hotel) {
   return data
 }
 
-export async function deleteHotel(id) {
-  const { data } = await api.delete(`/Hotel/${id}`)
+// Delete a hotel. soft = true only marks it as Inactive.
+export async function deleteHotel(id, soft = false) {
+  const { data } = await api.delete(`/Hotel/${id}`, { params: soft ? { soft: true } : {} })
   return data
 }
 

@@ -60,11 +60,18 @@ namespace backend.Services
             if (minStarRating.HasValue)
                 query = query.Where(h => h.StarRating >= minStarRating.Value);
 
-            // Default to Active if no status filter provided (same as TourService)
-            var statusFilter = string.IsNullOrWhiteSpace(status)
-                ? HotelStatus.Active
-                : Enum.Parse<HotelStatus>(status, ignoreCase: true);
-            query = query.Where(h => h.Status == statusFilter);
+            // Status filter: If null/empty defaults to Active; if "all", returns both Active and Inactive
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<HotelStatus>(status, true, out var statusFilter))
+                {
+                    query = query.Where(h => h.Status == statusFilter);
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(h => h.Status == HotelStatus.Active);
+            }
 
             // ── Sort ──
             query = sortBy?.ToLower() switch
@@ -106,10 +113,17 @@ namespace backend.Services
             if (minStarRating.HasValue)
                 query = query.Where(h => h.StarRating >= minStarRating.Value);
 
-            var statusFilter = string.IsNullOrWhiteSpace(status)
-                ? HotelStatus.Active
-                : Enum.Parse<HotelStatus>(status, ignoreCase: true);
-            query = query.Where(h => h.Status == statusFilter);
+            if (!string.IsNullOrWhiteSpace(status) && !status.Equals("all", StringComparison.OrdinalIgnoreCase))
+            {
+                if (Enum.TryParse<HotelStatus>(status, true, out var statusFilter))
+                {
+                    query = query.Where(h => h.Status == statusFilter);
+                }
+            }
+            else if (string.IsNullOrWhiteSpace(status))
+            {
+                query = query.Where(h => h.Status == HotelStatus.Active);
+            }
 
             return await query.CountAsync();
         }
@@ -128,10 +142,16 @@ namespace backend.Services
         }
 
         /// <summary>
-        /// Create a new hotel. Status defaults to Active.
+        /// Create a new hotel. Status defaults to Active unless specified.
         /// </summary>
         public async Task<HotelDto> CreateAsync(CreateHotelDto dto)
         {
+            var status = HotelStatus.Active;
+            if (!string.IsNullOrWhiteSpace(dto.Status) && Enum.TryParse<HotelStatus>(dto.Status, true, out var parsedStatus))
+            {
+                status = parsedStatus;
+            }
+
             var hotel = new Hotel
             {
                 DestinationId = dto.DestinationId,
@@ -141,7 +161,9 @@ namespace backend.Services
                 Latitude      = dto.Latitude,
                 Longitude     = dto.Longitude,
                 StarRating    = dto.StarRating,
-                Status        = HotelStatus.Active
+                ContactEmail  = string.IsNullOrWhiteSpace(dto.ContactEmail) ? null : dto.ContactEmail.Trim(),
+                ContactPhone  = string.IsNullOrWhiteSpace(dto.ContactPhone) ? null : dto.ContactPhone.Trim(),
+                Status        = status
             };
 
             _context.Hotels.Add(hotel);
@@ -166,6 +188,12 @@ namespace backend.Services
             hotel.Latitude      = dto.Latitude;
             hotel.Longitude     = dto.Longitude;
             hotel.StarRating    = dto.StarRating;
+            hotel.ContactEmail  = string.IsNullOrWhiteSpace(dto.ContactEmail) ? null : dto.ContactEmail.Trim();
+            hotel.ContactPhone  = string.IsNullOrWhiteSpace(dto.ContactPhone) ? null : dto.ContactPhone.Trim();
+            if (!string.IsNullOrWhiteSpace(dto.Status) && Enum.TryParse<HotelStatus>(dto.Status, true, out var parsedStatus))
+            {
+                hotel.Status = parsedStatus;
+            }
 
             await _context.SaveChangesAsync();
             return true;
@@ -181,6 +209,21 @@ namespace backend.Services
             if (hotel is null) return false;
 
             hotel.Status = HotelStatus.Inactive;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        /// <summary>
+        /// Hard delete — removes hotel and cascades to its rooms.
+        /// </summary>
+        public async Task<bool> DeleteAsync(int id)
+        {
+            var hotel = await _context.Hotels
+                .Include(h => h.Rooms)
+                .FirstOrDefaultAsync(h => h.Id == id);
+            if (hotel is null) return false;
+
+            _context.Hotels.Remove(hotel);
             await _context.SaveChangesAsync();
             return true;
         }
@@ -308,6 +351,8 @@ namespace backend.Services
             Latitude      = h.Latitude,
             Longitude     = h.Longitude,
             StarRating    = h.StarRating,
+            ContactEmail  = h.ContactEmail,
+            ContactPhone  = h.ContactPhone,
             Status        = h.Status.ToString(),
             Rooms         = h.Rooms?.Select(r => ToRoomDto(r, targetCurrency)).ToList() ?? new List<RoomDto>()
         };

@@ -108,14 +108,16 @@ namespace backend.Controllers
         }
 
         /// <summary>
-        /// Soft delete a hotel (sets status to Inactive).
+        /// Delete a hotel (or soft delete if soft=true).
         /// DELETE /api/hotel/5
         /// </summary>
         [HttpDelete("{id}")]
         [Authorize(Roles = "TravelAgent,Admin")]
-        public async Task<IActionResult> Delete(int id)
+        public async Task<IActionResult> Delete(int id, [FromQuery] bool soft = false)
         {
-            var deleted = await _hotelService.SoftDeleteAsync(id);
+            var deleted = soft
+                ? await _hotelService.SoftDeleteAsync(id)
+                : await _hotelService.DeleteAsync(id);
             if (!deleted) return NotFound();
             return NoContent();
         }
