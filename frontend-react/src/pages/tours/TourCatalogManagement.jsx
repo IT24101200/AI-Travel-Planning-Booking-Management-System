@@ -626,6 +626,7 @@ export default function TourCatalogManagement() {
                   type="button"
                   className="btn-outline"
                   onClick={() => setDrawerMode(null)}
+                  style={{ opacity: 1, color: '#182126', backgroundColor: '#ffffff' }}
                 >
                   <CloseIcon size={14} />
                   <span>Cancel</span>

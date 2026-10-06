@@ -70,15 +70,15 @@ namespace backend.Controllers
                 var uploadDirectory = Path.Combine(_environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot"), "uploads", "tours");
                 Directory.CreateDirectory(uploadDirectory);
 
-                var extension = Path.GetExtension(image!.FileName).ToLowerInvariant();
-                var fileName = $"{Guid.NewGuid():N}{extension}";
-                savedFilePath = Path.Combine(uploadDirectory, fileName);
-                await using (var stream = System.IO.File.Create(savedFilePath))
+                if (image is not null && image.Length > 0)
                 {
+                    var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
+                    var fileName = $"{Guid.NewGuid():N}{extension}";
+                    savedFilePath = Path.Combine(uploadDirectory, fileName);
+                    await using var stream = System.IO.File.Create(savedFilePath);
                     await image.CopyToAsync(stream);
+                    dto.ImageUrl = $"/uploads/tours/{fileName}";
                 }
-
-                dto.ImageUrl = $"/uploads/tours/{fileName}";
                 var created = await _service.CreateAsync(dto);
                 return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
             }
