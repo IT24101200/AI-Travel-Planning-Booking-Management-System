@@ -1,12 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/screens/profile/trip_request_screen.dart';
 import 'package:mobile_flutter/services/api_service.dart';
+import 'package:mobile_flutter/services/agent_health_service.dart';
 
 void main() {
+  setUp(() {
+    ApiService.mockGetAgentConnectionStatus = () async =>
+        const AgentConnectionStatus(
+          state: AgentConnectionState.connected,
+          latencyMs: 42,
+        );
+  });
+
   tearDown(() {
     ApiService.mockGetDestinations = null;
     ApiService.mockCreateTripRequest = null;
+    ApiService.mockGetAgentConnectionStatus = null;
   });
 
   testWidgets(
@@ -146,5 +158,84 @@ void main() {
       {'id': 22, 'name': 'Colombo', 'order': 1},
       {'id': 33, 'name': 'Jaffna', 'order': 2},
     ]);
+  });
+
+  testWidgets('TripRequestScreen shows checking then connected status', (
+    WidgetTester tester,
+  ) async {
+    final health = Completer<AgentConnectionStatus>();
+    ApiService.mockGetAgentConnectionStatus = () => health.future;
+
+    await tester.pumpWidget(const MaterialApp(home: TripRequestScreen()));
+    await tester.pump();
+    expect(find.textContaining('Checking connection'), findsOneWidget);
+
+    health.complete(
+      const AgentConnectionStatus(
+        state: AgentConnectionState.connected,
+        latencyMs: 25,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('AI agent connection · Connected'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TripRequestScreen retries an unavailable agent connection', (
+    WidgetTester tester,
+  ) async {
+    var calls = 0;
+    ApiService.mockGetAgentConnectionStatus = () async {
+      calls++;
+      return calls == 1
+          ? const AgentConnectionStatus.unavailable()
+          : const AgentConnectionStatus(state: AgentConnectionState.connected);
+    };
+
+    await tester.pumpWidget(const MaterialApp(home: TripRequestScreen()));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('AI agent connection · Unavailable'),
+      findsOneWidget,
+    );
+    expect(find.text('Retry AI'), findsOneWidget);
+
+    await tester.tap(find.text('Retry AI'));
+    await tester.pumpAndSettle();
+    expect(calls, 2);
+    expect(
+      find.textContaining('AI agent connection · Connected'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('TripRequestScreen remains safe on a narrow viewport', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SizedBox(width: 320, height: 800, child: TripRequestScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('TripRequestScreen ignores a health result after disposal', (
+    WidgetTester tester,
+  ) async {
+    final health = Completer<AgentConnectionStatus>();
+    ApiService.mockGetAgentConnectionStatus = () => health.future;
+
+    await tester.pumpWidget(const MaterialApp(home: TripRequestScreen()));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+    health.complete(const AgentConnectionStatus.unavailable());
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
   });
 }
