@@ -908,7 +908,34 @@ class ApiService {
 
   static Future<List<dynamic>> getMyNotifications() async {
     if (mockGetMyNotifications != null) return mockGetMyNotifications!();
-    return _list(await get('notification/my'));
+
+    // The notification screen has no local pagination control. Fetch every
+    // server page (the API caps pageSize at 100) so its list and unread count
+    // are not silently limited to the backend's default first page.
+    final notifications = <dynamic>[];
+    var page = 1;
+    var totalPages = 1;
+
+    do {
+      final response = await get('notification/my?page=$page&pageSize=100');
+      final decoded = _decode(response);
+
+      if (decoded is List) {
+        notifications.addAll(decoded);
+        break;
+      }
+      if (decoded is! Map || decoded['data'] is! List) {
+        throw const ApiException(
+          'The server returned an invalid notification list. Please retry.',
+        );
+      }
+
+      notifications.addAll(decoded['data'] as List<dynamic>);
+      totalPages = int.tryParse('${decoded['totalPages'] ?? page}') ?? page;
+      page++;
+    } while (page <= totalPages);
+
+    return notifications;
   }
 
   static Future<void> markNotificationRead(String id) async {

@@ -10,6 +10,19 @@ namespace backend.Models.Enums
         PaymentReceipt,
         SystemAlert,
         Promotion,
-        Reminder
+        Reminder,
+        TripPlanningReady,
+        TripPlanningFailed,
+        TripApproved,
+        TripRejected,
+        TripRevisionRequested,
+        TripRevisionReady,
+        TripCancelled,
+        BookingConfirmed,
+        BookingRejected,
+        BookingCancelled,
+        PaymentSucceeded,
+        PaymentFailed,
+        RefundCompleted
     }
 }

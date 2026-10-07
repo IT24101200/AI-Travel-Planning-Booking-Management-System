@@ -3,6 +3,7 @@ using backend.DTOs;
 using backend.Models;
 using backend.Models.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace backend.Services
 {
@@ -206,6 +207,121 @@ namespace backend.Services
             return MapToDto(notification, user?.Email ?? "");
         }
 
+        public async Task<NotificationDto> CreateEventNotificationAsync(
+            string customerId,
+            MessageType messageType,
+            string content,
+            string referenceType,
+            string referenceId,
+            string eventKey,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(customerId))
+                throw new ArgumentException("A customer is required for an automatic notification.", nameof(customerId));
+            if (string.IsNullOrWhiteSpace(referenceType) || string.IsNullOrWhiteSpace(referenceId))
+                throw new ArgumentException("Automatic notifications require a reference entity.");
+            if (string.IsNullOrWhiteSpace(eventKey))
+                throw new ArgumentException("Automatic notifications require a deterministic event key.", nameof(eventKey));
+            if (string.IsNullOrWhiteSpace(content) || content.Length > 2000)
+                throw new ArgumentException("Notification content must contain between 1 and 2000 characters.", nameof(content));
+
+            var customer = await _db.Customers
+                .FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+            if (customer == null)
+                throw new KeyNotFoundException($"Customer with ID '{customerId}' not found.");
+
+            var existing = await _db.Notifications
+                .Include(n => n.Customer)
+                .FirstOrDefaultAsync(n => n.EventKey == eventKey, cancellationToken);
+            if (existing != null)
+            {
+                var existingEmail = await _db.Users
+                    .Where(u => u.Id == existing.CustomerId)
+                    .Select(u => u.Email)
+                    .FirstOrDefaultAsync(cancellationToken);
+                return MapToDto(existing, existingEmail ?? string.Empty);
+            }
+
+            var notification = new Notification
+            {
+                CustomerId = customerId,
+                Customer = customer,
+                Channel = NotificationChannel.InApp,
+                MessageType = messageType,
+                Content = content,
+                ReferenceType = referenceType,
+                ReferenceId = referenceId,
+                EventKey = eventKey,
+                Status = NotificationStatus.Sent,
+                SentAt = DateTime.UtcNow
+            };
+
+            _db.Notifications.Add(notification);
+
+            // This method deliberately saves through the caller's current DbContext.
+            // If an event source opened a transaction, the business state and this
+            // notification commit together. Without an ambient transaction EF wraps
+            // both tracked changes in the same SaveChanges transaction.
+            var currentTransaction = _db.Database.CurrentTransaction;
+            if (currentTransaction != null)
+                await currentTransaction.CreateSavepointAsync("notification_event", cancellationToken);
+
+            var duplicateEvent = false;
+            try
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                duplicateEvent = await TryResolveDuplicateEventAsync(notification, eventKey, cancellationToken);
+                if (!duplicateEvent)
+                    throw;
+            }
+
+            if (duplicateEvent)
+            {
+                var duplicate = await _db.Notifications
+                    .Include(n => n.Customer)
+                    .FirstAsync(n => n.EventKey == eventKey, cancellationToken);
+                var duplicateEmail = await _db.Users
+                    .Where(u => u.Id == duplicate.CustomerId)
+                    .Select(u => u.Email)
+                    .FirstOrDefaultAsync(cancellationToken);
+                return MapToDto(duplicate, duplicateEmail ?? string.Empty);
+            }
+
+            var user = await _db.Users
+                .Where(u => u.Id == customerId)
+                .Select(u => u.Email)
+                .FirstOrDefaultAsync(cancellationToken);
+            return MapToDto(notification, user ?? string.Empty);
+        }
+
+        private async Task<bool> TryResolveDuplicateEventAsync(
+            Notification attempted,
+            string eventKey,
+            CancellationToken cancellationToken)
+        {
+            var transaction = _db.Database.CurrentTransaction;
+            if (transaction != null)
+            {
+                try
+                {
+                    await transaction.RollbackToSavepointAsync("notification_event", cancellationToken);
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+
+            _db.Entry(attempted).State = EntityState.Detached;
+            var existing = await _db.Notifications
+                .AsNoTracking()
+                .AnyAsync(n => n.EventKey == eventKey, cancellationToken);
+            return existing;
+        }
+
         private static NotificationDto MapToDto(Notification n, string userEmail = "")
         {
             var customerName = n.Customer?.FullName ?? "Customer";
@@ -236,6 +352,9 @@ namespace backend.Services
                 Channel = n.Channel.ToString(),
                 MessageType = n.MessageType.ToString(),
                 Content = n.Content,
+                ReferenceType = n.ReferenceType,
+                ReferenceId = n.ReferenceId,
+                EventKey = n.EventKey,
                 Status = n.Status.ToString(),
                 ReadAt = n.ReadAt,
                 SentAt = n.SentAt

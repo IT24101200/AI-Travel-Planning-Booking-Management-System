@@ -18,15 +18,18 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
     private readonly AppDbContext _db;
     private readonly ICurrencyConversionService _currency;
     private readonly IAgentLogStreamService? _logStream;
+    private readonly INotificationService _notifications;
 
     public AgentProposalPersistenceService(
         AppDbContext db,
         ICurrencyConversionService? currency = null,
-        IAgentLogStreamService? logStream = null)
+        IAgentLogStreamService? logStream = null,
+        INotificationService? notifications = null)
     {
         _db = db;
         _currency = currency ?? new CurrencyConversionService();
         _logStream = logStream;
+        _notifications = notifications ?? new NotificationService(db);
     }
 
     public async Task<AgentProposalPersistenceResult> PersistAsync(
@@ -276,6 +279,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         trip.RetryCount = retryCount;
         trip.Status = TripRequestStatus.AwaitingApproval;
         trip.FailureReason = null;
+        var isRevision = existingItinerary is not null;
         var persistedLog = new AgentLog
         {
             TripRequestId = trip.Id,
@@ -287,6 +291,16 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             Timestamp = DateTime.UtcNow
         };
         _db.AgentLogs.Add(persistedLog);
+        await _notifications.CreateEventNotificationAsync(
+            trip.CustomerId,
+            isRevision ? MessageType.TripRevisionReady : MessageType.TripPlanningReady,
+            isRevision
+                ? "Your revised itinerary is ready to review."
+                : "Your itinerary is ready to review.",
+            "TripRequest",
+            trip.Id.ToString(),
+            $"trip:{trip.Id}:{(isRevision ? "revision-ready" : "planning-ready")}:{itineraryEntity.Id}",
+            cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 

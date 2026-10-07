@@ -13,15 +13,18 @@ namespace backend.Services
         private readonly AppDbContext _db;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IAgentLogStreamService? _logStream;
+        private readonly INotificationService _notifications;
 
         public ApprovalService(
             AppDbContext db,
             UserManager<IdentityUser> userManager,
-            IAgentLogStreamService? logStream = null)
+            IAgentLogStreamService? logStream = null,
+            INotificationService? notifications = null)
         {
             _db = db;
             _userManager = userManager;
             _logStream = logStream;
+            _notifications = notifications ?? new NotificationService(db);
         }
 
         public async Task<ApprovalDto> CreateApprovalAsync(string travelAgentUserId, ApprovalCreateDto dto)
@@ -99,6 +102,30 @@ namespace backend.Services
             }
 
             booking.UpdatedAt = DateTime.UtcNow;
+            var trip = booking.Itinerary.TripRequest;
+            var (messageType, content, eventKey) = dto.Decision switch
+            {
+                ApprovalDecision.Approved => (
+                    MessageType.TripApproved,
+                    "Your itinerary has been approved and your booking is confirmed.",
+                    $"trip:{trip.Id}:approved"),
+                ApprovalDecision.Rejected => (
+                    MessageType.TripRejected,
+                    "Your itinerary was not approved. You can submit a new trip request.",
+                    $"trip:{trip.Id}:rejected"),
+                ApprovalDecision.RevisionRequested => (
+                    MessageType.TripRevisionRequested,
+                    "Your itinerary needs changes. We are preparing a revised plan.",
+                    $"trip:{trip.Id}:revision-requested:booking:{booking.Id}"),
+                _ => throw new ArgumentOutOfRangeException()
+            };
+            await _notifications.CreateEventNotificationAsync(
+                trip.CustomerId,
+                messageType,
+                content,
+                "TripRequest",
+                trip.Id.ToString(),
+                eventKey);
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
             _logStream?.PublishTripStatus(

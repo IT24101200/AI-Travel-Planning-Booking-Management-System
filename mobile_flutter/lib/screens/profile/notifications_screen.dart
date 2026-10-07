@@ -19,7 +19,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String? _errorMessage;
   bool _updatingRead = false;
   String _selectedCategory = 'All';
-  final List<String> _categories = ['All', 'Unread', 'Bookings', 'Payments', 'Info'];
+  final List<String> _categories = [
+    'All',
+    'Unread',
+    'Bookings',
+    'Payments',
+    'Info',
+  ];
 
   // Alerts loaded from backend database API with graceful fallback
   List<Map<String, dynamic>> _alerts = [];
@@ -52,10 +58,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         final channel = raw['channel']?.toString() ?? 'InApp';
         final status = raw['status']?.toString() ?? 'Sent';
         final readAtRaw = raw['readAt']?.toString();
-        final isUnread = status.toLowerCase() != 'read' && (readAtRaw == null || readAtRaw.isEmpty);
+        final isUnread =
+            status.toLowerCase() != 'read' &&
+            (readAtRaw == null || readAtRaw.isEmpty);
         final sentAtRaw = raw['sentAt']?.toString() ?? '';
         final DateTime? sentAt = DateTime.tryParse(sentAtRaw);
-        final DateTime? readAt = readAtRaw != null ? DateTime.tryParse(readAtRaw) : null;
+        final DateTime? readAt = readAtRaw != null
+            ? DateTime.tryParse(readAtRaw)
+            : null;
 
         // Map database message type to visual category, tag, and icon
         String tag = 'INFO';
@@ -74,6 +84,30 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             iconColor = const Color(0xFF13684B);
             defaultTitle = 'Booking Confirmed';
             break;
+          case 'bookingconfirmed':
+            tag = 'BOOKING';
+            tagColor = const Color(0xFF13684B);
+            category = 'Bookings';
+            icon = Icons.check_circle_outline;
+            iconColor = const Color(0xFF13684B);
+            defaultTitle = 'Booking Confirmed';
+            break;
+          case 'bookingrejected':
+            tag = 'BOOKING';
+            tagColor = const Color(0xFF9E4B28);
+            category = 'Bookings';
+            icon = Icons.cancel_outlined;
+            iconColor = const Color(0xFF9E4B28);
+            defaultTitle = 'Booking Not Approved';
+            break;
+          case 'bookingcancelled':
+            tag = 'BOOKING';
+            tagColor = const Color(0xFF9E4B28);
+            category = 'Bookings';
+            icon = Icons.event_busy_outlined;
+            iconColor = const Color(0xFF9E4B28);
+            defaultTitle = 'Booking Cancelled';
+            break;
           case 'paymentreceipt':
             tag = 'PAYMENT';
             tagColor = const Color(0xFF1D6F8A);
@@ -81,6 +115,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             icon = Icons.credit_card_outlined;
             iconColor = const Color(0xFF1D6F8A);
             defaultTitle = 'Payment Successful';
+            break;
+          case 'paymentsucceeded':
+            tag = 'PAYMENT';
+            tagColor = const Color(0xFF1D6F8A);
+            category = 'Payments';
+            icon = Icons.credit_card_outlined;
+            iconColor = const Color(0xFF1D6F8A);
+            defaultTitle = 'Payment Successful';
+            break;
+          case 'paymentfailed':
+            tag = 'PAYMENT';
+            tagColor = const Color(0xFF9E4B28);
+            category = 'Payments';
+            icon = Icons.credit_card_off_outlined;
+            iconColor = const Color(0xFF9E4B28);
+            defaultTitle = 'Payment Failed';
             break;
           case 'systemalert':
             tag = 'ALERT';
@@ -97,6 +147,57 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             icon = Icons.auto_awesome;
             iconColor = const Color(0xFFD4A346);
             defaultTitle = 'Itinerary Update';
+            break;
+          case 'tripplanningready':
+          case 'triprevisionready':
+            tag = 'AI TRIP';
+            tagColor = const Color(0xFFD4A346);
+            category = 'Info';
+            icon = Icons.auto_awesome;
+            iconColor = const Color(0xFFD4A346);
+            defaultTitle = messageType.toLowerCase() == 'triprevisionready'
+                ? 'Revised Itinerary Ready'
+                : 'Itinerary Ready';
+            break;
+          case 'tripplanningfailed':
+            tag = 'AI TRIP';
+            tagColor = const Color(0xFF9E4B28);
+            category = 'Info';
+            icon = Icons.warning_amber_outlined;
+            iconColor = const Color(0xFF9E4B28);
+            defaultTitle = 'Planning Unsuccessful';
+            break;
+          case 'tripapproved':
+            tag = 'AI TRIP';
+            tagColor = const Color(0xFF13684B);
+            category = 'Bookings';
+            icon = Icons.verified_outlined;
+            iconColor = const Color(0xFF13684B);
+            defaultTitle = 'Itinerary Approved';
+            break;
+          case 'triprejected':
+            tag = 'AI TRIP';
+            tagColor = const Color(0xFF9E4B28);
+            category = 'Info';
+            icon = Icons.cancel_outlined;
+            iconColor = const Color(0xFF9E4B28);
+            defaultTitle = 'Itinerary Not Approved';
+            break;
+          case 'triprevisionrequested':
+            tag = 'AI TRIP';
+            tagColor = const Color(0xFFD4A346);
+            category = 'Info';
+            icon = Icons.edit_note_outlined;
+            iconColor = const Color(0xFFD4A346);
+            defaultTitle = 'Changes Requested';
+            break;
+          case 'tripcancelled':
+            tag = 'AI TRIP';
+            tagColor = const Color(0xFF9E4B28);
+            category = 'Info';
+            icon = Icons.event_busy_outlined;
+            iconColor = const Color(0xFF9E4B28);
+            defaultTitle = 'Trip Cancelled';
             break;
           case 'reminder':
             tag = 'TRANSIT';
@@ -141,6 +242,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           'title': title,
           'body': body,
           'category': category,
+          'referenceType': raw['referenceType']?.toString(),
+          'referenceId': raw['referenceId']?.toString(),
         });
       }
 
@@ -154,7 +257,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (mounted) {
         setState(() {
           _alerts = [];
-          _errorMessage = e.toString();
+          _errorMessage = ApiService.userMessage(e);
           _isLoading = false;
         });
       }
@@ -177,8 +280,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   String _formatExactDateTime(DateTime? dt) {
     if (dt == null) return 'Not available';
     final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final month = months[dt.month - 1];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -190,7 +303,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _markAllAsRead() async {
     if (_updatingRead || _isLoading) return;
     if (!_alerts.any((item) => item['isUnread'] == true)) return;
-    final snapshots = {for (final item in _alerts) item['id']: Map<String, dynamic>.from(item)};
+    final snapshots = {
+      for (final item in _alerts) item['id']: Map<String, dynamic>.from(item),
+    };
     setState(() {
       _updatingRead = true;
       for (final item in _alerts) {
@@ -201,13 +316,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
     try {
       await ApiService.markAllNotificationsRead();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('All alerts marked as read.')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All alerts marked as read.')),
+        );
     } catch (error) {
       if (!mounted) return;
       setState(() {
         for (final item in _alerts) {
           final previous = snapshots[item['id']];
-          if (previous != null) item..clear()..addAll(previous);
+          if (previous != null)
+            item
+              ..clear()
+              ..addAll(previous);
         }
       });
       _showReadError(error, _markAllAsRead);
@@ -217,10 +338,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _showReadError(Object error, VoidCallback retry) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(error.toString()),
-      action: SnackBarAction(label: 'Retry', onPressed: retry),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ApiService.userMessage(error)),
+        action: SnackBarAction(label: 'Retry', onPressed: retry),
+      ),
+    );
   }
 
   Future<void> _toggleReadStatus(Map<String, dynamic> item) async {
@@ -241,10 +364,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } else {
         await ApiService.markNotificationRead(id);
       }
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(unread ? 'Alert marked as unread.' : 'Alert marked as read.')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              unread ? 'Alert marked as unread.' : 'Alert marked as read.',
+            ),
+          ),
+        );
     } catch (error) {
       if (!mounted) return;
-      setState(() => item..clear()..addAll(previous));
+      setState(
+        () => item
+          ..clear()
+          ..addAll(previous),
+      );
       _showReadError(error, () => _toggleReadStatus(item));
     } finally {
       if (mounted) setState(() => _updatingRead = false);
@@ -260,6 +394,61 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (modalCtx) => _buildDetailBottomSheet(modalCtx, item),
+    );
+  }
+
+  String? _referenceActionLabel(Map<String, dynamic> item) {
+    final type = item['referenceType']?.toString().toLowerCase();
+    final id = int.tryParse(item['referenceId']?.toString() ?? '');
+    if (id == null || id <= 0) return null;
+    if (type == 'triprequest') return 'View Trip';
+    if (type == 'booking') return 'View Booking';
+    return null;
+  }
+
+  Future<void> _openNotificationReference(
+    BuildContext modalCtx,
+    Map<String, dynamic> item,
+  ) async {
+    final type = item['referenceType']?.toString().toLowerCase();
+    final id = int.tryParse(item['referenceId']?.toString() ?? '');
+    if (id == null || id <= 0) return;
+
+    Navigator.pop(modalCtx);
+    try {
+      if (type == 'triprequest') {
+        final trip = await ApiService.getTripRequest(id);
+        if (!mounted) return;
+        if (trip == null) {
+          _showReferenceUnavailable();
+          return;
+        }
+        await Navigator.pushNamed(
+          context,
+          '/itinerary',
+          arguments: {'tripRequestId': id},
+        );
+      } else if (type == 'booking') {
+        final booking = await ApiService.getBooking(id);
+        if (!mounted) return;
+        if (booking == null) {
+          _showReferenceUnavailable();
+          return;
+        }
+        await Navigator.pushNamed(context, '/booking-status', arguments: id);
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(ApiService.userMessage(error))),
+        );
+      }
+    }
+  }
+
+  void _showReferenceUnavailable() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('This item is no longer available.')),
     );
   }
 
@@ -294,31 +483,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Alerts',
-                          style: GoogleFonts.poppins(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: theme.colorScheme.onSurface,
-                            letterSpacing: -0.5,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Alerts',
+                            style: GoogleFonts.poppins(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: theme.colorScheme.onSurface,
+                              letterSpacing: -0.5,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          _isLoading
-                              ? 'Checking database...'
-                              : '$unreadCount new updates',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF8A9E96),
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(height: 2),
+                          Text(
+                            _isLoading
+                                ? 'Checking database...'
+                                : '$unreadCount new updates',
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF8A9E96),
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 12),
                     // Double check circular button (Mark All Read)
                     GestureDetector(
                       onTap: _alerts.isEmpty ? null : _markAllAsRead,
@@ -330,7 +523,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           decoration: BoxDecoration(
                             color: theme.colorScheme.surface,
                             shape: BoxShape.circle,
-                            border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF2E3D36)
+                                  : const Color(0xFFEDECE4),
+                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.04),
@@ -343,8 +540,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             child: Icon(
                               Icons.done_all,
                               color: _alerts.any((a) => a['isUnread'] == true)
-                                  ? (isDark ? AppColors.leaf400 : const Color(0xFF0E382C))
-                                  : (isDark ? const Color(0xFF6B7A73) : const Color(0xFF9E9E9E)),
+                                  ? (isDark
+                                        ? AppColors.leaf400
+                                        : const Color(0xFF0E382C))
+                                  : (isDark
+                                        ? const Color(0xFF6B7A73)
+                                        : const Color(0xFF9E9E9E)),
                               size: 20,
                             ),
                           ),
@@ -362,26 +563,38 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   itemCount: _categories.length,
-                  separatorBuilder: (context, index) => const SizedBox(width: 8),
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final cat = _categories[index];
                     final isSelected = _selectedCategory == cat;
                     return GestureDetector(
                       onTap: () => setState(() => _selectedCategory = cat),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isSelected ? theme.colorScheme.primary : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : (isDark
+                                      ? const Color(0xFF2E3D36)
+                                      : const Color(0xFFEDECE4)),
                           ),
                         ),
                         child: Center(
                           child: Text(
                             cat,
                             style: TextStyle(
-                              color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                              color: isSelected
+                                  ? Colors.white
+                                  : theme.colorScheme.onSurface,
                               fontWeight: FontWeight.w700,
                               fontSize: 12.5,
                             ),
@@ -401,12 +614,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      'Recent updates',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                        color: theme.colorScheme.onSurface,
+                    Expanded(
+                      child: Text(
+                        'Recent updates',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: theme.colorScheme.onSurface,
+                        ),
                       ),
                     ),
                     if (_alerts.any((a) => a['isUnread'] == true))
@@ -417,7 +633,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w700,
-                            color: isDark ? AppColors.leaf400 : const Color(0xFF0E382C),
+                            color: isDark
+                                ? AppColors.leaf400
+                                : const Color(0xFF0E382C),
                           ),
                         ),
                       ),
@@ -428,9 +646,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               const SizedBox(height: 10),
 
               // ── Content Area: Loading / Error / Empty / List ──
-              Expanded(
-                child: _buildContent(displayList),
-              ),
+              Expanded(child: _buildContent(displayList)),
             ],
           ),
         ),
@@ -455,7 +671,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               'Loading database alerts...',
               style: TextStyle(
                 fontSize: 13,
-                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
+                color: isDark
+                    ? const Color(0xFF9EABA4)
+                    : const Color(0xFF8A9E96),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -471,7 +689,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.cloud_off_outlined, size: 48, color: Color(0xFFE27D60)),
+              const Icon(
+                Icons.cloud_off_outlined,
+                size: 48,
+                color: Color(0xFFE27D60),
+              ),
               const SizedBox(height: 12),
               Text(
                 _errorMessage!,
@@ -488,9 +710,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 icon: const Icon(Icons.refresh, size: 16),
                 label: const Text('Retry'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? const Color(0xFF1E3A2F) : const Color(0xFF0E382C),
+                  backgroundColor: isDark
+                      ? const Color(0xFF1E3A2F)
+                      : const Color(0xFF0E382C),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
               ),
             ],
@@ -501,11 +727,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     if (displayList.isEmpty) {
       String emptyTitle = 'No notifications yet';
-      String emptySubtitle = 'Live notifications, booking approvals, payment receipts, and travel notices will show up here.';
+      String emptySubtitle =
+          'Live notifications, booking approvals, payment receipts, and travel notices will show up here.';
 
       if (_selectedCategory == 'Unread') {
         emptyTitle = 'All caught up!';
-        emptySubtitle = 'You have no unread notifications. Check the other category tabs for past history.';
+        emptySubtitle =
+            'You have no unread notifications. Check the other category tabs for past history.';
       } else if (_selectedCategory != 'All') {
         emptyTitle = 'No $_selectedCategory alerts';
         emptySubtitle = 'There are no active updates under $_selectedCategory.';
@@ -522,7 +750,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF162520) : const Color(0xFFEEFAF4),
+                  color: isDark
+                      ? const Color(0xFF162520)
+                      : const Color(0xFFEEFAF4),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -548,7 +778,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12.5,
-                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
+                  color: isDark
+                      ? const Color(0xFF9EABA4)
+                      : const Color(0xFF8A9E96),
                   height: 1.45,
                 ),
               ),
@@ -577,8 +809,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   side: BorderSide(
                     color: isDark ? AppColors.leaf400 : const Color(0xFF0E382C),
                   ),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
                 ),
               ),
             ],
@@ -664,11 +901,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     final isUnread = item['isUnread'] == true;
     final tag = item['tag'] ?? 'INFO';
-    final Color tagColor = item['tagColor'] ?? (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
+    final Color tagColor =
+        item['tagColor'] ??
+        (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
     final String channel = item['channel']?.toString() ?? 'InApp';
     final time = item['time'] ?? 'Just now';
     final IconData icon = item['icon'] ?? Icons.notifications_outlined;
-    final Color iconColor = item['iconColor'] ?? (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
+    final Color iconColor =
+        item['iconColor'] ??
+        (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
     final title = item['title'] ?? 'Notification';
     final body = item['body'] ?? '';
 
@@ -706,10 +947,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF203028) : Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF2E3D36)
+                      : const Color(0xFFEDECE4),
+                ),
               ),
               child: Center(
-                child: Icon(icon, color: isDark ? AppColors.leaf400 : iconColor, size: 20),
+                child: Icon(
+                  icon,
+                  color: isDark ? AppColors.leaf400 : iconColor,
+                  size: 20,
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -720,13 +969,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Tag, Channel Badge & Time Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    runSpacing: 4,
                     children: [
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             tag,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w800,
@@ -739,12 +992,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ],
                       ),
                       Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             time,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
-                              color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
+                              color: isDark
+                                  ? const Color(0xFF9EABA4)
+                                  : const Color(0xFF8A9E96),
                             ),
                           ),
                           if (isUnread) ...[
@@ -782,7 +1039,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                      color: isDark
+                          ? const Color(0xFF9EABA4)
+                          : const Color(0xFF6B7280),
                       height: 1.4,
                     ),
                   ),
@@ -796,19 +1055,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   /// Interactive Modal Bottom Sheet displaying full notification details
-  Widget _buildDetailBottomSheet(BuildContext modalCtx, Map<String, dynamic> item) {
+  Widget _buildDetailBottomSheet(
+    BuildContext modalCtx,
+    Map<String, dynamic> item,
+  ) {
     final theme = Theme.of(modalCtx);
     final isDark = theme.brightness == Brightness.dark;
 
     final title = item['title'] ?? 'Notification';
     final body = item['body'] ?? '';
     final tag = item['tag'] ?? 'INFO';
-    final Color tagColor = item['tagColor'] ?? (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
+    final Color tagColor =
+        item['tagColor'] ??
+        (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
     final channel = item['channel']?.toString() ?? 'InApp';
     final icon = item['icon'] ?? Icons.notifications_outlined;
-    final Color iconColor = item['iconColor'] ?? (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
+    final Color iconColor =
+        item['iconColor'] ??
+        (isDark ? AppColors.leaf400 : const Color(0xFF0E382C));
     final DateTime? sentAt = item['sentAt'] is DateTime ? item['sentAt'] : null;
     final isUnread = item['isUnread'] == true;
+    final referenceAction = _referenceActionLabel(item);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -827,7 +1094,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               height: 4,
               margin: const EdgeInsets.only(bottom: 18),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF3B4E44) : const Color(0xFFE5E7EB),
+                color: isDark
+                    ? const Color(0xFF3B4E44)
+                    : const Color(0xFFE5E7EB),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -840,12 +1109,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF203028) : const Color(0xFFF7F5EF),
+                  color: isDark
+                      ? const Color(0xFF203028)
+                      : const Color(0xFFF7F5EF),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF2E3D36)
+                        : const Color(0xFFEDECE4),
+                  ),
                 ),
                 child: Center(
-                  child: Icon(icon, color: isDark ? AppColors.leaf400 : iconColor, size: 22),
+                  child: Icon(
+                    icon,
+                    color: isDark ? AppColors.leaf400 : iconColor,
+                    size: 22,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -873,7 +1152,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       _formatExactDateTime(sentAt),
                       style: TextStyle(
                         fontSize: 11,
-                        color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF8A9E96),
+                        color: isDark
+                            ? const Color(0xFF9EABA4)
+                            : const Color(0xFF8A9E96),
                       ),
                     ),
                   ],
@@ -903,17 +1184,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             decoration: BoxDecoration(
               color: theme.cardColor,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF2E3D36)
+                    : const Color(0xFFEDECE4),
+              ),
             ),
             child: Text(
               body,
               style: TextStyle(
                 fontSize: 13,
-                color: isDark ? const Color(0xFFE4E7E2) : const Color(0xFF374151),
+                color: isDark
+                    ? const Color(0xFFE4E7E2)
+                    : const Color(0xFF374151),
                 height: 1.5,
               ),
             ),
           ),
+
+          if (referenceAction != null) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _openNotificationReference(modalCtx, item),
+                icon: const Icon(Icons.open_in_new, size: 16),
+                label: Text(referenceAction),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 18),
 
@@ -934,14 +1233,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   label: Text(
                     isUnread ? 'Mark as Read' : 'Mark as Unread',
                     style: TextStyle(
-                      color: isDark ? AppColors.leaf400 : const Color(0xFF0E382C),
+                      color: isDark
+                          ? AppColors.leaf400
+                          : const Color(0xFF0E382C),
                       fontWeight: FontWeight.w700,
                       fontSize: 13,
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: isDark ? AppColors.leaf400 : const Color(0xFF0E382C)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    side: BorderSide(
+                      color: isDark
+                          ? AppColors.leaf400
+                          : const Color(0xFF0E382C),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),
@@ -951,9 +1258,13 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 child: ElevatedButton(
                   onPressed: () => Navigator.pop(modalCtx),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? const Color(0xFF1E3A2F) : const Color(0xFF0E382C),
+                    backgroundColor: isDark
+                        ? const Color(0xFF1E3A2F)
+                        : const Color(0xFF0E382C),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   child: const Text(

@@ -1,4 +1,5 @@
 using backend.DTOs;
+using backend.Models.Enums;
 
 namespace backend.Services
 {
@@ -12,5 +13,13 @@ namespace backend.Services
         Task<int> MarkAllAsReadAsync(string customerId);
         Task<NotificationDto?> ResendFailedAsync(Guid notificationId, string? customerId = null);
         Task<NotificationDto> SendNotificationAsync(SendNotificationDto dto);
+        Task<NotificationDto> CreateEventNotificationAsync(
+            string customerId,
+            MessageType messageType,
+            string content,
+            string referenceType,
+            string referenceId,
+            string eventKey,
+            CancellationToken cancellationToken = default);
     }
 }

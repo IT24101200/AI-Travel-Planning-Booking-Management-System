@@ -84,6 +84,11 @@ public sealed class ApprovalWorkflowTests
         Assert.Null(trip.PlanJson);
         Assert.Equal("Please reduce the daily travel time.", trip.FailureReason);
         Assert.Single(await context.BookingApprovals.ToListAsync());
+        var notification = await context.Notifications.SingleAsync();
+        Assert.Equal(MessageType.TripRevisionRequested, notification.MessageType);
+        Assert.Equal("TripRequest", notification.ReferenceType);
+        Assert.Equal("42", notification.ReferenceId);
+        Assert.Equal("Sent", notification.Status.ToString());
     }
 
     [Fact]

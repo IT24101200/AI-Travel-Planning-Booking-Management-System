@@ -141,6 +141,11 @@ public class AgentProposalPersistenceTests
             Assert.Equal(3, booking.BookingItems.Count);
             Assert.All(booking.BookingItems, item => Assert.Equal(booking.Id, item.BookingId));
             Assert.Equal(TripRequestStatus.AwaitingApproval, (await context.TripRequests.SingleAsync()).Status);
+            var notification = await context.Notifications.SingleAsync();
+            Assert.Equal(MessageType.TripPlanningReady, notification.MessageType);
+            Assert.Equal("TripRequest", notification.ReferenceType);
+            Assert.Equal("1", notification.ReferenceId);
+            Assert.StartsWith("trip:1:planning-ready:", notification.EventKey);
         }
     }
 
@@ -160,6 +165,7 @@ public class AgentProposalPersistenceTests
             Assert.Equal(first.BookingId, second.BookingId);
             Assert.Equal(1, await context.Itineraries.CountAsync());
             Assert.Equal(1, await context.Bookings.CountAsync());
+            Assert.Equal(1, await context.Notifications.CountAsync());
         }
     }
 

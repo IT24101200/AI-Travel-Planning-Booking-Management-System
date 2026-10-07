@@ -17,7 +17,14 @@ namespace backend.Tests
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            return new AppDbContext(options);
+            var context = new AppDbContext(options);
+            context.Customers.Add(new Customer
+            {
+                Id = "cust-1",
+                FullName = "Test Customer",
+                Role = "Customer"
+            });
+            return context;
         }
 
         [Fact]
@@ -475,6 +482,10 @@ namespace backend.Tests
             Assert.Equal("Cancelled", cancelled!.Status);
             Assert.Equal(ItineraryStatus.Discarded, itinerary.Status);
             Assert.Equal(BookingStatus.Cancelled, booking.Status);
+            var notification = await context.Notifications.SingleAsync();
+            Assert.Equal(MessageType.TripCancelled, notification.MessageType);
+            Assert.Equal("TripRequest", notification.ReferenceType);
+            Assert.Equal(trip.Id.ToString(), notification.ReferenceId);
         }
 
         [Fact]

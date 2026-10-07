@@ -1,4 +1,5 @@
 import axios from 'axios'
+export { notificationErrorMessage } from './notificationErrors.js'
 
 /**
  * Thin axios wrapper for the ASP.NET backend.
@@ -113,8 +114,22 @@ export async function deleteCustomer(id) {
 }
 
 export async function fetchNotifications() {
-  const { data } = await api.get('/Notification', { params: { pageSize: 100 } })
-  return data
+  const all = []
+  let page = 1
+  let responseData
+  let hasMorePages
+
+  do {
+    const { data } = await api.get('/Notification', { params: { page, pageSize: 100 } })
+    responseData = data
+    const current = Array.isArray(data) ? data : (data?.data || [])
+    all.push(...current)
+    const totalPages = Math.max(1, Number(data?.totalPages) || page)
+    page += 1
+    hasMorePages = !Array.isArray(responseData) && page <= totalPages
+  } while (hasMorePages)
+
+  return Array.isArray(responseData) ? all : { ...responseData, data: all }
 }
 
 export async function resendNotification(id) {
