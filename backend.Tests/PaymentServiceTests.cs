@@ -119,6 +119,10 @@ public sealed class PaymentServiceTests
         Assert.Equal("USD", gateway.Currency);
         Assert.Equal(PaymentStatus.Paid, result.Status);
         Assert.StartsWith("pi_", result.StripeReference);
+        var notification = await context.Notifications.SingleAsync();
+        Assert.Equal(MessageType.PaymentSucceeded, notification.MessageType);
+        Assert.Equal("Booking", notification.ReferenceType);
+        Assert.Equal("2", notification.ReferenceId);
         Assert.DoesNotContain("ch_sb_", result.StripeReference);
     }
 
@@ -139,6 +143,10 @@ public sealed class PaymentServiceTests
         Assert.Equal(PaymentStatus.Failed, result.Status);
         Assert.Equal(BookingStatus.Confirmed, (await context.Bookings.FindAsync(3))!.Status);
         Assert.Equal("The test payment method was declined.", result.FailureReason);
+        var notification = await context.Notifications.SingleAsync();
+        Assert.Equal(MessageType.PaymentFailed, notification.MessageType);
+        Assert.Equal("Your payment could not be completed. Please try again.", notification.Content);
+        Assert.DoesNotContain("declined", notification.Content, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

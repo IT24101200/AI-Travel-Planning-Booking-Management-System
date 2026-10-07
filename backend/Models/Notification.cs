@@ -26,6 +26,25 @@ namespace backend.Models
         [MaxLength(2000)]
         public string Content { get; set; } = string.Empty;
 
+        /// <summary>
+        /// The domain entity that a customer can safely navigate to, when one exists.
+        /// </summary>
+        [MaxLength(50)]
+        public string? ReferenceType { get; set; }
+
+        /// <summary>
+        /// The string form of the referenced domain entity's key.
+        /// </summary>
+        [MaxLength(100)]
+        public string? ReferenceId { get; set; }
+
+        /// <summary>
+        /// Stable business-event identity used to make automatic notifications idempotent.
+        /// Manual and legacy notifications intentionally leave this null.
+        /// </summary>
+        [MaxLength(200)]
+        public string? EventKey { get; set; }
+
         [Required]
         public NotificationStatus Status { get; set; } = NotificationStatus.Pending;
 

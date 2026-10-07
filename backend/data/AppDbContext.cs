@@ -121,6 +121,12 @@ namespace backend.Data
                       .HasDefaultValue(NotificationStatus.Pending);
 
                 entity.Property(n => n.Content).IsRequired().HasMaxLength(2000);
+                entity.Property(n => n.ReferenceType).HasMaxLength(50);
+                entity.Property(n => n.ReferenceId).HasMaxLength(100);
+                entity.Property(n => n.EventKey).HasMaxLength(200);
+                entity.HasIndex(n => n.EventKey)
+                      .IsUnique()
+                      .HasFilter("\"EventKey\" IS NOT NULL");
                 entity.Property(n => n.SentAt).HasDefaultValueSql("NOW()");
             });
 

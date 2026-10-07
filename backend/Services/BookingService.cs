@@ -11,13 +11,18 @@ namespace backend.Services
     {
         private readonly AppDbContext _db;
         private readonly ICurrencyConversionService _currency;
+        private readonly INotificationService _notifications;
         // True when running against PostgreSQL (production). False for SQLite/InMemory (tests).
         private bool IsPostgres => _db.Database.ProviderName?.Contains("Npgsql") == true;
 
-        public BookingService(AppDbContext db, ICurrencyConversionService? currency = null)
+        public BookingService(
+            AppDbContext db,
+            ICurrencyConversionService? currency = null,
+            INotificationService? notifications = null)
         {
             _db = db;
             _currency = currency ?? new CurrencyConversionService();
+            _notifications = notifications ?? new NotificationService(db);
         }
 
         public async Task<BookingDto> CreateBookingAsync(BookingCreateDto dto)
@@ -273,8 +278,39 @@ namespace backend.Services
             if (newStatus == BookingStatus.Confirmed)
                 await RoomInventory.ValidateConfirmationAsync(_db, booking.Id);
 
+            var statusChanged = booking.Status != newStatus;
             booking.Status = newStatus;
             booking.UpdatedAt = DateTime.UtcNow;
+
+            if (statusChanged)
+            {
+                var automaticEvent = newStatus switch
+                {
+                    BookingStatus.Confirmed => (
+                        MessageType.BookingConfirmed,
+                        "Your booking has been confirmed.",
+                        $"booking:{booking.Id}:confirmed"),
+                    BookingStatus.Rejected => (
+                        MessageType.BookingRejected,
+                        "Your booking was not approved.",
+                        $"booking:{booking.Id}:rejected"),
+                    BookingStatus.Cancelled => (
+                        MessageType.BookingCancelled,
+                        "Your booking has been cancelled.",
+                        $"booking:{booking.Id}:cancelled"),
+                    _ => ((MessageType Type, string Content, string EventKey)?)null
+                };
+                if (automaticEvent.HasValue)
+                {
+                    await _notifications.CreateEventNotificationAsync(
+                        booking.CustomerId,
+                        automaticEvent.Value.Type,
+                        automaticEvent.Value.Content,
+                        "Booking",
+                        booking.Id.ToString(),
+                        automaticEvent.Value.EventKey);
+                }
+            }
 
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();

@@ -14,15 +14,18 @@ namespace backend.Services
         private readonly AppDbContext _db;
         private readonly ICurrencyConversionService _currency;
         private readonly IAgentLogStreamService? _logStream;
+        private readonly INotificationService _notifications;
 
         public TripRequestService(
             AppDbContext db,
             ICurrencyConversionService? currency = null,
-            IAgentLogStreamService? logStream = null)
+            IAgentLogStreamService? logStream = null,
+            INotificationService? notifications = null)
         {
             _db = db;
             _currency = currency ?? new CurrencyConversionService();
             _logStream = logStream;
+            _notifications = notifications ?? new NotificationService(db);
         }
 
         public async Task<TripRequestDto> CreateAsync(string customerId, TripRequestCreateDto dto)
@@ -265,7 +268,13 @@ namespace backend.Services
                     booking.UpdatedAt = DateTime.UtcNow;
                 }
 
-                await _db.SaveChangesAsync();
+                await _notifications.CreateEventNotificationAsync(
+                    trip.CustomerId,
+                    MessageType.TripCancelled,
+                    "Your trip request has been cancelled.",
+                    "TripRequest",
+                    trip.Id.ToString(),
+                    $"trip:{trip.Id}:cancelled");
                 if (transaction != null) await transaction.CommitAsync();
                 _logStream?.PublishTripStatus(trip.Id, trip.Status.ToString(), trip.FailureReason);
                 return MapToDto(trip);
@@ -388,6 +397,7 @@ namespace backend.Services
 
             if (trip == null) return null;
 
+            var previousStatus = trip.Status;
             var parsedStatus = trip.Status;
             if (!string.IsNullOrWhiteSpace(dto.Status) && !Enum.TryParse<TripRequestStatus>(dto.Status, true, out parsedStatus))
             {
@@ -425,7 +435,20 @@ namespace backend.Services
                 trip.FailureReason = dto.FailureReason;
             }
 
-            await _db.SaveChangesAsync();
+            if (previousStatus != parsedStatus && parsedStatus == TripRequestStatus.Failed)
+            {
+                await _notifications.CreateEventNotificationAsync(
+                    trip.CustomerId,
+                    MessageType.TripPlanningFailed,
+                    "We couldn't complete your itinerary. You can try again.",
+                    "TripRequest",
+                    trip.Id.ToString(),
+                    $"trip:{trip.Id}:planning-failed:{trip.RetryCount}");
+            }
+            else
+            {
+                await _db.SaveChangesAsync();
+            }
             var result = MapToDto(trip);
             if (!string.IsNullOrWhiteSpace(dto.Status))
                 _logStream?.PublishTripStatus(trip.Id, result.Status, result.FailureReason);

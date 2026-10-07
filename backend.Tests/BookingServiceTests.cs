@@ -149,6 +149,14 @@ namespace backend.Tests
             // Act & Assert — AwaitingApproval -> Confirmed is VALID
             var updated = await service.UpdateBookingStatusAsync(booking.Id, BookingStatus.Confirmed);
             Assert.Equal(BookingStatus.Confirmed, updated.Status);
+            var confirmation = await context.Notifications.SingleAsync();
+            Assert.Equal(MessageType.BookingConfirmed, confirmation.MessageType);
+            Assert.Equal("Booking", confirmation.ReferenceType);
+            Assert.Equal(booking.Id.ToString(), confirmation.ReferenceId);
+
+            // A retried confirmation is an idempotent no-op for notifications.
+            await service.UpdateBookingStatusAsync(booking.Id, BookingStatus.Confirmed);
+            Assert.Equal(1, await context.Notifications.CountAsync());
 
             // Act & Assert — Confirmed -> Draft is INVALID
             await Assert.ThrowsAsync<InvalidOperationException>(() =>

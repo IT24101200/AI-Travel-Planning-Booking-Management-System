@@ -3,7 +3,8 @@ import {
   fetchNotifications,
   resendNotification,
   sendNotification,
-  fetchCustomers
+  fetchCustomers,
+  notificationErrorMessage
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
@@ -16,13 +17,13 @@ import {
 } from '../../components/ui/Icons.jsx'
 
 const CHANNELS = ['Email', 'SMS', 'Push', 'InApp']
-const TYPES = ['TripUpdate', 'BookingConfirmation', 'PaymentReceipt', 'SystemAlert', 'Promotion', 'Reminder']
+const TYPES = ['TripUpdate', 'BookingConfirmation', 'PaymentReceipt', 'SystemAlert', 'Promotion', 'Reminder', 'TripPlanningReady', 'TripPlanningFailed', 'TripApproved', 'TripRejected', 'TripRevisionRequested', 'TripRevisionReady', 'TripCancelled', 'BookingConfirmed', 'BookingRejected', 'BookingCancelled', 'PaymentSucceeded', 'PaymentFailed', 'RefundCompleted']
 const STATUSES = ['Pending', 'Sent', 'Failed', 'Read']
 
 /**
  * Serendib Trails — Notification Outbox
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27250)
- * Displays transactional and multi-channel notifications for all customers.
+ * Displays persisted transactional notification records for all customers.
  */
 export default function NotificationLogs() {
   const [status, setStatus] = useState('All')
@@ -74,11 +75,9 @@ export default function NotificationLogs() {
         const mapped = live.map((n, idx) => {
           const rawChannel = typeof n.channel === 'number' ? (CHANNELS[n.channel] || 'Email') : (n.channel || 'Email')
           const rawType = typeof n.messageType === 'number' ? (TYPES[n.messageType] || 'TripUpdate') : (n.messageType || n.type || 'BookingConfirmation')
-          const rawStatus = typeof n.status === 'number' ? (STATUSES[n.status] || 'Sent') : (n.status || (idx % 4 === 1 ? 'Failed' : 'Sent'))
+          const rawStatus = typeof n.status === 'number' ? (STATUSES[n.status] || 'Pending') : (n.status || 'Pending')
 
-          const formattedId = typeof n.id === 'string' && n.id.startsWith('NTF-')
-            ? n.id
-            : `NTF-${88241 - idx}`
+          const formattedId = n.id ? String(n.id) : `NTF-${88241 - idx}`
 
           let displayTimestamp = '28 Sep · 10:18'
           if (n.sentAt) {
@@ -108,6 +107,9 @@ export default function NotificationLogs() {
             id: n.id,
             displayId: formattedId,
             customerId: n.customerId,
+            referenceType: n.referenceType || null,
+            referenceId: n.referenceId || null,
+            eventKey: n.eventKey || null,
             customerName,
             customerEmail,
             customerPhone,
@@ -116,14 +118,14 @@ export default function NotificationLogs() {
             type: rawType,
             status: rawStatus,
             at: displayTimestamp,
-            content: n.content || n.body || 'Your booking itinerary has been confirmed.',
+            content: n.content || n.body || 'No notification content was returned.',
           }
         })
         setRows(mapped)
       }
     } catch (err) {
       if (!cancelled) {
-        setError(err.response?.data?.message || err.message || 'Failed to load notifications from database.')
+        setError(notificationErrorMessage(err, 'Failed to load notifications from database.'))
       }
     } finally {
       if (!cancelled) setLoading(false)
@@ -164,9 +166,9 @@ export default function NotificationLogs() {
     try {
       await resendNotification(id)
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: 'Sent' } : r)))
-      setNote(`Notification ${id} re-queued and sent successfully.`)
+      setNote(`Notification ${id} was re-queued in the outbox.`)
     } catch (err) {
-      setNote(`Failed to resend: ${err.response?.data?.message || err.message}`)
+      setNote(`Failed to resend: ${notificationErrorMessage(err, 'Unable to resend the notification. Please retry.')}`)
     }
   }
 
@@ -186,7 +188,7 @@ export default function NotificationLogs() {
         content: testContent
       })
       const targetCust = customers.find(c => c.id === selectedCustomerId)
-      setTestSent(`Notification dispatched successfully to ${targetCust ? targetCust.fullName : 'customer'} via ${testChannel}!`)
+      setTestSent(`Notification recorded in the outbox for ${targetCust ? targetCust.fullName : 'customer'} via ${testChannel}.`)
       await loadNotifications(false)
       setTimeout(() => {
         setShowTestModal(false)
@@ -195,7 +197,7 @@ export default function NotificationLogs() {
       }, 1500)
     } catch (err) {
       setSendingTest(false)
-      setNote(`Failed to send notification: ${err.response?.data?.message || err.message}`)
+      setNote(`Failed to send notification: ${notificationErrorMessage(err, 'Unable to send the notification. Please retry.')}`)
     }
   }
 
@@ -207,7 +209,7 @@ export default function NotificationLogs() {
           <p className="staff-page__eyebrow">COMMUNICATIONS / OUTBOX</p>
           <h1 className="staff-page__title">Notification outbox</h1>
           <p className="staff-page__subtitle">
-            Audit transactional messaging across email, SMS, push, and in-app channels.
+            Audit persisted notification records across configured channels. External delivery providers are not connected.
           </p>
         </div>
         <div className="staff-page__actions">
@@ -236,7 +238,7 @@ export default function NotificationLogs() {
         <div className="banner-danger">
           <span style={{ fontSize: '1.1rem' }}>⊗</span>
           <span>
-            <strong>{failedCount} deliveries failed in the last hour</strong> — Gateway timeout on Dialog SMS. Retry is available for failed rows.
+            <strong>{failedCount} notification records are marked Failed</strong> — retry re-queues the persisted record. External delivery is not configured.
           </span>
         </div>
       )}
@@ -452,21 +454,21 @@ export default function NotificationLogs() {
         </div>
       </div>
 
-      {/* ── 4 KPI Delivery Health Cards calculated from customer notification data ── */}
+      {/* ── 4 KPI Outbox Status Cards calculated from customer notification data ── */}
       <div className="kpi-grid">
         {CHANNELS.map((ch) => {
           const chRows = rows.filter(r => r.channel.toLowerCase() === ch.toLowerCase())
           const total = chRows.length
-          const delivered = chRows.filter(r => r.status.toLowerCase() === 'sent' || r.status.toLowerCase() === 'read').length
+          const recorded = chRows.filter(r => r.status.toLowerCase() === 'sent' || r.status.toLowerCase() === 'read').length
           const failed = chRows.filter(r => r.status.toLowerCase() === 'failed').length
-          const percent = total > 0 ? ((delivered / total) * 100).toFixed(1) : '100'
+          const percent = total > 0 ? ((recorded / total) * 100).toFixed(1) : '100'
 
           return (
             <div key={ch} className="kpi-card">
               <p className="kpi-card__label">{ch}</p>
               <p className="kpi-card__val">{percent}%</p>
               <p className="kpi-card__sub" style={{ color: failed > 0 ? '#b91c1c' : '#66747b' }}>
-                {delivered} delivered{failed > 0 ? ` · ${failed} failed` : ''}
+                {recorded} recorded{failed > 0 ? ` · ${failed} failed` : ''}
               </p>
             </div>
           )
@@ -705,7 +707,7 @@ export default function NotificationLogs() {
                   </span>
                 </div>
                 <div className="profile-stat-box">
-                  <span className="profile-stat-label">Delivery Status</span>
+                  <span className="profile-stat-label">Stored Status</span>
                   <span className="profile-stat-val" style={{ fontSize: '0.8125rem' }}>
                     {selectedNotification.status}
                   </span>
@@ -714,6 +716,14 @@ export default function NotificationLogs() {
                   <span className="profile-stat-label">Customer ID</span>
                   <span className="profile-stat-val" style={{ fontSize: '0.725rem', color: '#66747b', wordBreak: 'break-all' }}>
                     {selectedNotification.customerId || '—'}
+                  </span>
+                </div>
+                <div className="profile-stat-box">
+                  <span className="profile-stat-label">Reference</span>
+                  <span className="profile-stat-val" style={{ fontSize: '0.8125rem' }}>
+                    {selectedNotification.referenceType && selectedNotification.referenceId
+                      ? `${selectedNotification.referenceType} #${selectedNotification.referenceId}`
+                      : '—'}
                   </span>
                 </div>
               </div>

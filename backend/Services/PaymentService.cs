@@ -14,12 +14,19 @@ public sealed class PaymentService : IPaymentService
     private readonly AppDbContext _db;
     private readonly IStripePaymentGateway _stripe;
     private readonly ICurrencyConversionService _currency;
+    private readonly INotificationService _notifications;
 
-    public PaymentService(AppDbContext db, IConfiguration configuration, IStripePaymentGateway stripe, ICurrencyConversionService? currency = null)
+    public PaymentService(
+        AppDbContext db,
+        IConfiguration configuration,
+        IStripePaymentGateway stripe,
+        ICurrencyConversionService? currency = null,
+        INotificationService? notifications = null)
     {
         _db = db;
         _stripe = stripe;
         _currency = currency ?? new CurrencyConversionService(configuration);
+        _notifications = notifications ?? new NotificationService(db);
     }
 
     public async Task<PaymentDto> ProcessPaymentAsync(PaymentCreateDto dto)
@@ -120,6 +127,15 @@ public sealed class PaymentService : IPaymentService
             payment.Status = stripeResult.Succeeded ? PaymentStatus.Paid : PaymentStatus.Failed;
             payment.FailureReason = stripeResult.Succeeded ? null : SafeFailure(stripeResult.FailureReason);
             payment.PaymentDate = DateTime.UtcNow;
+            await _notifications.CreateEventNotificationAsync(
+                booking.CustomerId,
+                stripeResult.Succeeded ? MessageType.PaymentSucceeded : MessageType.PaymentFailed,
+                stripeResult.Succeeded
+                    ? "Your payment was successful."
+                    : "Your payment could not be completed. Please try again.",
+                "Booking",
+                booking.Id.ToString(),
+                $"payment:{payment.Id}:{(stripeResult.Succeeded ? "succeeded" : "failed")}");
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
 

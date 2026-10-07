@@ -16,6 +16,9 @@ namespace backend.DTOs
         public string Channel { get; set; } = string.Empty;
         public string MessageType { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public string? ReferenceType { get; set; }
+        public string? ReferenceId { get; set; }
+        public string? EventKey { get; set; }
         public string Status { get; set; } = string.Empty;
         public DateTime? ReadAt { get; set; }
         public DateTime SentAt { get; set; }
@@ -24,7 +27,7 @@ namespace backend.DTOs
     /// <summary>
     /// Request body for sending a new notification to a customer.
     /// Channel: Email, SMS, Push, InApp
-    /// MessageType: TripUpdate, BookingConfirmation, PaymentReceipt, SystemAlert, Promotion, Reminder
+    /// MessageType: existing manual values plus automatic business-event values.
     /// </summary>
     public class SendNotificationDto
     {
