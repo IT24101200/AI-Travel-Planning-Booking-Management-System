@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/agent_health_service.dart';
+import '../../services/trip_budget_range.dart';
 import '../../widgets/common_widgets.dart';
 import '../../main.dart' show currencyNotifier;
 
@@ -43,6 +44,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   // Budget ceiling in LKR (default: LKR 250,000)
   double _budgetCeiling = 250000;
+  double _budgetMinimum = 175000;
   String _currency = 'LKR';
 
   // Selected travel interests
@@ -264,6 +266,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
           if (maxBudget > 50000 && mounted) {
             setState(() {
               _budgetCeiling = maxBudget.clamp(50000, 1000000);
+              final preferredMinimum = (pref['budgetMin'] as num?)?.toDouble();
+              _budgetMinimum = (preferredMinimum ?? _budgetCeiling * 0.70)
+                  .clamp(TripBudgetRange.lowerLimit, _budgetCeiling * 0.70);
             });
           }
         }
@@ -284,7 +289,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   /// Formatted budget range display in LKR
   String get _budgetRangeDisplay {
     final currencyFmt = NumberFormat('#,##0', 'en_US');
-    final minEst = (_budgetCeiling * 0.70).round();
+    final minEst = _budgetMinimum.round();
     final maxEst = _budgetCeiling.round();
     return 'LKR ${currencyFmt.format(minEst)} – LKR ${currencyFmt.format(maxEst)}';
   }
@@ -356,6 +361,11 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   /// Generate AI Itinerary and dispatch to multi-agent pipeline
   Future<void> _generateItinerary() async {
+    if (!TripBudgetRange(_budgetMinimum, _budgetCeiling).isValid) {
+      setState(() => _submissionError =
+          'The budget gap must be at least 30% of the maximum budget.');
+      return;
+    }
     final destination = _destinationCtrl.text.trim();
     if (destination.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -393,6 +403,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         'destinations': destinationSelections,
         'rawRequestText':
             'Destination: $destination. Interests: ${_selectedInterests.join(", ")}. '
+            'Preferred budget range: $_currency ${_budgetMinimum.round()} to ${_budgetCeiling.round()}. '
             'Preferences: ${_specialRequestsCtrl.text.trim()}',
         'startDate': _startDate.toIso8601String(),
         'endDate': _endDate.toIso8601String(),
@@ -937,19 +948,34 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                       (isDark ? AppColors.leaf400 : const Color(0xFF123F32))
                           .withValues(alpha: 0.12),
                   trackHeight: 6,
-                  thumbShape: const RoundSliderThumbShape(
+                  rangeThumbShape: const RoundRangeSliderThumbShape(
                     enabledThumbRadius: 8,
                   ),
                 ),
-                child: Slider(
-                  value: _budgetCeiling,
-                  min: 50000,
-                  max: 1000000,
-                  divisions: 95,
-                  onChanged: (val) {
-                    setState(() => _budgetCeiling = val);
+                child: RangeSlider(
+                  values: RangeValues(_budgetMinimum, _budgetCeiling),
+                  min: TripBudgetRange.lowerLimit,
+                  max: TripBudgetRange.upperLimit,
+                  labels: RangeLabels(
+                    'Minimum: ${NumberFormat('#,##0').format(_budgetMinimum)}',
+                    'Maximum: ${NumberFormat('#,##0').format(_budgetCeiling)}',
+                  ),
+                  semanticFormatterCallback: (value) => 'LKR ${value.round()}',
+                  onChanged: (values) {
+                    final current = TripBudgetRange(_budgetMinimum, _budgetCeiling);
+                    final updated = values.start != _budgetMinimum
+                        ? current.moveMinimum(values.start)
+                        : current.moveMaximum(values.end);
+                    setState(() {
+                      _budgetMinimum = updated.minimum;
+                      _budgetCeiling = updated.maximum;
+                    });
                   },
                 ),
+              ),
+              Text(
+                'Adjust minimum and maximum. The gap must be at least 30% of the maximum budget.',
+                style: theme.textTheme.bodySmall,
               ),
 
               const SizedBox(height: 8),

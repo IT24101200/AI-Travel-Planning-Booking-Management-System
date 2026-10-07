@@ -3,6 +3,7 @@ import 'screens/landing_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/tours/destinations_screen.dart';
 import 'screens/tours/tour_search_browse_screen.dart';
 import 'screens/tours/tour_details_screen.dart';
 import 'screens/tours/my_itinerary_screen.dart';
@@ -59,6 +60,7 @@ class TravelApp extends StatelessWidget {
 
             // Protected routes (Only signed-in travelers can view inside data)
             '/home': (context) => const AuthGuard(child: HomeScreen()),
+            '/destinations': (context) => const AuthGuard(child: DestinationsScreen()),
             '/tour-search': (context) => const AuthGuard(child: TourSearchBrowseScreen()),
             '/tour-details': (context) => const AuthGuard(child: TourDetailsScreen()),
             '/itinerary': (context) => const AuthGuard(child: MyItineraryScreen()),

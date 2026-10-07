@@ -461,10 +461,10 @@ class _ExploreTabState extends State<_ExploreTab> {
                     color: theme.colorScheme.onSurface,
                   ),
                 ),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/tour-search'),
+                TextButton(
+                  onPressed: () => Navigator.pushNamed(context, '/destinations'),
                   child: Text(
-                    'See all',
+                    'See more',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
@@ -938,16 +938,33 @@ class _ExploreTabState extends State<_ExploreTab> {
     final String tourRating = tourMap['rating']?.toString() ?? '4.8';
     final int tourId = tourMap['id'] is int ? tourMap['id'] : int.tryParse(tourMap['id']?.toString() ?? '0') ?? 0;
 
-    // Pick a local photo asset based on category or default
-    String photoAsset = 'assets/photos/kandy-1280.jpg';
-    if (tourCategory.contains('HERITAGE') || tourName.contains('Sigiriya')) {
-      photoAsset = 'assets/photos/sigiriya-1280.jpg';
-    } else if (tourCategory.contains('HIKING') || tourName.contains('Ella')) {
-      photoAsset = 'assets/photos/ella-1280.jpg';
-    } else if (tourCategory.contains('WILD') || tourName.contains('Yala')) {
-      photoAsset = 'assets/photos/yala-1280.jpg';
-    } else if (tourCategory.contains('BEACH') || tourName.contains('Mirissa')) {
-      photoAsset = 'assets/photos/mirissa-1280.jpg';
+    final imageUrl = ApiService.resolveMediaUrl(tourMap['imageUrl']?.toString());
+    final imagePlaceholder = Container(
+      width: 76,
+      height: 64,
+      color: AppColors.figmaDarkGreen,
+      child: const Icon(Icons.landscape, color: Colors.white),
+    );
+    final Widget tourImage;
+    if (imageUrl.isEmpty) {
+      tourImage = imagePlaceholder;
+    } else if (imageUrl.startsWith('assets/')) {
+      tourImage = Image.asset(
+        imageUrl,
+        width: 76,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => imagePlaceholder,
+      );
+    } else {
+      tourImage = Image.network(
+        imageUrl,
+        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+        width: 76,
+        height: 64,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => imagePlaceholder,
+      );
     }
 
     final tourCurrency = tourMap['currency']?.toString() ?? currencyNotifier.value;
@@ -971,18 +988,7 @@ class _ExploreTabState extends State<_ExploreTab> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.asset(
-                photoAsset,
-                width: 76,
-                height: 64,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 76,
-                  height: 64,
-                  color: AppColors.figmaDarkGreen,
-                  child: const Icon(Icons.landscape, color: Colors.white),
-                ),
-              ),
+              child: tourImage,
             ),
             const SizedBox(width: 12),
             Expanded(
