@@ -75,8 +75,9 @@ namespace backend.Controllers
                 if (planning is not null)
                     result = planning;
 
-                // Option A: Automatically trigger the multi-agent pipeline in the background
-                TriggerAgentPipelineAsync(result, Request.Headers.Authorization.ToString());
+                // The agent endpoint acknowledges the background job here; the long-running
+                // graph continues in the AI service after this call returns.
+                await TriggerAgentPipelineAsync(result);
 
                 return StatusCode(StatusCodes.Status201Created, result);
             }
@@ -521,85 +522,81 @@ namespace backend.Controllers
             return Ok(updated);
         }
 
-        private void TriggerAgentPipelineAsync(TripRequestDto trip, string authorizationHeader)
+        private async Task TriggerAgentPipelineAsync(TripRequestDto trip)
         {
             _logger.LogInformation("TriggerAgentPipelineAsync started for TripRequest #{TripRequestId}.", trip.Id);
-            _ = Task.Run(async () =>
+            try
             {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
+                var endpoint = $"{agentBaseUrl.TrimEnd('/')}/run-pipeline-async";
+                _logger.LogInformation("Dispatching TripRequest #{TripRequestId} to {AgentEndpoint}.", trip.Id, endpoint);
+                var client = _httpClientFactory.CreateClient();
+                client.Timeout = AgentServiceTimeouts.Connection(_configuration);
+
+                var preference = await db.Preferences
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(p => p.CustomerId == trip.CustomerId);
+                var preferredActivities = string.IsNullOrWhiteSpace(preference?.PreferredActivities)
+                    ? Array.Empty<string>()
+                    : preference.PreferredActivities
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                var payload = new
+                {
+                    trip_request_id = trip.Id,
+                    customer_id = trip.CustomerId,
+                    destination_id = trip.DestinationId,
+                    destination_name = trip.DestinationName ?? "Destination",
+                    raw_request_text = trip.RawRequestText,
+                    start_date = trip.StartDate.ToString("o"),
+                    end_date = trip.EndDate.ToString("o"),
+                    traveller_count = trip.TravellerCount,
+                    budget_ceiling = (double)trip.BudgetCeiling,
+                    currency = trip.Currency,
+                    retry_count = trip.RetryCount,
+                    preferred_activities = preferredActivities
+                };
+
+                using var content = new StringContent(
+                    System.Text.Json.JsonSerializer.Serialize(payload),
+                    System.Text.Encoding.UTF8,
+                    "application/json");
+
+                HttpResponseMessage? response = null;
                 try
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-                    var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
-                    var endpoint = $"{agentBaseUrl}/run-pipeline-async";
-                    _logger.LogInformation("Dispatching TripRequest #{TripRequestId} to {AgentEndpoint}.", trip.Id, endpoint);
-                    var client = _httpClientFactory.CreateClient();
-                    client.Timeout = AgentServiceTimeouts.Connection(_configuration);
-
-                    var preference = await db.Preferences
-                        .AsNoTracking()
-                        .FirstOrDefaultAsync(p => p.CustomerId == trip.CustomerId);
-                    var preferredActivities = string.IsNullOrWhiteSpace(preference?.PreferredActivities)
-                        ? Array.Empty<string>()
-                        : preference.PreferredActivities
-                            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-                    var payload = new
-                    {
-                        trip_request_id = trip.Id,
-                        customer_id = trip.CustomerId,
-                        destination_id = trip.DestinationId,
-                        destination_name = trip.DestinationName ?? "Destination",
-                        raw_request_text = trip.RawRequestText,
-                        access_token = authorizationHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-                            ? authorizationHeader["Bearer ".Length..].Trim()
-                            : null,
-                        start_date = trip.StartDate.ToString("o"),
-                        end_date = trip.EndDate.ToString("o"),
-                        traveller_count = trip.TravellerCount,
-                        budget_ceiling = (double)trip.BudgetCeiling,
-                        currency = trip.Currency,
-                        retry_count = trip.RetryCount,
-                        preferred_activities = preferredActivities
-                    };
-
-                    var content = new StringContent(
-                        System.Text.Json.JsonSerializer.Serialize(payload),
-                        System.Text.Encoding.UTF8,
-                        "application/json");
-
-                    HttpResponseMessage? response = null;
-                    try
-                    {
-                        response = await client.PostAsync(endpoint, content);
-                        _logger.LogInformation(
-                            "Agent dispatch response for TripRequest #{TripRequestId}: HTTP {StatusCode}.",
-                            trip.Id,
-                            (int)response.StatusCode);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "Agent service request failed for TripRequest #{TripRequestId} at {Url}.", trip.Id, endpoint);
-                    }
-
-                    if (response != null && response.IsSuccessStatusCode)
-                    {
-                        _logger.LogInformation("Dispatched TripRequest #{Id} to multi-agent pipeline.", trip.Id);
-                    }
-                    else
-                    {
-                        var tripService = scope.ServiceProvider.GetRequiredService<ITripRequestService>();
-                        await MarkAgentPipelineFailedAsync(tripService, trip.Id,
-                            $"Agent service did not accept the pipeline request (HTTP {((int?)response?.StatusCode)?.ToString() ?? "no response"}; timeout {client.Timeout.TotalSeconds:0}s).");
-                    }
-                    response?.Dispose();
+                    response = await client.PostAsync(endpoint, content);
+                    _logger.LogInformation(
+                        "Agent dispatch response for TripRequest #{TripRequestId}: HTTP {StatusCode}.",
+                        trip.Id,
+                        (int)response.StatusCode);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{TripRequestId}.", trip.Id);
+                    _logger.LogWarning(ex, "Agent service request failed for TripRequest #{TripRequestId} at {Url}.", trip.Id, endpoint);
                 }
-            });
+
+                if (response != null && response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Agent service accepted TripRequest #{Id} for background planning.", trip.Id);
+                }
+                else
+                {
+                    var tripService = scope.ServiceProvider.GetRequiredService<ITripRequestService>();
+                    await MarkAgentPipelineFailedAsync(tripService, trip.Id,
+                        "The planning service did not accept this request. Please retry.");
+                }
+                response?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not trigger agent pipeline for TripRequest #{TripRequestId}.", trip.Id);
+                await MarkAgentPipelineFailedAsync(_tripRequestService, trip.Id,
+                    "The planning service could not be started. Please retry.");
+            }
         }
 
         private async Task MarkAgentPipelineFailedAsync(ITripRequestService tripService, int tripRequestId, string reason)

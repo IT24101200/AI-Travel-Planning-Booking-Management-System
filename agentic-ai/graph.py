@@ -37,7 +37,6 @@ class TripPlanningState(TypedDict, total=False):
     budget_ceiling: float
     currency: str
     retry_count: int
-    access_token: Optional[str]
     status: str
     trip_days: int
     plan_summary: Dict[str, Any]
@@ -103,6 +102,21 @@ def _run_logged_node(agent_name: str, node, state: TripPlanningState) -> dict:
         return result
     except Exception:
         logger.exception("%s failed for TripRequest #%s", agent_name, trip_id)
+        log_agent_step(
+            trip_request_id=trip_id,
+            agent_name=agent_name,
+            step_name="AgentFailure",
+            input_data={
+                key: value
+                for key, value in state.items()
+                if key not in {"access_token", "auth_token", "authorization"}
+            },
+            output_data={
+                "message": "The AI planning stage failed.",
+                "error_code": "AGENT_STAGE_FAILURE",
+            },
+            status="Failed",
+        )
         raise
 
 
@@ -110,12 +124,12 @@ def _run_logged_node(agent_name: str, node, state: TripPlanningState) -> dict:
 travel_app = build_travel_planning_graph()
 
 
-def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, retry_count: int, failure_reason: str = None):
+def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, retry_count: int, failure_reason: str = None) -> bool:
     """
     Sends the finished plan and final status back to ASP.NET Core backend.
     """
     if not trip_id:
-        return
+        return False
 
     # Map state status to TripRequestStatus enum
     # Pending, Planning, Planned, Failed, Cancelled, AwaitingApproval, Approved, Rejected
@@ -135,9 +149,13 @@ def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, ret
         logger.info("Final callback started for TripRequest #%s", trip_id)
         with httpx.Client(timeout=httpx.Timeout(10.0, connect=3.0)) as client:
             response = client.patch(url, json=payload, headers=agent_service_headers())
-            logger.info("Final callback response for TripRequest #%s: HTTP %s", trip_id, response.status_code)
+            if response.is_success:
+                logger.info("Final callback completed for TripRequest #%s: HTTP %s", trip_id, response.status_code)
+                return True
+            logger.warning("Final callback rejected for TripRequest #%s: HTTP %s", trip_id, response.status_code)
     except Exception as e:
         logger.exception("Final callback failed for TripRequest #%s: %s", trip_id, e)
+    return False
 
 
 def run_travel_planning_pipeline(initial_data: dict) -> dict:
@@ -166,10 +184,35 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
 
     # Execute graph
     try:
-        final_state = travel_app.invoke(initial_data)
+        final_state = travel_app.invoke(safe_initial_data)
     except Exception:
         logger.exception("Pipeline failed for TripRequest #%s", trip_id)
-        raise
+        failure_reason = "The AI planning pipeline failed before completion."
+        failed_state = {
+            "status": "Failed",
+            "retry_count": initial_data.get("retry_count", 0),
+            "plan_json": {},
+            "failure_reason": failure_reason,
+        }
+        log_agent_step(
+            trip_request_id=trip_id,
+            agent_name="Pipeline",
+            step_name="PipelineFailure",
+            input_data=safe_initial_data,
+            output_data={
+                "message": failure_reason,
+                "error_code": "PIPELINE_FAILURE",
+            },
+            status="Failed",
+        )
+        sync_result_to_backend(
+            trip_id=trip_id,
+            final_status="Failed",
+            plan_json={},
+            retry_count=failed_state["retry_count"],
+            failure_reason=failure_reason,
+        )
+        return failed_state
 
     # Determine final state values
     final_status = final_state.get("status", "Planned")

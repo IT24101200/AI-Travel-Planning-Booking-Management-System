@@ -15,6 +15,7 @@ frontend-react/dist/
 # Flutter
 mobile_flutter/.dart_tool/
 mobile_flutter/build/
+/.pub-cache/
 
 # Python agents
 agentic-ai/venv/

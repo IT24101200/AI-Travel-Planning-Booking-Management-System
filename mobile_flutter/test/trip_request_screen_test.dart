@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/screens/profile/trip_request_screen.dart';
+import 'package:mobile_flutter/services/api_service.dart';
 
 void main() {
+  tearDown(() => ApiService.mockGetDestinations = null);
+
   testWidgets('TripRequestScreen renders title, fields, LKR budget, and 4 agent cards',
       (WidgetTester tester) async {
     await tester.pumpWidget(
@@ -47,30 +50,42 @@ void main() {
 
   testWidgets('TripRequestScreen supports selecting 1 or more destinations via toggle chips',
       (WidgetTester tester) async {
+    ApiService.mockGetDestinations = () async => [
+      {'id': 1, 'name': 'Ella'},
+      {'id': 2, 'name': 'Yala'},
+      {'id': 3, 'name': 'Galle'},
+      {'id': 4, 'name': 'Kandy'},
+      {'id': 5, 'name': 'Nuwara Eliya'},
+    ];
     await tester.pumpWidget(
       const MaterialApp(
         home: TripRequestScreen(),
       ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    // Initial state has 4 destinations
-    expect(find.text('4 destinations selected'), findsOneWidget);
+    // Initial state has no destination selected.
+    expect(find.textContaining('destinations selected'), findsNothing);
 
-    // Tap Yala to add it (now 5 destinations)
+    // Tap Yala to add it (now 1 destination)
     await tester.tap(find.widgetWithText(ActionChip, 'Yala'));
     await tester.pump();
-    expect(find.text('5 destinations selected'), findsOneWidget);
+    expect(find.text('1 destination selected'), findsOneWidget);
 
-    // Tap Galle to add it (now 6 destinations, exactly matching user screenshot scenario)
+    // Tap Galle to add it (now 2 destinations)
     await tester.tap(find.widgetWithText(ActionChip, 'Galle'));
     await tester.pump();
-    expect(find.text('6 destinations selected'), findsOneWidget);
+    expect(find.text('2 destinations selected'), findsOneWidget);
+
+    // Tap Ella to add it (now 3 destinations)
+    await tester.tap(find.widgetWithText(ActionChip, 'Ella'));
+    await tester.pump();
+    expect(find.text('3 destinations selected'), findsOneWidget);
 
     // Tap Ella to remove it
     await tester.tap(find.widgetWithText(ActionChip, 'Ella'));
     await tester.pump();
-    expect(find.text('5 destinations selected'), findsOneWidget);
+    expect(find.text('2 destinations selected'), findsOneWidget);
 
     // Tap clear button (X icon)
     await tester.tap(find.byIcon(Icons.close));

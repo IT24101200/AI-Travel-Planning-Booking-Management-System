@@ -6,11 +6,11 @@ namespace backend.Tests;
 public class AgentServiceTimeoutsTests
 {
     [Theory]
-    [InlineData(null, 120)]
+    [InlineData(null, 15)]
     [InlineData("90", 90)]
-    [InlineData("0", 120)]
-    [InlineData("-1", 120)]
-    [InlineData("invalid", 120)]
+    [InlineData("0", 15)]
+    [InlineData("-1", 15)]
+    [InlineData("invalid", 15)]
     public void Connection_UsesPositiveConfiguredValueOrStartupDefault(string? value, int expected)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(

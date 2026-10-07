@@ -7,7 +7,6 @@ import '../../services/currency_notifier.dart';
 import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
 import '../../widgets/agent_workflow_card.dart';
-import 'package:intl/intl.dart';
 
 /// Booking status screen matching Figma frame 12 · Booking Status (node 7:11041)
 class BookingStatusScreen extends StatefulWidget {

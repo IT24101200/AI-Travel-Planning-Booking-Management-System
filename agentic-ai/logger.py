@@ -21,7 +21,14 @@ logging.basicConfig(
 )
 console = logging.getLogger("AgentLogger")
 
-BACKEND_URL = os.getenv("BACKEND_URL") or os.getenv("BACKEND_API_URL") or "http://localhost:5138"
+def _normalise_backend_url(value: str) -> str:
+    normalised = value.rstrip("/")
+    return normalised[:-4] if normalised.lower().endswith("/api") else normalised
+
+
+BACKEND_URL = _normalise_backend_url(
+    os.getenv("BACKEND_URL") or os.getenv("BACKEND_API_URL") or "http://localhost:5138"
+)
 AGENT_SERVICE_API_KEY = os.getenv("AGENT_SERVICE_API_KEY", "").strip()
 
 
