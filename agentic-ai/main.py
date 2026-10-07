@@ -32,11 +32,19 @@ app.add_middleware(
 )
 
 
+class RequestedDestination(BaseModel):
+    destination_id: int
+    destination_name: Optional[str] = ""
+    order: int = 0
+
+
 class TripPipelineRequest(BaseModel):
     trip_request_id: int = Field(..., description="Unique ID of the TripRequest from backend")
     customer_id: Optional[str] = Field("Customer", description="Customer ID")
     destination_id: Optional[int] = None
     destination_name: Optional[str] = Field("Destination", description="Destination name")
+    destination_ids: list[int] = Field(default_factory=list)
+    requested_destinations: Optional[list[RequestedDestination]] = None
     raw_request_text: Optional[str] = Field("", description="Raw customer request notes")
     revision_feedback: Optional[str] = Field(None, description="Human travel-agent feedback for a revision run")
     start_date: str = Field(..., description="Start date in ISO format")

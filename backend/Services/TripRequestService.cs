@@ -5,6 +5,7 @@ using backend.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using System.Data;
+using System.Text.Json;
 
 namespace backend.Services
 {
@@ -89,20 +90,40 @@ namespace backend.Services
                     $"end date ({endUtc:yyyy-MM-dd}).");
             }
 
-            // If DestinationId is provided, verify it exists
-            if (dto.DestinationId.HasValue)
+            var destinationIds = NormalizeDestinationIds(dto);
+            var destinationEntities = destinationIds.Count == 0
+                ? new List<Destination>()
+                : await _db.Destinations
+                    .Where(d => destinationIds.Contains(d.Id))
+                    .ToListAsync();
+
+            // Validate the complete structured list before persisting anything.
+            if (destinationEntities.Count != destinationIds.Count)
             {
-                var destinationExists = await _db.Destinations.AnyAsync(d => d.Id == dto.DestinationId.Value);
-                if (!destinationExists)
-                {
-                    throw new ArgumentException("The specified destination does not exist.");
-                }
+                var foundIds = destinationEntities.Select(d => d.Id).ToHashSet();
+                var missingIds = destinationIds.Where(id => !foundIds.Contains(id));
+                throw new ArgumentException(
+                    $"The specified destination(s) do not exist: {string.Join(", ", missingIds)}.");
             }
+
+            var destinationsById = destinationEntities.ToDictionary(d => d.Id);
+            var selections = destinationIds
+                .Select((id, order) => new TripRequestDestinationSelection
+                {
+                    Id = id,
+                    Name = destinationsById[id].Name,
+                    Order = order
+                })
+                .ToList();
 
             var tripRequest = new TripRequest
             {
                 CustomerId = customerId,
-                DestinationId = dto.DestinationId,
+                // Preserve the first selection for legacy singular consumers.
+                DestinationId = destinationIds.Count == 0 ? null : destinationIds[0],
+                DestinationSelectionsJson = selections.Count == 0
+                    ? null
+                    : JsonSerializer.Serialize(selections),
                 RawRequestText = dto.RawRequestText,
                 StartDate = startUtc,
                 EndDate = endUtc,
@@ -425,12 +446,26 @@ namespace backend.Services
 
         private static TripRequestDto MapToDto(TripRequest t)
         {
+            var selections = ParseDestinationSelections(t);
+            var primary = selections.FirstOrDefault(selection => selection.Id == t.DestinationId)
+                ?? selections.FirstOrDefault();
+            var destinationId = t.DestinationId ?? primary?.Id;
             return new TripRequestDto
             {
                 Id = t.Id,
                 CustomerId = t.CustomerId,
-                DestinationId = t.DestinationId,
-                DestinationName = t.Destination?.Name,
+                DestinationId = destinationId,
+                DestinationName = t.Destination?.Name ?? primary?.Name,
+                DestinationIds = selections.Select(selection => selection.Id).ToList(),
+                DestinationNames = selections.Select(selection => selection.Name).ToList(),
+                Destinations = selections
+                    .Select(selection => new TripRequestDestinationDto
+                    {
+                        Id = selection.Id,
+                        Name = selection.Name,
+                        Order = selection.Order
+                    })
+                    .ToList(),
                 RawRequestText = t.RawRequestText,
                 StartDate = t.StartDate,
                 EndDate = t.EndDate,
@@ -443,6 +478,64 @@ namespace backend.Services
                 FailureReason = t.FailureReason,
                 CreatedAt = t.CreatedAt
             };
+        }
+
+        private static List<int> NormalizeDestinationIds(TripRequestCreateDto dto)
+        {
+            var ids = new List<int>();
+
+            void Add(int id)
+            {
+                if (id <= 0)
+                    throw new ArgumentException("Destination IDs must be positive database IDs.");
+                if (!ids.Contains(id)) ids.Add(id);
+            }
+
+            foreach (var destination in dto.Destinations ?? new List<TripRequestDestinationInputDto>())
+                Add(destination.Id);
+
+            foreach (var id in dto.DestinationIds ?? new List<int>())
+                Add(id);
+
+            if (dto.DestinationId.HasValue)
+            {
+                if (dto.DestinationId.Value <= 0)
+                    throw new ArgumentException("Destination IDs must be positive database IDs.");
+                if (!ids.Contains(dto.DestinationId.Value))
+                    ids.Insert(0, dto.DestinationId.Value);
+            }
+
+            return ids;
+        }
+
+        private static List<TripRequestDestinationSelection> ParseDestinationSelections(TripRequest t)
+        {
+            if (!string.IsNullOrWhiteSpace(t.DestinationSelectionsJson))
+            {
+                try
+                {
+                    var parsed = JsonSerializer.Deserialize<List<TripRequestDestinationSelection>>(
+                        t.DestinationSelectionsJson);
+                    if (parsed is not null && parsed.Count > 0)
+                        return parsed.OrderBy(selection => selection.Order).ToList();
+                }
+                catch (JsonException)
+                {
+                    // Fall back to the legacy FK below for old/corrupt rows.
+                }
+            }
+
+            return t.DestinationId.HasValue
+                ? new List<TripRequestDestinationSelection>
+                {
+                    new()
+                    {
+                        Id = t.DestinationId.Value,
+                        Name = t.Destination?.Name ?? string.Empty,
+                        Order = 0
+                    }
+                }
+                : new List<TripRequestDestinationSelection>();
         }
     }
 }

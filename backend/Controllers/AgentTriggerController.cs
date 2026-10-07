@@ -124,6 +124,13 @@ namespace backend.Controllers
                 customer_id = trip.CustomerId,
                 destination_id = trip.DestinationId,
                 destination_name = trip.DestinationName ?? "Destination",
+                destination_ids = trip.DestinationIds,
+                requested_destinations = trip.Destinations.Select(destination => new
+                {
+                    destination_id = destination.Id,
+                    destination_name = destination.Name,
+                    order = destination.Order
+                }),
                 raw_request_text = trip.RawRequestText,
                 start_date = trip.StartDate.ToString("o"),
                 end_date = trip.EndDate.ToString("o"),
@@ -133,6 +140,12 @@ namespace backend.Controllers
                 retry_count = trip.RetryCount,
                 preferred_activities = preferredActivities
             };
+
+            _logger.LogInformation(
+                "Dispatching TripRequest #{TripRequestId} with {DestinationCount} destination(s): {DestinationIds}.",
+                trip.Id,
+                trip.DestinationIds.Count,
+                string.Join(",", trip.DestinationIds));
 
             var endpoint = runAsync
                 ? $"{agentBaseUrl.TrimEnd('/')}/run-pipeline-async"

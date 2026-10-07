@@ -146,6 +146,7 @@ namespace backend.Data
                 entity.Property(t => t.BudgetCeiling).HasColumnType("decimal(18,2)");
                 entity.Property(t => t.Currency).HasMaxLength(10).HasDefaultValue("LKR");
                 entity.Property(t => t.RawRequestText).IsRequired().HasMaxLength(2000);
+                entity.Property(t => t.DestinationSelectionsJson).HasColumnType("jsonb");
                 entity.Property(t => t.PlanJson).HasColumnType("jsonb");
                 entity.Property(t => t.RetryCount).HasDefaultValue(0);
                 entity.Property(t => t.CreatedAt).HasDefaultValueSql("NOW()");

@@ -21,6 +21,13 @@ namespace backend.Models
         /// </summary>
         public int? DestinationId { get; set; }
 
+        /// <summary>
+        /// Ordered JSONB array of { id, name, order } destination selections.
+        /// DestinationId is retained as the legacy primary-destination FK.
+        /// </summary>
+        [Column(TypeName = "jsonb")]
+        public string? DestinationSelectionsJson { get; set; }
+
         [Required]
         [MaxLength(2000)]
         public string RawRequestText { get; set; } = string.Empty;

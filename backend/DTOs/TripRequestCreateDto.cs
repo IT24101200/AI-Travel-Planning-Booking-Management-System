@@ -9,6 +9,14 @@ namespace backend.DTOs
     {
         public int? DestinationId { get; set; }
 
+        /// <summary>
+        /// Structured, ordered destination selections. DestinationId remains
+        /// supported as the legacy primary-destination field.
+        /// </summary>
+        public List<int> DestinationIds { get; set; } = new();
+
+        public List<TripRequestDestinationInputDto> Destinations { get; set; } = new();
+
         [Required(ErrorMessage = "Request text is required.")]
         [MaxLength(2000)]
         public string RawRequestText { get; set; } = string.Empty;

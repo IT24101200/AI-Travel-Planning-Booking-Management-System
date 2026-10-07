@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 # Shared audit logger
 from logger import log_agent_step
+from destination_contract import normalize_requested_destinations
 
 load_dotenv()
 logger = logging.getLogger("CoordinatorAgent")
@@ -68,7 +69,13 @@ def coordinator_plan(state: dict) -> dict:
     trip_id = state.get("trip_request_id", 0)
     customer_id = state.get("customer_id", "Unknown")
     raw_text = state.get("raw_request_text", "")
-    dest_name = state.get("destination_name") or "Selected Destination"
+    requested_destinations = normalize_requested_destinations(state)
+    destination_names = [
+        destination["destination_name"]
+        for destination in requested_destinations
+        if destination.get("destination_name")
+    ]
+    dest_name = ", ".join(destination_names) or state.get("destination_name") or "Selected Destination"
     start_date = state.get("start_date", "")
     end_date = state.get("end_date", "")
     travellers = state.get("traveller_count", 1)
@@ -93,7 +100,8 @@ def coordinator_plan(state: dict) -> dict:
     prompt = f"""
     You are the Lead Travel Planning Coordinator AI.
     Analyze this customer trip request:
-    - Destination: {dest_name}
+    - Destinations (preserve every destination): {dest_name}
+    - Ordered destination records: {json.dumps(requested_destinations)}
     - Duration: {days} days ({start_date} to {end_date})
     - Travellers: {travellers}
     - Total Budget: {budget} {currency} (Target for activities/stay: {effective_budget} {currency})
@@ -132,6 +140,8 @@ def coordinator_plan(state: dict) -> dict:
 
     plan_summary = {
         "destination": dest_name,
+        "destinations": requested_destinations,
+        "destination_ids": [destination["destination_id"] for destination in requested_destinations],
         "days": days,
         "travellers": travellers,
         "currency": currency,
@@ -159,7 +169,9 @@ def coordinator_plan(state: dict) -> dict:
             "currency": currency,
             "days": days,
             "retry_count": retry_count,
-            "revision_feedback": revision_feedback
+            "revision_feedback": revision_feedback,
+            "destination_count": len(requested_destinations),
+            "destination_ids": [destination["destination_id"] for destination in requested_destinations],
         },
         output_data=plan_summary,
         status="Success"
@@ -168,6 +180,8 @@ def coordinator_plan(state: dict) -> dict:
     # Return updated state
     return {
         "status": "InPlanning",
+        "requested_destinations": requested_destinations,
+        "destination_ids": [destination["destination_id"] for destination in requested_destinations],
         "plan_summary": plan_summary,
         "target_budgets": plan_summary["budget_breakdown"],
         "trip_days": days

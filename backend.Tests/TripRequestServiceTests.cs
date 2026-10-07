@@ -46,6 +46,102 @@ namespace backend.Tests
         }
 
         [Fact]
+        public async Task CreateAsync_MultipleDestinations_PreservesIdsNamesAndOrder()
+        {
+            await using var context = CreateContext();
+            context.Destinations.AddRange(
+                new Destination { Id = 11, Name = "Anuradhapura", NormalizedName = "ANURADHAPURA", Country = "Sri Lanka" },
+                new Destination { Id = 22, Name = "Colombo", NormalizedName = "COLOMBO", Country = "Sri Lanka" },
+                new Destination { Id = 33, Name = "Jaffna", NormalizedName = "JAFFNA", Country = "Sri Lanka" });
+            await context.SaveChangesAsync();
+
+            var service = new TripRequestService(context);
+            var result = await service.CreateAsync("cust-1", new TripRequestCreateDto
+            {
+                DestinationIds = new() { 11, 22, 33 },
+                Destinations = new()
+                {
+                    new() { Id = 11, Name = "Anuradhapura", Order = 0 },
+                    new() { Id = 22, Name = "Colombo", Order = 1 },
+                    new() { Id = 33, Name = "Jaffna", Order = 2 }
+                },
+                RawRequestText = "Anuradhapura, Colombo & Jaffna",
+                StartDate = DateTime.UtcNow.Date.AddDays(7),
+                EndDate = DateTime.UtcNow.Date.AddDays(13),
+                TravellerCount = 2,
+                BudgetCeiling = 350000,
+                Currency = "LKR"
+            });
+
+            Assert.Equal(new[] { 11, 22, 33 }, result.DestinationIds);
+            Assert.Equal(new[] { "Anuradhapura", "Colombo", "Jaffna" }, result.DestinationNames);
+            Assert.Equal(11, result.DestinationId);
+            Assert.Equal(new[] { 0, 1, 2 }, result.Destinations.Select(destination => destination.Order));
+
+            var stored = await context.TripRequests.SingleAsync();
+            Assert.Contains("Anuradhapura", stored.DestinationSelectionsJson);
+            Assert.Contains("Jaffna", stored.DestinationSelectionsJson);
+        }
+
+        [Fact]
+        public async Task CreateAsync_UnknownDestination_IsRejectedWithoutPartialRequest()
+        {
+            await using var context = CreateContext();
+            context.Destinations.Add(new Destination
+            {
+                Id = 11,
+                Name = "Anuradhapura",
+                NormalizedName = "ANURADHAPURA",
+                Country = "Sri Lanka"
+            });
+            await context.SaveChangesAsync();
+
+            var service = new TripRequestService(context);
+            var error = await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync("cust-1", new TripRequestCreateDto
+            {
+                DestinationIds = new() { 11, 9999 },
+                RawRequestText = "Anuradhapura and unknown",
+                StartDate = DateTime.UtcNow.Date.AddDays(7),
+                EndDate = DateTime.UtcNow.Date.AddDays(13),
+                TravellerCount = 2,
+                BudgetCeiling = 350000,
+                Currency = "LKR"
+            }));
+
+            Assert.Contains("9999", error.Message);
+            Assert.Empty(context.TripRequests);
+        }
+
+        [Fact]
+        public async Task CreateAsync_LegacySingleDestination_RemainsSupported()
+        {
+            await using var context = CreateContext();
+            context.Destinations.Add(new Destination
+            {
+                Id = 22,
+                Name = "Colombo",
+                NormalizedName = "COLOMBO",
+                Country = "Sri Lanka"
+            });
+            await context.SaveChangesAsync();
+
+            var service = new TripRequestService(context);
+            var result = await service.CreateAsync("cust-1", new TripRequestCreateDto
+            {
+                DestinationId = 22,
+                RawRequestText = "Colombo",
+                StartDate = DateTime.UtcNow.Date.AddDays(7),
+                EndDate = DateTime.UtcNow.Date.AddDays(13),
+                TravellerCount = 1,
+                BudgetCeiling = 100000,
+                Currency = "LKR"
+            });
+
+            Assert.Equal(new[] { 22 }, result.DestinationIds);
+            Assert.Equal(new[] { "Colombo" }, result.DestinationNames);
+        }
+
+        [Fact]
         public async Task CreateAsync_TravellerCountZero_ThrowsArgumentException()
         {
             var context = CreateContext();

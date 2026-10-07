@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using backend.Data;
+using backend.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services;
@@ -33,12 +34,21 @@ public sealed class RevisionPlanningService : IRevisionPlanningService
             ? Array.Empty<string>()
             : preference!.PreferredActivities.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+        var destinations = ParseDestinations(trip);
+
         var payload = new
         {
             trip_request_id = trip.Id,
             customer_id = trip.CustomerId,
             destination_id = trip.DestinationId,
             destination_name = trip.Destination?.Name ?? "Destination",
+            destination_ids = destinations.Select(destination => destination.Id).ToArray(),
+            requested_destinations = destinations.Select(destination => new
+            {
+                destination_id = destination.Id,
+                destination_name = destination.Name,
+                order = destination.Order
+            }).ToArray(),
             raw_request_text = trip.RawRequestText,
             start_date = trip.StartDate.ToString("o"),
             end_date = trip.EndDate.ToString("o"),
@@ -64,4 +74,34 @@ public sealed class RevisionPlanningService : IRevisionPlanningService
 
     private static bool authenticationHeaderIsBearer(string value) =>
         value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) && value.Length > "Bearer ".Length;
+
+    private static List<TripRequestDestinationSelection> ParseDestinations(TripRequest trip)
+    {
+        if (!string.IsNullOrWhiteSpace(trip.DestinationSelectionsJson))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<List<TripRequestDestinationSelection>>(
+                    trip.DestinationSelectionsJson);
+                if (parsed is not null && parsed.Count > 0)
+                    return parsed.OrderBy(destination => destination.Order).ToList();
+            }
+            catch (JsonException)
+            {
+                // Legacy rows use the singular FK below.
+            }
+        }
+
+        return trip.DestinationId.HasValue
+            ? new List<TripRequestDestinationSelection>
+            {
+                new()
+                {
+                    Id = trip.DestinationId.Value,
+                    Name = trip.Destination?.Name ?? "Destination",
+                    Order = 0
+                }
+            }
+            : new List<TripRequestDestinationSelection>();
+    }
 }
