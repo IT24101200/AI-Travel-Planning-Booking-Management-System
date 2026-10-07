@@ -21,6 +21,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   String? _error;
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
+  bool _initialSearchLoaded = false;
   String _selectedCategory = 'All';
   String _selectedSort = 'Top Rated';
 
@@ -41,7 +42,6 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   @override
   void initState() {
     super.initState();
-    _loadTours();
     _loadFavorites();
   }
 
@@ -56,11 +56,11 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_initialSearchLoaded) return;
+    _initialSearchLoaded = true;
     final query = ModalRoute.of(context)?.settings.arguments as String?;
-    if (query != null && query.isNotEmpty && _searchCtrl.text.isEmpty) {
-      _searchCtrl.text = query;
-      _loadTours(search: query);
-    }
+    _searchCtrl.text = query ?? '';
+    _loadTours(search: query);
   }
 
   /// Fetch tours from the backend API
