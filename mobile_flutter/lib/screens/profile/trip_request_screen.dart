@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/agent_health_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../main.dart' show currencyNotifier;
 
@@ -62,6 +63,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   final Set<String> _selectedDestinations = {};
 
   bool _isGenerating = false;
+  bool _isCheckingAgentConnection = false;
+  AgentConnectionStatus _agentConnectionStatus =
+      const AgentConnectionStatus.checking();
   String? _submissionError;
   String? _preferencesError;
 
@@ -92,6 +96,31 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     // Read initial preferences and backend destination catalog
     _loadDestinations();
     _loadUserPreferences();
+    _checkAgentConnection();
+  }
+
+  Future<void> _checkAgentConnection() async {
+    if (_isCheckingAgentConnection) return;
+    _isCheckingAgentConnection = true;
+    if (mounted) {
+      setState(
+        () => _agentConnectionStatus = const AgentConnectionStatus.checking(),
+      );
+    }
+
+    try {
+      final status = await ApiService.getAgentConnectionStatus();
+      if (mounted) setState(() => _agentConnectionStatus = status);
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _agentConnectionStatus =
+              const AgentConnectionStatus.unavailable(),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCheckingAgentConnection = false);
+    }
   }
 
   /// Load destinations dynamically from backend to keep IDs synced
@@ -494,6 +523,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   ),
                 ],
               ),
+
+              const SizedBox(height: 14),
+
+              _buildAgentConnectionStatus(theme),
 
               const SizedBox(height: 14),
 
@@ -1235,6 +1268,109 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       _isGenerating ? 'Awaiting submission' : 'Not started';
 
   Color _getAgentColor(int agentNumber) => const Color(0xFF6E7772);
+
+  Widget _buildAgentConnectionStatus(ThemeData theme) {
+    final isDark = theme.brightness == Brightness.dark;
+    final state = _agentConnectionStatus.state;
+    final Color statusColor;
+    final IconData statusIcon;
+    final String statusText;
+    final String detailText;
+
+    switch (state) {
+      case AgentConnectionState.checking:
+        statusColor = theme.colorScheme.primary;
+        statusIcon = Icons.sync;
+        statusText = 'Checking connection';
+        detailText = 'Testing backend access to the AI planning service';
+      case AgentConnectionState.connected:
+        statusColor = isDark ? AppColors.leaf400 : const Color(0xFF287653);
+        statusIcon = Icons.check_circle_outline;
+        statusText = 'Connected';
+        detailText = 'AI planning service is reachable';
+      case AgentConnectionState.degraded:
+        statusColor = const Color(0xFFB7791F);
+        statusIcon = Icons.speed_outlined;
+        statusText = 'Connected · Slow';
+        detailText = 'AI planning service is reachable but responding slowly';
+      case AgentConnectionState.unavailable:
+        statusColor = const Color(0xFFB33A3A);
+        statusIcon = Icons.cloud_off_outlined;
+        statusText = 'Unavailable';
+        detailText = 'AI planning may fail until the service recovers';
+    }
+
+    final canRetry =
+        state == AgentConnectionState.degraded ||
+        state == AgentConnectionState.unavailable;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(statusIcon, color: statusColor, size: 20),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'AI agent connection · $statusText',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detailText,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    color: isDark
+                        ? const Color(0xFF9EABA4)
+                        : const Color(0xFF6E7772),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_isCheckingAgentConnection)
+            const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (canRetry)
+            TextButton(
+              onPressed: _checkAgentConnection,
+              style: TextButton.styleFrom(
+                foregroundColor: statusColor,
+                minimumSize: const Size(48, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Retry AI'),
+            ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildAgentCard({
     required IconData icon,

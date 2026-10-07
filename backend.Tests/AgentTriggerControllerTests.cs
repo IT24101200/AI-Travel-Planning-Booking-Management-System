@@ -18,16 +18,25 @@ public class AgentTriggerControllerTests
     {
         public string? RequestBody { get; private set; }
         public HttpStatusCode StatusCode { get; init; } = HttpStatusCode.OK;
+        public string ResponseBody { get; init; } = "{\"status\":\"AwaitingApproval\"}";
+        public TimeSpan Delay { get; init; }
+        public Exception? ExceptionToThrow { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            if (ExceptionToThrow is not null)
+                throw ExceptionToThrow;
+
+            if (Delay > TimeSpan.Zero)
+                await Task.Delay(Delay, cancellationToken);
+
             RequestBody = request.Content is null
                 ? null
                 : await request.Content.ReadAsStringAsync(cancellationToken);
             return new HttpResponseMessage(StatusCode)
             {
-                Content = new StringContent("{\"status\":\"AwaitingApproval\"}")
+                Content = new StringContent(ResponseBody)
             };
         }
     }
@@ -36,7 +45,8 @@ public class AgentTriggerControllerTests
         string callerId,
         string tripOwnerId,
         CaptureHandler handler,
-        string bearerToken = "test-jwt")
+        string bearerToken = "test-jwt",
+        IConfiguration? configuration = null)
     {
         var trips = new Mock<ITripRequestService>();
         trips.Setup(service => service.GetByIdAsync(123))
@@ -65,7 +75,7 @@ public class AgentTriggerControllerTests
             trips.Object,
             preferences.Object,
             clientFactory.Object,
-            new ConfigurationBuilder().Build(),
+            configuration ?? new ConfigurationBuilder().Build(),
             Mock.Of<ILogger<AgentTriggerController>>());
 
         var claims = new[]
@@ -83,14 +93,92 @@ public class AgentTriggerControllerTests
     }
 
     [Fact]
-    public async Task CheckAgentHealth_PreservesUpstreamFailureStatus()
+    public async Task CheckAgentHealth_MapsUpstreamFailureToSafeUnavailableStatus()
     {
         var handler = new CaptureHandler { StatusCode = HttpStatusCode.ServiceUnavailable };
         var controller = CreateController("customer-1", "customer-1", handler);
 
-        var result = Assert.IsType<ContentResult>(await controller.CheckAgentHealth());
+        var result = Assert.IsType<OkObjectResult>(await controller.CheckAgentHealth());
+        var status = Assert.IsType<AgentConnectionStatusDto>(result.Value);
 
-        Assert.Equal(503, result.StatusCode);
+        Assert.Equal("unavailable", status.Status);
+        Assert.False(status.Reachable);
+        Assert.DoesNotContain("AwaitingApproval", JsonSerializer.Serialize(status));
+    }
+
+    [Fact]
+    public async Task CheckAgentHealth_MapsHealthyResponseToConnectedStatus()
+    {
+        var handler = new CaptureHandler
+        {
+            ResponseBody = "{\"status\":\"healthy\",\"llm_configured\":true}"
+        };
+        var controller = CreateController("customer-1", "customer-1", handler);
+
+        var result = Assert.IsType<OkObjectResult>(await controller.CheckAgentHealth());
+        var status = Assert.IsType<AgentConnectionStatusDto>(result.Value);
+
+        Assert.Equal("connected", status.Status);
+        Assert.True(status.Reachable);
+        Assert.NotNull(status.LatencyMs);
+        Assert.NotEqual(default, status.CheckedAtUtc);
+    }
+
+    [Fact]
+    public async Task CheckAgentHealth_MalformedResponseIsUnavailable()
+    {
+        var handler = new CaptureHandler { ResponseBody = "not-json" };
+        var controller = CreateController("customer-1", "customer-1", handler);
+
+        var result = Assert.IsType<OkObjectResult>(await controller.CheckAgentHealth());
+        var status = Assert.IsType<AgentConnectionStatusDto>(result.Value);
+
+        Assert.Equal("unavailable", status.Status);
+        Assert.False(status.Reachable);
+    }
+
+    [Fact]
+    public async Task CheckAgentHealth_SlowHealthyResponseIsDegraded()
+    {
+        var handler = new CaptureHandler
+        {
+            Delay = TimeSpan.FromMilliseconds(40),
+            ResponseBody = "{\"status\":\"healthy\"}"
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AgentService:HealthDegradedLatencyMilliseconds"] = "1"
+            })
+            .Build();
+        var controller = CreateController(
+            "customer-1",
+            "customer-1",
+            handler,
+            configuration: configuration);
+
+        var result = Assert.IsType<OkObjectResult>(await controller.CheckAgentHealth());
+        var status = Assert.IsType<AgentConnectionStatusDto>(result.Value);
+
+        Assert.Equal("degraded", status.Status);
+        Assert.True(status.Reachable);
+    }
+
+    [Fact]
+    public async Task CheckAgentHealth_TimeoutIsUnavailableWithoutInternalDetails()
+    {
+        var handler = new CaptureHandler
+        {
+            ExceptionToThrow = new TaskCanceledException("simulated timeout")
+        };
+        var controller = CreateController("customer-1", "customer-1", handler);
+
+        var result = Assert.IsType<OkObjectResult>(await controller.CheckAgentHealth());
+        var status = Assert.IsType<AgentConnectionStatusDto>(result.Value);
+
+        Assert.Equal("unavailable", status.Status);
+        Assert.False(status.Reachable);
+        Assert.DoesNotContain("simulated timeout", JsonSerializer.Serialize(status));
     }
 
     [Fact]

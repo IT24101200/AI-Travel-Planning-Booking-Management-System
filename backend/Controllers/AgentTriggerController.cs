@@ -2,7 +2,9 @@ using backend.Services;
 using backend.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Diagnostics;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace backend.Controllers
 {
@@ -38,29 +40,71 @@ namespace backend.Controllers
         public async Task<IActionResult> CheckAgentHealth()
         {
             var agentBaseUrl = _configuration["AGENT_SERVICE_URL"] ?? "http://127.0.0.1:8005";
+            var checkedAtUtc = DateTime.UtcNow;
+            var stopwatch = Stopwatch.StartNew();
+
             try
             {
                 var client = _httpClientFactory.CreateClient();
                 client.Timeout = AgentServiceTimeouts.Connection(_configuration);
                 using var response = await client.GetAsync($"{agentBaseUrl.TrimEnd('/')}/health");
                 var content = await response.Content.ReadAsStringAsync();
-                return new ContentResult
+
+                stopwatch.Stop();
+                var isHealthyResponse = response.IsSuccessStatusCode && HasHealthyStatus(content);
+                var latencyMs = ToLatencyMilliseconds(stopwatch.Elapsed);
+                var status = isHealthyResponse
+                    ? stopwatch.Elapsed <= AgentServiceTimeouts.HealthDegradedThreshold(_configuration)
+                        ? "connected"
+                        : "degraded"
+                    : "unavailable";
+
+                return Ok(new AgentConnectionStatusDto
                 {
-                    Content = content,
-                    ContentType = "application/json",
-                    StatusCode = (int)response.StatusCode
-                };
+                    Status = status,
+                    Reachable = isHealthyResponse,
+                    LatencyMs = latencyMs,
+                    CheckedAtUtc = checkedAtUtc
+                });
             }
             catch (Exception ex)
             {
+                stopwatch.Stop();
                 _logger.LogWarning(ex, "Agent health check failed for {AgentBaseUrl}.", agentBaseUrl);
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                return Ok(new AgentConnectionStatusDto
                 {
-                    status = "unavailable",
-                    message = "The planning service is temporarily unavailable."
+                    Status = "unavailable",
+                    Reachable = false,
+                    LatencyMs = null,
+                    CheckedAtUtc = checkedAtUtc
                 });
             }
         }
+
+        private static bool HasHealthyStatus(string content)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(content);
+                if (document.RootElement.ValueKind != JsonValueKind.Object ||
+                    !document.RootElement.TryGetProperty("status", out var status))
+                    return false;
+
+                var value = status.GetString();
+                return string.Equals(value, "healthy", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(value, "ok", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(value, "connected", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        private static int ToLatencyMilliseconds(TimeSpan elapsed) =>
+            elapsed.TotalMilliseconds <= 0
+                ? 0
+                : (int)Math.Min(int.MaxValue, Math.Ceiling(elapsed.TotalMilliseconds));
 
         /// <summary>
         /// Manually trigger the multi-agent planning pipeline for a specific trip request.

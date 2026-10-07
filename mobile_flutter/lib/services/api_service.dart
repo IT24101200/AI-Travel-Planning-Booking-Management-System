@@ -137,6 +137,7 @@ class ApiService {
   mockCreateTripRequest;
   static Future<List<dynamic>> Function()? mockGetMyTripRequests;
   static Future<List<dynamic>> Function()? mockGetMyBookings;
+  static Future<AgentConnectionStatus> Function()? mockGetAgentConnectionStatus;
   static Future<List<dynamic>> Function({String? currency})? mockGetHotels;
   static Future<List<dynamic>> Function({String? currency})?
   mockGetTransportOptions;
@@ -720,7 +721,30 @@ class ApiService {
   /// Returns the current health/state reported by the agent service.
   static Future<Map<String, dynamic>> getAgentHealth() async {
     if (mockGetAgentHealth != null) return mockGetAgentHealth!();
-    return AgentHealthService.fetch(request: () => get('AgentTrigger/health'));
+    final health = await AgentHealthService.fetch(
+      request: () => get('AgentTrigger/health', isAuth: true),
+    );
+    // Preserve the legacy itinerary consumer's `healthy` contract while the
+    // trip-request form uses the richer normalized connection model below.
+    if (health['status']?.toString().toLowerCase() == 'connected' &&
+        health['reachable'] == true) {
+      return {...health, 'status': 'healthy'};
+    }
+    return health;
+  }
+
+  /// Checks AI reachability through the backend's anonymous health proxy.
+  ///
+  /// `isAuth: true` prevents a health-probe 401 from triggering the global
+  /// session-expiry flow. The backend never forwards this request's JWT to the
+  /// Python service.
+  static Future<AgentConnectionStatus> getAgentConnectionStatus() async {
+    if (mockGetAgentConnectionStatus != null) {
+      return mockGetAgentConnectionStatus!();
+    }
+    return AgentHealthService.fetchStatus(
+      request: () => get('AgentTrigger/health', isAuth: true),
+    );
   }
 
   static Future<Map<String, dynamic>> triggerAgentPipeline(
