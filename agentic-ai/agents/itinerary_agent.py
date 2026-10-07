@@ -14,6 +14,11 @@ from dotenv import load_dotenv
 # The tools directory is next to the agents directory. When the agentic-ai
 # directory is the Python working directory, this imports tools/search_tours.py.
 from tools.search_tours import search_tours
+from destination_contract import (
+    DestinationContractError,
+    normalize_requested_destinations,
+    validate_destination_coverage,
+)
 
 
 # Read variables from a local .env file (if one exists) into the environment.
@@ -54,6 +59,7 @@ def validate_itinerary(result, trip_request, available_tours):
 
     # Build a lookup table so each scheduled tour ID can be checked quickly.
     tours_by_id = {tour.get("id"): tour for tour in available_tours}
+    requested_destinations = normalize_requested_destinations(trip_request)
 
     # The total cost is calculated from every scheduled item's price below.
     total_cost = 0.0
@@ -81,6 +87,19 @@ def validate_itinerary(result, trip_request, available_tours):
                 errors.append(
                     f"Tour ID {tour_id} is not active or does not exist"
                 )
+
+            if matching_tour is not None:
+                item_destination_id = item.get("destination_id") or matching_tour.get("destination_id")
+                if item_destination_id is not None:
+                    try:
+                        if int(item_destination_id) not in {
+                            destination["destination_id"] for destination in requested_destinations
+                        }:
+                            errors.append(
+                                f"Tour ID {tour_id} belongs to an unrequested destination {item_destination_id}"
+                            )
+                    except (TypeError, ValueError):
+                        errors.append(f"Tour ID {tour_id} has an invalid destination ID")
 
             # Rule 2: Tour prices are per traveller, so multiply each price by
             # the number of travellers before adding it to the trip total.
@@ -143,35 +162,75 @@ def validate_itinerary(result, trip_request, available_tours):
             f"Total cost {total_cost} exceeds budget {budget_ceiling}"
         )
 
+    errors.extend(
+        validate_destination_coverage(result, requested_destinations, available_tours)
+    )
+
     # An empty error list means every rule passed successfully.
     return (len(errors) == 0, errors)
 
 
 def build_itinerary(trip_request):
-    """Ask Gemini to build an itinerary for one trip-request dictionary.
+    """Ask Gemini to build an itinerary for a structured trip request.
 
-    Expected input keys are trip_request_id, destination_id,
-    destination_name, start_date, end_date, traveller_count, budget_ceiling,
-    and preferred_activities.
+    ``requested_destinations`` is an ordered list. Singular destination fields
+    are accepted for backward compatibility and normalized to a one-item list.
     """
 
-    # Search the backend for tours belonging to the requested destination.
     try:
-        try:
-            candidate_tours = search_tours(
-                trip_request.get("destination_id"),
-                currency=trip_request.get("currency", "LKR"),
-            )
-        except TypeError:
-            # Preserve compatibility with deterministic/offline test providers.
-            candidate_tours = search_tours(trip_request.get("destination_id"))
+        requested_destinations = normalize_requested_destinations(
+            trip_request, required=True
+        )
+    except DestinationContractError as error:
+        return {
+            "status": "ItineraryFailed",
+            "error_code": error.code,
+            "error": str(error),
+        }
 
-        if not candidate_tours:
-            return {
-                "status": "ItineraryFailed",
-                "error_code": "NO_VALID_TOURS",
-                "error": "No database-backed tours are available for the requested destination.",
-            }
+    # Search the backend separately for every requested destination. A single
+    # broad catalogue query would allow one destination to silently dominate.
+    candidate_tours = []
+    destination_counts = {}
+    try:
+        for destination in requested_destinations:
+            try:
+                destination_tours = search_tours(
+                    destination["destination_id"],
+                    currency=trip_request.get("currency", "LKR"),
+                )
+            except TypeError:
+                # Preserve compatibility with deterministic/offline test providers.
+                destination_tours = search_tours(destination["destination_id"])
+
+            destination_tours = destination_tours or []
+            destination_counts[destination["destination_id"]] = len(destination_tours)
+            if not destination_tours:
+                if len(requested_destinations) == 1:
+                    return {
+                        "status": "ItineraryFailed",
+                        "error_code": "NO_VALID_TOURS",
+                        "error": "No database-backed tours are available for the requested destination.",
+                    }
+                return {
+                    "status": "ItineraryFailed",
+                    "error_code": "ZERO_TOUR_DESTINATION",
+                    "error": (
+                        f"No active tours are available for destination "
+                        f"{destination['destination_name'] or destination['destination_id']}."
+                    ),
+                    "destination_id": destination["destination_id"],
+                }
+
+            for tour in destination_tours:
+                # The backend catalogue is authoritative. Test/offline
+                # providers that omit destination metadata inherit the query ID.
+                normalized_tour = dict(tour)
+                normalized_tour.setdefault("destination_id", destination["destination_id"])
+                normalized_tour.setdefault(
+                    "destination_name", destination["destination_name"]
+                )
+                candidate_tours.append(normalized_tour)
     except Exception as error:
         return {"error": f"Unable to search for tours: {error}"}
 
@@ -182,8 +241,15 @@ def build_itinerary(trip_request):
             step_name="Searched tour catalog",
             step_type="ToolCall",
             tool_name="search_tours",
-            input_data={"destination_id": trip_request["destination_id"]},
-            output_data={"tours_found": len(candidate_tours)},
+            input_data={
+                "destination_ids": [
+                    destination["destination_id"] for destination in requested_destinations
+                ]
+            },
+            output_data={
+                "tours_found": len(candidate_tours),
+                "tours_by_destination": destination_counts,
+            },
         )
     except Exception as error:
         print(f"Warning: Failed to log 'Searched tour catalog': {error}")
@@ -219,6 +285,12 @@ def build_itinerary(trip_request):
                     "Duration",
                 ),
                 "category": _get_tour_value(tour, "category", "Category"),
+                "destination_id": _get_tour_value(
+                    tour, "destination_id", "destinationId", "DestinationId"
+                ),
+                "destination_name": _get_tour_value(
+                    tour, "destination_name", "destinationName", "DestinationName"
+                ),
                 "default_start_time": _get_tour_value(
                     tour,
                     "default_start_time",
@@ -246,20 +318,24 @@ AVAILABLE TOURS:
 
 Rules:
 1. Use only tours whose status is Active (case-insensitive).
-2. The total estimated cost must not exceed budget_ceiling. Calculate the
+2. Include at least one tour from every requested destination. Do not silently
+   drop a destination because another has more tours.
+3. Preserve each tour's destination_id and destination_name in the output.
+4. The total estimated cost must not exceed budget_ceiling. Calculate the
    total using each tour's price and traveller_count.
-3. Schedule tours only on days from start_date through end_date, inclusive.
-4. Put 1-2 tours on each used day and spread activities across the available
+5. Schedule tours only on days from start_date through end_date, inclusive.
+6. Put 1-2 tours on each used day and spread activities across the available
    days as evenly as practical.
-5. Prefer tours matching preferred_activities when possible.
-6. Use each tour's default start time. Calculate its end time from its
+7. Prefer tours matching preferred_activities when possible.
+8. Use each tour's default start time. Calculate its end time from its
    duration.
-7. Tours on the same day must never have overlapping start and end times.
-8. Use only tour IDs, names, prices, durations, categories, and start times
+9. Tours on the same day must never have overlapping start and end times.
+10. Use only tour IDs, names, prices, durations, categories, destination IDs,
+   destination names, and start times
    supplied in AVAILABLE TOURS. Do not invent tours or prices.
-9. Return ONLY valid JSON. Do not include Markdown fences, explanations, or
+11. Return ONLY valid JSON. Do not include Markdown fences, explanations, or
    any text before or after the JSON.
-10. Follow this exact output structure and use JSON numbers for numeric values:
+12. Follow this exact output structure and use JSON numbers for numeric values:
 
 {{
   "itinerary_id": null,
@@ -271,7 +347,9 @@ Rules:
       "items": [
         {{
           "tour_id": 1,
-          "tour_name": "Example tour",
+           "tour_name": "Example tour",
+           "destination_id": 1,
+           "destination_name": "Example destination",
           "start_time": "09:00:00",
           "end_time": "11:00:00",
           "price": 0.0
@@ -324,18 +402,34 @@ Rules:
             days_count = 3
         schedule = []
         total_cost = 0.0
-        tour_idx = 0
+        tour_indexes = {
+            destination["destination_id"]: 0 for destination in requested_destinations
+        }
+        tours_by_destination = {
+            destination["destination_id"]: [
+                tour
+                for tour in available_tours
+                if tour.get("destination_id") == destination["destination_id"]
+            ]
+            for destination in requested_destinations
+        }
         traveller_count = trip_request.get("traveller_count", 1)
         budget_limit = float(trip_request.get("budget_ceiling") or 1000000)
 
         for day_num in range(1, days_count + 1):
             day_items = []
-            if tour_idx < len(available_tours):
-                t = available_tours[tour_idx]
+            # Round-robin destinations so the first days cannot consume all
+            # inventory from only the first selected location.
+            destination = requested_destinations[(day_num - 1) % len(requested_destinations)]
+            destination_id = destination["destination_id"]
+            destination_tours = tours_by_destination[destination_id]
+            destination_index = tour_indexes[destination_id]
+            if destination_index < len(destination_tours):
+                t = destination_tours[destination_index]
                 price = float(t.get("price") or 0.0)
                 item_cost = price * traveller_count
                 if total_cost + item_cost <= budget_limit:
-                    tour_idx += 1
+                    tour_indexes[destination_id] += 1
                     start = str(t.get("default_start_time") or "09:00:00")
                     if len(start) == 5:
                         start += ":00"
@@ -350,6 +444,8 @@ Rules:
                     day_items.append({
                         "tour_id": t["id"],
                         "tour_name": t["name"],
+                        "destination_id": destination_id,
+                        "destination_name": destination["destination_name"],
                         "start_time": start,
                         "end_time": end,
                         "price": price
@@ -370,6 +466,16 @@ Rules:
             "currency": trip_request.get("currency", "LKR"),
             "schedule": schedule
         }
+
+    # A model may omit metadata even though it selected a valid tour. Fill it
+    # from the authoritative catalogue before deterministic validation.
+    tours_by_id = {tour.get("id"): tour for tour in available_tours}
+    for day in parsed_result.get("schedule", []):
+        for item in day.get("items", []):
+            tour = tours_by_id.get(item.get("tour_id"))
+            if tour is not None:
+                item.setdefault("destination_id", tour.get("destination_id"))
+                item.setdefault("destination_name", tour.get("destination_name"))
 
     try:
         log_agent_step(
@@ -413,10 +519,13 @@ def itinerary_node(state: dict) -> dict:
     LangGraph adapter: maps the shared pipeline state into the input shape
     build_itinerary() expects, calls it, and merges the result back into state.
     """
+    requested_destinations = normalize_requested_destinations(state)
+    primary_destination = requested_destinations[0] if requested_destinations else {}
     trip_request = {
         "trip_request_id": state.get("trip_request_id"),
-        "destination_id": state.get("destination_id"),
-        "destination_name": state.get("destination_name"),
+        "destination_id": state.get("destination_id") or primary_destination.get("destination_id"),
+        "destination_name": state.get("destination_name") or primary_destination.get("destination_name"),
+        "requested_destinations": requested_destinations,
         "start_date": state.get("start_date"),
         "end_date": state.get("end_date"),
         "traveller_count": state.get("traveller_count"),
@@ -426,7 +535,7 @@ def itinerary_node(state: dict) -> dict:
         "currency": state.get("currency", "LKR"),
     }
 
-    if not trip_request["destination_id"]:
+    if not requested_destinations:
         return {
             **state,
             "itinerary": {

@@ -260,16 +260,31 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     return 'LKR ${currencyFmt.format(minEst)} – LKR ${currencyFmt.format(maxEst)}';
   }
 
-  /// Resolves destination string to optional database ID
-  int? _resolveDestinationId(String input) {
-    final dests = _parseDestinations(input);
-    for (final dest in dests) {
-      final key = dest.trim().toLowerCase();
-      if (_destinationIds.containsKey(key)) {
-        return _destinationIds[key];
-      }
+  /// Resolves every selected destination in input order. The first ID is
+  /// retained separately only for legacy backend clients.
+  List<int> _resolveDestinationIds(String input) {
+    final names = _parseDestinations(input);
+    final source = names.isNotEmpty ? names : _selectedDestinations.toList();
+    final ids = <int>[];
+    for (final name in source) {
+      final id = _destinationIds[name.trim().toLowerCase()];
+      if (id != null && !ids.contains(id)) ids.add(id);
     }
-    return null;
+    return ids;
+  }
+
+  /// Builds the structured destination contract sent to the backend.
+  List<Map<String, dynamic>> _resolveDestinationSelections(String input) {
+    final names = _parseDestinations(input);
+    final source = names.isNotEmpty ? names : _selectedDestinations.toList();
+    final selections = <Map<String, dynamic>>[];
+    for (var index = 0; index < source.length; index++) {
+      final name = source[index].trim();
+      final id = _destinationIds[name.toLowerCase()];
+      if (id == null || selections.any((item) => item['id'] == id)) continue;
+      selections.add({'id': id, 'name': name, 'order': index});
+    }
+    return selections;
   }
 
   /// Pick date range using Flutter date range picker
@@ -339,8 +354,14 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       _submissionError = null;
     });
     try {
+      final destinationIds = _resolveDestinationIds(destination);
+      final destinationSelections = _resolveDestinationSelections(destination);
       final response = await ApiService.createTripRequest({
-        'destinationId': _resolveDestinationId(destination),
+        // Keep destinationId for older backend versions; the structured list
+        // is the authoritative multi-destination contract.
+        'destinationId': destinationIds.isEmpty ? null : destinationIds.first,
+        'destinationIds': destinationIds,
+        'destinations': destinationSelections,
         'rawRequestText':
             'Destination: $destination. Interests: ${_selectedInterests.join(", ")}. '
             'Preferences: ${_specialRequestsCtrl.text.trim()}',

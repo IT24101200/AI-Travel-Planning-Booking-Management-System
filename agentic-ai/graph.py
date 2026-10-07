@@ -17,6 +17,7 @@ from agents.coordinator_agent import coordinator_plan, coordinator_retry_evaluat
 from agents.itinerary_agent import itinerary_node
 from agents.booking_agent import booking_node
 from agents.validation_agent import validation_node
+from destination_contract import normalize_requested_destinations
 from logger import log_agent_step, BACKEND_URL, agent_service_headers
 import httpx
 
@@ -28,6 +29,8 @@ class TripPlanningState(TypedDict, total=False):
     customer_id: str
     destination_id: Optional[int]
     destination_name: str
+    destination_ids: list[int]
+    requested_destinations: list[dict[str, Any]]
     raw_request_text: str
     revision_feedback: Optional[str]
     preferred_activities: Optional[list[str]]
@@ -171,6 +174,15 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
         for key, value in initial_data.items()
         if key not in {"access_token", "auth_token", "authorization"}
     }
+
+    # Normalize once at the graph boundary so every downstream node receives
+    # the same ordered, structured destination list.
+    requested_destinations = normalize_requested_destinations(safe_initial_data)
+    if requested_destinations:
+        safe_initial_data["requested_destinations"] = requested_destinations
+        safe_initial_data["destination_ids"] = [
+            destination["destination_id"] for destination in requested_destinations
+        ]
 
     # Audit log starting of pipeline
     log_agent_step(

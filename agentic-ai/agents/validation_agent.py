@@ -13,6 +13,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from logger import log_agent_step
+from destination_contract import DestinationContractError, normalize_requested_destinations
 
 
 class PackageValidationError(ValueError):
@@ -93,6 +94,14 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
     itinerary = _require_mapping(
         booking.get("itinerary") or state.get("itinerary"), "itinerary"
     )
+    try:
+        # Legacy pipeline fixtures may not carry a destination at the booking
+        # validation stage. Enforce complete coverage only when a destination
+        # contract is actually present; the itinerary agent still requires one
+        # before searching inventory.
+        requested_destinations = normalize_requested_destinations(state, required=False)
+    except DestinationContractError as error:
+        raise PackageValidationError(error.code, str(error)) from None
     customer_id = str(state.get("customer_id") or "").strip()
     if not customer_id:
         raise PackageValidationError(
@@ -151,6 +160,22 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                     "quantity": travellers,
                     "unitPrice": float(price),
                 }
+            )
+
+    if len(requested_destinations) > 1:
+        requested_ids = {destination["destination_id"] for destination in requested_destinations}
+        scheduled_ids = {
+            int(item.get("destination_id"))
+            for day in schedule
+            for item in day.get("items", [])
+            if item.get("destination_id") is not None
+        }
+        missing_ids = requested_ids - scheduled_ids
+        if missing_ids:
+            raise PackageValidationError(
+                "MISSING_DESTINATION_COVERAGE",
+                "The itinerary does not contain every requested destination: "
+                + ", ".join(str(destination_id) for destination_id in sorted(missing_ids)),
             )
 
     room = _require_mapping(booking.get("selected_room"), "selected_room")
@@ -248,6 +273,8 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
         plan_json = {
             "trip_request_id": trip_id,
             "customer_id": state.get("customer_id"),
+            "requested_destinations": state.get("requested_destinations", []),
+            "destination_ids": state.get("destination_ids", []),
             "plan_summary": state.get("plan_summary", {}),
             "itinerary": state.get("itinerary", {}),
             "booking_details": state.get("booking_details", {}),

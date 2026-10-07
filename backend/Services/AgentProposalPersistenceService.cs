@@ -96,10 +96,13 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
 
         var itinerary = RequireObject(root, "itinerary");
         var bookingDetails = RequireObject(root, "booking_details");
+        var requestedDestinationIds = ParseRequestedDestinationIds(trip);
+        ValidateProposalDestinationContract(root, requestedDestinationIds);
         var currency = _currency.Normalize(trip.Currency, "TripRequest currency");
         var schedule = RequireArray(itinerary, "schedule");
         var tripDays = (trip.EndDate.Date - trip.StartDate.Date).Days + 1;
         var itineraryItems = new List<ItineraryItem>();
+        var scheduledDestinationIds = new HashSet<int>();
         decimal tourTotal = 0m;
 
         foreach (var day in schedule.EnumerateArray())
@@ -129,8 +132,9 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                 var tour = await _db.Tours.FirstOrDefaultAsync(t => t.Id == tourId, cancellationToken);
                 if (tour is null || !string.Equals(tour.Status, "Active", StringComparison.OrdinalIgnoreCase))
                     throw new ProposalPersistenceException("INVALID_TOUR", $"Tour {tourId} is missing or inactive.");
-                if (trip.DestinationId.HasValue && tour.DestinationId != trip.DestinationId.Value)
+                if (requestedDestinationIds.Count > 0 && !requestedDestinationIds.Contains(tour.DestinationId))
                     throw new ProposalPersistenceException("INVALID_TOUR_DESTINATION", $"Tour {tourId} is not in the requested destination.");
+                scheduledDestinationIds.Add(tour.DestinationId);
                 var transactionTourPrice = _currency.Convert(tour.Price, tour.Currency, currency);
                 tourTotal += transactionTourPrice * trip.TravellerCount;
                 itineraryItems.Add(new ItineraryItem
@@ -143,6 +147,19 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     PriceAtSelection = transactionTourPrice,
                     Currency = currency
                 });
+            }
+        }
+
+        if (requestedDestinationIds.Count > 1)
+        {
+            var missingDestinationIds = requestedDestinationIds
+                .Where(destinationId => !scheduledDestinationIds.Contains(destinationId))
+                .ToList();
+            if (missingDestinationIds.Count > 0)
+            {
+                throw new ProposalPersistenceException(
+                    "MISSING_DESTINATION_COVERAGE",
+                    $"The proposal does not contain every requested destination: {string.Join(", ", missingDestinationIds)}.");
             }
         }
 
@@ -345,6 +362,58 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.Object)
                 return property.Value;
         return null;
+    }
+
+    private static JsonElement? OptionalArray(JsonElement parent, string name)
+    {
+        foreach (var property in parent.EnumerateObject())
+            if (string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase) && property.Value.ValueKind == JsonValueKind.Array)
+                return property.Value;
+        return null;
+    }
+
+    private static List<int> ParseRequestedDestinationIds(TripRequest trip)
+    {
+        if (!string.IsNullOrWhiteSpace(trip.DestinationSelectionsJson))
+        {
+            try
+            {
+                var selections = JsonSerializer.Deserialize<List<TripRequestDestinationSelection>>(
+                    trip.DestinationSelectionsJson);
+                if (selections is not null && selections.Count > 0)
+                    return selections.OrderBy(selection => selection.Order).Select(selection => selection.Id).ToList();
+            }
+            catch (JsonException)
+            {
+                // Legacy rows fall back to the singular FK below.
+            }
+        }
+
+        return trip.DestinationId.HasValue
+            ? new List<int> { trip.DestinationId.Value }
+            : new List<int>();
+    }
+
+    private static void ValidateProposalDestinationContract(JsonElement root, IReadOnlyCollection<int> requestedDestinationIds)
+    {
+        if (requestedDestinationIds.Count <= 1) return;
+
+        var supplied = OptionalArray(root, "requested_destinations");
+        if (!supplied.HasValue) return;
+
+        var suppliedIds = supplied.Value
+            .EnumerateArray()
+            .Select(item => item.ValueKind == JsonValueKind.Object
+                ? OptionalInt(item, "destination_id") ?? OptionalInt(item, "id")
+                : null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+
+        if (!requestedDestinationIds.OrderBy(id => id).SequenceEqual(suppliedIds.Distinct().OrderBy(id => id)))
+            throw new ProposalPersistenceException(
+                "DESTINATION_CONTRACT_MISMATCH",
+                "The proposal destination list does not match the TripRequest destination list.");
     }
 
     private static string? OptionalString(JsonElement parent, string name)

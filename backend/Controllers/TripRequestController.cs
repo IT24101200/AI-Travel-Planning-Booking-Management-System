@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using backend.Data;
 using backend.DTOs;
+using backend.Models;
 using backend.Models.Enums;
 using backend.Security;
 using backend.Services;
@@ -550,6 +551,13 @@ namespace backend.Controllers
                     customer_id = trip.CustomerId,
                     destination_id = trip.DestinationId,
                     destination_name = trip.DestinationName ?? "Destination",
+                    destination_ids = trip.DestinationIds,
+                    requested_destinations = trip.Destinations.Select(destination => new
+                    {
+                        destination_id = destination.Id,
+                        destination_name = destination.Name,
+                        order = destination.Order
+                    }),
                     raw_request_text = trip.RawRequestText,
                     start_date = trip.StartDate.ToString("o"),
                     end_date = trip.EndDate.ToString("o"),
@@ -559,6 +567,12 @@ namespace backend.Controllers
                     retry_count = trip.RetryCount,
                     preferred_activities = preferredActivities
                 };
+
+                _logger.LogInformation(
+                    "Dispatching TripRequest #{TripRequestId} with {DestinationCount} destination(s): {DestinationIds}.",
+                    trip.Id,
+                    trip.DestinationIds.Count,
+                    string.Join(",", trip.DestinationIds));
 
                 using var content = new StringContent(
                     System.Text.Json.JsonSerializer.Serialize(payload),
@@ -639,12 +653,14 @@ namespace backend.Controllers
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var tripRequestService = scope.ServiceProvider.GetRequiredService<ITripRequestService>();
 
-                // 1. Pick tours in destination or active tours
+                var requestedDestinationIds = trip.DestinationIds;
+
+                // 1. Pick active tours only from the requested destinations.
                 var tours = await db.Tours
-                    .Where(t => (t.DestinationId == trip.DestinationId || trip.DestinationId == null) && t.Status == "Active")
-                    .Take(4)
+                    .Where(t => (requestedDestinationIds.Count == 0 || requestedDestinationIds.Contains(t.DestinationId)) && t.Status == "Active")
+                    .Take(Math.Max(4, requestedDestinationIds.Count * 2))
                     .ToListAsync();
-                if (tours.Count == 0)
+                if (tours.Count == 0 && requestedDestinationIds.Count == 0)
                 {
                     tours = await db.Tours.Where(t => t.Status == "Active").Take(4).ToListAsync();
                 }
@@ -671,17 +687,49 @@ namespace backend.Controllers
                 decimal toursCost = 0;
 
                 int tourIndex = 0;
+                var toursByDestination = tours
+                    .GroupBy(tour => tour.DestinationId)
+                    .ToDictionary(group => group.Key, group => group.ToList());
+                var destinationIndexes = requestedDestinationIds
+                    .Distinct()
+                    .ToDictionary(destinationId => destinationId, _ => 0);
                 for (int dayNum = 1; dayNum <= days; dayNum++)
                 {
                     var items = new List<object>();
-                    if (tourIndex < tours.Count)
+                    Tour? selectedTour = null;
+                    if (requestedDestinationIds.Count > 0)
                     {
-                        var t = tours[tourIndex++];
+                        for (var offset = 0; offset < requestedDestinationIds.Count; offset++)
+                        {
+                            var destinationId = requestedDestinationIds[(dayNum - 1 + offset) % requestedDestinationIds.Count];
+                            if (!toursByDestination.TryGetValue(destinationId, out var destinationTours))
+                                continue;
+                            var destinationIndex = destinationIndexes[destinationId];
+                            if (destinationIndex >= destinationTours.Count)
+                                continue;
+                            selectedTour = destinationTours[destinationIndex];
+                            destinationIndexes[destinationId] = destinationIndex + 1;
+                            break;
+                        }
+                    }
+                    else if (tourIndex < tours.Count)
+                    {
+                        selectedTour = tours[tourIndex++];
+                    }
+
+                    if (selectedTour is not null)
+                    {
+                        var t = selectedTour!;
                         toursCost += t.Price * trip.TravellerCount;
                         items.Add(new
                         {
                             tour_id = t.Id,
                             tour_name = t.Name,
+                            destination_id = t.DestinationId,
+                            destination_name = (await db.Destinations
+                                .Where(destination => destination.Id == t.DestinationId)
+                                .Select(destination => destination.Name)
+                                .FirstOrDefaultAsync()) ?? "Destination",
                             start_time = t.DefaultStartTime.ToString(@"hh\:mm\:ss"),
                             end_time = t.DefaultStartTime.Add(TimeSpan.FromHours(Math.Max(2, (double)t.DurationHours))).ToString(@"hh\:mm\:ss"),
                             price = (double)t.Price
@@ -701,6 +749,8 @@ namespace backend.Controllers
                 var planObj = new
                 {
                     status = "AwaitingApproval",
+                    requested_destinations = trip.Destinations,
+                    destination_ids = requestedDestinationIds,
                     itinerary = new
                     {
                         itinerary_id = trip.Id,
