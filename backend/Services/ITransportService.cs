@@ -9,7 +9,7 @@ namespace backend.Services
     {
         Task<List<TransportOptionDto>> SearchAsync(string? type, string? routeFrom, string? routeTo, decimal? minPrice, decimal? maxPrice, string? status, string? sortBy, bool descending, int page, int pageSize, string? currency = null);
         Task<int> GetTotalCountAsync(string? type, string? routeFrom, string? routeTo, decimal? minPrice, decimal? maxPrice, string? status);
-        Task<TransportOptionDto?> GetByIdAsync(int id, string? currency = null);
+        Task<TransportOptionDto?> GetByIdAsync(int id, string? currency = null, bool includeInactive = false);
         Task<TransportOptionDto> CreateAsync(CreateTransportOptionDto dto);
         Task<bool> UpdateAsync(int id, CreateTransportOptionDto dto);
         Task<TransportDeleteResult> DeleteAsync(int id);

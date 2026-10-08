@@ -19,6 +19,23 @@ namespace backend.Models
         public int? RoomId { get; set; }
         public int? TransportOptionId { get; set; }
 
+        // Immutable transport identity captured when the booking is created.
+        // Nullable so existing rows remain readable through the navigation fallback.
+        [MaxLength(20)]
+        public string? TransportTypeSnapshot { get; set; }
+
+        [MaxLength(150)]
+        public string? TransportProviderSnapshot { get; set; }
+
+        [MaxLength(200)]
+        public string? TransportRouteFromSnapshot { get; set; }
+
+        [MaxLength(200)]
+        public string? TransportRouteToSnapshot { get; set; }
+
+        public DateTime? TransportDepartureTimeSnapshot { get; set; }
+        public DateTime? TransportArrivalTimeSnapshot { get; set; }
+
         public DateTime? CheckInDate { get; set; }
         public DateTime? CheckOutDate { get; set; }
 

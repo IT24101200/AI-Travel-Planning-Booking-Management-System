@@ -34,7 +34,9 @@ namespace backend.Services
             if (customer == null)
                 throw new KeyNotFoundException($"Customer with ID '{dto.CustomerId}' not found.");
 
-            var itinerary = await _db.Itineraries.FindAsync(dto.ItineraryId);
+            var itinerary = await _db.Itineraries
+                .Include(item => item.TripRequest)
+                .FirstOrDefaultAsync(item => item.Id == dto.ItineraryId);
             if (itinerary == null)
                 throw new KeyNotFoundException($"Itinerary with ID {dto.ItineraryId} not found.");
 
@@ -53,7 +55,10 @@ namespace backend.Services
             // Client UnitPrice and TotalCost are retained on the wire for
             // compatibility only. Commercial values are resolved from the
             // referenced catalogue entities by one centralized routine.
-            var pricing = await BuildAuthoritativeBookingItemsAsync(dto.Items, authoritativeCurrency);
+            var pricing = await BuildAuthoritativeBookingItemsAsync(
+                dto.Items,
+                authoritativeCurrency,
+                itinerary.TripRequest);
             var bookingItems = pricing.Items;
             var calculatedTotal = pricing.Total;
             var totalCost = calculatedTotal;
@@ -66,13 +71,6 @@ namespace backend.Services
                 .BeginTransactionAsync(IsolationLevel.RepeatableRead);
             try
             {
-                var activeStatuses = new[]
-                {
-                    BookingStatus.Draft,
-                    BookingStatus.AwaitingApproval,
-                    BookingStatus.Confirmed
-                };
-
                 foreach (var item in dto.Items.Where(i => i.ItemType == BookingItemType.Room))
                 {
                     Room? lockedRoom;
@@ -125,7 +123,9 @@ namespace backend.Services
                 // so that two concurrent requests for the last available seat
                 // are serialised: the second waits for the first to commit,
                 // then re-counts and finds zero seats remaining.
-                foreach (var item in dto.Items.Where(i => i.ItemType == BookingItemType.Transport))
+                foreach (var item in dto.Items
+                             .Where(i => i.ItemType == BookingItemType.Transport)
+                             .OrderBy(i => i.TransportOptionId))
                 {
                     TransportOption? lockedTransport;
                     if (IsPostgres)
@@ -148,12 +148,15 @@ namespace backend.Services
                         throw new KeyNotFoundException(
                             $"TransportOption with ID {item.TransportOptionId} not found.");
 
+                    if (lockedTransport.Status != TransportStatus.Active)
+                        throw new TransportBusinessException(
+                            "TRANSPORT_INACTIVE",
+                            "The selected transport option is no longer active.");
+
                     // Re-count active bookings for this transport option under the lock.
-                    var bookedSeats = await _db.BookingItems
-                        .Where(bi => bi.TransportOptionId == item.TransportOptionId
-                                  && bi.ItemType          == BookingItemType.Transport
-                                  && activeStatuses.Contains(bi.Booking.Status))
-                        .SumAsync(bi => bi.Quantity);
+                    var bookedSeats = await TransportInventory.CountReservedSeatsAsync(
+                        _db,
+                        item.TransportOptionId!.Value);
 
                     var availableSeats = lockedTransport.Capacity - bookedSeats;
                     if (availableSeats < item.Quantity)
@@ -243,7 +246,10 @@ namespace backend.Services
             ValidateStatusTransition(booking.Status, newStatus);
 
             if (newStatus == BookingStatus.Confirmed)
+            {
                 await RoomInventory.ValidateConfirmationAsync(_db, booking.Id);
+                await TransportInventory.ValidateConfirmationAsync(_db, booking.Id);
+            }
 
             var statusChanged = booking.Status != newStatus;
             booking.Status = newStatus;
@@ -326,7 +332,8 @@ namespace backend.Services
 
         private async Task<(List<BookingItem> Items, decimal Total)> BuildAuthoritativeBookingItemsAsync(
             IEnumerable<BookingItemCreateDto> requestedItems,
-            string bookingCurrency)
+            string bookingCurrency,
+            TripRequest trip)
         {
             var bookingItems = new List<BookingItem>();
             decimal calculatedTotal = 0m;
@@ -406,6 +413,14 @@ namespace backend.Services
                             .FirstOrDefaultAsync(t => t.Id == item.TransportOptionId.Value);
                         if (transport is null || transport.Status != TransportStatus.Active)
                             throw new InvalidOperationException("The selected transport option is no longer available.");
+
+                        await TransportCompatibility.ValidateAsync(_db, transport, trip);
+                        bookingItem.TransportTypeSnapshot = transport.Type.ToString();
+                        bookingItem.TransportProviderSnapshot = transport.Provider;
+                        bookingItem.TransportRouteFromSnapshot = transport.RouteFrom;
+                        bookingItem.TransportRouteToSnapshot = transport.RouteTo;
+                        bookingItem.TransportDepartureTimeSnapshot = transport.DepartureTime;
+                        bookingItem.TransportArrivalTimeSnapshot = transport.ArrivalTime;
 
                         authoritativeUnitPrice = _currency.Convert(
                             transport.Price, transport.Currency, bookingCurrency);
@@ -548,12 +563,12 @@ namespace backend.Services
                     RoomType = bi.Room?.RoomType,
                     RoomCapacity = bi.Room?.Capacity,
                     RateNotes = bi.Room?.RateNotes,
-                    TransportType = bi.TransportOption?.Type.ToString(),
-                    TransportProvider = bi.TransportOption?.Provider,
-                    RouteFrom = bi.TransportOption?.RouteFrom,
-                    RouteTo = bi.TransportOption?.RouteTo,
-                    DepartureTime = bi.TransportOption?.DepartureTime,
-                    ArrivalTime = bi.TransportOption?.ArrivalTime,
+                    TransportType = bi.TransportTypeSnapshot ?? bi.TransportOption?.Type.ToString(),
+                    TransportProvider = bi.TransportProviderSnapshot ?? bi.TransportOption?.Provider,
+                    RouteFrom = bi.TransportRouteFromSnapshot ?? bi.TransportOption?.RouteFrom,
+                    RouteTo = bi.TransportRouteToSnapshot ?? bi.TransportOption?.RouteTo,
+                    DepartureTime = bi.TransportDepartureTimeSnapshot ?? bi.TransportOption?.DepartureTime,
+                    ArrivalTime = bi.TransportArrivalTimeSnapshot ?? bi.TransportOption?.ArrivalTime,
                     CheckInDate = bi.CheckInDate,
                     CheckOutDate = bi.CheckOutDate,
                     Quantity = bi.Quantity,

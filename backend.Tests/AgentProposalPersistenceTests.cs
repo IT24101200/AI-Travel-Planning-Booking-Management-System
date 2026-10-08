@@ -72,8 +72,8 @@ public class AgentProposalPersistenceTests
             Id = 30,
             Type = TransportType.Car,
             Provider = "Test Transport",
-            RouteFrom = "A",
-            RouteTo = "B",
+            RouteFrom = "Pickup Point",
+            RouteTo = "Test Destination",
             DepartureTime = new DateTime(2026, 10, 10, 8, 0, 0),
             ArrivalTime = new DateTime(2026, 10, 10, 10, 0, 0),
             Capacity = 5,
@@ -90,24 +90,46 @@ public class AgentProposalPersistenceTests
         int roomId = 20,
         int transportId = 30,
         decimal total = 350m,
-        string customerId = "cust-1") => JsonSerializer.SerializeToElement(new
+        string customerId = "cust-1",
+        bool includeSecondDestination = false)
+    {
+        object[] schedule = includeSecondDestination
+            ? new object[]
+            {
+                new
+                {
+                    day_number = 1,
+                    items = new object[]
+                    {
+                        new { tour_id = tourId, start_time = "09:00:00", end_time = "11:00:00" }
+                    }
+                },
+                new
+                {
+                    day_number = 2,
+                    items = new object[]
+                    {
+                        new { tour_id = 101, start_time = "09:00:00", end_time = "11:00:00" }
+                    }
+                }
+            }
+            : new object[]
+            {
+                new
+                {
+                    day_number = 1,
+                    items = new object[]
+                    {
+                        new { tour_id = tourId, start_time = "09:00:00", end_time = "11:00:00" }
+                    }
+                }
+            };
+
+        return JsonSerializer.SerializeToElement(new
         {
             trip_request_id = 1,
             customer_id = customerId,
-            itinerary = new
-            {
-                schedule = new[]
-                {
-                    new
-                    {
-                        day_number = 1,
-                        items = new[]
-                        {
-                            new { tour_id = tourId, start_time = "09:00:00", end_time = "11:00:00" }
-                        }
-                    }
-                }
-            },
+            itinerary = new { schedule },
             booking_details = new
             {
                 total_package_cost = total,
@@ -117,6 +139,7 @@ public class AgentProposalPersistenceTests
             },
             validation = new { is_valid = true }
         });
+    }
 
     [Fact]
     public async Task ValidProposal_UsesRealIdsAndStopsAtAwaitingApproval()
@@ -140,6 +163,12 @@ public class AgentProposalPersistenceTests
             Assert.NotEmpty(booking.BookingReference);
             Assert.Equal(3, booking.BookingItems.Count);
             Assert.All(booking.BookingItems, item => Assert.Equal(booking.Id, item.BookingId));
+            var transportItem = booking.BookingItems.Single(item => item.ItemType == BookingItemType.Transport);
+            Assert.Equal("Car", transportItem.TransportTypeSnapshot);
+            Assert.Equal("Test Transport", transportItem.TransportProviderSnapshot);
+            Assert.Equal("Pickup Point", transportItem.TransportRouteFromSnapshot);
+            Assert.Equal("Test Destination", transportItem.TransportRouteToSnapshot);
+            Assert.Equal(new DateTime(2026, 10, 10, 8, 0, 0), transportItem.TransportDepartureTimeSnapshot);
             Assert.Equal(TripRequestStatus.AwaitingApproval, (await context.TripRequests.SingleAsync()).Status);
             var notification = await context.Notifications.SingleAsync();
             Assert.Equal(MessageType.TripPlanningReady, notification.MessageType);
@@ -259,6 +288,216 @@ public class AgentProposalPersistenceTests
 
             Assert.Empty(await context.Itineraries.ToListAsync());
             Assert.Empty(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task WrongTransportRoute_IsRejectedWithStableCode()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 31,
+                Type = TransportType.Bus,
+                Provider = "Wrong Route",
+                RouteFrom = "Unrelated City",
+                RouteTo = "Other City",
+                DepartureTime = new DateTime(2026, 10, 10, 8, 0, 0),
+                ArrivalTime = new DateTime(2026, 10, 10, 10, 0, 0),
+                Capacity = 5,
+                Price = 20m,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, Proposal(transportId: 31), 0));
+
+            Assert.Equal("TRANSPORT_ROUTE_INCOMPATIBLE", ex.Code);
+            Assert.Empty(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task TransportOutsideTripDates_IsRejectedWithStableCode()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 32,
+                Type = TransportType.Bus,
+                Provider = "Late Transport",
+                RouteFrom = "Pickup Point",
+                RouteTo = "Test Destination",
+                DepartureTime = new DateTime(2026, 10, 13, 8, 0, 0),
+                ArrivalTime = new DateTime(2026, 10, 13, 10, 0, 0),
+                Capacity = 5,
+                Price = 20m,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, Proposal(transportId: 32), 0));
+
+            Assert.Equal("TRANSPORT_DATE_INCOMPATIBLE", ex.Code);
+            Assert.Empty(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AdjacentMultiDestinationTransportLeg_IsAccepted()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            context.Destinations.Add(new Destination
+            {
+                Id = 2,
+                Name = "Second Destination",
+                Country = "Sri Lanka"
+            });
+            context.Tours.Add(new Tour
+            {
+                Id = 101,
+                DestinationId = 2,
+                Name = "Second Tour",
+                Category = "Test",
+                Price = 100m,
+                Currency = "USD",
+                Status = "Active",
+                DefaultStartTime = new TimeSpan(9, 0, 0),
+                DurationHours = 2
+            });
+            var trip = await context.TripRequests.SingleAsync();
+            trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
+            {
+                new { Id = 1, Name = "client supplied name", Order = 0 },
+                new { Id = 2, Name = "Second Destination", Order = 1 }
+            });
+            var transport = await context.TransportOptions.SingleAsync();
+            transport.RouteFrom = "Test Destination";
+            transport.RouteTo = "Second Destination";
+            await context.SaveChangesAsync();
+
+            var result = await new AgentProposalPersistenceService(context)
+                .PersistAsync(1, Proposal(total: 550m, includeSecondDestination: true), 0);
+
+            Assert.False(result.AlreadyPersisted);
+            Assert.Single(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task UnrelatedMultiDestinationTransportLeg_IsRejected()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            context.Destinations.Add(new Destination
+            {
+                Id = 2,
+                Name = "Second Destination",
+                Country = "Sri Lanka"
+            });
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 33,
+                Type = TransportType.Bus,
+                Provider = "Unrelated Transport",
+                RouteFrom = "X",
+                RouteTo = "Y",
+                DepartureTime = new DateTime(2026, 10, 10, 8, 0, 0),
+                ArrivalTime = new DateTime(2026, 10, 10, 10, 0, 0),
+                Capacity = 5,
+                Price = 20m,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+            context.Tours.Add(new Tour
+            {
+                Id = 101,
+                DestinationId = 2,
+                Name = "Second Tour",
+                Category = "Test",
+                Price = 100m,
+                Currency = "USD",
+                Status = "Active",
+                DefaultStartTime = new TimeSpan(9, 0, 0),
+                DurationHours = 2
+            });
+            var trip = await context.TripRequests.SingleAsync();
+            trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
+            {
+                new { Id = 1, Name = "ignored", Order = 0 },
+                new { Id = 2, Name = "ignored", Order = 1 }
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context)
+                    .PersistAsync(1, Proposal(transportId: 33, total: 550m, includeSecondDestination: true), 0));
+
+            Assert.Equal("TRANSPORT_ROUTE_INCOMPATIBLE", ex.Code);
+        }
+    }
+
+    [Fact]
+    public async Task UnresolvableDestinationMappingFailsClosed()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var trip = await context.TripRequests.SingleAsync();
+            trip.DestinationId = null;
+            trip.DestinationSelectionsJson = "not-json";
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, Proposal(), 0));
+
+            Assert.Equal("TRANSPORT_SEGMENT_UNRESOLVED", ex.Code);
+        }
+    }
+
+    [Fact]
+    public async Task TransportArrivalOutsideTripDates_IsRejected()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 34,
+                Type = TransportType.Bus,
+                Provider = "Overnight Transport",
+                RouteFrom = "Pickup Point",
+                RouteTo = "Test Destination",
+                DepartureTime = new DateTime(2026, 10, 12, 23, 0, 0),
+                ArrivalTime = new DateTime(2026, 10, 13, 1, 0, 0),
+                Capacity = 5,
+                Price = 20m,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+            await context.SaveChangesAsync();
+
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, Proposal(transportId: 34), 0));
+
+            Assert.Equal("TRANSPORT_DATE_INCOMPATIBLE", ex.Code);
         }
     }
 }

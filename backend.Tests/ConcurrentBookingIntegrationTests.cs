@@ -141,8 +141,14 @@ namespace backend.Tests
             {
                 Id = 1,
                 CustomerId = "test-customer-1",
+                DestinationId = 1,
                 RawRequestText = "Integration test trip",
-                Status = TripRequestStatus.Planning
+                Status = TripRequestStatus.Planning,
+                StartDate = DateTime.UtcNow.Date.AddDays(1),
+                EndDate = DateTime.UtcNow.Date.AddDays(3),
+                TravellerCount = 1,
+                BudgetCeiling = 10000,
+                Currency = "USD"
             });
 
             // Itinerary
@@ -162,7 +168,7 @@ namespace backend.Tests
             db.Destinations.Add(new Destination
             {
                 Id = 1,
-                Name = "Test Destination",
+                Name = "CMB",
                 Country = "Testland"
             });
 
@@ -195,8 +201,8 @@ namespace backend.Tests
                 Provider = "Test Airlines",
                 RouteFrom = "CMB",
                 RouteTo = "LHR",
-                DepartureTime = DateTime.UtcNow.AddDays(1),
-                ArrivalTime = DateTime.UtcNow.AddDays(1).AddHours(10),
+                DepartureTime = DateTime.UtcNow.Date.AddDays(1).AddHours(8),
+                ArrivalTime = DateTime.UtcNow.Date.AddDays(1).AddHours(18),
                 Capacity = 1,         // only one seat available
                 Price = 500,
                 Currency = "USD",
