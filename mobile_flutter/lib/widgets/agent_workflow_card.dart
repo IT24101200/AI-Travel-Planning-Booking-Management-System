@@ -164,15 +164,62 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
     return result;
   }
 
+  Map<String, dynamic>? _decodeLogOutput(Map<String, dynamic> log) {
+    final raw = log['output'] ?? log['outputData'];
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    if (raw is! String || raw.trim().isEmpty) return null;
+    try {
+      final decoded = json.decode(raw);
+      return decoded is Map ? Map<String, dynamic>.from(decoded) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _isAgentOutcomeFailure(Map<String, dynamic> log) {
+    final status = (log['status'] ?? '').toString().toLowerCase();
+    if (status.contains('failed')) return true;
+
+    final output = _decodeLogOutput(log);
+    if (output == null) return false;
+    final outcome = (output['agent_outcome'] ?? output['agentOutcome'] ?? '')
+        .toString()
+        .toLowerCase();
+    if (outcome == 'failed' || outcome == 'failure') return true;
+
+    final errorCode = (output['error_code'] ?? output['errorCode'] ?? '')
+        .toString()
+        .toUpperCase();
+    if (errorCode.startsWith('TRANSPORT_CATALOGUE_') ||
+        errorCode == 'NO_VALID_ROOM' ||
+        errorCode == 'TRANSPORT_SEARCH_INCOMPLETE') {
+      return true;
+    }
+
+    // Compatibility with older logs written before BookingAgent emitted a
+    // separate outcome row: a successful tool call with zero candidates is
+    // not a successful agent result.
+    final stepName = (log['stepName'] ?? '').toString().toLowerCase();
+    if (stepName.contains('checked transport availability') &&
+        output['available_transports'] is num &&
+        (output['available_transports'] as num) <= 0) {
+      return true;
+    }
+    if (stepName.contains('checked hotel availability') &&
+        output['available_rooms'] is num &&
+        (output['available_rooms'] as num) <= 0) {
+      return true;
+    }
+    return false;
+  }
+
   String _getAgentStatus(
     Map<String, dynamic> meta,
     List<Map<String, dynamic>> agentLogs,
   ) {
     final pipelineStatus = widget.pipelineStatus?.toLowerCase() ?? '';
 
-    if (agentLogs.any(
-      (l) => (l['status'] ?? '').toString().toLowerCase().contains('failed'),
-    )) {
+    if (agentLogs.any(_isAgentOutcomeFailure)) {
       return 'Failed';
     }
 
@@ -241,8 +288,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
         pipelineStatus.toLowerCase() == 'failed' ||
         _logs.any(
           (l) =>
-              (l is Map &&
-              (l['status'] ?? '').toString().toLowerCase().contains('failed')),
+              l is Map && _isAgentOutcomeFailure(Map<String, dynamic>.from(l)),
         );
 
     return Container(
@@ -330,25 +376,25 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                           const SizedBox(width: 6),
                           Flexible(
                             child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(
-                                0xFFD4A346,
-                              ).withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              '4 AGENTS',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF966C15),
-                                letterSpacing: 0.5,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
                               ),
-                            ),
+                              decoration: BoxDecoration(
+                                color: const Color(
+                                  0xFFD4A346,
+                                ).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                '4 AGENTS',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF966C15),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                             ),
                           ),
                         ],

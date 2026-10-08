@@ -19,6 +19,14 @@ class TransportSearchError(RuntimeError):
     """Raised when the complete paginated transport catalogue cannot be read."""
 
 
+class TransportSearchResult(list):
+    """List-compatible transport results with deterministic filter diagnostics."""
+
+    def __init__(self, values=(), diagnostics=None):
+        super().__init__(values)
+        self.diagnostics = diagnostics or {}
+
+
 def search_hotels(destination_id=None, currency=None):
     endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/hotel"
     hotels = []
@@ -143,6 +151,22 @@ def _transport_route_matches(transport, requested_destinations):
     )
 
 
+def _requested_route_legs(requested_destinations):
+    if requested_destinations is None:
+        return []
+    names = [
+        _normalize_route_name(item.get("destination_name", item.get("name")))
+        for item in requested_destinations
+        if isinstance(item, dict)
+    ]
+    names = [name for name in names if name]
+    return list(zip(names, names[1:]))
+
+
+def _route_label(source, target):
+    return f"{source.title()} -> {target.title()}"
+
+
 def _transport_date_matches(transport, start_date, end_date):
     if start_date is None and end_date is None:
         return True
@@ -174,6 +198,24 @@ def search_transports(
     seen_ids = set()
     page = 1
     total_pages = 1
+    requested_legs = _requested_route_legs(requested_destinations)
+    diagnostics = {
+        "raw_count": 0,
+        "active_count": 0,
+        "capacity_compatible_count": 0,
+        "route_compatible_count": 0,
+        "date_compatible_count": 0,
+        "availability_compatible_count": None,
+        "capacity_mismatch_count": 0,
+        "route_mismatch_count": 0,
+        "date_mismatch_count": 0,
+        "availability_mismatch_count": 0,
+        "route_coverage": {
+            _route_label(source, target): 0
+            for source, target in requested_legs
+        },
+        "missing_route_legs": [],
+    }
     try:
         while page <= total_pages:
             params = {
@@ -225,32 +267,86 @@ def search_transports(
                 if transport_id in seen_ids:
                     continue
                 seen_ids.add(transport_id)
+                diagnostics["raw_count"] += 1
 
                 if str(transport.get("status", "")).casefold() != "active":
                     continue
+                diagnostics["active_count"] += 1
+
+                if requested_legs:
+                    route_from = _normalize_route_name(transport.get("routeFrom"))
+                    route_to = _normalize_route_name(transport.get("routeTo"))
+                    for source, target in requested_legs:
+                        if route_from == source and route_to == target:
+                            diagnostics["route_coverage"][_route_label(source, target)] += 1
+
                 if traveller_count is not None:
                     try:
                         if int(transport.get("capacity", 0)) < int(traveller_count):
+                            diagnostics["capacity_mismatch_count"] += 1
                             continue
                     except (TypeError, ValueError):
+                        diagnostics["capacity_mismatch_count"] += 1
                         continue
+                diagnostics["capacity_compatible_count"] += 1
                 if not _transport_route_matches(transport, requested_destinations):
+                    diagnostics["route_mismatch_count"] += 1
                     continue
+                diagnostics["route_compatible_count"] += 1
                 if not _transport_date_matches(transport, start_date, end_date):
+                    diagnostics["date_mismatch_count"] += 1
                     continue
+                diagnostics["date_compatible_count"] += 1
                 transports.append(transport)
 
             if page >= total_pages:
                 break
             page += 1
 
-        return transports
+        diagnostics["missing_route_legs"] = [
+            label
+            for label, count in diagnostics["route_coverage"].items()
+            if count == 0
+        ]
+        diagnostics["final_count"] = len(transports)
+        return TransportSearchResult(transports, diagnostics)
     except TransportSearchError:
         raise
     except Exception as error:
         # A later page failure must never be represented as a complete page-one
         # result. Callers receive a stable failure and no partial catalogue.
         raise TransportSearchError("Transport search could not be completed.") from error
+
+
+TRANSPORT_CATALOGUE_FAILURE_CODES = {
+    "TRANSPORT_CATALOGUE_NO_ROUTE",
+    "TRANSPORT_CATALOGUE_NO_DATE_MATCH",
+    "TRANSPORT_CATALOGUE_NO_CAPACITY",
+    "TRANSPORT_CATALOGUE_NO_AVAILABILITY",
+}
+
+
+def classify_transport_failure(diagnostics, availability_mismatch_count=0):
+    """Return the most specific deterministic reason for zero options."""
+
+    diagnostics = diagnostics or {}
+    active_count = diagnostics.get("active_count")
+    capacity_count = diagnostics.get("capacity_compatible_count")
+    route_count = diagnostics.get("route_compatible_count")
+    date_count = diagnostics.get("date_compatible_count")
+
+    if active_count == 0:
+        return "TRANSPORT_CATALOGUE_NO_ROUTE"
+    if capacity_count == 0:
+        return "TRANSPORT_CATALOGUE_NO_CAPACITY"
+    if route_count == 0:
+        return "TRANSPORT_CATALOGUE_NO_ROUTE"
+    if date_count == 0:
+        return "TRANSPORT_CATALOGUE_NO_DATE_MATCH"
+    if availability_mismatch_count or diagnostics.get("availability_compatible_count") == 0:
+        return "TRANSPORT_CATALOGUE_NO_AVAILABILITY"
+    return "TRANSPORT_CATALOGUE_NO_AVAILABILITY"
+
 
 def check_transport_availability(transport_id):
     endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/transport/{transport_id}/availability"

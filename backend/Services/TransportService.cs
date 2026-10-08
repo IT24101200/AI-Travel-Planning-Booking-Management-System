@@ -141,6 +141,93 @@ namespace backend.Services
             return transport is null ? null : ToDto(transport, targetCurrency);
         }
 
+        public async Task<TransportCoverageDto> GetCoverageAsync(
+            string routeFrom,
+            string routeTo,
+            DateTime startDate,
+            DateTime endDate,
+            int travellers,
+            CancellationToken cancellationToken = default)
+        {
+            var normalizedFrom = TransportCompatibility.Normalize(routeFrom);
+            var normalizedTo = TransportCompatibility.Normalize(routeTo);
+            if (string.IsNullOrWhiteSpace(normalizedFrom) || string.IsNullOrWhiteSpace(normalizedTo))
+                throw new ArgumentException("Both route endpoints are required.");
+            if (string.Equals(normalizedFrom, normalizedTo, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Route origin and destination must be different.");
+            if (endDate.Date < startDate.Date)
+                throw new ArgumentException("Coverage end date cannot be before the start date.");
+            if (travellers < 1 || travellers > 100)
+                throw new ArgumentException("Travellers must be between 1 and 100.");
+
+            var active = await _context.TransportOptions
+                .AsNoTracking()
+                .Where(option => option.Status == TransportStatus.Active)
+                .ToListAsync(cancellationToken);
+
+            var routeMatches = active
+                .Where(option => RouteEquals(option.RouteFrom, normalizedFrom)
+                    && RouteEquals(option.RouteTo, normalizedTo))
+                .ToList();
+
+            var dateMatches = routeMatches
+                .Where(option => option.ArrivalTime > option.DepartureTime
+                    && option.DepartureTime.Date >= startDate.Date
+                    && option.ArrivalTime.Date <= endDate.Date)
+                .ToList();
+
+            var capacityMatches = dateMatches
+                .Where(option => option.Capacity >= travellers)
+                .ToList();
+
+            var availableMatches = 0;
+            foreach (var option in capacityMatches)
+            {
+                var reservedSeats = await TransportInventory.CountReservedSeatsAsync(
+                    _context,
+                    option.Id,
+                    cancellationToken: cancellationToken);
+                if (option.Capacity - reservedSeats >= travellers)
+                    availableMatches++;
+            }
+
+            var reasonCode = availableMatches > 0
+                ? "COVERAGE_AVAILABLE"
+                : routeMatches.Count == 0
+                    ? "NO_ROUTE"
+                    : dateMatches.Count == 0
+                        ? "NO_DATE_MATCH"
+                        : capacityMatches.Count == 0
+                            ? "NO_CAPACITY"
+                            : "NO_AVAILABILITY";
+
+            var message = reasonCode switch
+            {
+                "COVERAGE_AVAILABLE" => "Matching active transport is available for this route and date range.",
+                "NO_ROUTE" => "No active transport exists for this route.",
+                "NO_DATE_MATCH" => "Transport exists for this route, but not in the selected date range.",
+                "NO_CAPACITY" => "Matching transport exists, but none supports this traveller count.",
+                _ => "Matching departures exist but currently have insufficient available seats."
+            };
+
+            return new TransportCoverageDto
+            {
+                RouteFrom = routeFrom.Trim(),
+                RouteTo = routeTo.Trim(),
+                StartDate = startDate,
+                EndDate = endDate,
+                Travellers = travellers,
+                TotalActive = active.Count,
+                RouteMatches = routeMatches.Count,
+                DateMatches = dateMatches.Count,
+                CapacityMatches = capacityMatches.Count,
+                AvailableMatches = availableMatches,
+                Status = availableMatches > 0 ? "Available" : "Unavailable",
+                ReasonCode = reasonCode,
+                Message = message
+            };
+        }
+
         public async Task<TransportOptionDto> CreateAsync(CreateTransportOptionDto dto)
         {
             dto.Currency = _currency.Normalize(dto.Currency, "Transport currency");
@@ -270,6 +357,14 @@ namespace backend.Services
                 throw new ArgumentException("Capacity must be between 1 and 1000.");
             if (dto.Price < 0)
                 throw new ArgumentException("Price must be zero or greater.");
+        }
+
+        private static bool RouteEquals(string value, string normalizedExpected)
+        {
+            return string.Equals(
+                TransportCompatibility.Normalize(value),
+                normalizedExpected,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         // ── Mapping helper ──

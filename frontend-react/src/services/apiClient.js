@@ -8,8 +8,9 @@ export { notificationErrorMessage } from './notificationErrors.js'
  * marketing site renders from src/data/*. Only the planner talks to the API,
  * and it degrades gracefully when the backend is not running.
  */
-const baseURL = import.meta.env.VITE_API_BASE_URL
-  || (import.meta.env.DEV
+const viteEnv = import.meta.env || {}
+const baseURL = viteEnv.VITE_API_BASE_URL
+  || (viteEnv.DEV
     ? 'http://localhost:5138/api'
     : 'https://ai-travel-planning-booking-backend.onrender.com/api')
 
@@ -209,9 +210,37 @@ export async function deleteHotel(id) {
   return data
 }
 
-export async function fetchTransport(type, search, status = 'All') {
-  const { data } = await api.get('/Transport', {
-    params: { type, search, status, page: 1, pageSize: 50 }
+export function buildTransportQuery(params = {}) {
+  const query = {
+    type: params.type && params.type !== 'All' ? params.type : undefined,
+    routeFrom: params.routeFrom?.trim() || undefined,
+    routeTo: params.routeTo?.trim() || undefined,
+    minPrice: params.minPrice,
+    maxPrice: params.maxPrice,
+    status: params.status || 'All',
+    sortBy: params.sortBy || undefined,
+    descending: params.descending === true ? true : undefined,
+    page: Math.max(1, Number(params.page) || 1),
+    pageSize: Math.min(50, Math.max(1, Number(params.pageSize) || 10)),
+    currency: params.currency || undefined
+  }
+  return Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined && value !== ''))
+}
+
+export async function fetchTransport(params = {}) {
+  const { data } = await api.get('/Transport', { params: buildTransportQuery(params) })
+  return data
+}
+
+export async function fetchTransportCoverage(params = {}) {
+  const { data } = await api.get('/Transport/coverage', {
+    params: {
+      routeFrom: params.routeFrom?.trim(),
+      routeTo: params.routeTo?.trim(),
+      startDate: params.startDate,
+      endDate: params.endDate,
+      travellers: params.travellers
+    }
   })
   return data
 }

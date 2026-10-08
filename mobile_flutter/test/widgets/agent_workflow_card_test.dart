@@ -60,4 +60,35 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'booking agent is failed when availability succeeds with zero candidates',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AgentWorkflowCard(
+              tripRequestId: 150,
+              initialLogs: [
+                {
+                  'agentName': 'BookingAgent',
+                  'stepName': 'Checked transport availability',
+                  'status': 'Success',
+                  'output': '{"available_transports": 0}',
+                },
+              ],
+              pipelineStatus: 'Failed',
+              failureReason:
+                  'No suitable transport is available for the selected route and travel dates.',
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('FAILED'), findsOneWidget);
+      expect(find.text('SUCCESS'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
