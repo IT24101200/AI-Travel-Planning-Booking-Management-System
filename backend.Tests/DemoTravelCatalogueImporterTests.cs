@@ -194,6 +194,45 @@ public sealed class DemoTravelCatalogueImporterTests
     }
 
     [Fact]
+    public void Planner_generates_both_directions_for_the_bentota_multi_leg_demo_route()
+    {
+        var snapshot = new CatalogueSnapshot
+        {
+            Destinations =
+            [
+                new ExistingDestination(51, "Colombo", "COLOMBO"),
+                new ExistingDestination(53, "Bentota", "BENTOTA"),
+                new ExistingDestination(56, "Arugam Bay", "ARUGAM BAY")
+            ],
+            Hotels = [],
+            Rooms = [],
+            Tours = [],
+            TransportOptions = []
+        };
+
+        var plan = CataloguePlanner.Build(snapshot, new CatalogueDocument(), new DateOnly(2026, 10, 9));
+
+        var relevant = plan.TransportToInsert.Where(option =>
+            (option.RouteFrom == "Colombo" && option.RouteTo == "Bentota") ||
+            (option.RouteFrom == "Bentota" && option.RouteTo == "Colombo") ||
+            (option.RouteFrom == "Bentota" && option.RouteTo == "Arugam Bay") ||
+            (option.RouteFrom == "Arugam Bay" && option.RouteTo == "Bentota")).ToList();
+
+        Assert.Contains(relevant, option => option.RouteFrom == "Colombo" && option.RouteTo == "Bentota");
+        Assert.Contains(relevant, option => option.RouteFrom == "Bentota" && option.RouteTo == "Colombo");
+        Assert.Contains(relevant, option => option.RouteFrom == "Bentota" && option.RouteTo == "Arugam Bay");
+        Assert.Contains(relevant, option => option.RouteFrom == "Arugam Bay" && option.RouteTo == "Bentota");
+        Assert.All(relevant, option =>
+        {
+            Assert.Equal("Demo Private Transfer", option.Provider);
+            Assert.Equal("LKR", option.Currency);
+            Assert.Equal(DateTimeKind.Unspecified, option.DepartureTime.Kind);
+            Assert.True(option.ArrivalTime > option.DepartureTime);
+            Assert.InRange(DateOnly.FromDateTime(option.DepartureTime), new DateOnly(2026, 10, 10), new DateOnly(2026, 12, 8));
+        });
+    }
+
+    [Fact]
     public void Planner_blocks_unverified_destination_and_hotel_coordinates()
     {
         var snapshot = new CatalogueSnapshot();

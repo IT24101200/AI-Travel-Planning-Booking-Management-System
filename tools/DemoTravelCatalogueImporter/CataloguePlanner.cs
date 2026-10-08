@@ -316,6 +316,11 @@ public static class CataloguePlanner
         // Explicit coverage for the previously failing multi-destination path.
         AddBoth(routes, "Colombo", "Dambulla", 210, 6500m, true);
         AddBoth(routes, "Dambulla", "Arugam Bay", 300, 8500m, true);
+        // Demo-only coverage for the currently supported Colombo -> Bentota ->
+        // Arugam Bay multi-destination scenario. Fares and schedules are
+        // operational demo values, not live provider quotations.
+        AddBoth(routes, "Colombo", "Bentota", 120, 4500m, true);
+        AddBoth(routes, "Bentota", "Arugam Bay", 420, 12000m, true);
         AddBoth(routes, "Batticaloa", "Colombo", 420, 11000m, true);
         AddBoth(routes, "Colombo", "Ella", 330, 9500m, true);
 

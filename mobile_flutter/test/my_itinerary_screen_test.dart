@@ -545,4 +545,124 @@ void main() {
       expect(find.text('Mock Trip Map'), findsOneWidget);
     },
   );
+
+  testWidgets('12. failed AI planning screen is scroll-safe at supported widths', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    tester.view.devicePixelRatio = 1;
+    ApiService.mockGetMyItineraries = () async => [];
+    ApiService.mockGetTripRequest = (_) async => {
+      'id': 155,
+      'status': 'Failed',
+      'startDate': '2026-10-16T00:00:00',
+      'endDate': '2026-10-22T00:00:00',
+      'failureReason':
+          'No complete transport plan is available for every selected route leg.',
+    };
+    ApiService.mockGetAgentLogs = (_) async => [
+      {
+        'agentName': 'CoordinatorAgent',
+        'stepName': 'TerminateTripPlanning after a long failure explanation',
+        'status': 'Failed',
+        'timestamp': '2026-10-08T18:57:44.772859',
+        'output':
+            '{"failure_code":"TRANSPORT_CATALOGUE_NO_ROUTE","missing_route_legs":["Colombo -> Bentota","Bentota -> Arugam Bay"],"detail":"This diagnostic output must wrap safely across a narrow mobile viewport."}',
+      },
+      {
+        'agentName': 'ItineraryAgent',
+        'stepName': 'Generated itinerary with a long diagnostic subtitle',
+        'status': 'Success',
+        'timestamp': '2026-10-08T18:57:41.777215',
+        'output': '{"tours_found":13}',
+      },
+      {
+        'agentName': 'BookingAgent',
+        'stepName': 'Booking Agent failed',
+        'status': 'Failed',
+        'timestamp': '2026-10-08T18:57:44.263159',
+        'output':
+            '{"agent_outcome":"Failed","error_code":"TRANSPORT_CATALOGUE_NO_ROUTE","error":"No complete transport plan is available for every selected route leg."}',
+      },
+      {
+        'agentName': 'ValidationAgent',
+        'stepName': 'Rejected package before approval gate',
+        'status': 'Failed',
+        'timestamp': '2026-10-08T18:57:44.569346',
+        'output':
+            '{"error_code":"UPSTREAM_BOOKING_FAILED","error":"No complete transport plan is available for every selected route leg."}',
+      },
+    ];
+
+    for (final width in [320.0, 360.0, 390.0, 412.0, 768.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpWidget(
+        MaterialApp(
+          onGenerateRoute: (settings) => MaterialPageRoute(
+            settings: const RouteSettings(arguments: {'tripRequestId': 155}),
+            builder: (_) => const MyItineraryScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'No complete transport plan is available for every selected route leg.',
+        ),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets(
+    '13. populated itinerary stays responsive from mobile to desktop widths',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      tester.view.devicePixelRatio = 1;
+      final itinerary = createSampleItinerary(status: 1, totalCost: 250000);
+      itinerary['title'] =
+          'Colombo Bentota Arugam Bay long multi-destination journey';
+      (itinerary['items'] as List)[0]['tourName'] =
+          'A very long cultural and coastal activity title that must wrap safely';
+      (itinerary['items'] as List)[0]['description'] =
+          'Long activity details should wrap within the itinerary card.';
+      itinerary['bookingItems'] = [
+        {
+          'itemType': 'Transport',
+          'transportLegIndex': 0,
+          'transportType': 'Private Van',
+          'transportProvider':
+              'A deliberately long demo transport provider name',
+          'routeFrom': 'Colombo',
+          'routeTo': 'Bentota',
+          'totalPrice': 22500,
+        },
+        {
+          'itemType': 'Transport',
+          'transportLegIndex': 1,
+          'transportType': 'Private Van',
+          'transportProvider':
+              'A deliberately long demo transport provider name',
+          'routeFrom': 'Bentota',
+          'routeTo': 'Arugam Bay',
+          'totalPrice': 60000,
+        },
+      ];
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+
+      for (final width in [320.0, 360.0, 390.0, 412.0, 768.0, 1024.0]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpWidget(buildTestWidget());
+        await tester.pumpAndSettle();
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'RenderFlex exception at width ${width.toInt()}px',
+        );
+      }
+    },
+  );
 }
