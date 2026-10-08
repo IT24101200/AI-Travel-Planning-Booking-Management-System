@@ -165,7 +165,14 @@ void main() {
   testWidgets('Home avatar navigates to the registered profile route', (
     tester,
   ) async {
-    ApiService.mockGetTours = ({String? search, String? sortBy}) async => [];
+    ApiService.mockGetTours =
+        ({
+          String? search,
+          String? sortBy,
+          String? currency,
+          int? page,
+          int? pageSize,
+        }) async => [];
     await tester.pumpWidget(
       MaterialApp(
         home: const HomeScreen(),

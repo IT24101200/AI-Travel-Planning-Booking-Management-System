@@ -145,7 +145,8 @@ class ApiService {
     required int page,
     required int pageSize,
     String? currency,
-  })? mockGetTransportPage;
+  })?
+  mockGetTransportPage;
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
   mockCreateBooking;
   static Future<Map<String, dynamic>?> Function(int id)? mockGetBooking;
@@ -472,29 +473,57 @@ class ApiService {
     return _list(await get('destination'));
   }
 
-  static Future<List<dynamic>> Function({String? search, String? sortBy})?
+  static Future<List<dynamic>> Function({
+    String? search,
+    String? sortBy,
+    String? currency,
+    int? page,
+    int? pageSize,
+  })?
   mockGetTours;
   static Future<Map<String, dynamic>?> Function(int id)? mockGetTour;
+
+  static String buildToursEndpoint({
+    String? search,
+    String? sortBy,
+    String? currency,
+    int? page,
+    int? pageSize,
+  }) {
+    final params = <String, String>{};
+    if (search != null && search.isNotEmpty) params['search'] = search;
+    if (sortBy != null && sortBy.isNotEmpty) params['sortBy'] = sortBy;
+    if (currency != null && currency.isNotEmpty) params['currency'] = currency;
+    if (page != null) params['page'] = '$page';
+    if (pageSize != null) params['pageSize'] = '$pageSize';
+
+    if (params.isEmpty) return 'tour';
+    return 'tour?${Uri(queryParameters: params).query}';
+  }
 
   static Future<List<dynamic>> getTours({
     String? search,
     String? sortBy,
     String? currency,
+    int? page,
+    int? pageSize,
   }) async {
     if (mockGetTours != null) {
-      return await mockGetTours!(search: search, sortBy: sortBy);
+      return await mockGetTours!(
+        search: search,
+        sortBy: sortBy,
+        currency: currency,
+        page: page,
+        pageSize: pageSize,
+      );
     }
-    String endpoint = 'tour';
-    List<String> params = [];
-    if (search != null && search.isNotEmpty) {
-      params.add('search=${Uri.encodeQueryComponent(search)}');
-    }
-    if (sortBy != null) {
-      params.add('sortBy=${Uri.encodeQueryComponent(sortBy)}');
-    }
-    if (currency != null)
-      params.add('currency=${Uri.encodeQueryComponent(currency)}');
-    if (params.isNotEmpty) endpoint += '?${params.join('&')}';
+    final endpoint = buildToursEndpoint(
+      search: search,
+      sortBy: sortBy,
+      currency: currency,
+      page: page,
+      pageSize: pageSize,
+    );
 
     final response = await get(endpoint);
     if (response.statusCode == 200) {

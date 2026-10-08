@@ -16,9 +16,17 @@ class TourSearchBrowseScreen extends StatefulWidget {
 }
 
 class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
+  static const int _pageSize = 20;
+
   List<dynamic> _tours = [];
   bool _loading = true;
   String? _error;
+  int _currentPage = 1;
+  bool _hasMore = true;
+  bool _isLoadingMore = false;
+  String? _loadMoreError;
+  String? _activeSearch;
+  int _requestGeneration = 0;
   final _searchCtrl = TextEditingController();
   Timer? _searchDebounce;
   bool _initialSearchLoaded = false;
@@ -42,6 +50,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   @override
   void initState() {
     super.initState();
+    currencyNotifier.addListener(_handleCurrencyChanged);
     _loadFavorites();
   }
 
@@ -60,31 +69,107 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     _initialSearchLoaded = true;
     final query = ModalRoute.of(context)?.settings.arguments as String?;
     _searchCtrl.text = query ?? '';
-    _loadTours(search: query);
+    _reloadTours(search: query);
   }
 
-  /// Fetch tours from the backend API
-  Future<void> _loadTours({String? search}) async {
+  String? get _apiSortBy => _selectedSort.startsWith('Price:') ? 'price' : null;
+
+  Future<void> _reloadTours({String? search}) async {
+    final normalizedSearch = search?.trim();
+    _activeSearch = normalizedSearch == null || normalizedSearch.isEmpty
+        ? null
+        : normalizedSearch;
+    final generation = ++_requestGeneration;
+
     setState(() {
       _loading = true;
       _error = null;
+      _loadMoreError = null;
+      _isLoadingMore = false;
+      _currentPage = 1;
+      _hasMore = true;
+      _tours = [];
     });
     try {
-      final results = await ApiService.getTours(search: search, currency: currencyNotifier.value);
-      if (mounted) {
+      final results = await ApiService.getTours(
+        search: _activeSearch,
+        sortBy: _apiSortBy,
+        currency: currencyNotifier.value,
+        page: 1,
+        pageSize: _pageSize,
+      );
+      if (mounted && generation == _requestGeneration) {
         setState(() {
-          _tours = results;
+          _tours = _mergeUniqueTours(const [], results);
+          _hasMore = results.length >= _pageSize;
           _loading = false;
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && generation == _requestGeneration) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
       }
     }
+  }
+
+  Future<void> _loadNextPage() async {
+    if (_loading || _isLoadingMore || !_hasMore) return;
+
+    final generation = _requestGeneration;
+    final nextPage = _currentPage + 1;
+    setState(() {
+      _isLoadingMore = true;
+      _loadMoreError = null;
+    });
+
+    try {
+      final results = await ApiService.getTours(
+        search: _activeSearch,
+        sortBy: _apiSortBy,
+        currency: currencyNotifier.value,
+        page: nextPage,
+        pageSize: _pageSize,
+      );
+      if (!mounted || generation != _requestGeneration) return;
+      setState(() {
+        _tours = _mergeUniqueTours(_tours, results);
+        _currentPage = nextPage;
+        _hasMore = results.length >= _pageSize;
+        _isLoadingMore = false;
+      });
+    } catch (e) {
+      if (!mounted || generation != _requestGeneration) return;
+      setState(() {
+        _loadMoreError = e.toString();
+        _isLoadingMore = false;
+      });
+    }
+  }
+
+  List<dynamic> _mergeUniqueTours(
+    List<dynamic> existing,
+    List<dynamic> incoming,
+  ) {
+    final merged = List<dynamic>.from(existing);
+    final seenIds = existing.map(_tourId).whereType<String>().toSet();
+    for (final tour in incoming) {
+      final id = _tourId(tour);
+      if (id == null || seenIds.add(id)) merged.add(tour);
+    }
+    return merged;
+  }
+
+  String? _tourId(dynamic tour) {
+    if (tour is! Map || tour['id'] == null) return null;
+    return tour['id'].toString();
+  }
+
+  void _handleCurrencyChanged() {
+    if (!_initialSearchLoaded) return;
+    _reloadTours(search: _activeSearch);
   }
 
   /// Helper to calculate or read tour rating
@@ -123,15 +208,22 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     if (_selectedSort == 'Top Rated') {
       list.sort((a, b) => _getTourRating(b).compareTo(_getTourRating(a)));
     } else if (_selectedSort == 'Price: Low to High') {
-      list.sort((a, b) => ((a['price'] ?? 0) as num).compareTo((b['price'] ?? 0) as num));
+      list.sort(
+        (a, b) =>
+            ((a['price'] ?? 0) as num).compareTo((b['price'] ?? 0) as num),
+      );
     } else if (_selectedSort == 'Price: High to Low') {
-      list.sort((a, b) => ((b['price'] ?? 0) as num).compareTo((a['price'] ?? 0) as num));
+      list.sort(
+        (a, b) =>
+            ((b['price'] ?? 0) as num).compareTo((a['price'] ?? 0) as num),
+      );
     }
     return list;
   }
 
   @override
   void dispose() {
+    currencyNotifier.removeListener(_handleCurrencyChanged);
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
@@ -141,7 +233,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     setState(() {});
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 400), () {
-      _loadTours(search: value.trim());
+      _reloadTours(search: value.trim());
     });
   }
 
@@ -175,9 +267,17 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       decoration: BoxDecoration(
                         color: theme.colorScheme.surface,
                         shape: BoxShape.circle,
-                        border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF2E3D36)
+                              : const Color(0xFFEDECE4),
+                        ),
                       ),
-                      child: Icon(Icons.arrow_back, color: theme.colorScheme.onSurface, size: 20),
+                      child: Icon(
+                        Icons.arrow_back,
+                        color: theme.colorScheme.onSurface,
+                        size: 20,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -197,7 +297,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           'Handpicked island experiences',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
-                            color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                            color: isDark
+                                ? const Color(0xFF9EABA4)
+                                : const Color(0xFF6B7280),
                           ),
                         ),
                       ],
@@ -217,18 +319,26 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: _showOnlyFavorites
-                                ? (isDark ? const Color(0xFF332025) : const Color(0xFFFFECEF))
+                                ? (isDark
+                                      ? const Color(0xFF332025)
+                                      : const Color(0xFFFFECEF))
                                 : theme.colorScheme.surface,
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: _showOnlyFavorites
                                   ? const Color(0xFFE11D48)
-                                  : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4)),
+                                  : (isDark
+                                        ? const Color(0xFF2E3D36)
+                                        : const Color(0xFFEDECE4)),
                             ),
                           ),
                           child: Icon(
-                            _showOnlyFavorites ? Icons.favorite : Icons.favorite_border,
-                            color: _showOnlyFavorites ? const Color(0xFFE11D48) : theme.colorScheme.onSurface,
+                            _showOnlyFavorites
+                                ? Icons.favorite
+                                : Icons.favorite_border,
+                            color: _showOnlyFavorites
+                                ? const Color(0xFFE11D48)
+                                : theme.colorScheme.onSurface,
                             size: 20,
                           ),
                         ),
@@ -273,19 +383,33 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
+                  border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF2E3D36)
+                        : const Color(0xFFE5E7EB),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.search, color: Color(0xFF6B7280), size: 20),
+                    const Icon(
+                      Icons.search,
+                      color: Color(0xFF6B7280),
+                      size: 20,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextField(
                         controller: _searchCtrl,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: theme.colorScheme.onSurface),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: theme.colorScheme.onSurface,
+                        ),
                         decoration: const InputDecoration(
                           hintText: 'Search Sigiriya, safari, surf...',
-                          hintStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+                          hintStyle: TextStyle(
+                            color: Color(0xFF9CA3AF),
+                            fontSize: 13,
+                          ),
                           border: InputBorder.none,
                           isDense: true,
                           contentPadding: EdgeInsets.zero,
@@ -293,7 +417,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                         onChanged: _scheduleSearch,
                         onSubmitted: (value) {
                           _searchDebounce?.cancel();
-                          _loadTours(search: value.trim());
+                          _reloadTours(search: value.trim());
                         },
                       ),
                     ),
@@ -303,14 +427,22 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           _searchDebounce?.cancel();
                           _searchCtrl.clear();
                           setState(() {});
-                          _loadTours();
+                          _reloadTours(search: '');
                         },
-                        child: const Icon(Icons.close, size: 18, color: Color(0xFF9CA3AF)),
+                        child: const Icon(
+                          Icons.close,
+                          size: 18,
+                          color: Color(0xFF9CA3AF),
+                        ),
                       ),
                     const SizedBox(width: 6),
                     GestureDetector(
                       onTap: _showSortBottomSheet,
-                      child: const Icon(Icons.tune, color: Color(0xFF6B7280), size: 18),
+                      child: const Icon(
+                        Icons.tune,
+                        color: Color(0xFF6B7280),
+                        size: 18,
+                      ),
                     ),
                   ],
                 ),
@@ -331,12 +463,21 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                         setState(() => _selectedCategory = cat);
                       },
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
-                          color: isSelected ? theme.colorScheme.primary : theme.colorScheme.surface,
+                          color: isSelected
+                              ? theme.colorScheme.primary
+                              : theme.colorScheme.surface,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isSelected ? theme.colorScheme.primary : (isDark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
+                            color: isSelected
+                                ? theme.colorScheme.primary
+                                : (isDark
+                                      ? const Color(0xFF2E3D36)
+                                      : const Color(0xFFE5E7EB)),
                           ),
                         ),
                         child: Text(
@@ -344,7 +485,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: isSelected ? Colors.white : theme.colorScheme.onSurface,
+                            color: isSelected
+                                ? Colors.white
+                                : theme.colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -359,15 +502,24 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF332025) : const Color(0xFFFFECEF),
+                    color: isDark
+                        ? const Color(0xFF332025)
+                        : const Color(0xFFFFECEF),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFFDA4AF)),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.favorite, size: 16, color: Color(0xFFE11D48)),
+                      const Icon(
+                        Icons.favorite,
+                        size: 16,
+                        color: Color(0xFFE11D48),
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -434,39 +586,111 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             // ── Tour Cards List ──
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : _error != null
-                      ? ErrorMessage(message: _error!, onRetry: () => _loadTours())
-                      : displayList.isEmpty
-                          ? EmptyState(
-                              icon: _showOnlyFavorites ? Icons.favorite_border : Icons.tour_outlined,
-                              message: _showOnlyFavorites
-                                  ? 'No favorite tours saved yet. Tap the heart icon on any tour to save it here.'
-                                  : 'No experiences found for this filter.',
-                              actionLabel: _showOnlyFavorites ? 'Explore All Tours' : 'Reset Filters',
-                              onAction: () {
-                                _searchCtrl.clear();
-                                setState(() {
-                                  _showOnlyFavorites = false;
-                                  _selectedCategory = 'All';
-                                  _selectedSort = 'Top Rated';
-                                });
-                                _loadTours();
-                              },
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                              itemCount: displayList.length,
-                              itemBuilder: (context, index) {
-                                final tour = displayList[index];
-                                return _buildFigmaTourCard(tour);
-                              },
-                            ),
+                  ? ErrorMessage(
+                      message: _error!,
+                      onRetry: () => _reloadTours(search: _activeSearch),
+                    )
+                  : Column(
+                      children: [
+                        Expanded(
+                          child: displayList.isEmpty
+                              ? EmptyState(
+                                  icon: _showOnlyFavorites
+                                      ? Icons.favorite_border
+                                      : Icons.tour_outlined,
+                                  message: _showOnlyFavorites
+                                      ? 'No favorite tours saved yet. Tap the heart icon on any tour to save it here.'
+                                      : 'No experiences found for this filter.',
+                                  actionLabel: _showOnlyFavorites
+                                      ? 'Explore All Tours'
+                                      : 'Reset Filters',
+                                  onAction: () {
+                                    _searchCtrl.clear();
+                                    setState(() {
+                                      _showOnlyFavorites = false;
+                                      _selectedCategory = 'All';
+                                      _selectedSort = 'Top Rated';
+                                    });
+                                    _reloadTours(search: '');
+                                  },
+                                )
+                              : ListView.builder(
+                                  key: const Key('tour_catalogue_list'),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    4,
+                                    16,
+                                    24,
+                                  ),
+                                  itemCount: displayList.length,
+                                  itemBuilder: (context, index) {
+                                    final tour = displayList[index];
+                                    return _buildFigmaTourCard(tour);
+                                  },
+                                ),
+                        ),
+                        _buildPaginationFooter(),
+                      ],
+                    ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildPaginationFooter() {
+    if (_isLoadingMore) {
+      return const Padding(
+        key: Key('tour_load_more_progress'),
+        padding: EdgeInsets.all(12),
+        child: SizedBox.square(
+          dimension: 22,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    if (_loadMoreError != null) {
+      return Padding(
+        key: const Key('tour_load_more_error'),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Flexible(child: Text('Could not load more tours.')),
+            const SizedBox(width: 8),
+            TextButton(
+              key: const Key('tour_load_more_retry'),
+              onPressed: _loadNextPage,
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (!_hasMore) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: FilledButton.tonal(
+        key: const Key('tour_load_more_button'),
+        onPressed: _loadNextPage,
+        child: const Text('Load more tours'),
+      ),
+    );
+  }
+
+  void _selectSort(BuildContext sheetContext, String sort) {
+    Navigator.pop(sheetContext);
+    if (_selectedSort == sort) return;
+    setState(() => _selectedSort = sort);
+    _reloadTours(search: _activeSearch);
   }
 
   void _showSortBottomSheet() {
@@ -485,7 +709,10 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 8,
+                  ),
                   child: Text(
                     'Sort Expeditions By',
                     style: GoogleFonts.plusJakartaSans(
@@ -498,29 +725,32 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                 ListTile(
                   leading: const Icon(Icons.star, color: AppColors.figmaGold),
                   title: const Text('Top Rated (4.8+ First)'),
-                  trailing: _selectedSort == 'Top Rated' ? const Icon(Icons.check, color: AppColors.figmaDarkGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedSort = 'Top Rated');
-                    Navigator.pop(ctx);
-                  },
+                  trailing: _selectedSort == 'Top Rated'
+                      ? const Icon(Icons.check, color: AppColors.figmaDarkGreen)
+                      : null,
+                  onTap: () => _selectSort(ctx, 'Top Rated'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.arrow_upward, color: AppColors.figmaDarkGreen),
+                  leading: const Icon(
+                    Icons.arrow_upward,
+                    color: AppColors.figmaDarkGreen,
+                  ),
                   title: const Text('Price: Low to High'),
-                  trailing: _selectedSort == 'Price: Low to High' ? const Icon(Icons.check, color: AppColors.figmaDarkGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedSort = 'Price: Low to High');
-                    Navigator.pop(ctx);
-                  },
+                  trailing: _selectedSort == 'Price: Low to High'
+                      ? const Icon(Icons.check, color: AppColors.figmaDarkGreen)
+                      : null,
+                  onTap: () => _selectSort(ctx, 'Price: Low to High'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.arrow_downward, color: Color(0xFFE4694A)),
+                  leading: const Icon(
+                    Icons.arrow_downward,
+                    color: Color(0xFFE4694A),
+                  ),
                   title: const Text('Price: High to Low'),
-                  trailing: _selectedSort == 'Price: High to Low' ? const Icon(Icons.check, color: AppColors.figmaDarkGreen) : null,
-                  onTap: () {
-                    setState(() => _selectedSort = 'Price: High to Low');
-                    Navigator.pop(ctx);
-                  },
+                  trailing: _selectedSort == 'Price: High to Low'
+                      ? const Icon(Icons.check, color: AppColors.figmaDarkGreen)
+                      : null,
+                  onTap: () => _selectSort(ctx, 'Price: High to Low'),
                 ),
               ],
             ),
@@ -540,7 +770,9 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
         ? tour['currency'].toString()
         : 'LKR';
     final duration = tour['durationHours']?.toString() ?? 'N/A';
-    final category = (tour['category'] ?? 'Uncategorized').toString().toUpperCase();
+    final category = (tour['category'] ?? 'Uncategorized')
+        .toString()
+        .toUpperCase();
     final destinationName = tour['destinationName'] as String?;
     final location = destinationName != null && destinationName.isNotEmpty
         ? destinationName
@@ -569,7 +801,11 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
           decoration: BoxDecoration(
             color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF2E3D36) : const Color(0xFFE5E7EB)),
+            border: Border.all(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF2E3D36)
+                  : const Color(0xFFE5E7EB),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.02),
@@ -579,194 +815,237 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
             ],
           ),
           child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Left: Photo thumbnail with quick-favorite toggle
-          Stack(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: SizedBox(
-                  width: 110,
-                  height: 125,
-                  child: uploadedImage.isNotEmpty
-                      ? AppNetworkImage(
-                          imageUrl: uploadedImage,
-                          fit: BoxFit.cover,
-                        )
-                      : Container(
-                          color: const Color(0xFFE5E7EB),
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.image_not_supported_outlined),
-                        ),
-                ),
-              ),
-              Positioned(
-                top: 6,
-                right: 6,
-                child: GestureDetector(
-                  onTap: tourId == null
-                      ? null
-                      : () async {
-                          final nowFav = await ApiService.toggleFavorite(tourId);
-                          if (!mounted) return;
-                          setState(() {
-                            if (nowFav) {
-                              _favoriteTourIds.add(tourId);
-                            } else {
-                              _favoriteTourIds.remove(tourId);
-                            }
-                          });
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                nowFav
-                                    ? 'Saved "$tourName" to favorites!'
-                                    : 'Removed "$tourName" from favorites.',
+              // Left: Photo thumbnail with quick-favorite toggle
+              Stack(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: SizedBox(
+                      width: 110,
+                      height: 125,
+                      child: uploadedImage.isNotEmpty
+                          ? AppNetworkImage(
+                              imageUrl: uploadedImage,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: const Color(0xFFE5E7EB),
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.image_not_supported_outlined,
                               ),
-                              duration: const Duration(seconds: 1),
-                              behavior: SnackBarBehavior.floating,
                             ),
-                          );
-                        },
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isFav ? Icons.favorite : Icons.favorite_border,
-                      color: isFav ? const Color(0xFFE11D48) : Colors.white,
-                      size: 16,
                     ),
                   ),
-                ),
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: GestureDetector(
+                      onTap: tourId == null
+                          ? null
+                          : () async {
+                              final nowFav = await ApiService.toggleFavorite(
+                                tourId,
+                              );
+                              if (!mounted) return;
+                              setState(() {
+                                if (nowFav) {
+                                  _favoriteTourIds.add(tourId);
+                                } else {
+                                  _favoriteTourIds.remove(tourId);
+                                }
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    nowFav
+                                        ? 'Saved "$tourName" to favorites!'
+                                        : 'Removed "$tourName" from favorites.',
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isFav ? Icons.favorite : Icons.favorite_border,
+                          color: isFav ? const Color(0xFFE11D48) : Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(width: 14),
+              const SizedBox(width: 14),
 
-          // Right: Content details
-          Expanded(
-            child: SizedBox(
-              height: 125,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
+              // Right: Content details
+              Expanded(
+                child: SizedBox(
+                  height: 125,
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            category,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.figmaGold,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
                           Row(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Icon(Icons.star, size: 12, color: AppColors.figmaGold),
+                              Text(
+                                category,
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.figmaGold,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star,
+                                    size: 12,
+                                    color: AppColors.figmaGold,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    rating.toStringAsFixed(1),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color:
+                                          Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFFE5E7EB)
+                                          : const Color(0xFF374151),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+
+                          // Title
+                          Text(
+                            tourName,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+
+                          // Location & Duration
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.place_outlined,
+                                size: 13,
+                                color: Color(0xFF6B7280),
+                              ),
                               const SizedBox(width: 3),
                               Text(
-                                rating.toStringAsFixed(1),
+                                location,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? const Color(0xFFE5E7EB)
-                                      : const Color(0xFF374151),
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFF9EABA4)
+                                      : const Color(0xFF6B7280),
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.schedule,
+                                size: 13,
+                                color: Color(0xFF6B7280),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$duration hours',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFF9EABA4)
+                                      : const Color(0xFF6B7280),
                                 ),
                               ),
                             ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 3),
 
-                      // Title
-                      Text(
-                        tourName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-
-                      // Location & Duration
+                      // Bottom price & arrow button
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          const Icon(Icons.place_outlined, size: 13, color: Color(0xFF6B7280)),
-                          const SizedBox(width: 3),
-                          Text(
-                            location,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'from',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  color: const Color(0xFF9CA3AF),
+                                ),
+                              ),
+                              Text(
+                                '$currency $price',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color:
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? AppColors.leaf400
+                                      : AppColors.figmaDarkGreen,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          const Icon(Icons.schedule, size: 13, color: Color(0xFF6B7280)),
-                          const SizedBox(width: 3),
-                          Text(
-                            '$duration hours',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280)),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  // Bottom price & arrow button
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'from',
-                            style: GoogleFonts.plusJakartaSans(fontSize: 10, color: const Color(0xFF9CA3AF)),
-                          ),
-                          Text(
-                            '$currency $price',
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Theme.of(context).brightness == Brightness.dark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.north_east,
+                              color: Colors.white,
+                              size: 18,
                             ),
                           ),
                         ],
                       ),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.north_east, color: Colors.white, size: 18),
-                      ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
           ),
         ),
       ),
