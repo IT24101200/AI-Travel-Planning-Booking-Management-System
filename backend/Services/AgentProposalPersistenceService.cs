@@ -335,7 +335,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             Input = persistedLog.Input,
             Output = persistedLog.Output,
             Status = persistedLog.Status,
-            Timestamp = persistedLog.Timestamp
+            Timestamp = DateTimeContract.AsStoredUtc(persistedLog.Timestamp)
         });
 
         return new AgentProposalPersistenceResult

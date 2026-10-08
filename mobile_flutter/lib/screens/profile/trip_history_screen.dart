@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/date_time_contract.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/agent_workflow_card.dart';
 import 'package:intl/intl.dart';
@@ -262,9 +263,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   }) {
     final status = _status(record['status'], booking: booking);
     final title = _parseTripTitle(record, request, booking);
-    final start = DateTime.tryParse(request?['startDate']?.toString() ?? '');
-    final end = DateTime.tryParse(request?['endDate']?.toString() ?? '');
-    final created = DateTime.tryParse(record['createdAt']?.toString() ?? '');
+    final start = parseDateOnly(request?['startDate']);
+    final end = parseDateOnly(request?['endDate']);
+    final created = parseInstant(record['createdAt']);
     final nights = start != null && end != null
         ? end.difference(start).inDays
         : null;
@@ -351,7 +352,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   }
 
   String _dateLabel(dynamic value) {
-    final date = DateTime.tryParse(value?.toString() ?? '');
+    final date = parseLocalSchedule(value);
     return date == null ? '' : DateFormat.yMMMd().format(date);
   }
 

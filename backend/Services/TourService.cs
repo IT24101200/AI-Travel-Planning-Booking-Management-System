@@ -186,8 +186,8 @@ namespace backend.Services
             Latitude         = t.Latitude,
             Longitude        = t.Longitude,
             Status           = t.Status,
-            CreatedAt        = t.CreatedAt,
-            UpdatedAt        = t.UpdatedAt
+            CreatedAt        = DateTimeContract.AsStoredUtc(t.CreatedAt),
+            UpdatedAt        = DateTimeContract.AsStoredUtc(t.UpdatedAt)
         };
     }
 

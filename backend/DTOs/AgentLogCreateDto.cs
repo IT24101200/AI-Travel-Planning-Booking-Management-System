@@ -35,6 +35,10 @@ namespace backend.DTOs
         [MaxLength(50)]
         public string Status { get; set; } = "Started";
 
-        public DateTime? Timestamp { get; set; }
+        /// <summary>
+        /// Optional instant supplied by the agent. An explicit UTC offset is
+        /// required at the API boundary; the service persists its UTC value.
+        /// </summary>
+        public DateTimeOffset? Timestamp { get; set; }
     }
 }

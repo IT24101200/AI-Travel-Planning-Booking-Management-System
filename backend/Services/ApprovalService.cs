@@ -141,7 +141,7 @@ namespace backend.Services
                 TravelAgentName = travelAgent.FullName,
                 Decision = approval.Decision,
                 Comment = approval.Comment,
-                DecidedAt = approval.DecidedAt
+                DecidedAt = DateTimeContract.AsStoredUtc(approval.DecidedAt)
             };
         }
 
@@ -161,7 +161,7 @@ namespace backend.Services
                 TravelAgentName = ba.TravelAgent?.FullName ?? "Travel Agent",
                 Decision = ba.Decision,
                 Comment = ba.Comment,
-                DecidedAt = ba.DecidedAt
+                DecidedAt = DateTimeContract.AsStoredUtc(ba.DecidedAt)
             });
         }
 
@@ -189,7 +189,7 @@ namespace backend.Services
                 TravelAgentName = ba.TravelAgent?.FullName ?? "Travel Agent",
                 Decision = ba.Decision,
                 Comment = ba.Comment,
-                DecidedAt = ba.DecidedAt
+                DecidedAt = DateTimeContract.AsStoredUtc(ba.DecidedAt)
             });
         }
     }

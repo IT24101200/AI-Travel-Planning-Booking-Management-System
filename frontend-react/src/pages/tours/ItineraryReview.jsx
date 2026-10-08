@@ -9,6 +9,7 @@ import {
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { formatPrice } from '../../lib/formatPrice.js'
+import { formatLocalInstantDate } from '../../lib/dateTime.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import {
@@ -451,7 +452,7 @@ export default function ItineraryReview() {
                         {item.customerName ?? 'Guest unavailable'} · {item.travellerCount != null ? `${item.travellerCount} travellers` : 'Traveller count unavailable'} · {item.durationDays != null ? `${item.durationDays} days` : 'Duration unavailable'}
                       </p>
                       <p style={{ margin: '0 0 6px 0', fontSize: '0.75rem', color: '#66747b' }}>
-                        Created: {formatDate(item.createdAt)}
+                        Created: {formatLocalInstantDate(item.createdAt)}
                       </p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem' }}>
                         <strong style={{ color: '#182126' }}>{item.totalCost != null ? formatPrice(item.totalCost, item.currency) : 'Not available'}</strong>
@@ -541,7 +542,7 @@ export default function ItineraryReview() {
                   <strong>{selectedItinerary.customerName ?? 'Guest unavailable'}</strong> · {selectedItinerary.travellerCount != null ? `${selectedItinerary.travellerCount} travellers` : 'Traveller count unavailable'} · {selectedItinerary.durationDays != null ? `${selectedItinerary.durationDays} days` : 'Duration unavailable'}
                 </p>
                 <p style={{ margin: '4px 0 0 0', fontSize: '0.8125rem', color: '#66747b' }}>
-                  Created: {formatDate(selectedItinerary.createdAt)}
+                  Created: {formatLocalInstantDate(selectedItinerary.createdAt)}
                 </p>
               </div>
 

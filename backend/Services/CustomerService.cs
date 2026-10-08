@@ -198,8 +198,8 @@ namespace backend.Services
                 Role = string.IsNullOrWhiteSpace(customer.Role) ? "Customer" : customer.Role,
                 Department = department,
                 TripCount = customer.TripRequests?.Count ?? 0,
-                JoinedAt = customer.JoinedAt,
-                LastActiveAt = customer.LastActiveAt,
+                JoinedAt = DateTimeContract.AsStoredUtc(customer.JoinedAt),
+                LastActiveAt = DateTimeContract.AsStoredUtc(customer.LastActiveAt),
                 HasPreference = pref != null,
                 BudgetMin = pref?.BudgetMin,
                 BudgetMax = pref?.BudgetMax,
@@ -217,7 +217,7 @@ namespace backend.Services
                     PreferredActivities = pref.PreferredActivities,
                     DietaryNotes = pref.DietaryNotes,
                     AccessibilityNotes = pref.AccessibilityNotes,
-                    UpdatedAt = pref.UpdatedAt
+                    UpdatedAt = DateTimeContract.AsStoredUtc(pref.UpdatedAt)
                 }
             };
         }

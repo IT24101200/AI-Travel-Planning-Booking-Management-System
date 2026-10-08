@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/date_time_contract.dart';
 
 class TourDetailsScreen extends StatefulWidget {
   const TourDetailsScreen({super.key});
@@ -113,8 +114,8 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
   }
 
   int _itineraryDayCount(Map<String, dynamic> itinerary) {
-    final start = DateTime.tryParse(itinerary['startDate']?.toString() ?? '');
-    final end = DateTime.tryParse(itinerary['endDate']?.toString() ?? '');
+    final start = parseDateOnly(itinerary['startDate']);
+    final end = parseDateOnly(itinerary['endDate']);
     if (start == null || end == null || end.isBefore(start)) return 1;
     return end.difference(start).inDays + 1;
   }

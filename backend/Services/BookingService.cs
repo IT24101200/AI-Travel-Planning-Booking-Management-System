@@ -500,6 +500,8 @@ namespace backend.Services
                     Input = al.Input,
                     Output = al.Output,
                     Status = al.Status,
+                    // Historical AgentLogs have mixed timestamp provenance;
+                    // preserve the raw value until a safe data migration exists.
                     Timestamp = al.Timestamp
                 }).ToList();
             }
@@ -530,7 +532,7 @@ namespace backend.Services
                     TotalEstimatedCost = b.Itinerary.TotalEstimatedCost,
                     Currency = b.Itinerary.Currency,
                     ExchangeRateToLkr = b.Itinerary.ExchangeRateToLkr,
-                    CreatedAt = b.Itinerary.CreatedAt,
+                    CreatedAt = DateTimeContract.AsStoredUtc(b.Itinerary.CreatedAt),
                     Items = b.Itinerary.ItineraryItems.OrderBy(i => i.DayNumber).ThenBy(i => i.SequenceOrder)
                         .Select(i => new ItineraryItemDto
                         {
@@ -544,8 +546,8 @@ namespace backend.Services
                 TotalCost = b.TotalCost,
                 Currency = b.Currency,
                 ExchangeRateToLkr = b.ExchangeRateToLkr,
-                CreatedAt = b.CreatedAt,
-                UpdatedAt = b.UpdatedAt,
+                CreatedAt = DateTimeContract.AsStoredUtc(b.CreatedAt),
+                UpdatedAt = DateTimeContract.AsStoredUtc(b.UpdatedAt),
                 BookingItems = b.BookingItems.Select(bi => new BookingItemDto
                 {
                     Id = bi.Id,
@@ -584,7 +586,7 @@ namespace backend.Services
                     TravelAgentName = ba.TravelAgent?.FullName ?? string.Empty,
                     Decision = ba.Decision,
                     Comment = ba.Comment,
-                    DecidedAt = ba.DecidedAt
+                    DecidedAt = DateTimeContract.AsStoredUtc(ba.DecidedAt)
                 }).ToList(),
                 Payments = b.Payments.Select(p => new PaymentDto
                 {
@@ -598,7 +600,7 @@ namespace backend.Services
                     StripeReference = p.StripeReference,
                     FailureReason = p.FailureReason,
                     ExchangeRateToLkr = p.ExchangeRateToLkr,
-                    PaymentDate = p.PaymentDate
+                    PaymentDate = DateTimeContract.AsStoredUtc(p.PaymentDate)
                 }).ToList(),
                 AgentLogs = agentLogs
             };

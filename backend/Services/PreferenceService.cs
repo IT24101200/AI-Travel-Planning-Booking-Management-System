@@ -112,7 +112,7 @@ namespace backend.Services
                 PreferredActivities = pref.PreferredActivities,
                 DietaryNotes = pref.DietaryNotes,
                 AccessibilityNotes = pref.AccessibilityNotes,
-                UpdatedAt = pref.UpdatedAt
+                    UpdatedAt = DateTimeContract.AsStoredUtc(pref.UpdatedAt)
             };
         }
     }

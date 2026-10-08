@@ -65,32 +65,29 @@ namespace backend.Services
                 }
             }
 
-            // Ensure dates are parsed as UTC for PostgreSQL timestamptz compatibility
-            var startUtc = dto.StartDate.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(dto.StartDate, DateTimeKind.Utc)
-                : dto.StartDate.ToUniversalTime();
-
-            var endUtc = dto.EndDate.Kind == DateTimeKind.Unspecified
-                ? DateTime.SpecifyKind(dto.EndDate, DateTimeKind.Utc)
-                : dto.EndDate.ToUniversalTime();
+            // Trip dates are calendar values, not instants. Preserve their
+            // submitted calendar components and store midnight without a zone.
+            var startDate = DateOnly.FromDateTime(dto.StartDate);
+            var endDate = DateOnly.FromDateTime(dto.EndDate);
+            var businessToday = BusinessClock.Today;
 
             // Date checks run unconditionally for every trip request,
             // regardless of whether the customer has a Preference row.
 
-            // Reject if StartDate is in the past (UTC date-only comparison).
-            if (startUtc.Date < DateTime.UtcNow.Date)
+            // Reject if StartDate is in the past in the Sri Lankan business calendar.
+            if (startDate < businessToday)
             {
                 throw new ArgumentException(
-                    $"Start date ({startUtc:yyyy-MM-dd}) cannot be in the past. " +
-                    $"Today's date (UTC) is {DateTime.UtcNow:yyyy-MM-dd}.");
+                    $"Start date ({startDate:yyyy-MM-dd}) cannot be in the past. " +
+                    $"Today's date ({BusinessClock.IanaTimeZoneId}) is {businessToday:yyyy-MM-dd}.");
             }
 
             // Reject if StartDate is not strictly before EndDate.
-            if (startUtc.Date >= endUtc.Date)
+            if (startDate >= endDate)
             {
                 throw new ArgumentException(
-                    $"Start date ({startUtc:yyyy-MM-dd}) must be strictly before " +
-                    $"end date ({endUtc:yyyy-MM-dd}).");
+                    $"Start date ({startDate:yyyy-MM-dd}) must be strictly before " +
+                    $"end date ({endDate:yyyy-MM-dd}).");
             }
 
             var destinationIds = NormalizeDestinationIds(dto);
@@ -128,8 +125,8 @@ namespace backend.Services
                     ? null
                     : JsonSerializer.Serialize(selections),
                 RawRequestText = dto.RawRequestText,
-                StartDate = startUtc,
-                EndDate = endUtc,
+                StartDate = startDate.ToDateTime(TimeOnly.MinValue),
+                EndDate = endDate.ToDateTime(TimeOnly.MinValue),
                 TravellerCount = dto.TravellerCount,
                 BudgetCeiling = dto.BudgetCeiling,
                 Currency = dto.Currency,
@@ -217,8 +214,8 @@ namespace backend.Services
                     });
                 }
 
-                var cancellationCutoff = DateTime.UtcNow.Date.AddDays(3);
-                if (trip.StartDate.Date < cancellationCutoff)
+                var cancellationCutoff = BusinessClock.Today.AddDays(3);
+                if (DateOnly.FromDateTime(trip.StartDate) < cancellationCutoff)
                 {
                     throw new InvalidOperationException(
                         "Trips can only be cancelled at least 3 days before the start date.");
@@ -312,7 +309,7 @@ namespace backend.Services
                 }
             }
 
-            return await _db.AgentLogs
+            var logs = await _db.AgentLogs
                 .Where(a => a.TripRequestId == tripRequestId)
                 .OrderBy(a => a.Timestamp)
                 .Select(a => new AgentLogDto
@@ -327,6 +324,10 @@ namespace backend.Services
                     Timestamp = a.Timestamp
                 })
                 .ToListAsync();
+
+            // Existing AgentLogs contain mixed historical wall-clock values;
+            // do not relabel them as UTC until their provenance is proven.
+            return logs;
         }
 
         public async Task<List<TripRequestDto>> SearchAsync(string? customerId, int? destinationId, string? status, string? sortBy, bool descending, int page, int pageSize)
@@ -369,7 +370,7 @@ namespace backend.Services
                 Input = dto.Input,
                 Output = dto.Output,
                 Status = string.IsNullOrWhiteSpace(dto.Status) ? "Success" : dto.Status,
-                Timestamp = dto.Timestamp ?? DateTime.UtcNow
+                Timestamp = dto.Timestamp?.UtcDateTime ?? DateTime.UtcNow
             };
 
             _db.AgentLogs.Add(log);
@@ -383,7 +384,7 @@ namespace backend.Services
                 Input = log.Input,
                 Output = log.Output,
                 Status = log.Status,
-                Timestamp = log.Timestamp
+                Timestamp = DateTimeContract.AsStoredUtc(log.Timestamp)
             };
             _logStream?.PublishAgentLog(result);
             return result;
@@ -499,7 +500,7 @@ namespace backend.Services
                 RetryCount = t.RetryCount,
                 PlanJson = t.PlanJson,
                 FailureReason = t.FailureReason,
-                CreatedAt = t.CreatedAt
+                CreatedAt = DateTimeContract.AsStoredUtc(t.CreatedAt)
             };
         }
 

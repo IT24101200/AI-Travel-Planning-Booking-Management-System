@@ -13,6 +13,7 @@ import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import { useAuth } from '../../lib/auth.jsx'
+import { formatLocalInstantDate } from '../../lib/dateTime.js'
 import {
   SearchIcon,
   UserPlusIcon,
@@ -25,16 +26,6 @@ import {
  * Serendib Trails — Customer & Staff Directory
  * Designed based on Figma Dev Mode Specifications (node-id: 2:27047)
  */
-function formatLocalDate(isoString) {
-  if (!isoString) return ''
-  const d = new Date(isoString)
-  if (isNaN(d.getTime())) return String(isoString).split('T')[0]
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
 export default function CustomerDirectory() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
@@ -131,9 +122,9 @@ export default function CustomerDirectory() {
             department: c.department || (isStaff ? 'Operations' : null),
             phone: c.phone || '+94 77 428 1120',
             location: c.city ? `${c.city}, ${c.country || 'Sri Lanka'}` : 'Colombo, Sri Lanka',
-            joinedAt: c.joinedAt ? formatLocalDate(c.joinedAt) : (c.createdAt ? formatLocalDate(c.createdAt) : 'Today'),
+            joinedAt: c.joinedAt ? formatLocalInstantDate(c.joinedAt) : (c.createdAt ? formatLocalInstantDate(c.createdAt) : 'Today'),
             trips: c.tripCount ?? c.trips ?? 0,
-            lastActive: c.lastActiveAt ? formatLocalDate(c.lastActiveAt) : 'Today',
+            lastActive: c.lastActiveAt ? formatLocalInstantDate(c.lastActiveAt) : 'Today',
             hasPreference: c.hasPreference || !!(c.budgetMin || c.preferredActivities || c.preference),
             // Dynamic travel profile from database preference records
             travelProfile: {

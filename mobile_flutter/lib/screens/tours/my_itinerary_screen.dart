@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../services/api_service.dart';
+import '../../services/date_time_contract.dart';
 import '../../widgets/itinerary_route_preview.dart';
 import '../../widgets/itinerary_journey_layout.dart';
 import '../../services/trip_selection_service.dart';
@@ -195,7 +196,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         _agentStatus = agentStatus;
         _agentFailureReason = agentFailureReason;
         _resolvedTripRequestId = resolvedTripRequestId;
-        _tripStartDate = DateTime.tryParse(
+        _tripStartDate = parseDateOnly(
           selected?['startDate']?.toString() ??
               tripRequest?['startDate']?.toString() ??
               '',
@@ -271,8 +272,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       if (id == null || ids.add(id)) merged.add(item);
     }
     merged.sort((a, b) {
-      final at = a is Map ? DateTime.tryParse('${a['timestamp'] ?? ''}') : null;
-      final bt = b is Map ? DateTime.tryParse('${b['timestamp'] ?? ''}') : null;
+      final at = a is Map ? parseInstant(a['timestamp']) : null;
+      final bt = b is Map ? parseInstant(b['timestamp']) : null;
       return (at ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
         bt ?? DateTime.fromMillisecondsSinceEpoch(0),
       );
@@ -437,7 +438,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       if (mounted) {
         setState(() {
           _itinerary = selected;
-          _tripStartDate = DateTime.tryParse(
+          _tripStartDate = parseDateOnly(
             selected?['startDate']?.toString() ?? '',
           );
         });
@@ -987,8 +988,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     final startStr = _itinerary!['startDate']?.toString();
     final endStr = _itinerary!['endDate']?.toString();
     if (startStr != null && endStr != null) {
-      final s = DateTime.tryParse(startStr);
-      final e = DateTime.tryParse(endStr);
+      final s = parseDateOnly(startStr);
+      final e = parseDateOnly(endStr);
       if (s != null && e != null) {
         final startFmt = DateFormat('dd MMM').format(s);
         final endFmt = DateFormat('dd MMM').format(e);
@@ -1340,8 +1341,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     // Parse dates and duration
     final startStr = itinerary['startDate']?.toString();
     final endStr = itinerary['endDate']?.toString();
-    DateTime? startDate = startStr != null ? DateTime.tryParse(startStr) : null;
-    DateTime? endDate = endStr != null ? DateTime.tryParse(endStr) : null;
+    DateTime? startDate = startStr != null ? parseDateOnly(startStr) : null;
+    DateTime? endDate = endStr != null ? parseDateOnly(endStr) : null;
 
     int durationDays = 1;
     if (startDate != null && endDate != null) {

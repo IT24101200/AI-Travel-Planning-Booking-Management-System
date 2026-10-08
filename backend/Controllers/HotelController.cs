@@ -301,10 +301,10 @@ namespace backend.Controllers
             [FromQuery] DateTime checkOut)
         {
             // Basic validation
-            if (checkIn >= checkOut)
+            if (DateOnly.FromDateTime(checkIn) >= DateOnly.FromDateTime(checkOut))
                 return BadRequest(new { message = "Check-in date must be before check-out date." });
 
-            if (checkIn < DateTime.UtcNow.Date)
+            if (DateOnly.FromDateTime(checkIn) < BusinessClock.Today)
                 return BadRequest(new { message = "Check-in date cannot be in the past." });
 
             // Verify the room belongs to this hotel

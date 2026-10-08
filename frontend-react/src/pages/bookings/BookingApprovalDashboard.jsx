@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { decideApproval, fetchAgentLogs, fetchBookings } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { formatPrice } from '../../lib/formatPrice.js'
+import { formatDateOnly, formatLocalInstantDate, formatLocalInstantDateTime } from '../../lib/dateTime.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import {
@@ -58,7 +59,7 @@ export default function BookingApprovalDashboard() {
             currency: b.currency || null,
             travellerCount: b.travellerCount ?? null,
             createdAt: b.createdAt || null,
-            requested: b.createdAt ? new Date(b.createdAt).toLocaleDateString() : 'Date unavailable',
+            requested: b.createdAt ? formatLocalInstantDate(b.createdAt) : 'Date unavailable',
             status: statusStr,
             agentLogs: b.agentLogs || [],
             bookingItems: b.bookingItems || [],
@@ -470,7 +471,7 @@ export default function BookingApprovalDashboard() {
                       <div>🛏️ {roomItem.roomType || 'Standard Room'} {roomItem.roomCapacity ? `(Capacity: ${roomItem.roomCapacity} Guests)` : ''}</div>
                       {roomItem.checkInDate && roomItem.checkOutDate && (
                         <div style={{ color: '#6b7280', fontSize: '0.6875rem' }}>
-                          📅 {new Date(roomItem.checkInDate).toLocaleDateString()} – {new Date(roomItem.checkOutDate).toLocaleDateString()}
+                          📅 {formatDateOnly(roomItem.checkInDate)} – {formatDateOnly(roomItem.checkOutDate)}
                         </div>
                       )}
                     </div>
@@ -598,7 +599,7 @@ export default function BookingApprovalDashboard() {
                             )}
                             {log.timestamp && (
                               <p style={{ margin: '2px 0 0', fontSize: '0.625rem', color: '#8a969b' }}>
-                                {new Date(log.timestamp).toLocaleString()}
+                                {formatLocalInstantDateTime(log.timestamp)}
                               </p>
                             )}
                           </div>
