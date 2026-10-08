@@ -170,7 +170,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         var room = RequireObject(bookingDetails, "selected_room");
         var roomId = RequiredInt(room, "room_id");
         var roomEntity = await _db.Rooms.Include(r => r.Hotel).FirstOrDefaultAsync(r => r.Id == roomId, cancellationToken);
-        if (roomEntity is null || roomEntity.Hotel.Status != HotelStatus.Active)
+        if (roomEntity is null || roomEntity.Status != RoomStatus.Active || roomEntity.Hotel.Status != HotelStatus.Active)
             throw new ProposalPersistenceException("INVALID_ROOM", $"Room {roomId} is missing or inactive.");
         if (roomEntity.Capacity < trip.TravellerCount)
             throw new ProposalPersistenceException("ROOM_CAPACITY", $"Room {roomId} cannot hold all travellers.");

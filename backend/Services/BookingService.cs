@@ -50,47 +50,13 @@ namespace backend.Services
             if (dto.Items == null || !dto.Items.Any())
                 throw new ArgumentException("Booking must contain at least one item.");
 
-            // Rule 6: Validate items
-            decimal calculatedTotal = 0;
-            var bookingItems = new List<BookingItem>();
-
-            foreach (var item in dto.Items)
-            {
-                int fkCount = (item.TourId.HasValue ? 1 : 0) +
-                              (item.RoomId.HasValue ? 1 : 0) +
-                              (item.TransportOptionId.HasValue ? 1 : 0);
-
-                if (fkCount != 1)
-                {
-                    throw new ArgumentException("BookingItem must have exactly one of TourId, RoomId, or TransportOptionId set matching ItemType.");
-                }
-
-                if (item.ItemType == BookingItemType.Room && (!item.CheckInDate.HasValue || !item.CheckOutDate.HasValue))
-                {
-                    throw new ArgumentException("CheckInDate and CheckOutDate are required when ItemType is Room.");
-                }
-                if (item.ItemType == BookingItemType.Room && item.CheckOutDate <= item.CheckInDate)
-                    throw new ArgumentException("Check-out must be after check-in.");
-
-                var subtotal = item.UnitPrice * item.Quantity;
-                calculatedTotal += subtotal;
-
-                bookingItems.Add(new BookingItem
-                {
-                    ItemType = item.ItemType,
-                    TourId = item.TourId,
-                    RoomId = item.RoomId,
-                    TransportOptionId = item.TransportOptionId,
-                    CheckInDate = item.CheckInDate,
-                    CheckOutDate = item.CheckOutDate,
-                    Quantity = item.Quantity,
-                    UnitPrice = item.UnitPrice,
-                    Subtotal = subtotal,
-                    Currency = authoritativeCurrency
-                });
-            }
-
-            var totalCost = dto.TotalCost > 0 ? dto.TotalCost : calculatedTotal;
+            // Client UnitPrice and TotalCost are retained on the wire for
+            // compatibility only. Commercial values are resolved from the
+            // referenced catalogue entities by one centralized routine.
+            var pricing = await BuildAuthoritativeBookingItemsAsync(dto.Items, authoritativeCurrency);
+            var bookingItems = pricing.Items;
+            var calculatedTotal = pricing.Total;
+            var totalCost = calculatedTotal;
             var bookingRef = await GenerateUniqueBookingReferenceAsync();
 
             // Proposals check confirmed room occupancy but do not reserve stock.
@@ -136,7 +102,8 @@ namespace backend.Services
                         throw new KeyNotFoundException(
                             $"Room with ID {item.RoomId} not found.");
 
-                    if (!await _db.Hotels.AnyAsync(h => h.Id == lockedRoom.HotelId && h.Status == HotelStatus.Active))
+                    if (lockedRoom.Status != RoomStatus.Active ||
+                        !await _db.Hotels.AnyAsync(h => h.Id == lockedRoom.HotelId && h.Status == HotelStatus.Active))
                         throw new InvalidOperationException("This hotel is no longer accepting new bookings.");
 
                     // Check peak confirmed occupancy for the requested dates.
@@ -355,6 +322,110 @@ namespace backend.Services
                 .Include(b => b.BookingApprovals)
                     .ThenInclude(ba => ba.TravelAgent)
                 .Include(b => b.Payments);
+        }
+
+        private async Task<(List<BookingItem> Items, decimal Total)> BuildAuthoritativeBookingItemsAsync(
+            IEnumerable<BookingItemCreateDto> requestedItems,
+            string bookingCurrency)
+        {
+            var bookingItems = new List<BookingItem>();
+            decimal calculatedTotal = 0m;
+
+            foreach (var item in requestedItems)
+            {
+                if (item.Quantity <= 0)
+                    throw new ArgumentException("Booking item quantity must be positive.");
+
+                var foreignKeyCount = (item.TourId.HasValue ? 1 : 0) +
+                                      (item.RoomId.HasValue ? 1 : 0) +
+                                      (item.TransportOptionId.HasValue ? 1 : 0);
+                if (foreignKeyCount != 1)
+                    throw new ArgumentException("BookingItem must have exactly one of TourId, RoomId, or TransportOptionId set.");
+
+                decimal authoritativeUnitPrice;
+                decimal subtotal;
+                var bookingItem = new BookingItem
+                {
+                    ItemType = item.ItemType,
+                    TourId = item.TourId,
+                    RoomId = item.RoomId,
+                    TransportOptionId = item.TransportOptionId,
+                    CheckInDate = item.CheckInDate,
+                    CheckOutDate = item.CheckOutDate,
+                    Quantity = item.Quantity,
+                    Currency = bookingCurrency
+                };
+
+                switch (item.ItemType)
+                {
+                    case BookingItemType.Tour:
+                    {
+                        if (!item.TourId.HasValue)
+                            throw new ArgumentException("Tour booking items require a TourId.");
+
+                        var tour = await _db.Tours.AsNoTracking()
+                            .FirstOrDefaultAsync(t => t.Id == item.TourId.Value);
+                        if (tour is null || !string.Equals(tour.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                            throw new InvalidOperationException("The selected tour is no longer available.");
+
+                        authoritativeUnitPrice = _currency.Convert(
+                            tour.Price, tour.Currency, bookingCurrency);
+                        subtotal = decimal.Round(
+                            authoritativeUnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero);
+                        break;
+                    }
+                    case BookingItemType.Room:
+                    {
+                        if (!item.RoomId.HasValue || !item.CheckInDate.HasValue || !item.CheckOutDate.HasValue)
+                            throw new ArgumentException("Room booking items require RoomId, check-in, and check-out dates.");
+                        if (item.CheckOutDate <= item.CheckInDate)
+                            throw new ArgumentException("Check-out must be after check-in.");
+
+                        var room = await _db.Rooms
+                            .Include(r => r.Hotel)
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(r => r.Id == item.RoomId.Value);
+                        if (room is null || room.Status != RoomStatus.Active || room.Hotel.Status != HotelStatus.Active)
+                            throw new InvalidOperationException("The selected room is no longer available.");
+
+                        authoritativeUnitPrice = _currency.Convert(
+                            room.PricePerNight, room.Currency, bookingCurrency);
+                        var nights = Math.Max(1, (item.CheckOutDate.Value.Date - item.CheckInDate.Value.Date).Days);
+                        subtotal = decimal.Round(
+                            authoritativeUnitPrice * nights * item.Quantity,
+                            2,
+                            MidpointRounding.AwayFromZero);
+                        break;
+                    }
+                    case BookingItemType.Transport:
+                    {
+                        if (!item.TransportOptionId.HasValue)
+                            throw new ArgumentException("Transport booking items require TransportOptionId.");
+
+                        var transport = await _db.TransportOptions.AsNoTracking()
+                            .FirstOrDefaultAsync(t => t.Id == item.TransportOptionId.Value);
+                        if (transport is null || transport.Status != TransportStatus.Active)
+                            throw new InvalidOperationException("The selected transport option is no longer available.");
+
+                        authoritativeUnitPrice = _currency.Convert(
+                            transport.Price, transport.Currency, bookingCurrency);
+                        subtotal = decimal.Round(
+                            authoritativeUnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero);
+                        break;
+                    }
+                    default:
+                        throw new ArgumentException("Unsupported booking item type.");
+                }
+
+                // UnitPrice is the authoritative per-unit/per-night catalogue
+                // amount. Room subtotal additionally includes stay nights.
+                bookingItem.UnitPrice = authoritativeUnitPrice;
+                bookingItem.Subtotal = subtotal;
+                bookingItems.Add(bookingItem);
+                calculatedTotal += subtotal;
+            }
+
+            return (bookingItems, decimal.Round(calculatedTotal, 2, MidpointRounding.AwayFromZero));
         }
 
         private void ValidateStatusTransition(BookingStatus current, BookingStatus target)

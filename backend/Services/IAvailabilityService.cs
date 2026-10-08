@@ -16,7 +16,7 @@ namespace backend.Services
         /// <summary>
         /// Check how many rooms of a given type are available for specific dates.
         /// </summary>
-        Task<RoomAvailabilityDto?> CheckRoomAvailabilityAsync(int roomId, DateTime checkIn, DateTime checkOut);
+        Task<RoomAvailabilityDto?> CheckRoomAvailabilityAsync(int roomId, DateTime checkIn, DateTime checkOut, bool includeInactive = false);
 
         /// <summary>
         /// Check how many seats are available on a specific transport option.

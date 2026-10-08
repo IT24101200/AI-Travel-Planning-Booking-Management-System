@@ -365,6 +365,10 @@ namespace backend.Data
                 entity.Property(r => r.RoomType).IsRequired().HasMaxLength(50);
                 entity.Property(r => r.PricePerNight).HasColumnType("decimal(18,2)");
                 entity.Property(r => r.Currency).HasMaxLength(10).HasDefaultValue("LKR");
+                entity.Property(r => r.Status)
+                      .HasConversion<string>()
+                      .HasMaxLength(20)
+                      .HasDefaultValue(RoomStatus.Active);
             });
 
             // ── TransportOption ──

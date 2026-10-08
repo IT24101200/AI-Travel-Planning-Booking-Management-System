@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using backend.Data;
 using backend.Models;
+using backend.Models.Enums;
 using backend.Services;
 
 namespace backend.Tests
@@ -56,6 +57,37 @@ namespace backend.Tests
 
             // Assert
             Assert.Null(result);
+        }
+
+        [Fact]
+        public async Task CheckRoomAvailabilityAsync_HidesInactiveHotelAndRoomUnlessExplicitlyIncluded()
+        {
+            using var context = CreateContext();
+            context.Hotels.Add(new Hotel
+            {
+                Id = 2,
+                DestinationId = 1,
+                Name = "Inactive Hotel",
+                Status = HotelStatus.Inactive
+            });
+            context.Rooms.Add(new Room
+            {
+                Id = 2,
+                HotelId = 2,
+                RoomType = "Hidden Room",
+                Capacity = 2,
+                TotalRooms = 1,
+                PricePerNight = 100,
+                Status = RoomStatus.Active
+            });
+            await context.SaveChangesAsync();
+
+            var service = new AvailabilityService(context);
+            var checkIn = DateTime.UtcNow.AddDays(1);
+            var checkOut = DateTime.UtcNow.AddDays(2);
+
+            Assert.Null(await service.CheckRoomAvailabilityAsync(2, checkIn, checkOut));
+            Assert.NotNull(await service.CheckRoomAvailabilityAsync(2, checkIn, checkOut, includeInactive: true));
         }
 
         [Fact]

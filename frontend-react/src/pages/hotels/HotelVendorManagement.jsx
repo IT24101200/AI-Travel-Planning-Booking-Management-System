@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createHotel, fetchHotels, updateHotel, fetchDestinations } from '../../services/apiClient.js'
+import { createHotel, fetchHotels, updateHotel, updateHotelStatus, fetchDestinations } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
@@ -207,16 +207,7 @@ export default function HotelVendorManagement() {
   async function toggleStatus(hotel, requestedStatus = null) {
     const nextStatus = requestedStatus || (hotel.status === 'Active' ? 'Inactive' : 'Active')
     try {
-      await updateHotel(hotel.id, {
-        name: hotel.name,
-        destinationId: hotel.destinationId,
-        address: hotel.address,
-        contactEmail: hotel.contactEmail,
-        contactPhone: hotel.contactPhone,
-        imageUrl: hotel.imageUrl || null,
-        starRating: hotel.stars,
-        status: nextStatus
-      })
+      await updateHotelStatus(hotel.id, nextStatus)
       setRows(prev => prev.map(h => h.id === hotel.id ? { ...h, status: nextStatus } : h))
       if (selectedHotel?.id === hotel.id) {
         setSelectedHotel(prev => ({ ...prev, status: nextStatus }))

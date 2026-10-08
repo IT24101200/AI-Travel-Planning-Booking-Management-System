@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using backend.Models.Enums;
 
 namespace backend.Models
 {
@@ -48,6 +49,9 @@ namespace backend.Models
         [Required]
         [MaxLength(10)]
         public string Currency { get; set; } = "LKR";
+
+        [Required]
+        public RoomStatus Status { get; set; } = RoomStatus.Active;
 
         [MaxLength(500)]
         public string? RateSourceUrl { get; set; }

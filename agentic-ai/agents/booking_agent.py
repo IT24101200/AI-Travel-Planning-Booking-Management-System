@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from logger import log_agent_step
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
-    search_transports, check_transport_availability
+    search_transports, check_transport_availability, HotelSearchError
 )
 
 load_dotenv()
@@ -46,7 +46,14 @@ def build_booking_package(state):
         }
     
     # 1. Search only inventory belonging to the requested destination.
-    hotels = search_hotels(destination_id, currency=currency)
+    try:
+        hotels = search_hotels(destination_id, currency=currency)
+    except HotelSearchError as error:
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "HOTEL_SEARCH_INCOMPLETE",
+            "error": str(error),
+        }
     available_rooms = []
     
     for hotel in hotels:

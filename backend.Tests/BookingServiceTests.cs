@@ -79,6 +79,41 @@ namespace backend.Tests
                 Currency = "USD"
             });
 
+            context.Hotels.Add(new Hotel
+            {
+                Id = 200,
+                DestinationId = 1,
+                Name = "Audit Hotel",
+                Status = HotelStatus.Active
+            });
+
+            context.Rooms.Add(new Room
+            {
+                Id = 300,
+                HotelId = 200,
+                RoomType = "Deluxe",
+                Capacity = 4,
+                TotalRooms = 10,
+                PricePerNight = 25000,
+                Currency = "USD",
+                Status = RoomStatus.Active
+            });
+
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 400,
+                Type = TransportType.Car,
+                Provider = "Audit Transport",
+                RouteFrom = "Paris",
+                RouteTo = "Lyon",
+                DepartureTime = DateTime.UtcNow.AddDays(10),
+                ArrivalTime = DateTime.UtcNow.AddDays(10).AddHours(2),
+                Capacity = 10,
+                Price = 75,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+
             await context.SaveChangesAsync();
         }
 
@@ -115,8 +150,91 @@ namespace backend.Tests
             Assert.NotNull(result);
             Assert.Equal(BookingStatus.AwaitingApproval, result.Status);
             Assert.StartsWith("TRV-", result.BookingReference);
-            Assert.Equal(500, result.TotalCost);
+            Assert.Equal(200, result.TotalCost);
             Assert.Single(result.BookingItems);
+        }
+
+        [Fact]
+        public async Task CreateBooking_IgnoresClientPricesAndCalculatesFromActiveCatalog()
+        {
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+            var service = new BookingService(context);
+            var checkIn = new DateTime(2030, 1, 10);
+            var checkOut = new DateTime(2030, 1, 15);
+
+            var result = await service.CreateBookingAsync(new BookingCreateDto
+            {
+                CustomerId = "cust-1",
+                ItineraryId = 10,
+                Currency = "USD",
+                TotalCost = 1,
+                Items = new List<BookingItemCreateDto>
+                {
+                    new()
+                    {
+                        ItemType = BookingItemType.Tour,
+                        TourId = 100,
+                        Quantity = 2,
+                        UnitPrice = 1
+                    },
+                    new()
+                    {
+                        ItemType = BookingItemType.Room,
+                        RoomId = 300,
+                        CheckInDate = checkIn,
+                        CheckOutDate = checkOut,
+                        Quantity = 1,
+                        UnitPrice = 1
+                    },
+                    new()
+                    {
+                        ItemType = BookingItemType.Transport,
+                        TransportOptionId = 400,
+                        Quantity = 2,
+                        UnitPrice = 1
+                    }
+                }
+            });
+
+            Assert.Equal(125350m, result.TotalCost);
+            Assert.Equal(3, result.BookingItems.Count);
+            Assert.Equal(100m, result.BookingItems.Single(i => i.ItemType == BookingItemType.Tour).UnitPrice);
+            Assert.Equal(25000m, result.BookingItems.Single(i => i.ItemType == BookingItemType.Room).UnitPrice);
+            Assert.Equal(75m, result.BookingItems.Single(i => i.ItemType == BookingItemType.Transport).UnitPrice);
+            Assert.Equal(125350m, result.BookingItems.Sum(i => i.Subtotal));
+        }
+
+        [Fact]
+        public async Task CreateBooking_RejectsInactiveRoom()
+        {
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+            var room = await context.Rooms.SingleAsync(r => r.Id == 300);
+            room.Status = RoomStatus.Inactive;
+            await context.SaveChangesAsync();
+
+            var service = new BookingService(context);
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateBookingAsync(new BookingCreateDto
+            {
+                CustomerId = "cust-1",
+                ItineraryId = 10,
+                Currency = "USD",
+                Items = new List<BookingItemCreateDto>
+                {
+                    new()
+                    {
+                        ItemType = BookingItemType.Room,
+                        RoomId = 300,
+                        CheckInDate = new DateTime(2030, 1, 10),
+                        CheckOutDate = new DateTime(2030, 1, 11),
+                        Quantity = 1,
+                        UnitPrice = 1
+                    }
+                }
+            }));
+
+            Assert.Equal("The selected room is no longer available.", exception.Message);
         }
 
         [Fact]
