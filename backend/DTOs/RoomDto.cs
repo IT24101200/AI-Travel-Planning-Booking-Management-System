@@ -14,6 +14,7 @@ namespace backend.DTOs
         public string Currency { get; set; } = string.Empty;
         public string? RateSourceUrl { get; set; }
         public string? RateNotes { get; set; }
+        public string Status { get; set; } = string.Empty;
     }
 
     // ── Input DTO — HotelId comes from the URL, not the body ──
@@ -52,5 +53,11 @@ namespace backend.DTOs
         public int AvailableRooms { get; set; }
         public decimal PricePerNight { get; set; }
         public string Currency { get; set; } = string.Empty;
+    }
+
+    public class RoomStatusUpdateDto
+    {
+        [Required(ErrorMessage = "Room status is required.")]
+        public string Status { get; set; } = string.Empty;
     }
 }

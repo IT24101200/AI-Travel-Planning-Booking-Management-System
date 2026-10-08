@@ -28,6 +28,9 @@ namespace backend.Controllers
             _availabilityService = availabilityService;
         }
 
+        private bool CanManageInactive =>
+            User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+
         // ══════════════════════════════════════════════════════════════════
         //  HOTEL ENDPOINTS
         // ══════════════════════════════════════════════════════════════════
@@ -54,10 +57,21 @@ namespace backend.Controllers
             if (pageSize < 1) pageSize = 10;
             if (pageSize > 50) pageSize = 50;
 
+            // Public/customer catalog reads never accept an inactive/all status
+            // scope. Staff can use status=All or status=Inactive for management.
+            var effectiveStatus = status;
+            if (!CanManageInactive &&
+                (string.IsNullOrWhiteSpace(status) ||
+                 !status.Equals("Active", StringComparison.OrdinalIgnoreCase)))
+            {
+                effectiveStatus = "Active";
+            }
+
             var hotels = await _hotelService.GetAllAsync(
-                search, destinationId, minStarRating, status, sortBy, descending, page, pageSize, currency);
+                search, destinationId, minStarRating, effectiveStatus, sortBy, descending, page, pageSize, currency,
+                includeInactive: CanManageInactive);
             var totalCount = await _hotelService.GetTotalCountAsync(
-                search, destinationId, minStarRating, status);
+                search, destinationId, minStarRating, effectiveStatus);
 
             return Ok(new
             {
@@ -77,7 +91,7 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetById(int id, [FromQuery] string? currency = null)
         {
-            var hotel = await _hotelService.GetByIdAsync(id, currency);
+            var hotel = await _hotelService.GetByIdAsync(id, currency, includeInactive: CanManageInactive);
             if (hotel is null) return NotFound();
             return Ok(hotel);
         }
@@ -107,11 +121,31 @@ namespace backend.Controllers
         /// </summary>
         [HttpPut("{id}")]
         [Authorize(Roles = "TravelAgent,Admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] CreateHotelDto dto)
+        public async Task<IActionResult> Update(int id, [FromBody] HotelUpdateDto dto)
         {
             try
             {
                 var updated = await _hotelService.UpdateAsync(id, dto);
+                if (!updated) return NotFound();
+                return NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Update only the hotel lifecycle status. This prevents a status
+        /// toggle from rewriting unrelated hotel fields such as GPS data.
+        /// </summary>
+        [HttpPatch("{id}/status")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> UpdateStatus(int id, [FromBody] HotelStatusUpdateDto dto)
+        {
+            try
+            {
+                var updated = await _hotelService.UpdateStatusAsync(id, dto.Status);
                 if (!updated) return NotFound();
                 return NoContent();
             }
@@ -170,7 +204,9 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetRooms(int hotelId, [FromQuery] string? currency = null)
         {
-            var rooms = await _hotelService.GetRoomsByHotelAsync(hotelId, currency);
+            var rooms = await _hotelService.GetRoomsByHotelAsync(
+                hotelId, currency, includeInactive: CanManageInactive);
+            if (rooms is null) return NotFound();
             return Ok(rooms);
         }
 
@@ -182,7 +218,8 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetRoom(int hotelId, int roomId, [FromQuery] string? currency = null)
         {
-            var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId, currency);
+            var room = await _hotelService.GetRoomByIdAsync(
+                hotelId, roomId, currency, includeInactive: CanManageInactive);
             if (room is null) return NotFound();
             return Ok(room);
         }
@@ -226,6 +263,26 @@ namespace backend.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// Reactivate or deactivate a room without deleting its historical row.
+        /// </summary>
+        [HttpPatch("{hotelId}/rooms/{roomId}/status")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> UpdateRoomStatus(
+            int hotelId, int roomId, [FromBody] RoomStatusUpdateDto dto)
+        {
+            try
+            {
+                var updated = await _hotelService.UpdateRoomStatusAsync(hotelId, roomId, dto.Status);
+                if (!updated) return NotFound();
+                return NoContent();
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
         // ══════════════════════════════════════════════════════════════════
         //  AVAILABILITY ENDPOINT
         // ══════════════════════════════════════════════════════════════════
@@ -251,10 +308,12 @@ namespace backend.Controllers
                 return BadRequest(new { message = "Check-in date cannot be in the past." });
 
             // Verify the room belongs to this hotel
-            var room = await _hotelService.GetRoomByIdAsync(hotelId, roomId);
+            var room = await _hotelService.GetRoomByIdAsync(
+                hotelId, roomId, includeInactive: CanManageInactive);
             if (room is null) return NotFound();
 
-            var availability = await _availabilityService.CheckRoomAvailabilityAsync(roomId, checkIn, checkOut);
+            var availability = await _availabilityService.CheckRoomAvailabilityAsync(
+                roomId, checkIn, checkOut, includeInactive: CanManageInactive);
             if (availability is null) return NotFound();
 
             return Ok(availability);

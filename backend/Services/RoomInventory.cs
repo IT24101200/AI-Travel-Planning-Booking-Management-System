@@ -63,6 +63,10 @@ internal static class RoomInventory
                     .AsNoTracking().SingleOrDefaultAsync()
                 : await db.Rooms.AsNoTracking().SingleOrDefaultAsync(r => r.Id == roomId);
             if (room is null) throw new InvalidOperationException("The requested room no longer exists.");
+            if (room.Status != RoomStatus.Active)
+                throw new InvalidOperationException("The requested room is no longer active.");
+            if (!await db.Hotels.AnyAsync(h => h.Id == room.HotelId && h.Status == HotelStatus.Active))
+                throw new InvalidOperationException("The requested hotel is no longer active.");
             if (group.Any(i => !i.CheckInDate.HasValue || !i.CheckOutDate.HasValue
                 || i.CheckOutDate <= i.CheckInDate || i.Quantity <= 0))
                 throw new InvalidOperationException("Room bookings require valid check-in, check-out and quantity.");

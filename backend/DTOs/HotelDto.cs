@@ -12,7 +12,9 @@ namespace backend.DTOs
         public string? ContactEmail { get; set; }
         public string? ContactPhone { get; set; }
         public string? ImageUrl { get; set; }
+        [Range(-90, 90, ErrorMessage = "Latitude must be between -90 and 90.")]
         public double Latitude { get; set; }
+        [Range(-180, 180, ErrorMessage = "Longitude must be between -180 and 180.")]
         public double Longitude { get; set; }
         public int StarRating { get; set; }
         public string Status { get; set; } = string.Empty;
@@ -47,12 +49,57 @@ namespace backend.DTOs
         [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
         public string? ImageUrl { get; set; }
 
+        [Range(-90, 90, ErrorMessage = "Latitude must be between -90 and 90.")]
         public double Latitude { get; set; }
+        [Range(-180, 180, ErrorMessage = "Longitude must be between -180 and 180.")]
         public double Longitude { get; set; }
 
         [Range(0, 5, ErrorMessage = "Star rating must be between 0 (unclassified) and 5.")]
         public int StarRating { get; set; }
 
         public string Status { get; set; } = "Active";
+    }
+
+    // Coordinates are nullable on update so omission preserves existing GPS
+    // data instead of becoming the numeric default (0).
+    public class HotelUpdateDto
+    {
+        [Required(ErrorMessage = "Destination ID is required.")]
+        public int DestinationId { get; set; }
+
+        [Required(ErrorMessage = "Hotel name is required.")]
+        [MaxLength(200, ErrorMessage = "Hotel name cannot exceed 200 characters.")]
+        public string Name { get; set; } = string.Empty;
+
+        [MaxLength(500, ErrorMessage = "Address cannot exceed 500 characters.")]
+        public string? Address { get; set; }
+
+        [MaxLength(254, ErrorMessage = "Contact email cannot exceed 254 characters.")]
+        [EmailAddress(ErrorMessage = "Contact email must be a valid email address.")]
+        public string? ContactEmail { get; set; }
+
+        [MaxLength(30, ErrorMessage = "Contact phone cannot exceed 30 characters.")]
+        [RegularExpression(@"^\+?[0-9][0-9\s().-]{6,24}$", ErrorMessage = "Contact phone must be a valid phone number.")]
+        public string? ContactPhone { get; set; }
+
+        [MaxLength(500, ErrorMessage = "Image URL cannot exceed 500 characters.")]
+        public string? ImageUrl { get; set; }
+
+        [Range(-90, 90, ErrorMessage = "Latitude must be between -90 and 90.")]
+        public double? Latitude { get; set; }
+
+        [Range(-180, 180, ErrorMessage = "Longitude must be between -180 and 180.")]
+        public double? Longitude { get; set; }
+
+        [Range(0, 5, ErrorMessage = "Star rating must be between 0 (unclassified) and 5.")]
+        public int StarRating { get; set; }
+
+        public string Status { get; set; } = "Active";
+    }
+
+    public class HotelStatusUpdateDto
+    {
+        [Required(ErrorMessage = "Hotel status is required.")]
+        public string Status { get; set; } = string.Empty;
     }
 }

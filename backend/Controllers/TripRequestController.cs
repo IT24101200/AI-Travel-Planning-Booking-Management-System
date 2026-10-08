@@ -411,7 +411,6 @@ namespace backend.Controllers
                         using var doc = System.Text.Json.JsonDocument.Parse(updated.PlanJson);
                         if (doc.RootElement.TryGetProperty("booking_details", out var bd))
                         {
-                            var totalCost = bd.GetProperty("total_package_cost").GetDecimal();
                             var currency = bd.GetProperty("currency").GetString() ?? "USD";
 
                             // 1. Create Itinerary
@@ -449,8 +448,6 @@ namespace backend.Controllers
                                             var tourId = tour.GetProperty("tour_id").GetInt32();
                                             var start = TimeSpan.Parse(tour.GetProperty("start_time").GetString()!);
                                             var end = TimeSpan.Parse(tour.GetProperty("end_time").GetString()!);
-                                            var price = tour.GetProperty("price").GetDecimal();
-
                                             await itineraryService.AddItemToItineraryAsync(itineraryDto.Id, new ItineraryItemCreateDto
                                             {
                                                 DayNumber = dayNum,
@@ -464,8 +461,7 @@ namespace backend.Controllers
                                             {
                                                 ItemType = backend.Models.Enums.BookingItemType.Tour,
                                                 TourId = tourId,
-                                                Quantity = updated.TravellerCount,
-                                                UnitPrice = price
+                                                Quantity = updated.TravellerCount
                                             });
                                         }
                                     }
@@ -481,7 +477,6 @@ namespace backend.Controllers
                                     ItemType = backend.Models.Enums.BookingItemType.Room,
                                     RoomId = roomIdProp.GetInt32(),
                                     Quantity = 1,
-                                    UnitPrice = room.GetProperty("price_per_night").GetDecimal(),
                                     CheckInDate = updated.StartDate,
                                     CheckOutDate = updated.EndDate
                                 });
@@ -494,8 +489,7 @@ namespace backend.Controllers
                                 {
                                     ItemType = backend.Models.Enums.BookingItemType.Transport,
                                     TransportOptionId = transIdProp.GetInt32(),
-                                    Quantity = updated.TravellerCount,
-                                    UnitPrice = transport.GetProperty("price").GetDecimal()
+                                    Quantity = updated.TravellerCount
                                 });
                             }
 
@@ -504,7 +498,10 @@ namespace backend.Controllers
                             {
                                 CustomerId = updated.CustomerId,
                                 ItineraryId = itineraryDto.Id,
-                                TotalCost = totalCost,
+                                // BookingService derives the total from the
+                                // authoritative catalogue rows; plan totals
+                                // are display-only and never persisted.
+                                TotalCost = 0m,
                                 Currency = currency,
                                 Items = items
                             });

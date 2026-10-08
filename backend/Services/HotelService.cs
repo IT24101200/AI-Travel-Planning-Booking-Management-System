@@ -38,11 +38,12 @@ namespace backend.Services
             bool descending,
             int page,
             int pageSize,
-            string? currency = null)
+            string? currency = null,
+            bool includeInactive = false)
         {
             // Start with all hotels
             var query = _context.Hotels
-                .Include(h => h.Rooms)   // load rooms so we can include them in response
+                .Include(h => h.Rooms.Where(r => includeInactive || r.Status == RoomStatus.Active))
                 .AsQueryable();
 
             // ── Apply filters ──
@@ -127,11 +128,15 @@ namespace backend.Services
         /// <summary>
         /// Get a single hotel by ID, including its rooms.
         /// </summary>
-        public async Task<HotelDto?> GetByIdAsync(int id, string? currency = null)
+        public async Task<HotelDto?> GetByIdAsync(int id, string? currency = null, bool includeInactive = false)
         {
-            var hotel = await _context.Hotels
-                .Include(h => h.Rooms)
-                .FirstOrDefaultAsync(h => h.Id == id);
+            var query = _context.Hotels
+                .Include(h => h.Rooms.Where(r => includeInactive || r.Status == RoomStatus.Active))
+                .AsQueryable();
+            if (!includeInactive)
+                query = query.Where(h => h.Status == HotelStatus.Active);
+
+            var hotel = await query.FirstOrDefaultAsync(h => h.Id == id);
 
             var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
             return hotel is null ? null : ToDto(hotel, targetCurrency);
@@ -142,6 +147,7 @@ namespace backend.Services
         /// </summary>
         public async Task<HotelDto> CreateAsync(CreateHotelDto dto)
         {
+            ValidateCoordinates(dto.Latitude, dto.Longitude);
             var hotel = new Hotel
             {
                 DestinationId = dto.DestinationId,
@@ -165,10 +171,12 @@ namespace backend.Services
         /// <summary>
         /// Update an existing hotel's details.
         /// </summary>
-        public async Task<bool> UpdateAsync(int id, CreateHotelDto dto)
+        public async Task<bool> UpdateAsync(int id, HotelUpdateDto dto)
         {
             var hotel = await _context.Hotels.FindAsync(id);
             if (hotel is null) return false;
+
+            ValidateCoordinates(dto.Latitude, dto.Longitude);
 
             hotel.DestinationId = dto.DestinationId;
             hotel.Name          = dto.Name;
@@ -176,11 +184,23 @@ namespace backend.Services
             hotel.ContactEmail  = NormalizeOptional(dto.ContactEmail);
             hotel.ContactPhone  = NormalizeOptional(dto.ContactPhone);
             hotel.ImageUrl      = dto.ImageUrl;
-            hotel.Latitude      = dto.Latitude;
-            hotel.Longitude     = dto.Longitude;
+            if (dto.Latitude.HasValue)
+                hotel.Latitude = dto.Latitude.Value;
+            if (dto.Longitude.HasValue)
+                hotel.Longitude = dto.Longitude.Value;
             hotel.StarRating    = dto.StarRating;
             hotel.Status        = ParseStatus(dto.Status);
 
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> UpdateStatusAsync(int id, string status)
+        {
+            var hotel = await _context.Hotels.FindAsync(id);
+            if (hotel is null) return false;
+
+            hotel.Status = ParseStatus(status);
             await _context.SaveChangesAsync();
             return true;
         }
@@ -202,6 +222,14 @@ namespace backend.Services
         private static string? NormalizeOptional(string? value) =>
             string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
+        private static void ValidateCoordinates(double? latitude, double? longitude)
+        {
+            if (latitude is < -90 or > 90)
+                throw new ArgumentException("Latitude must be between -90 and 90.");
+            if (longitude is < -180 or > 180)
+                throw new ArgumentException("Longitude must be between -180 and 180.");
+        }
+
         private static HotelStatus ParseStatus(string? value) =>
             string.IsNullOrWhiteSpace(value)
                 ? HotelStatus.Active
@@ -213,7 +241,8 @@ namespace backend.Services
 
         public async Task<List<RoomDto>> SearchRoomsAsync(string? roomType, int? minCapacity, decimal? maxPrice, string? sortBy, bool descending, int page, int pageSize, string? currency = null)
         {
-            var query = _context.Rooms.Where(r => r.Hotel.Status == HotelStatus.Active);
+            var query = _context.Rooms.Where(r =>
+                r.Status == RoomStatus.Active && r.Hotel.Status == HotelStatus.Active);
 
             if (!string.IsNullOrWhiteSpace(roomType))
             {
@@ -243,20 +272,25 @@ namespace backend.Services
             return rooms.Select(r => ToRoomDto(r, targetCurrency)).ToList();
         }
 
-        public async Task<List<RoomDto>> GetRoomsByHotelAsync(int hotelId, string? currency = null)
+        public async Task<List<RoomDto>?> GetRoomsByHotelAsync(int hotelId, string? currency = null, bool includeInactive = false)
         {
+            var hotelVisible = await _context.Hotels
+                .AnyAsync(h => h.Id == hotelId && (includeInactive || h.Status == HotelStatus.Active));
+            if (!hotelVisible) return null;
+
             var rooms = await _context.Rooms
-                .Where(r => r.HotelId == hotelId)
+                .Where(r => r.HotelId == hotelId && (includeInactive || r.Status == RoomStatus.Active))
                 .ToListAsync();
 
             var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
             return rooms.Select(r => ToRoomDto(r, targetCurrency)).ToList();
         }
 
-        public async Task<RoomDto?> GetRoomByIdAsync(int hotelId, int roomId, string? currency = null)
+        public async Task<RoomDto?> GetRoomByIdAsync(int hotelId, int roomId, string? currency = null, bool includeInactive = false)
         {
             var room = await _context.Rooms
-                .FirstOrDefaultAsync(r => r.Id == roomId && r.HotelId == hotelId);
+                .FirstOrDefaultAsync(r => r.Id == roomId && r.HotelId == hotelId &&
+                    (includeInactive || (r.Status == RoomStatus.Active && r.Hotel.Status == HotelStatus.Active)));
 
             var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
             return room is null ? null : ToRoomDto(room, targetCurrency);
@@ -312,7 +346,18 @@ namespace backend.Services
                 .FirstOrDefaultAsync(r => r.Id == roomId && r.HotelId == hotelId);
             if (room is null) return false;
 
-            _context.Rooms.Remove(room);   // hard delete — rooms don't have soft delete
+            room.Status = RoomStatus.Inactive;
+            await _context.SaveChangesAsync();
+            return true;
+        }
+
+        public async Task<bool> UpdateRoomStatusAsync(int hotelId, int roomId, string status)
+        {
+            var room = await _context.Rooms
+                .FirstOrDefaultAsync(r => r.Id == roomId && r.HotelId == hotelId);
+            if (room is null) return false;
+
+            room.Status = ParseRoomStatus(status);
             await _context.SaveChangesAsync();
             return true;
         }
@@ -353,7 +398,13 @@ namespace backend.Services
             PricePerNight = targetCurrency == null ? r.PricePerNight : _currency.Convert(r.PricePerNight, r.Currency, targetCurrency),
             Currency      = targetCurrency ?? r.Currency,
             RateSourceUrl = r.RateSourceUrl,
-            RateNotes     = r.RateNotes
+            RateNotes     = r.RateNotes,
+            Status        = r.Status.ToString()
         };
+
+        private static RoomStatus ParseRoomStatus(string? value) =>
+            string.IsNullOrWhiteSpace(value)
+                ? RoomStatus.Active
+                : Enum.Parse<RoomStatus>(value, ignoreCase: true);
     }
 }

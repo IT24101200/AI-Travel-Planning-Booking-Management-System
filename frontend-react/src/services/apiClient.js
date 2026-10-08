@@ -299,6 +299,11 @@ export async function updateHotel(id, hotel) {
   return data
 }
 
+export async function updateHotelStatus(id, status) {
+  const { data } = await api.patch(`/Hotel/${id}/status`, { status })
+  return data
+}
+
 export async function updateTransport(id, transport) {
   const { data } = await api.put(`/Transport/${id}`, transport)
   return data

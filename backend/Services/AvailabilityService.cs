@@ -28,9 +28,18 @@ namespace backend.Services
         /// returns AvailableRooms = 7. Pending proposals do not reduce it.
         /// </summary>
         public async Task<RoomAvailabilityDto?> CheckRoomAvailabilityAsync(
-            int roomId, DateTime checkIn, DateTime checkOut)
+            int roomId, DateTime checkIn, DateTime checkOut, bool includeInactive = false)
         {
-            var room = await _context.Rooms.FindAsync(roomId);
+            var roomQuery = _context.Rooms
+                .Include(r => r.Hotel)
+                .Where(r => r.Id == roomId);
+            if (!includeInactive)
+            {
+                roomQuery = roomQuery.Where(r =>
+                    r.Status == RoomStatus.Active && r.Hotel.Status == HotelStatus.Active);
+            }
+
+            var room = await roomQuery.SingleOrDefaultAsync();
             if (room is null) return null;
 
             // ── Real Availability Calculation ──
