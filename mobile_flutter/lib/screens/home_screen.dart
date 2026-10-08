@@ -935,7 +935,6 @@ class _ExploreTabState extends State<_ExploreTab> {
     final num tourPriceNum = priceRaw is num ? priceRaw : num.tryParse(priceRaw?.toString() ?? '42') ?? 42;
     final int tourDuration = tourMap['durationHours'] is int ? tourMap['durationHours'] : 5;
     final String tourCategory = (tourMap['category'] ?? 'TOUR').toString().toUpperCase();
-    final String tourRating = tourMap['rating']?.toString() ?? '4.8';
     final int tourId = tourMap['id'] is int ? tourMap['id'] : int.tryParse(tourMap['id']?.toString() ?? '0') ?? 0;
 
     final imageUrl = ApiService.resolveMediaUrl(tourMap['imageUrl']?.toString());
@@ -1016,27 +1015,12 @@ class _ExploreTabState extends State<_ExploreTab> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: AppColors.figmaGold, size: 14),
-                      const SizedBox(width: 3),
-                      Text(
-                        tourRating,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '· $tourDuration hours · from ${formatMoney(tourPriceNum, tourCurrency)}',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    '$tourDuration hours · from ${formatMoney(tourPriceNum, tourCurrency)}',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                    ),
                   ),
                 ],
               ),

@@ -31,7 +31,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
   Timer? _searchDebounce;
   bool _initialSearchLoaded = false;
   String _selectedCategory = 'All';
-  String _selectedSort = 'Top Rated';
+  String _selectedSort = 'Name: A to Z';
 
   // ── Favorites State ──
   Set<int> _favoriteTourIds = {};
@@ -172,20 +172,6 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
     _reloadTours(search: _activeSearch);
   }
 
-  /// Helper to calculate or read tour rating
-  double _getTourRating(dynamic tour) {
-    if (tour is Map) {
-      if (tour['rating'] != null) {
-        final r = double.tryParse(tour['rating'].toString());
-        if (r != null) return r;
-      }
-      final id = int.tryParse(tour['id']?.toString() ?? '1') ?? 1;
-      // Deterministic realistic ratings: 4.9, 4.8, 4.7...
-      return 4.6 + ((id * 7) % 5) * 0.1;
-    }
-    return 4.8;
-  }
-
   List<dynamic> get _filteredTours {
     List<dynamic> list = List.from(_tours);
     if (_selectedCategory != 'All') {
@@ -204,9 +190,13 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
       }).toList();
     }
 
-    // Sort by rating or price
-    if (_selectedSort == 'Top Rated') {
-      list.sort((a, b) => _getTourRating(b).compareTo(_getTourRating(a)));
+    // Sort only by fields provided by the Tour API.
+    if (_selectedSort == 'Name: A to Z') {
+      list.sort(
+        (a, b) => (a['name'] ?? '').toString().toLowerCase().compareTo(
+          (b['name'] ?? '').toString().toLowerCase(),
+        ),
+      );
     } else if (_selectedSort == 'Price: Low to High') {
       list.sort(
         (a, b) =>
@@ -567,9 +557,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                     child: Row(
                       children: [
                         Text(
-                          _selectedSort == 'Top Rated'
-                              ? 'Top rated (4.8+) ↓'
-                              : '$_selectedSort ↓',
+                          '$_selectedSort ↓',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -613,7 +601,7 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                                     setState(() {
                                       _showOnlyFavorites = false;
                                       _selectedCategory = 'All';
-                                      _selectedSort = 'Top Rated';
+                                      _selectedSort = 'Name: A to Z';
                                     });
                                     _reloadTours(search: '');
                                   },
@@ -723,12 +711,15 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                   ),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.star, color: AppColors.figmaGold),
-                  title: const Text('Top Rated (4.8+ First)'),
-                  trailing: _selectedSort == 'Top Rated'
+                  leading: const Icon(
+                    Icons.sort_by_alpha,
+                    color: AppColors.figmaDarkGreen,
+                  ),
+                  title: const Text('Name: A to Z'),
+                  trailing: _selectedSort == 'Name: A to Z'
                       ? const Icon(Icons.check, color: AppColors.figmaDarkGreen)
                       : null,
-                  onTap: () => _selectSort(ctx, 'Top Rated'),
+                  onTap: () => _selectSort(ctx, 'Name: A to Z'),
                 ),
                 ListTile(
                   leading: const Icon(
@@ -780,8 +771,6 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
 
     final tourId = int.tryParse(tour['id']?.toString() ?? '');
     final isFav = tourId != null && _favoriteTourIds.contains(tourId);
-    final rating = _getTourRating(tour);
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -899,42 +888,14 @@ class _TourSearchBrowseScreenState extends State<TourSearchBrowseScreen> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                category,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.figmaGold,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.star,
-                                    size: 12,
-                                    color: AppColors.figmaGold,
-                                  ),
-                                  const SizedBox(width: 3),
-                                  Text(
-                                    rating.toStringAsFixed(1),
-                                    style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      color:
-                                          Theme.of(context).brightness ==
-                                              Brightness.dark
-                                          ? const Color(0xFFE5E7EB)
-                                          : const Color(0xFF374151),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          Text(
+                            category,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.figmaGold,
+                              letterSpacing: 0.8,
+                            ),
                           ),
                           const SizedBox(height: 3),
 
