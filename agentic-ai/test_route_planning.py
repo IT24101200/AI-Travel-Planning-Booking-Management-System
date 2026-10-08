@@ -167,7 +167,41 @@ def test_transfer_timetable_must_allow_actual_road_travel_and_breaks():
     assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
 
 
-def test_geographic_booking_and_validation_use_dated_hotels_and_transfer():
+def test_early_booked_transfer_includes_hotel_approach_and_preserves_daily_span():
+    tours = [tour(1, 1, 80), tour(2, 2, 82)]
+    request = {**state(5), "transport_events": [{"source": tours[0], "target": tours[1], "target_index": 1,
+        "departure": datetime(2026, 10, 12, 7), "arrival": datetime(2026, 10, 12, 13)}]}
+    plan, _ = plan_overnights(request, itinerary(tours), [room(1, 79.9), room(2, 82)], lambda *_: True, LineRoads)
+    transfer = next(day for day in plan["schedule"] if day["date"] == "2026-10-12")
+    assert transfer["day_start_time"] == "06:45:00"
+    assert transfer["travel_minutes"] == 315
+    assert transfer["day_end_time"] <= "18:45:00"
+    assert all(day["day_start_time"] == "08:00:00" for day in plan["schedule"] if day["date"] != "2026-10-12")
+
+
+def test_booked_transfer_cannot_force_start_before_six():
+    tours = [tour(1, 1, 80), tour(2, 2, 82)]
+    request = {**state(5), "transport_events": [{"source": tours[0], "target": tours[1], "target_index": 1,
+        "departure": datetime(2026, 10, 12, 6), "arrival": datetime(2026, 10, 12, 12)}]}
+    with pytest.raises(RoutePlanningError) as error:
+        plan_overnights(request, itinerary(tours), [room(1, 79.9), room(2, 82)], lambda *_: True, LineRoads)
+    assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
+
+
+def test_early_airport_pickup_still_waits_for_arrival_allowance():
+    destination = tour(1, 1, 80)
+    request = {**state(3), "airport_pickup": True, "airport_code": "CMB", "airport_arrival_time": "05:30",
+        "transport_events": [{"source": airport({"airport_pickup": True}), "target": destination, "target_index": 0,
+            "departure": datetime(2026, 10, 10, 7), "arrival": datetime(2026, 10, 10, 8)}]}
+    plan, _ = plan_overnights(request, itinerary([destination]), [room(1, 80)], lambda *_: True, LineRoads)
+    assert plan["schedule"][0]["day_start_time"] == "07:00:00"
+    with pytest.raises(RoutePlanningError):
+        plan_overnights({**request, "airport_arrival_time": "06:30"}, itinerary([destination]),
+            [room(1, 80)], lambda *_: True, LineRoads)
+
+
+@pytest.mark.parametrize("duplicate_departures", [1, 300])
+def test_geographic_booking_and_validation_use_dated_hotels_and_transfer(duplicate_departures):
     from agents import booking_agent
     from agents.validation_agent import validate_and_build_booking
     from tools.availability_tools import TransportSearchResult
@@ -181,6 +215,8 @@ def test_geographic_booking_and_validation_use_dated_hotels_and_transfer():
     transports = TransportSearchResult([{"id": 10, "type": "Van", "provider": "Transfer", "capacity": 4,
         "routeFrom": "West", "routeTo": "East", "departureTime": "2026-10-12T09:00:00",
         "arrivalTime": "2026-10-12T15:00:00", "price": 50, "currency": "LKR"}])
+    transports = TransportSearchResult([{**transports[0], "id": 10 + i, "price": 50 + i}
+                                        for i in range(duplicate_departures)])
     with (
         patch.object(booking_agent, "search_hotels", return_value=hotels),
         patch.object(booking_agent, "search_hotel_rooms", side_effect=lambda hotel_id, **_: [
@@ -195,5 +231,7 @@ def test_geographic_booking_and_validation_use_dated_hotels_and_transfer():
     assert "error" not in package, package
     assert [stay["hotel_id"] for stay in package["room_selections"]] == [1, 2]
     assert package["total_cost"] == 1050  # Two tours, four hotel nights, one transfer.
+    assert package["transport_search"] == {"evaluated_timetables": 1, "search_limited": False}
+    assert package["transport_selections"][0]["transport_option_id"] == 10
     payload, checks = validate_and_build_booking({**request, "booking_details": package})
     assert len([item for item in payload["items"] if item["itemType"] == 1]) == 2

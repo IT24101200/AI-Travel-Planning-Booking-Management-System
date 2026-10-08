@@ -15,6 +15,8 @@ AIRPORTS = {
 MAX_DRIVING_MINUTES = 600
 DAY_START = 8 * 60
 DAY_END = 20 * 60
+EARLIEST_TRANSFER_START = 6 * 60
+MAX_DAY_MINUTES = DAY_END - DAY_START
 
 
 class RoutePlanningError(ValueError):
@@ -224,6 +226,19 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                 if final_day and end_index != len(tours):
                     continue
                 now = max(DAY_START, minutes(state.get("airport_arrival_time")) + 60) if day_index == 0 and origin else DAY_START
+                if next_transfer < len(transfers):
+                    event = transfers[next_transfer]
+                    if event["departure"].date() == date:
+                        _, approach_minutes = matrix.leg(current_hotel, event["source"])
+                        if isfinite(approach_minutes):
+                            departure_minute = event["departure"].hour * 60 + event["departure"].minute
+                            needed_start = departure_minute - approach_minutes - int(approach_minutes // 120) * 20
+                            earliest_start = EARLIEST_TRANSFER_START
+                            if day_index == 0 and origin:
+                                earliest_start = max(earliest_start, minutes(state.get("airport_arrival_time")) + 60)
+                            now = max(earliest_start, min(DAY_START, needed_start))
+                day_start = now
+                day_limit = min(DAY_END, day_start + MAX_DAY_MINUTES)
                 current, driving, km, items, legs = current_hotel, 0.0, 0.0, [], []
                 transfer_index = next_transfer
                 transferred_after_visits = False
@@ -241,7 +256,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                         legs.append({"from": endpoint(current), "to": endpoint(target),
                                      "distance_km": round(leg_km, 2), "duration_minutes": round(leg_minutes, 1)})
                     current = target
-                    return driving <= MAX_DRIVING_MINUTES and now <= DAY_END
+                    return driving <= MAX_DRIVING_MINUTES and now <= day_limit
                 def take_transfers(destination_index=None):
                     nonlocal transfer_index, now
                     while transfer_index < len(transfers):
@@ -261,7 +276,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                         if not travel(event["target"]) or now > arrival_minute:
                             return False
                         now = arrival_minute
-                        if now > DAY_END:
+                        if now > day_limit:
                             return False
                         transfer_index += 1
                     return True
@@ -283,7 +298,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                     if latest and date == latest.date() and now - 45 > latest.hour * 60 + latest.minute:
                         feasible = False
                         break
-                    if now > DAY_END:
+                    if now > day_limit:
                         feasible = False
                         break
                     items.append(item)
@@ -335,7 +350,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                         continue
                     entry = {"day_number": day_index + 1, "date": date.isoformat(), "items": items,
                              "travel_legs": list(legs), "travel_distance_km": round(km, 2),
-                             "travel_minutes": round(driving, 1), "day_end_time": clock(now),
+                             "travel_minutes": round(driving, 1), "day_start_time": clock(day_start), "day_end_time": clock(now),
                              "start_hotel_id": current_hotel.get("hotel_id"), "end_hotel_id": room.get("hotel_id") if room else None}
                     stay = {**room, "check_in": date.isoformat(), "check_out": (date + timedelta(days=1)).isoformat()} if room else None
                     new_coverage = coverage | (hotel_coverage[room["room_id"]] if room else 0)
@@ -353,7 +368,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
         labels = [label for bucket in buckets.values() for label in bucket]
         if not labels:
             code = "BUDGET_EXCEEDED" if saw_budget else "TRAVEL_TIME_INFEASIBLE"
-            message = "No complete hotel and journey plan fits the budget. Increase the budget or reduce destinations." if saw_budget else "No available hotel and journey plan fits the travel days with at most ten hours driving and an 08:00–20:00 day. Add travel days or reduce destinations."
+            message = "No complete hotel and journey plan fits the budget. Increase the budget or reduce destinations." if saw_budget else "No available hotel and journey plan fits the travel days with at most ten driving hours, a twelve-hour day and a finish by 20:00. Early booked transfers may start from 06:00. Add travel days or reduce destinations."
             raise RoutePlanningError(code, message)
         if len(labels) > 20000:
             raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "This trip has too many hotel combinations. Please select fewer destinations.")
@@ -367,7 +382,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
         else:
             stays.append({**stay, "nights": 1})
     return {**itinerary, "schedule": best[4], "travel_distance_km": round(best[3], 2),
-            "travel_policy": {"max_driving_minutes": MAX_DRIVING_MINUTES, "day_start": "08:00", "day_end": "20:00", "shared_hotel_radius_km": 50, "midway_hotel_radius_km": 70}}, stays
+            "travel_policy": {"max_driving_minutes": MAX_DRIVING_MINUTES, "day_start": "08:00", "earliest_transfer_start": "06:00", "max_day_minutes": MAX_DAY_MINUTES, "day_end": "20:00", "shared_hotel_radius_km": 50, "midway_hotel_radius_km": 70}}, stays
 
 
 def endpoint(record):

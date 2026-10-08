@@ -19,6 +19,9 @@ Each day runs from 08:00 to 20:00 with at most ten driving hours, up to two
 journeys, 20 minutes of breaks per two driving hours and a 45-minute meal/rest
 allowance after a journey. Tour durations and preferred earliest start times are
 preserved. Pickup allows one hour after the supplied airport arrival time.
+When a booked departure needs an earlier start, that day may start from 06:00,
+including the hotel-to-departure approach. It still spans at most twelve hours
+and finishes by 20:00; regular days continue to start at 08:00.
 Booked transfers are mandatory events: visits, hotel moves and road travel must
 fit their departure and arrival times. A fixed transfer spanning multiple days
 cannot currently be split into independently bookable overnight legs.
@@ -36,8 +39,14 @@ hotel and selected airport coordinates are sent to the configured service.
 Flutter uses the same default and accepts `--dart-define=ROUTING_BASE_URL=...`.
 Routing failures stop planning; straight-line estimates do not approve a trip.
 The table supports at most 100 distinct coordinates, the overnight search at
-most 20,000 labels and transport selection at most 256 timetable combinations.
-Exceeding a limit gives an explicit planning error.
+most 20,000 labels. Transport selection merges identical departure/arrival
+schedules using the cheapest available option and filters out incompatible
+chronology, out-of-hours transfers and pickup slots before airport readiness.
+It evaluates up to 256 distinct compatible timetables. When this bound is reached,
+the best feasible package evaluated is returned with `transport_search.search_limited`
+set to true; global optimality across unexamined timetables is not claimed.
+If none of those candidates works, the agent reports a search-limit error.
+Routing size and overnight-label limits still produce explicit planning errors.
 
 The itinerary and full-route maps show all routes and destination pins in blue
 (`#2563A6`) and the selected day's complete travel in light red (`#FCA5A5`),

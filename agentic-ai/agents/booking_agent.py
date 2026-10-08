@@ -2,11 +2,10 @@ import json
 import os
 import requests
 from datetime import datetime, timedelta
-from itertools import product
 from decimal import Decimal
 from dotenv import load_dotenv
 from logger import log_agent_step
-from route_planning import plan_overnights, RoutePlanningError, AIRPORTS, point
+from route_planning import plan_overnights, RoutePlanningError, AIRPORTS, point, minutes, EARLIEST_TRANSFER_START, DAY_END
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
     search_transports, check_transport_availability, HotelSearchError,
@@ -29,6 +28,58 @@ _TRANSPORT_FAILURE_MESSAGES = {
     "TRANSPORT_MULTI_LEG_SCHEMA_REQUIRED":
         "The selected multi-leg transport plan requires a database schema update before it can be booked.",
 }
+
+MAX_TIMETABLE_PLANS = 256
+
+
+def _compatible_timetables(groups, state):
+    """Yield distinct, chronological schedules without building a Cartesian product.
+
+    Equal schedules are interchangeable after route/capacity/availability checks;
+    keep their cheapest database option. Backward reachability removes options
+    with no possible continuation before enumerating complete schedules.
+    """
+    ready = None
+    if state.get("airport_pickup"):
+        start = datetime.fromisoformat(str(state["start_date"]).replace("Z", "+00:00"))
+        ready = start.replace(tzinfo=None, hour=0, minute=0, second=0, microsecond=0)
+        ready += timedelta(minutes=minutes(state.get("airport_arrival_time")) + 60)
+    distinct = []
+    for index, group in enumerate(groups):
+        schedules = {}
+        for option in group:
+            try:
+                departure = datetime.fromisoformat(str(option["departure_time"]).replace("Z", "+00:00")).replace(tzinfo=None)
+                arrival = datetime.fromisoformat(str(option["arrival_time"]).replace("Z", "+00:00")).replace(tzinfo=None)
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (arrival <= departure or arrival.date() != departure.date()
+                    or departure.hour * 60 + departure.minute < EARLIEST_TRANSFER_START
+                    or arrival.hour * 60 + arrival.minute > DAY_END
+                    or (index == 0 and ready is not None and departure < ready)):
+                continue
+            key = (departure, arrival)
+            previous = schedules.get(key)
+            if previous is None or Decimal(str(option["price"])) < Decimal(str(previous[2]["price"])):
+                schedules[key] = (departure, arrival, option)
+        distinct.append(sorted(schedules.values(), key=lambda row: (Decimal(str(row[2]["price"])), row[0], row[1])))
+    if not distinct:
+        return
+    for index in range(len(distinct) - 2, -1, -1):
+        if not distinct[index + 1]:
+            return
+        latest_next_departure = max(row[0] for row in distinct[index + 1])
+        distinct[index] = [row for row in distinct[index] if row[1] <= latest_next_departure]
+
+    def extend(index, previous_arrival, selected):
+        if index == len(distinct):
+            yield tuple(selected)
+            return
+        for departure, arrival, option in distinct[index]:
+            if previous_arrival is None or departure >= previous_arrival:
+                yield from extend(index + 1, arrival, [*selected, option])
+
+    yield from extend(0, None, [])
 
 
 def _booking_failure(trip_id, code, message, diagnostics=None):
@@ -287,6 +338,7 @@ def build_booking_package(state):
             nights = 1
         selected_room = min(available_rooms, key=lambda room: float(room.get("price_per_night", 0)))
         room_selections = None
+        transport_search = None
         if geographic:
             availability_cache = {}
             def room_available(room, check_in, check_out):
@@ -298,14 +350,16 @@ def build_booking_package(state):
             try:
                 groups = [[option for option in available_transports if option.get("leg_index") == index]
                           for index in range(len(requested_legs))] if requested_legs else [available_transports]
-                combination_count = 1
-                for group in groups:
-                    combination_count *= len(group)
-                if combination_count > 256:
-                    raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "Too many transport timetable combinations are available. Please narrow the travel dates or destinations.")
+                combinations = _compatible_timetables(groups, state) if requested_legs else [tuple(selected_transports)]
                 candidates = []
                 last_error = None
-                for combination in product(*groups):
+                evaluated = 0
+                search_limited = False
+                for combination in combinations:
+                    if evaluated >= MAX_TIMETABLE_PLANS:
+                        search_limited = True
+                        break
+                    evaluated += 1
                     windows = {}
                     events = []
                     route_ids = itinerary["route_destination_ids"]
@@ -327,7 +381,6 @@ def build_booking_package(state):
                             windows[source] = (windows.get(source, (None, None))[0], departure)
                         elif state.get("airport_pickup"):
                             ready = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).replace(tzinfo=None, hour=0, minute=0, second=0)
-                            from route_planning import minutes
                             ready += timedelta(minutes=minutes(state.get("airport_arrival_time")) + 60)
                             valid_times &= departure >= ready
                     if not valid_times:
@@ -342,7 +395,10 @@ def build_booking_package(state):
                     except RoutePlanningError as error:
                         last_error = error
                 if not candidates:
+                    if search_limited:
+                        raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "No feasible package was found within the transport search limit. Please narrow the travel dates or destinations.")
                     raise last_error or RoutePlanningError("TRANSPORT_TIMETABLE_INFEASIBLE", "No transport timetable fits the journeys and hotel stays.")
+                transport_search = {"evaluated_timetables": evaluated, "search_limited": search_limited}
                 _, _, itinerary, room_selections, selected_transports = min(candidates, key=lambda candidate: candidate[:2])
                 if any(not room_available(room, room["check_in"], room["check_out"]) for room in room_selections):
                     raise RoutePlanningError("NO_VALID_ROOM", "A selected hotel is no longer available for the complete stay. Please retry.")
@@ -376,6 +432,7 @@ def build_booking_package(state):
             "total_package_cost": float(total_cost),
             "total_cost": float(total_cost),
             "persistence_status": "READY_FOR_PERSISTENCE",
+            **({"transport_search": transport_search} if transport_search is not None else {}),
         }
         try:
             log_agent_step(
