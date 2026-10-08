@@ -208,7 +208,12 @@ public static class DatabaseSnapshotReader
         var destinations = (await db.Destinations
                 .AsNoTracking()
                 .ToListAsync(cancellationToken))
-            .Select(d => new ExistingDestination(d.Id, d.Name, Normalizers.Name(d.Name)))
+            .Select(d => new ExistingDestination(
+                d.Id,
+                d.Name,
+                Normalizers.Name(d.Name),
+                d.Latitude,
+                d.Longitude))
             .ToList();
 
         var hotels = (await db.Hotels.AsNoTracking().ToListAsync(cancellationToken))

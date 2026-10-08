@@ -233,6 +233,49 @@ public sealed class DemoTravelCatalogueImporterTests
     }
 
     [Fact]
+    public void Planner_generates_one_daily_departure_for_every_ordered_destination_pair()
+    {
+        var snapshot = new CatalogueSnapshot
+        {
+            Destinations =
+            [
+                new ExistingDestination(1, "Colombo", "COLOMBO", 6.9271, 79.8612),
+                new ExistingDestination(2, "Bentota", "BENTOTA", 6.4215, 79.9979),
+                new ExistingDestination(3, "Ella", "ELLA", 6.8667, 81.0466),
+                new ExistingDestination(4, "Jaffna", "JAFFNA", 9.6615, 80.0255)
+            ],
+            Hotels = [],
+            Rooms = [],
+            Tours = [],
+            TransportOptions = []
+        };
+
+        var plan = CataloguePlanner.Build(snapshot, new CatalogueDocument(), new DateOnly(2026, 10, 8));
+        var expectedRoutes = snapshot.Destinations.Count * (snapshot.Destinations.Count - 1);
+        var expectedDepartures = expectedRoutes * CataloguePlanner.TransportScheduleHorizonDays;
+
+        Assert.Equal(expectedDepartures, plan.TransportToInsert.Count);
+        Assert.Equal(expectedRoutes, plan.TransportToInsert
+            .Select(option => (option.RouteFrom, option.RouteTo))
+            .Distinct()
+            .Count());
+        Assert.DoesNotContain(plan.TransportToInsert, option => option.RouteFrom == option.RouteTo);
+        Assert.All(plan.TransportToInsert.GroupBy(option => (option.RouteFrom, option.RouteTo)), group =>
+        {
+            Assert.Equal(CataloguePlanner.TransportScheduleHorizonDays, group.Count());
+            Assert.Equal(7, group.Select(option => DateOnly.FromDateTime(option.DepartureTime).DayOfWeek).Distinct().Count());
+            Assert.All(group, option =>
+            {
+                Assert.Equal(new TimeSpan(7, 0, 0), option.DepartureTime.TimeOfDay);
+                Assert.True(option.ArrivalTime > option.DepartureTime);
+                Assert.True(option.Price >= 2500m);
+                Assert.Equal(8, option.Capacity);
+                Assert.Equal("LKR", option.Currency);
+            });
+        });
+    }
+
+    [Fact]
     public void Planner_blocks_unverified_destination_and_hotel_coordinates()
     {
         var snapshot = new CatalogueSnapshot();

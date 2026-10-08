@@ -200,6 +200,27 @@ namespace backend.Tests
         }
 
         [Fact]
+        public async Task CreateAsync_RejectsDatesOutsideTransportScheduleHorizon()
+        {
+            await using var context = CreateContext();
+            var service = new TripRequestService(context);
+            var today = BusinessClock.Today;
+
+            var error = await Assert.ThrowsAsync<ArgumentException>(() => service.CreateAsync("cust-1", new TripRequestCreateDto
+            {
+                RawRequestText = "Future demo trip",
+                StartDate = today.AddDays(1).ToDateTime(TimeOnly.MinValue),
+                EndDate = today.AddDays(BusinessClock.TransportScheduleHorizonDays + 1).ToDateTime(TimeOnly.MinValue),
+                TravellerCount = 2,
+                BudgetCeiling = 100000,
+                Currency = "LKR"
+            }));
+
+            Assert.Contains("demo transport schedule window", error.Message);
+            Assert.Empty(context.TripRequests);
+        }
+
+        [Fact]
         public async Task CreateAsync_BudgetBelowCustomerPreferenceMin_ThrowsArgumentException()
         {
             var context = CreateContext();

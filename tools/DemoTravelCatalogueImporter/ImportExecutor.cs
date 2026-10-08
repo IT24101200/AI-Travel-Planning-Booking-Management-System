@@ -184,14 +184,21 @@ public static class ImportExecutor
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             try
             {
+                var first = routeGroup.First();
+                var departures = routeGroup.Select(seed => seed.DepartureTime).ToArray();
+                var existingDepartures = (await db.TransportOptions
+                        .AsNoTracking()
+                        .Where(option => option.Provider == first.Provider &&
+                                        option.RouteFrom == first.RouteFrom &&
+                                        option.RouteTo == first.RouteTo &&
+                                        departures.Contains(option.DepartureTime))
+                        .Select(option => option.DepartureTime)
+                        .ToListAsync(cancellationToken))
+                    .ToHashSet();
+
                 foreach (var transportSeed in routeGroup)
                 {
-                    var duplicate = await db.TransportOptions.AnyAsync(t =>
-                        t.Provider.ToUpper() == transportSeed.Provider.ToUpper() &&
-                        t.RouteFrom.ToUpper() == transportSeed.RouteFrom.ToUpper() &&
-                        t.RouteTo.ToUpper() == transportSeed.RouteTo.ToUpper() &&
-                        t.DepartureTime == transportSeed.DepartureTime, cancellationToken);
-                    if (duplicate)
+                    if (!existingDepartures.Add(transportSeed.DepartureTime))
                     {
                         continue;
                     }
@@ -202,6 +209,10 @@ public static class ImportExecutor
                         Provider = transportSeed.Provider,
                         RouteFrom = transportSeed.RouteFrom,
                         RouteTo = transportSeed.RouteTo,
+                        RouteFromLatitude = transportSeed.RouteFromLatitude,
+                        RouteFromLongitude = transportSeed.RouteFromLongitude,
+                        RouteToLatitude = transportSeed.RouteToLatitude,
+                        RouteToLongitude = transportSeed.RouteToLongitude,
                         DepartureTime = DateTime.SpecifyKind(transportSeed.DepartureTime, DateTimeKind.Unspecified),
                         ArrivalTime = DateTime.SpecifyKind(transportSeed.ArrivalTime, DateTimeKind.Unspecified),
                         Capacity = transportSeed.Capacity,

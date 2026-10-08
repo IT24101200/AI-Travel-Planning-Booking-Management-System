@@ -52,7 +52,14 @@ public sealed class TourSeed
     public string SourceUrl { get; set; } = string.Empty;
 }
 
-public sealed record ExistingDestination(int Id, string Name, string NormalizedName);
+public sealed record ExistingDestination(
+    int Id,
+    string Name,
+    string NormalizedName,
+    double? Latitude = null,
+    double? Longitude = null);
+
+public sealed record SelectableDestination(string Name, double Latitude, double Longitude);
 
 public sealed record ExistingHotel(int Id, int DestinationId, string Name, string Status);
 
@@ -102,6 +109,10 @@ public sealed class PlannedTransport
     public decimal Price { get; init; }
     public string Currency { get; init; } = "LKR";
     public string Type { get; init; } = "Van";
+    public double? RouteFromLatitude { get; init; }
+    public double? RouteFromLongitude { get; init; }
+    public double? RouteToLatitude { get; init; }
+    public double? RouteToLongitude { get; init; }
 }
 
 public sealed record PlanIssue(string Entity, string Key, string Code, string Detail);
