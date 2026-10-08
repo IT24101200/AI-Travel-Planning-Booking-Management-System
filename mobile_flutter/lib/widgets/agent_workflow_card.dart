@@ -420,6 +420,11 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   color: isDark ? Colors.white70 : const Color(0xFF5A7067),
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  padding: EdgeInsets.zero,
                   onPressed: _fetchLogs,
                   tooltip: 'Refresh Agent Logs',
                 ),
@@ -621,36 +626,44 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                     ),
                   ),
                   Flexible(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: badgeBg,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(statusIcon, size: 11, color: badgeText),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              status == 'NotStarted'
-                                  ? 'NOT STARTED'
-                                  : status.toUpperCase(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                color: badgeText,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
+                    fit: FlexFit.loose,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 104),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
                           ),
-                        ],
+                          decoration: BoxDecoration(
+                            color: badgeBg,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(statusIcon, size: 11, color: badgeText),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  status == 'NotStarted'
+                                      ? 'NOT STARTED'
+                                      : status.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: false,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: badgeText,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -755,11 +768,16 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                                     ),
                                   ),
                                   if (timeStr.isNotEmpty)
-                                    Text(
-                                      timeStr,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10,
-                                        color: const Color(0xFF8A969B),
+                                    Flexible(
+                                      child: Text(
+                                        timeStr,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.end,
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10,
+                                          color: const Color(0xFF8A969B),
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -786,6 +804,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                                   ),
                                   child: Text(
                                     outputFormatted,
+                                    softWrap: true,
                                     style: GoogleFonts.firaCode(
                                       fontSize: 10,
                                       color: isDark

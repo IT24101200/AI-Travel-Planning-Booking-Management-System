@@ -571,13 +571,17 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         children: [
           Icon(icon, size: 12, color: text),
           const SizedBox(width: 4),
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: text,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
+          Flexible(
+            child: Text(
+              label.toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: text,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
         ],
@@ -906,21 +910,27 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       children: [
                         Row(
                           children: [
-                            Text(
-                              'My Itinerary',
-                              style: GoogleFonts.poppins(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                                color: theme.colorScheme.onSurface,
-                                letterSpacing: -0.5,
+                            Flexible(
+                              child: Text(
+                                'My Itinerary',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w800,
+                                  color: theme.colorScheme.onSurface,
+                                  letterSpacing: -0.5,
+                                ),
                               ),
                             ),
                             if (_itinerary != null) ...[
                               const SizedBox(width: 8),
-                              _buildStatusBadge(
-                                _isTripCancelled()
-                                    ? 'Cancelled'
-                                    : _itinerary!['status'],
+                              Flexible(
+                                child: _buildStatusBadge(
+                                  _isTripCancelled()
+                                      ? 'Cancelled'
+                                      : _itinerary!['status'],
+                                ),
                               ),
                             ],
                           ],
@@ -1024,11 +1034,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
 
     if (_errorMessage != null) {
-      return Center(
+      return SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(28.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const Icon(
                 Icons.cloud_off_outlined,
@@ -1412,12 +1423,16 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       heading: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            'Your journey',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              color: Theme.of(context).colorScheme.onSurface,
+          Expanded(
+            child: Text(
+              'Your journey',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           ),
           if (_isDraft(status) || _isProposed(status))
@@ -1669,53 +1684,64 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'DURATION',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF8A9E96),
-                      letterSpacing: 0.5,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'DURATION',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8A9E96),
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$durationDays ${durationDays == 1 ? 'day' : 'days'} / ${durationDays > 1 ? durationDays - 1 : 0} nights',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).colorScheme.onSurface,
+                    const SizedBox(height: 2),
+                    Text(
+                      '$durationDays ${durationDays == 1 ? 'day' : 'days'} / ${durationDays > 1 ? durationDays - 1 : 0} nights',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const Text(
-                    'ESTIMATED TOTAL',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF8A9E96),
-                      letterSpacing: 0.5,
+              const SizedBox(width: 12),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    const Text(
+                      'ESTIMATED TOTAL',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8A9E96),
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    formattedCost,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      color: Theme.of(context).colorScheme.primary,
+                    const SizedBox(height: 2),
+                    Text(
+                      formattedCost,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
@@ -2475,7 +2501,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           ),
 
         // Booked Transport Card
-        ...transportItems.map((transportItem) => Container(
+        ...transportItems.map(
+          (transportItem) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -2585,7 +2612,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 ),
               ],
             ),
-          )),
+          ),
+        ),
       ],
     );
   }
@@ -2681,19 +2709,28 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           ),
           const Divider(height: 20, color: Color(0xFFE4E7E2)),
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total Commercial Cost',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+              const Expanded(
+                child: Text(
+                  'Total Commercial Cost',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+                ),
               ),
-              Text(
-                '$currency ${NumberFormat('#,##0').format(totalCost > 0 ? totalCost : (tourCost + hotelCost + transportCost))}'
-                    .trim(),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 15,
-                  color: Color(0xFF0E382C),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  '$currency ${NumberFormat('#,##0').format(totalCost > 0 ? totalCost : (tourCost + hotelCost + transportCost))}'
+                      .trim(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                    color: Color(0xFF0E382C),
+                  ),
                 ),
               ),
             ],
@@ -2712,14 +2749,24 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF5A7067)),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, color: Color(0xFF5A7067)),
+          ),
         ),
-        Text(
-          freeLabel ??
-              '$currency ${NumberFormat('#,##0').format(amount)}'.trim(),
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            freeLabel ??
+                '$currency ${NumberFormat('#,##0').format(amount)}'.trim(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.end,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
         ),
       ],
     );
