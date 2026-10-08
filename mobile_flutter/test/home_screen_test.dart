@@ -28,7 +28,6 @@ void main() {
           'category': 'CULTURE',
           'durationHours': 5,
           'price': 12000,
-          'rating': '4.8',
         },
         {
           'id': 102,
@@ -36,7 +35,6 @@ void main() {
           'category': 'HERITAGE',
           'durationHours': 4,
           'price': 15000,
-          'rating': '4.9',
         },
       ];
 
@@ -98,6 +96,9 @@ void main() {
       expect(find.text('Featured tours'), findsOneWidget);
       expect(find.text('Kandy Sacred Temple Walk'), findsOneWidget);
       expect(find.text('Sigiriya Sunrise Hike'), findsOneWidget);
+      expect(find.text('4.8'), findsNothing);
+      expect(find.text('4.9'), findsNothing);
+      expect(find.byIcon(Icons.star), findsNothing);
 
       // Verify LKR price format (no raw $)
       expect(find.textContaining('from LKR 12,000.00'), findsOneWidget);

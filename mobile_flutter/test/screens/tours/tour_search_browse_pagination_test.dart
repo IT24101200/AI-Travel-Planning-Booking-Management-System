@@ -19,7 +19,12 @@ Map<String, dynamic> _tour(int id) => {
 List<dynamic> _tours(int start, int count) =>
     List<dynamic>.generate(count, (index) => _tour(start + index));
 
-Widget _testApp() => const MaterialApp(home: TourSearchBrowseScreen());
+Widget _testApp() => MaterialApp(
+  home: const TourSearchBrowseScreen(),
+  routes: {
+    '/tour-details': (_) => const Scaffold(body: Text('Tour details route')),
+  },
+);
 
 SliverChildBuilderDelegate _catalogueDelegate(WidgetTester tester) {
   final list = tester.widget<ListView>(
@@ -63,6 +68,34 @@ void main() {
     expect(find.text('20 experiences'), findsOneWidget);
     expect(_catalogueDelegate(tester).childCount, 20);
     expect(find.byKey(const Key('tour_load_more_button')), findsOneWidget);
+    expect(find.text('Top rated (4.8+) ↓'), findsNothing);
+    expect(find.text('Top Rated (4.8+ First)'), findsNothing);
+    expect(find.byIcon(Icons.star), findsNothing);
+    expect(find.text('5.0'), findsNothing);
+    expect(find.text('Tour 1'), findsOneWidget);
+    expect(find.text('Destination 1'), findsOneWidget);
+    expect(find.text('4 hours'), findsWidgets);
+    expect(find.text('LKR 1000'), findsOneWidget);
+  });
+
+  testWidgets('tour card navigation still opens the details route', (
+    tester,
+  ) async {
+    ApiService.mockGetTours =
+        ({
+          String? search,
+          String? sortBy,
+          String? currency,
+          int? page,
+          int? pageSize,
+        }) async => [_tour(1)];
+
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tour 1'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tour details route'), findsOneWidget);
   });
 
   testWidgets('page 2 appends, deduplicates IDs, and updates itemCount', (
