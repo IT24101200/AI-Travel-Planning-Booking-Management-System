@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\backend\backend.csproj" />
+    <ProjectReference Include="..\tools\DemoTravelCatalogueImporter\DemoTravelCatalogueImporter.csproj" />
   </ItemGroup>
 
 </Project>
