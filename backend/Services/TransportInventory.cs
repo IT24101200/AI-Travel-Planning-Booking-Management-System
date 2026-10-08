@@ -60,10 +60,20 @@ internal static class TransportInventory
         int bookingId,
         CancellationToken cancellationToken = default)
     {
+        var booking = await db.Bookings
+            .Include(item => item.Itinerary)
+                .ThenInclude(item => item!.TripRequest)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == bookingId, cancellationToken);
+        if (booking is null)
+            throw new TransportBusinessException("TRANSPORT_SEGMENT_UNRESOLVED", "The booking could not be resolved for transport confirmation.");
+
         var proposedItems = await db.BookingItems
             .AsNoTracking()
             .Where(item => item.BookingId == bookingId && item.ItemType == BookingItemType.Transport)
             .ToListAsync(cancellationToken);
+
+        ValidateLegContract(booking.Itinerary?.TripRequest, proposedItems);
 
         foreach (var group in proposedItems
                      .GroupBy(item => item.TransportOptionId)
@@ -111,6 +121,37 @@ internal static class TransportInventory
                     "TRANSPORT_CAPACITY_CONFLICT",
                     "The requested transport no longer has enough capacity for this booking.");
             }
+        }
+    }
+
+    private static void ValidateLegContract(
+        TripRequest? trip,
+        IReadOnlyCollection<BookingItem> transportItems)
+    {
+        if (trip is null)
+            throw new TransportBusinessException(
+                "TRANSPORT_SEGMENT_UNRESOLVED",
+                "The booking has no authoritative trip request for transport confirmation.");
+
+        var destinationIds = TransportCompatibility.ResolveDestinationIds(trip);
+        var expectedLegCount = Math.Max(0, destinationIds.Count - 1);
+        if (expectedLegCount == 0)
+        {
+            if (transportItems.Any(item => item.TransportLegIndex.HasValue))
+                throw new TransportBusinessException(
+                    "TRANSPORT_LEG_INDEX_INVALID",
+                    "A single-destination transport item must not have a leg index.");
+            return;
+        }
+
+        var indexes = transportItems.Select(item => item.TransportLegIndex).ToList();
+        if (transportItems.Count != expectedLegCount ||
+            indexes.Any(index => !index.HasValue || index < 0 || index >= expectedLegCount) ||
+            indexes.Distinct().Count() != expectedLegCount)
+        {
+            throw new TransportBusinessException(
+                "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
+                $"The booking must contain exactly one transport item for each leg index 0 through {expectedLegCount - 1}.");
         }
     }
 }

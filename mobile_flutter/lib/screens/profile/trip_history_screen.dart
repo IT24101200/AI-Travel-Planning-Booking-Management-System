@@ -6,6 +6,7 @@ import '../../services/date_time_contract.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/agent_workflow_card.dart';
 import 'package:intl/intl.dart';
+import '../../utils/transport_leg_utils.dart';
 
 /// Trip history screen matching Figma frame 16 · Trip History / My Trips (node 7:11390)
 class TripHistoryScreen extends StatefulWidget {
@@ -286,7 +287,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
               .toList()
         : <Map<String, dynamic>>[];
     final hotelItems = bookingItems.where(_isHotelItem).toList();
-    final transportItems = bookingItems.where(_isTransportItem).toList();
+    final transportItems = orderedTransportItems(bookingItems);
 
     return {
       ...record,
@@ -326,14 +327,6 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
         item['hotelName'] != null;
   }
 
-  bool _isTransportItem(Map<String, dynamic> item) {
-    final type = item['itemType'];
-    final normalized = type?.toString().toLowerCase() ?? '';
-    return type == 2 ||
-        normalized == 'transport' ||
-        item['transportType'] != null;
-  }
-
   bool _inTab(Map<String, dynamic> trip, String tab) {
     final status = trip['status'];
     if (tab == 'Booked') {
@@ -359,8 +352,9 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   Widget _buildBookedInventory(Map<String, dynamic> trip, bool isDark) {
     final hotelItems =
         (trip['hotelItems'] as List<Map<String, dynamic>>?) ?? [];
-    final transportItems =
-        (trip['transportItems'] as List<Map<String, dynamic>>?) ?? [];
+    final transportItems = orderedTransportItems(
+      (trip['transportItems'] as List<Map<String, dynamic>>?) ?? [],
+    );
     final cards = <Widget>[
       ...hotelItems.map(
         (item) => _buildInventoryCard(
@@ -397,6 +391,7 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
               .where((value) => value.isNotEmpty)
               .join(' · '),
           details: [
+            if (transportLegLabel(item) != null) transportLegLabel(item)!,
             [item['routeFrom'], item['routeTo']]
                 .whereType<Object>()
                 .map((value) => value.toString())

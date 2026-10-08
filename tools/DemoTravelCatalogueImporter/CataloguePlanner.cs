@@ -314,6 +314,8 @@ public static class CataloguePlanner
         AddBoth(routes, "Dambulla", "Polonnaruwa", 120, 4500m, false);
 
         // Explicit coverage for the previously failing multi-destination path.
+        AddBoth(routes, "Colombo", "Dambulla", 210, 6500m, true);
+        AddBoth(routes, "Dambulla", "Arugam Bay", 300, 8500m, true);
         AddBoth(routes, "Batticaloa", "Colombo", 420, 11000m, true);
         AddBoth(routes, "Colombo", "Ella", 330, 9500m, true);
 

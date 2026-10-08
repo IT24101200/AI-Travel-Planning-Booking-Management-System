@@ -33,6 +33,7 @@ namespace backend.DTOs
         public int? TourId { get; set; }
         public int? RoomId { get; set; }
         public int? TransportOptionId { get; set; }
+        public int? TransportLegIndex { get; set; }
 
         public DateTime? CheckInDate { get; set; }
         public DateTime? CheckOutDate { get; set; }
@@ -80,6 +81,7 @@ namespace backend.DTOs
         public string? TourName { get; set; }
         public int? RoomId { get; set; }
         public int? TransportOptionId { get; set; }
+        public int? TransportLegIndex { get; set; }
         public int? HotelId { get; set; }
         public string? HotelName { get; set; }
         public string? HotelAddress { get; set; }

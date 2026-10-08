@@ -262,6 +262,17 @@ namespace backend.Data
                 entity.Property(bi => bi.TransportRouteFromSnapshot).HasMaxLength(200);
                 entity.Property(bi => bi.TransportRouteToSnapshot).HasMaxLength(200);
 
+                entity.ToTable(table => table.HasCheckConstraint(
+                    "CK_BookingItems_TransportLegIndex",
+                    "\"TransportLegIndex\" IS NULL OR (\"ItemType\" = 'Transport' AND \"TransportLegIndex\" >= 0)"));
+                // Keep the pre-existing FK lookup index. PostgreSQL can infer
+                // that it is covered by the composite index, but removing it
+                // in this feature migration would be unrelated churn.
+                entity.HasIndex(bi => bi.BookingId);
+                entity.HasIndex(bi => new { bi.BookingId, bi.TransportLegIndex })
+                      .IsUnique()
+                      .HasFilter("\"TransportLegIndex\" IS NOT NULL AND \"ItemType\" = 'Transport'");
+
                 entity.HasOne(bi => bi.Booking)
                       .WithMany(b => b.BookingItems)
                       .HasForeignKey(bi => bi.BookingId)

@@ -88,6 +88,52 @@ namespace backend.Tests
             Assert.Equal("Air A", results[0].Provider);
         }
 
+        [Theory]
+        [InlineData(null, false)]
+        [InlineData("departure", false)]
+        [InlineData("departure", true)]
+        [InlineData("price", false)]
+        [InlineData("price", true)]
+        [InlineData("provider", false)]
+        [InlineData("provider", true)]
+        public async Task SearchAsync_StableTieBreakKeepsEveryRowOnExactlyOnePage(
+            string? sortBy,
+            bool descending)
+        {
+            using var context = CreateContext();
+            var sameDeparture = new DateTime(2026, 10, 15, 8, 0, 0);
+            context.TransportOptions.AddRange(Enumerable.Range(1, 17).Select(id => new TransportOption
+            {
+                Id = id,
+                Type = TransportType.Van,
+                Provider = "Same Provider",
+                RouteFrom = "Colombo",
+                RouteTo = "Kandy",
+                DepartureTime = sameDeparture,
+                ArrivalTime = sameDeparture.AddHours(2),
+                Capacity = 8,
+                Price = 100,
+                Status = TransportStatus.Active
+            }));
+            await context.SaveChangesAsync();
+
+            var service = new TransportService(context);
+            var pageIds = new List<int>();
+            for (var page = 1; page <= 5; page++)
+            {
+                var rows = await service.SearchAsync(
+                    null, null, null, null, null, null, sortBy, descending, page, 4);
+                pageIds.AddRange(rows.Select(row => row.Id));
+            }
+
+            var expected = Enumerable.Range(1, 17).ToList();
+            if (descending)
+                expected.Reverse();
+
+            Assert.Equal(expected, pageIds);
+            Assert.Equal(expected.Count, pageIds.Distinct().Count());
+        }
+
         [Fact]
         public async Task CoverageAsync_ReturnsAvailableCountsForExactRouteAndWindow()
         {

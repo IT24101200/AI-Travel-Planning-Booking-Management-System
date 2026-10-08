@@ -5,11 +5,175 @@ using backend.Models.Enums;
 using backend.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace backend.Tests;
 
 public class AgentProposalPersistenceTests
 {
+    private static async Task<(AppDbContext Context, SqliteConnection Connection)> CreateThreeDestinationContextAsync()
+    {
+        var (context, connection) = await CreateContextAsync();
+        context.Destinations.AddRange(
+            new Destination { Id = 2, Name = "Second Destination", Country = "Sri Lanka" },
+            new Destination { Id = 3, Name = "Third Destination", Country = "Sri Lanka" });
+        context.Tours.AddRange(
+            new Tour
+            {
+                Id = 101,
+                DestinationId = 2,
+                Name = "Second Tour",
+                Category = "Test",
+                Price = 100m,
+                Currency = "USD",
+                Status = "Active",
+                DefaultStartTime = new TimeSpan(9, 0, 0),
+                DurationHours = 2
+            },
+            new Tour
+            {
+                Id = 102,
+                DestinationId = 3,
+                Name = "Third Tour",
+                Category = "Test",
+                Price = 100m,
+                Currency = "USD",
+                Status = "Active",
+                DefaultStartTime = new TimeSpan(9, 0, 0),
+                DurationHours = 2
+            });
+        var trip = await context.TripRequests.SingleAsync();
+        trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
+        {
+            new { Id = 1, Name = "ignored", Order = 0 },
+            new { Id = 2, Name = "ignored", Order = 1 },
+            new { Id = 3, Name = "ignored", Order = 2 }
+        });
+        var firstLeg = await context.TransportOptions.SingleAsync();
+        firstLeg.RouteFrom = "Test Destination";
+        firstLeg.RouteTo = "Second Destination";
+        context.TransportOptions.Add(new TransportOption
+        {
+            Id = 31,
+            Type = TransportType.Van,
+            Provider = "Second Leg Transport",
+            RouteFrom = "Second Destination",
+            RouteTo = "Third Destination",
+            DepartureTime = new DateTime(2026, 10, 10, 12, 0, 0),
+            ArrivalTime = new DateTime(2026, 10, 10, 15, 0, 0),
+            Capacity = 5,
+            Price = 35m,
+            Currency = "USD",
+            Status = TransportStatus.Active
+        });
+        await context.SaveChangesAsync();
+        return (context, connection);
+    }
+
+    private static JsonElement ThreeDestinationProposal(int secondTransportId = 31)
+    {
+        return JsonSerializer.SerializeToElement(new
+        {
+            trip_request_id = 1,
+            customer_id = "cust-1",
+            itinerary = new
+            {
+                schedule = new object[]
+                {
+                    new { day_number = 1, items = new[] { new { tour_id = 100, start_time = "09:00:00", end_time = "11:00:00" } } },
+                    new { day_number = 2, items = new[] { new { tour_id = 101, start_time = "09:00:00", end_time = "11:00:00" } } },
+                    new { day_number = 3, items = new[] { new { tour_id = 102, start_time = "09:00:00", end_time = "11:00:00" } } }
+                }
+            },
+            booking_details = new
+            {
+                total_package_cost = 820m,
+                currency = "USD",
+                selected_room = new { room_id = 20 },
+                transport_selections = new[]
+                {
+                    new { leg_index = 0, transport_option_id = 30 },
+                    new { leg_index = 1, transport_option_id = secondTransportId }
+                }
+            },
+            validation = new { is_valid = true }
+        });
+    }
+
+    [Fact]
+    public void TransportLegIndexModelIsNullableAndHasScopedUniqueIndex()
+    {
+        using var context = new AppDbContext(
+            new DbContextOptionsBuilder<AppDbContext>()
+                .UseSqlite("Data Source=:memory:")
+                .Options);
+        var entity = context.Model.FindEntityType(typeof(BookingItem))!;
+        var property = entity.FindProperty(nameof(BookingItem.TransportLegIndex))!;
+        var index = entity.GetIndexes().Single(candidate =>
+            candidate.Properties.Select(property => property.Name)
+                .SequenceEqual(new[] { nameof(BookingItem.BookingId), nameof(BookingItem.TransportLegIndex) }));
+
+        Assert.Equal(typeof(int?), property.ClrType);
+        Assert.True(index.IsUnique);
+        Assert.Equal(
+            "\"TransportLegIndex\" IS NOT NULL AND \"ItemType\" = 'Transport'",
+            index.GetFilter());
+        var designEntity = context.GetService<IDesignTimeModel>().Model
+            .FindEntityType(typeof(BookingItem))!;
+        Assert.Contains(
+            designEntity.GetCheckConstraints(),
+            constraint => constraint.Name == "CK_BookingItems_TransportLegIndex"
+                && constraint.Sql.Contains("TransportLegIndex", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ThreeDestinationProposalPersistsOneAuthoritativeTransportItemPerLeg()
+    {
+        var (context, connection) = await CreateThreeDestinationContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var result = await new AgentProposalPersistenceService(context)
+                .PersistAsync(1, ThreeDestinationProposal(), 0);
+
+            var booking = await context.Bookings
+                .Include(item => item.BookingItems)
+                .SingleAsync();
+            var transportItems = booking.BookingItems
+                .Where(item => item.ItemType == BookingItemType.Transport)
+                .OrderBy(item => item.TransportLegIndex)
+                .ToList();
+
+            Assert.Equal(result.BookingId, booking.Id);
+            Assert.Equal(2, transportItems.Count);
+            Assert.Equal(new int?[] { 0, 1 }, transportItems.Select(item => item.TransportLegIndex).ToArray());
+            Assert.Equal(new int?[] { 30, 31 }, transportItems.Select(item => item.TransportOptionId).ToArray());
+            Assert.Equal(new[] { "Test Destination", "Second Destination" }, transportItems.Select(item => item.TransportRouteFromSnapshot).ToArray());
+            Assert.Equal(new[] { "Second Destination", "Third Destination" }, transportItems.Select(item => item.TransportRouteToSnapshot).ToArray());
+            Assert.Equal(new[] { 50m, 70m }, transportItems.Select(item => item.Subtotal).ToArray());
+            Assert.Equal(820m, booking.TotalCost);
+        }
+    }
+
+    [Fact]
+    public async Task InvalidSecondLegDoesNotPersistPartialMultiLegBooking()
+    {
+        var (context, connection) = await CreateThreeDestinationContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var proposal = ThreeDestinationProposal(secondTransportId: 30);
+            var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, proposal, 0));
+
+            Assert.Equal("TRANSPORT_ROUTE_INCOMPATIBLE", ex.Code);
+            Assert.Empty(await context.Itineraries.ToListAsync());
+            Assert.Empty(await context.Bookings.ToListAsync());
+            Assert.Equal(TripRequestStatus.Planning, (await context.TripRequests.SingleAsync()).Status);
+        }
+    }
+
     private static async Task<(AppDbContext Context, SqliteConnection Connection)> CreateContextAsync(
         TripRequestStatus status = TripRequestStatus.Planning,
         decimal budget = 1000m)
@@ -135,7 +299,10 @@ public class AgentProposalPersistenceTests
                 total_package_cost = total,
                 currency = "USD",
                 selected_room = new { room_id = roomId },
-                selected_transport = new { transport_id = transportId }
+                selected_transport = new { transport_id = transportId },
+                transport_selections = includeSecondDestination
+                    ? new[] { new { leg_index = 0, transport_option_id = transportId } }
+                    : null
             },
             validation = new { is_valid = true }
         });
@@ -354,7 +521,7 @@ public class AgentProposalPersistenceTests
     }
 
     [Fact]
-    public async Task AdjacentMultiDestinationTransportLeg_IsAccepted()
+    public async Task AdjacentMultiDestinationTransportLeg_PersistsOneOrderedTransportItem()
     {
         var (context, connection) = await CreateContextAsync();
         await using (context)
@@ -392,8 +559,14 @@ public class AgentProposalPersistenceTests
             var result = await new AgentProposalPersistenceService(context)
                 .PersistAsync(1, Proposal(total: 550m, includeSecondDestination: true), 0);
 
-            Assert.False(result.AlreadyPersisted);
-            Assert.Single(await context.Bookings.ToListAsync());
+            var booking = await context.Bookings
+                .Include(item => item.BookingItems)
+                .SingleAsync();
+            var transportItem = Assert.Single(
+                booking.BookingItems.Where(item => item.ItemType == BookingItemType.Transport));
+            Assert.Equal(0, transportItem.TransportLegIndex);
+            Assert.Equal(30, transportItem.TransportOptionId);
+            Assert.Equal(result.BookingId, booking.Id);
         }
     }
 
@@ -446,9 +619,10 @@ public class AgentProposalPersistenceTests
 
             var ex = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
                 new AgentProposalPersistenceService(context)
-                    .PersistAsync(1, Proposal(transportId: 33, total: 550m, includeSecondDestination: true), 0));
+                    .PersistAsync(1, Proposal(transportId: 33, total: 540m, includeSecondDestination: true), 0));
 
             Assert.Equal("TRANSPORT_ROUTE_INCOMPATIBLE", ex.Code);
+            Assert.Empty(await context.Bookings.ToListAsync());
         }
     }
 

@@ -7,6 +7,7 @@ import '../../services/currency_notifier.dart';
 import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
 import '../../widgets/agent_workflow_card.dart';
+import '../../utils/transport_leg_utils.dart';
 
 /// Booking status screen matching Figma frame 12 · Booking Status (node 7:11041)
 class BookingStatusScreen extends StatefulWidget {
@@ -920,18 +921,16 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     if (items.isEmpty) return const SizedBox.shrink();
 
     Map<String, dynamic>? hotelItem;
-    Map<String, dynamic>? transportItem;
+    final transportItems = orderedTransportItems(items);
 
     for (var it in items) {
       final type = it['itemType']?.toString().toLowerCase() ?? '';
       if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
         hotelItem ??= it;
-      } else if (type == 'transport' || it['vehicleType'] != null || it['transportProvider'] != null) {
-        transportItem ??= it;
       }
     }
 
-    if (hotelItem == null && transportItem == null) return const SizedBox.shrink();
+    if (hotelItem == null && transportItems.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1040,8 +1039,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
           ),
 
         // Transport card
-        if (transportItem != null)
-          Container(
+        ...transportItems.map((transportItem) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -1073,7 +1071,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
+                              '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
                               style: GoogleFonts.plusJakartaSans(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -1102,13 +1100,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Provider: ${transportItem['transportProvider'] ?? 'Island Chauffeur Services'}',
+                        'Provider: ${transportItem['transportProvider'] ?? transportItem['transportProviderSnapshot'] ?? 'Island Chauffeur Services'}',
                         style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
                       ),
-                      if (transportItem['pickupLocation'] != null || transportItem['dropoffLocation'] != null) ...[
+                      if (transportItem['routeFrom'] != null || transportItem['routeTo'] != null || transportItem['pickupLocation'] != null || transportItem['dropoffLocation'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
-                          'Route: ${transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['dropoffLocation'] ?? 'Destination'}',
+                          'Route: ${transportItem['routeFrom'] ?? transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['routeTo'] ?? transportItem['dropoffLocation'] ?? 'Destination'}',
                           style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
                         ),
                       ],
@@ -1128,7 +1126,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 ),
               ],
             ),
-          ),
+          )),
       ],
     );
   }

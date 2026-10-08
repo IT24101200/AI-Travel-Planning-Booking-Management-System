@@ -482,8 +482,32 @@ namespace backend.Controllers
                                 });
                             }
 
-                            // 4. Add Transport to booking items
-                            if (bd.TryGetProperty("selected_transport", out var transport) && transport.TryGetProperty("transport_id", out var transIdProp))
+                            // 4. Add every transport leg to booking items. Keep the
+                            // singular branch for legacy proposals only; a true
+                            // multi-destination proposal must not collapse to one leg.
+                            if (bd.TryGetProperty("transport_selections", out var transportSelections)
+                                && transportSelections.ValueKind == System.Text.Json.JsonValueKind.Array)
+                            {
+                                foreach (var selection in transportSelections.EnumerateArray())
+                                {
+                                    if (!selection.TryGetProperty("leg_index", out var legIndex)
+                                        || !legIndex.TryGetInt32(out var resolvedLegIndex))
+                                        continue;
+                                    var hasOptionId = selection.TryGetProperty("transport_option_id", out var optionId)
+                                        || selection.TryGetProperty("transport_id", out optionId);
+                                    if (!hasOptionId || !optionId.TryGetInt32(out var resolvedOptionId))
+                                        continue;
+                                    items.Add(new BookingItemCreateDto
+                                    {
+                                        ItemType = backend.Models.Enums.BookingItemType.Transport,
+                                        TransportOptionId = resolvedOptionId,
+                                        TransportLegIndex = resolvedLegIndex,
+                                        Quantity = updated.TravellerCount
+                                    });
+                                }
+                            }
+                            else if (bd.TryGetProperty("selected_transport", out var transport)
+                                && transport.TryGetProperty("transport_id", out var transIdProp))
                             {
                                 items.Add(new BookingItemCreateDto
                                 {
@@ -679,6 +703,53 @@ namespace backend.Controllers
                     .FirstOrDefaultAsync(t => t.Status == TransportStatus.Active && t.Capacity >= trip.TravellerCount)
                     ?? await db.TransportOptions.FirstOrDefaultAsync(t => t.Status == TransportStatus.Active);
 
+                // The local fallback must honour the same multi-leg contract
+                // as the Python booking agent. For each ordered destination
+                // pair, select a dated database option; never reuse one
+                // unrelated option for every leg.
+                var transportSelections = new List<object>();
+                decimal transCost;
+                if (requestedDestinationIds.Count > 1)
+                {
+                    transCost = 0m;
+                    var destinationNames = await db.Destinations
+                        .Where(destination => requestedDestinationIds.Contains(destination.Id))
+                        .ToDictionaryAsync(destination => destination.Id, destination => destination.Name);
+                    for (var legIndex = 0; legIndex < requestedDestinationIds.Count - 1; legIndex++)
+                    {
+                        if (!destinationNames.TryGetValue(requestedDestinationIds[legIndex], out var routeFrom)
+                            || !destinationNames.TryGetValue(requestedDestinationIds[legIndex + 1], out var routeTo))
+                            throw new InvalidOperationException("A requested multi-leg route has no canonical destination name.");
+
+                        var legTransport = await db.TransportOptions
+                            .Where(option => option.Status == TransportStatus.Active
+                                && option.Capacity >= trip.TravellerCount
+                                && option.RouteFrom == routeFrom
+                                && option.RouteTo == routeTo
+                                && option.DepartureTime >= trip.StartDate
+                                && option.ArrivalTime <= trip.EndDate)
+                            .OrderBy(option => option.Price)
+                            .ThenBy(option => option.Id)
+                            .FirstOrDefaultAsync();
+                        if (legTransport is null)
+                            throw new InvalidOperationException($"No suitable transport exists for {routeFrom} -> {routeTo}.");
+
+                        transportSelections.Add(new
+                        {
+                            leg_index = legIndex,
+                            transport_option_id = legTransport.Id,
+                            type = legTransport.Type.ToString(),
+                            provider = legTransport.Provider,
+                            price = (double)legTransport.Price
+                        });
+                        transCost += legTransport.Price * trip.TravellerCount;
+                    }
+                }
+                else
+                {
+                    transCost = (transport?.Price ?? 50m) * trip.TravellerCount;
+                }
+
                 var days = Math.Max(1, (trip.EndDate.Date - trip.StartDate.Date).Days);
                 var schedule = new List<object>();
                 decimal toursCost = 0;
@@ -740,7 +811,6 @@ namespace backend.Controllers
                 }
 
                 decimal roomCost = (room?.PricePerNight ?? 150m) * days;
-                decimal transCost = (transport?.Price ?? 50m) * trip.TravellerCount;
                 decimal totalCost = toursCost + roomCost + transCost;
 
                 var planObj = new
@@ -767,13 +837,14 @@ namespace backend.Controllers
                             hotel_name = hotel.Name,
                             price_per_night = (double)room.PricePerNight
                         } : null,
-                        selected_transport = transport != null ? new
+                        selected_transport = requestedDestinationIds.Count <= 1 && transport != null ? new
                         {
                             transport_id = transport.Id,
                             type = transport.Type.ToString(),
                             provider = transport.Provider,
                             price = (double)transport.Price
-                        } : null
+                        } : null,
+                        transport_selections = transportSelections.Count > 0 ? transportSelections : null
                     }
                 };
 

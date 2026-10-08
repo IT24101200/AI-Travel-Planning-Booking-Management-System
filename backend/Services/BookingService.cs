@@ -123,17 +123,21 @@ namespace backend.Services
                 // so that two concurrent requests for the last available seat
                 // are serialised: the second waits for the first to commit,
                 // then re-counts and finds zero seats remaining.
-                foreach (var item in dto.Items
+                foreach (var transportGroup in dto.Items
                              .Where(i => i.ItemType == BookingItemType.Transport)
-                             .OrderBy(i => i.TransportOptionId))
+                             .Where(i => i.TransportOptionId.HasValue)
+                             .GroupBy(i => i.TransportOptionId!.Value)
+                             .OrderBy(group => group.Key))
                 {
+                    var transportOptionId = transportGroup.Key;
+                    var requestedQuantity = transportGroup.Sum(item => item.Quantity);
                     TransportOption? lockedTransport;
                     if (IsPostgres)
                     {
                         lockedTransport = await _db.TransportOptions
                             .FromSqlRaw(
                                 "SELECT * FROM \"TransportOptions\" WHERE \"Id\" = {0} FOR UPDATE",
-                                item.TransportOptionId!.Value)
+                                transportOptionId)
                             .AsNoTracking()
                             .FirstOrDefaultAsync();
                     }
@@ -141,12 +145,12 @@ namespace backend.Services
                     {
                         lockedTransport = await _db.TransportOptions
                             .AsNoTracking()
-                            .FirstOrDefaultAsync(t => t.Id == item.TransportOptionId!.Value);
+                            .FirstOrDefaultAsync(t => t.Id == transportOptionId);
                     }
 
                     if (lockedTransport is null)
                         throw new KeyNotFoundException(
-                            $"TransportOption with ID {item.TransportOptionId} not found.");
+                            $"TransportOption with ID {transportOptionId} not found.");
 
                     if (lockedTransport.Status != TransportStatus.Active)
                         throw new TransportBusinessException(
@@ -156,15 +160,15 @@ namespace backend.Services
                     // Re-count active bookings for this transport option under the lock.
                     var bookedSeats = await TransportInventory.CountReservedSeatsAsync(
                         _db,
-                        item.TransportOptionId!.Value);
+                        transportOptionId);
 
                     var availableSeats = lockedTransport.Capacity - bookedSeats;
-                    if (availableSeats < item.Quantity)
+                    if (availableSeats < requestedQuantity)
                         throw new InvalidOperationException(
                             $"TransportOption '{lockedTransport.Provider}: " +
                             $"{lockedTransport.RouteFrom} \u2192 {lockedTransport.RouteTo}' " +
                             $"(ID {lockedTransport.Id}) has insufficient capacity. " +
-                            $"Requested: {item.Quantity}, available: {Math.Max(0, availableSeats)}.");
+                            $"Requested: {requestedQuantity}, available: {Math.Max(0, availableSeats)}.");
                 }
 
                 // Rule 1: Always created in AwaitingApproval (or Draft if explicitly specified, never Confirmed)
@@ -335,10 +339,12 @@ namespace backend.Services
             string bookingCurrency,
             TripRequest trip)
         {
+            var requestedItemList = requestedItems.ToList();
+            ValidateTransportLegContract(requestedItemList, trip);
             var bookingItems = new List<BookingItem>();
             decimal calculatedTotal = 0m;
 
-            foreach (var item in requestedItems)
+            foreach (var item in requestedItemList)
             {
                 if (item.Quantity <= 0)
                     throw new ArgumentException("Booking item quantity must be positive.");
@@ -357,6 +363,7 @@ namespace backend.Services
                     TourId = item.TourId,
                     RoomId = item.RoomId,
                     TransportOptionId = item.TransportOptionId,
+                    TransportLegIndex = item.TransportLegIndex,
                     CheckInDate = item.CheckInDate,
                     CheckOutDate = item.CheckOutDate,
                     Quantity = item.Quantity,
@@ -414,7 +421,11 @@ namespace backend.Services
                         if (transport is null || transport.Status != TransportStatus.Active)
                             throw new InvalidOperationException("The selected transport option is no longer available.");
 
-                        await TransportCompatibility.ValidateAsync(_db, transport, trip);
+                        await TransportCompatibility.ValidateAsync(
+                            _db,
+                            transport,
+                            trip,
+                            transportLegIndex: item.TransportLegIndex);
                         bookingItem.TransportTypeSnapshot = transport.Type.ToString();
                         bookingItem.TransportProviderSnapshot = transport.Provider;
                         bookingItem.TransportRouteFromSnapshot = transport.RouteFrom;
@@ -441,6 +452,39 @@ namespace backend.Services
             }
 
             return (bookingItems, decimal.Round(calculatedTotal, 2, MidpointRounding.AwayFromZero));
+        }
+
+        private static void ValidateTransportLegContract(
+            IReadOnlyCollection<BookingItemCreateDto> requestedItems,
+            TripRequest trip)
+        {
+            var transportItems = requestedItems
+                .Where(item => item.ItemType == BookingItemType.Transport)
+                .ToList();
+            var destinationIds = TransportCompatibility.ResolveDestinationIds(trip);
+            var expectedLegCount = Math.Max(0, destinationIds.Count - 1);
+
+            if (requestedItems.Any(item => item.ItemType != BookingItemType.Transport && item.TransportLegIndex.HasValue))
+                throw new ArgumentException("TransportLegIndex is only valid for transport booking items.");
+
+            if (expectedLegCount == 0)
+            {
+                if (transportItems.Any(item => item.TransportLegIndex.HasValue))
+                    throw new ArgumentException("A single-destination transport item must not have a leg index.");
+                return;
+            }
+
+            if (transportItems.Count != expectedLegCount)
+                throw new ArgumentException(
+                    $"A trip with {destinationIds.Count} destinations requires exactly {expectedLegCount} transport booking items.");
+
+            var indexes = transportItems.Select(item => item.TransportLegIndex).ToList();
+            if (indexes.Any(index => !index.HasValue || index < 0 || index >= expectedLegCount) ||
+                indexes.Distinct().Count() != expectedLegCount)
+            {
+                throw new ArgumentException(
+                    $"Transport leg indexes must be unique and continuous from 0 through {expectedLegCount - 1}.");
+            }
         }
 
         private void ValidateStatusTransition(BookingStatus current, BookingStatus target)
@@ -548,7 +592,13 @@ namespace backend.Services
                 ExchangeRateToLkr = b.ExchangeRateToLkr,
                 CreatedAt = DateTimeContract.AsStoredUtc(b.CreatedAt),
                 UpdatedAt = DateTimeContract.AsStoredUtc(b.UpdatedAt),
-                BookingItems = b.BookingItems.Select(bi => new BookingItemDto
+                BookingItems = b.BookingItems
+                    .Where(bi => bi.ItemType != BookingItemType.Transport)
+                    .Concat(b.BookingItems
+                        .Where(bi => bi.ItemType == BookingItemType.Transport)
+                        .OrderBy(bi => bi.TransportLegIndex ?? int.MaxValue)
+                        .ThenBy(bi => bi.Id))
+                    .Select(bi => new BookingItemDto
                 {
                     Id = bi.Id,
                     BookingId = bi.BookingId,
@@ -557,6 +607,7 @@ namespace backend.Services
                     TourName = bi.Tour?.Name,
                     RoomId = bi.RoomId,
                     TransportOptionId = bi.TransportOptionId,
+                    TransportLegIndex = bi.TransportLegIndex,
                     HotelId = bi.Room?.HotelId,
                     HotelName = bi.Room?.Hotel?.Name,
                     HotelAddress = bi.Room?.Hotel?.Address,

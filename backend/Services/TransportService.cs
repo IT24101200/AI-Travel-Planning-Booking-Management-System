@@ -76,13 +76,16 @@ namespace backend.Services
             }
 
             // ── Sort ──
-            query = sortBy?.ToLower() switch
+            IOrderedQueryable<TransportOption> orderedQuery = sortBy?.ToLower() switch
             {
                 "price" => descending ? query.OrderByDescending(t => t.Price) : query.OrderBy(t => t.Price),
                 "departure" => descending ? query.OrderByDescending(t => t.DepartureTime) : query.OrderBy(t => t.DepartureTime),
                 "provider" => descending ? query.OrderByDescending(t => t.Provider) : query.OrderBy(t => t.Provider),
-                _ => query.OrderBy(t => t.DepartureTime)  // default: soonest first
+                _ => descending ? query.OrderByDescending(t => t.DepartureTime) : query.OrderBy(t => t.DepartureTime)
             };
+            query = descending
+                ? orderedQuery.ThenByDescending(t => t.Id)
+                : orderedQuery.ThenBy(t => t.Id);
 
             // ── Paginate ──
             var results = await query
