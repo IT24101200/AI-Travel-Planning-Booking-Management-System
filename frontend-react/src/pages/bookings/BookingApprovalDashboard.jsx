@@ -15,6 +15,26 @@ import {
 
 const STATUS_NAMES = ['Draft', 'AwaitingApproval', 'Confirmed', 'Rejected', 'Cancelled', 'Completed']
 
+function formatBookingItemPrice(item, currency) {
+  return item?.subtotal != null
+    ? formatPrice(item.subtotal, item.currency || currency)
+    : 'Not available'
+}
+
+function normalizeBookingItems(items) {
+  return (Array.isArray(items) ? items : []).map((item) => {
+    const isRoom = item?.itemType === 1 || item?.itemType === 'Room' || item?.hotelName
+    const isTransport = item?.itemType === 2 || item?.itemType === 'Transport' || item?.transportOptionId
+    return {
+      ...item,
+      hotelName: isRoom ? (item.hotelName || 'Hotel details unavailable') : item.hotelName,
+      roomType: isRoom ? (item.roomType || 'Room type unavailable') : item.roomType,
+      transportType: isTransport ? (item.transportType || 'Transport details unavailable') : item.transportType,
+      transportProvider: isTransport ? (item.transportProvider || 'Provider unavailable') : item.transportProvider,
+    }
+  })
+}
+
 
 /**
  * Student D â€” Booking Approval Dashboard
@@ -63,7 +83,7 @@ export default function BookingApprovalDashboard() {
             requested: b.createdAt ? formatLocalInstantDate(b.createdAt) : 'Date unavailable',
             status: statusStr,
             agentLogs: b.agentLogs || [],
-            bookingItems: b.bookingItems || [],
+            bookingItems: normalizeBookingItems(b.bookingItems),
             itinerary: b.itinerary || null,
             startDate: b.startDate || null,
             endDate: b.endDate || null,
@@ -461,15 +481,15 @@ export default function BookingApprovalDashboard() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 700, color: '#166534' }}>
-                        🏨 Booked Hotel: {roomItem.hotelName || 'Selected Hotel'}
+                        🏨 Booked Hotel: {roomItem.hotelName || 'Hotel details unavailable'}
                       </span>
                       <span style={{ fontWeight: 700, color: '#15803d' }}>
-                        {formatPrice(roomItem.subtotal || roomItem.unitPrice, roomItem.currency || active.currency)}
+                        {formatBookingItemPrice(roomItem, active.currency)}
                       </span>
                     </div>
                     <div style={{ color: '#374151', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                       {roomItem.hotelAddress && <div>📍 {roomItem.hotelAddress}</div>}
-                      <div>🛏️ {roomItem.roomType || 'Standard Room'} {roomItem.roomCapacity ? `(Capacity: ${roomItem.roomCapacity} Guests)` : ''}</div>
+                      <div>🛏️ {roomItem.roomType || 'Room type unavailable'} {roomItem.roomCapacity ? `(Capacity: ${roomItem.roomCapacity} Guests)` : ''}</div>
                       {roomItem.checkInDate && roomItem.checkOutDate && (
                         <div style={{ color: '#6b7280', fontSize: '0.6875rem' }}>
                           📅 {formatDateOnly(roomItem.checkInDate)} – {formatDateOnly(roomItem.checkOutDate)}
@@ -498,14 +518,14 @@ export default function BookingApprovalDashboard() {
                     )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 700, color: '#1e40af' }}>
-                        🚗 Booked Transport: {transItem.transportType || 'Private Vehicle'}
+                        🚗 Booked Transport: {transItem.transportType || 'Transport details unavailable'}
                       </span>
                       <span style={{ fontWeight: 700, color: '#1d4ed8' }}>
-                        {formatPrice(transItem.subtotal || transItem.unitPrice, transItem.currency || active.currency)}
+                        {formatBookingItemPrice(transItem, active.currency)}
                       </span>
                     </div>
                     <div style={{ color: '#374151', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                      <div>Provider: {transItem.transportProvider || 'Island Transit Fleet'}</div>
+                      <div>Provider: {transItem.transportProvider || 'Provider unavailable'}</div>
                       {transItem.routeFrom && transItem.routeTo && (
                         <div>Route: {transItem.routeFrom} ➔ {transItem.routeTo}</div>
                       )}
@@ -530,7 +550,7 @@ export default function BookingApprovalDashboard() {
                     <ul style={{ margin: 0, paddingLeft: '1.2rem', color: '#374151' }}>
                       {active.bookingItems.filter(item => item.itemType === 0 || item.itemType === 'Tour' || item.tourName).map((tourItem, idx) => (
                         <li key={`tour-${idx}`} style={{ marginBottom: '2px' }}>
-                          <b>{tourItem.tourName || 'Tour Activity'}</b> — {formatPrice(tourItem.subtotal || tourItem.unitPrice, tourItem.currency || active.currency)}
+                          <b>{tourItem.tourName || 'Tour details unavailable'}</b> — {formatBookingItemPrice(tourItem, active.currency)}
                         </li>
                       ))}
                     </ul>

@@ -14,6 +14,7 @@ import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import { useAuth } from '../../lib/auth.jsx'
 import { formatLocalInstantDate } from '../../lib/dateTime.js'
+import { formatPrice } from '../../lib/formatPrice.js'
 import {
   SearchIcon,
   UserPlusIcon,
@@ -280,7 +281,7 @@ export default function CustomerDirectory() {
               ? b.bookingItems.map((i) => i.tourName || 'Serendib Tour').filter(Boolean).join(', ')
               : 'Custom Tailored Tour Package',
             date: b.createdAt ? b.createdAt.split('T')[0] : 'Recent',
-            amount: b.totalCost ? `$${Number(b.totalCost).toLocaleString()} ${b.currency || 'USD'}` : 'Contact agent',
+            amount: b.totalCost != null ? formatPrice(b.totalCost, b.currency || 'LKR') : 'Amount unavailable',
             status: statusStr,
             itineraryId: b.itineraryId
           }
@@ -291,7 +292,7 @@ export default function CustomerDirectory() {
           reference: `TRIP-REQ-${t.id}`,
           title: t.rawRequestText || (t.destinationId ? `Destination Visit #${t.destinationId}` : 'Bespoke Tour Request'),
           date: t.startDate ? t.startDate.split('T')[0] : 'Upcoming',
-          amount: t.budgetCeiling ? `$${Number(t.budgetCeiling).toLocaleString()} ${t.currency || 'USD'}` : 'Flexible',
+          amount: t.budgetCeiling != null ? formatPrice(t.budgetCeiling, t.currency || 'LKR') : 'Budget unavailable',
           status: t.status || 'Planned',
           itineraryId: null
         }))

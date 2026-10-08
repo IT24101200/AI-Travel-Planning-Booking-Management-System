@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
-import '../../services/trip_selection_service.dart';
-import '../../services/date_time_contract.dart';
 import '../../services/currency_notifier.dart';
-import '../../main.dart' show currencyNotifier;
+import '../../services/date_time_contract.dart';
 import '../../widgets/common_widgets.dart';
 
 /// Checkout and payment screen matching Figma frame 11 · Checkout & Payment (node 7:10956)
@@ -23,14 +22,16 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   String? _error;
   String? _paymentMessage;
 
-  final TextEditingController _nameController =
-      TextEditingController(text: 'MAYA FERNANDO');
-  final TextEditingController _cardNumberController =
-      TextEditingController(text: '4242 4242 4242 4242');
-  final TextEditingController _expiryController =
-      TextEditingController(text: '10 / 29');
-  final TextEditingController _cvvController =
-      TextEditingController(text: '742');
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _cardNumberController = TextEditingController(
+    text: '4242 4242 4242 4242',
+  );
+  final TextEditingController _expiryController = TextEditingController(
+    text: '10 / 29',
+  );
+  final TextEditingController _cvvController = TextEditingController(
+    text: '742',
+  );
 
   @override
   void didChangeDependencies() {
@@ -41,18 +42,61 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     if (args is int) {
       _loadBooking(args);
     } else if (args is Map) {
-      setState(() {
-        _booking = Map<String, dynamic>.from(args);
-        _loading = false;
-      });
-    } else if (TripSelectionService.activeBookingId != null) {
-      _loadBooking(TripSelectionService.activeBookingId!);
+      final bookingId = _positiveId(args['id']);
+      if (bookingId != null) {
+        _loadBooking(bookingId);
+      } else {
+        setState(() {
+          _error = 'Checkout requires a valid booking context.';
+          _loading = false;
+        });
+      }
     } else {
       setState(() {
-        _error = 'No booking is available yet. Wait for the travel agent to prepare the proposal.';
+        _error =
+            'No booking was selected. Open checkout from a specific booking.';
         _loading = false;
       });
     }
+  }
+
+  int? _positiveId(dynamic value) {
+    final id = int.tryParse(value?.toString() ?? '');
+    return id != null && id > 0 ? id : null;
+  }
+
+  double? _number(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  String _dateLabel(dynamic value) {
+    final date = parseDateOnly(value);
+    return date == null ? '' : DateFormat('dd MMM yyyy').format(date);
+  }
+
+  String _bookingDates(Map<String, dynamic> booking) {
+    final start = _dateLabel(booking['startDate']);
+    final end = _dateLabel(booking['endDate']);
+    final travellers = booking['travellerCount'];
+    final travellerLabel = travellers == null ? '' : ' · $travellers travellers';
+    if (start.isEmpty || end.isEmpty) return 'Dates unavailable$travellerLabel';
+    return '$start – $end$travellerLabel';
+  }
+
+  String _bookingDestinations(Map<String, dynamic> booking) {
+    final raw = booking['orderedDestinations'];
+    if (raw is List) {
+      final names = raw
+          .map((value) => value.toString().trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) return names.join(' · ');
+    }
+    final primary = booking['destinationName']?.toString().trim();
+    return primary == null || primary.isEmpty
+        ? 'Destinations unavailable'
+        : primary;
   }
 
   @override
@@ -86,9 +130,16 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       final data = await ApiService.getBooking(id);
       if (mounted) {
         setState(() {
-          _booking = data;
-          if (_booking == null) {
-            _error = 'Booking #$id not found';
+          final returnedId = _positiveId(data?['id']);
+          if (data == null || returnedId != id) {
+            _booking = null;
+            _error = 'Booking #$id was not found or returned the wrong context.';
+          } else {
+            _booking = data;
+            final customerName = data['customerName']?.toString().trim();
+            if (customerName != null && customerName.isNotEmpty) {
+              _nameController.text = customerName;
+            }
           }
           _loading = false;
         });
@@ -127,6 +178,15 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   Future<void> _pay() async {
     if (_booking == null) return;
 
+    final amount = _number(_booking!['totalCost']);
+    final currency = _booking!['currency']?.toString().trim();
+    if (amount == null || amount <= 0 || currency == null || currency.isEmpty) {
+      setState(() {
+        _paymentMessage = 'Payment amount and currency are unavailable for this booking.';
+      });
+      return;
+    }
+
     // Validate form fields
     final validationError = _validateCardForm();
     if (validationError != null) {
@@ -137,7 +197,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     }
 
     // Backend rule: payment can only be processed if booking status is Confirmed (2)
-    final currentStatus = _normalizeStatus(_booking!['status'] ?? _booking!['bookingStatus']);
+    final currentStatus = _normalizeStatus(
+      _booking!['status'] ?? _booking!['bookingStatus'],
+    );
     if (currentStatus != 2) {
       setState(() {
         _paymentMessage =
@@ -154,13 +216,22 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     try {
       // These are Stripe's documented TEST-mode PaymentMethod fixtures. The
       // card number itself is never sent to the backend.
-      final cleanCard = _cardNumberController.text.replaceAll(RegExp(r'\s+'), '');
+      final cleanCard = _cardNumberController.text.replaceAll(
+        RegExp(r'\s+'),
+        '',
+      );
       final paymentMethodId = cleanCard.endsWith('0002')
           ? 'pm_card_chargeDeclined'
           : 'pm_card_visa';
 
+      final bookingId = _positiveId(_booking!['id']);
+      if (bookingId == null) {
+        setState(() => _paymentMessage = 'A valid booking is required for payment.');
+        return;
+      }
+
       final result = await ApiService.createPayment({
-        'bookingId': _booking!['id'] ?? 101,
+        'bookingId': bookingId,
         'paymentMethodId': paymentMethodId,
       });
 
@@ -168,7 +239,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
       final statusCode = result['statusCode'] ?? 0;
       final paymentStatus = result['status']?.toString().toLowerCase();
-      final isSuccess = (statusCode == 200 || statusCode == 201) &&
+      final isSuccess =
+          (statusCode == 200 || statusCode == 201) &&
           paymentStatus == 'paid' &&
           (result['stripeReference']?.toString().isNotEmpty ?? false);
 
@@ -188,7 +260,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       } else {
         // Payment failed or declined: STAY on checkout screen with clear error
         setState(() {
-          _paymentMessage = result['failureReason'] ?? result['message'] ??
+          _paymentMessage =
+              result['failureReason'] ??
+              result['message'] ??
               'Stripe did not confirm the payment. Please try again.';
         });
       }
@@ -243,28 +317,24 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final total = (_booking!['totalCost'] ??
-            _booking!['totalEstimatedCost'] ??
-            1712)
-        .toDouble();
+    final totalValue = _number(_booking!['totalCost']);
+    final total = totalValue ?? 0.0;
 
     // ── Compute Itemized Costs Dynamically from bookingItems ──
-    final rawBookingItems = _booking!['bookingItems'] as List<dynamic>? ??
-        _booking!['items'] as List<dynamic>? ?? [];
+    final rawBookingItems = _booking!['bookingItems'] as List<dynamic>? ?? [];
 
     double accommodationCost = 0;
     double toursCost = 0;
     double transfersCost = 0;
     String accommodationLabel = 'Accommodation';
-    String toursLabel = 'Guided tours & activities';
-    String transportLabel = 'Private transfers & transport';
+    const toursLabel = 'Tours & Experiences';
+    const transportLabel = 'Transport';
 
     if (rawBookingItems.isNotEmpty) {
       for (final item in rawBookingItems) {
         if (item is Map) {
-          final subtotal = (item['subtotal'] ??
-                  ((item['unitPrice'] ?? 0) * (item['quantity'] ?? 1)))
-              .toDouble();
+          final subtotal = _number(item['subtotal']);
+          if (subtotal == null) continue;
           final type = item['itemType']?.toString().toLowerCase() ?? '';
 
           if (type.contains('room') || type.contains('hotel') || type == '1') {
@@ -282,9 +352,6 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
             }
           } else if (type.contains('tour') || type == '0') {
             toursCost += subtotal;
-            if (item['tourName'] != null && item['tourName'].toString().isNotEmpty) {
-              toursLabel = item['tourName'].toString();
-            }
           } else if (type.contains('transport') || type == '2') {
             transfersCost += subtotal;
           } else {
@@ -294,33 +361,24 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
       }
     }
 
-    final bool hasParsedItems =
-        (accommodationCost + toursCost + transfersCost) > 0;
+    // Booking.TotalCost is authoritative. Any positive remainder is displayed
+    // as included service/tax value; no client-side amount is invented.
+    final double remainder =
+        total - (accommodationCost + toursCost + transfersCost);
+    final double taxesCost = remainder > 0 ? remainder : 0.0;
+    final transactionCurrency = _booking!['currency']?.toString().trim().toUpperCase() ?? '';
+    final tripTitle = _booking!['tripTitle']?.toString().trim().isNotEmpty == true
+        ? _booking!['tripTitle'].toString()
+        : _booking!['destinationName']?.toString() ?? 'Trip details unavailable';
+    final dates = _bookingDates(_booking!);
+    final stops = _bookingDestinations(_booking!);
 
-    // Fallbacks if bookingItems is not populated (e.g., initial draft or mock)
-    if (!hasParsedItems) {
-      accommodationCost = (_booking!['accommodationCost'] ?? 1116).toDouble();
-      toursCost = (_booking!['toursCost'] ?? 218).toDouble();
-      transfersCost = (_booking!['transfersCost'] ?? 284).toDouble();
-      accommodationLabel = '6-night accommodation';
-      toursLabel = 'Sigiriya & Kandy guided tours';
-      transportLabel = 'Private transfers + scenic train';
-    }
-
-    // Taxes/service fees: if total exceeds items, remainder is taxes; if taxes included, 0
-    final double remainder = total - (accommodationCost + toursCost + transfersCost);
-    final double taxesCost = hasParsedItems
-        ? (remainder > 0 ? remainder : 0.0)
-        : (_booking!['taxesCost'] ?? 94).toDouble();
-    final transactionCurrency = (_booking!['currency']?.toString().isNotEmpty ?? false)
-        ? _booking!['currency'].toString().toUpperCase()
-        : currencyNotifier.value;
-    final tripTitle = _booking!['destination'] ?? 'Sri Lanka Discovery';
-    final dates = _booking!['dates'] ?? '12–18 Oct 2026 · 2 travelers';
-    final stops = _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
-
-    final int status = _normalizeStatus(_booking!['status'] ?? _booking!['bookingStatus']);
+    final int status = _normalizeStatus(
+      _booking!['status'] ?? _booking!['bookingStatus'],
+    );
     final bool isConfirmed = status == 2;
+    final bool hasAuthoritativePaymentData =
+        totalValue != null && totalValue > 0 && transactionCurrency.isNotEmpty;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -397,10 +455,14 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2C2415) : const Color(0xFFFFFBEB),
+                    color: isDark
+                        ? const Color(0xFF2C2415)
+                        : const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: isDark ? const Color(0xFFD97706) : const Color(0xFFFDE68A),
+                      color: isDark
+                          ? const Color(0xFFD97706)
+                          : const Color(0xFFFDE68A),
                     ),
                   ),
                   child: Column(
@@ -420,7 +482,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? const Color(0xFFFDE68A) : const Color(0xFF92400E),
+                                color: isDark
+                                    ? const Color(0xFFFDE68A)
+                                    : const Color(0xFF92400E),
                               ),
                             ),
                           ),
@@ -431,7 +495,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                         'Your booking is currently pending review by a travel coordinator. Payment is unlocked once the booking is Confirmed.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
-                          color: isDark ? const Color(0xFFFDE68A) : const Color(0xFFB45309),
+                          color: isDark
+                              ? const Color(0xFFFDE68A)
+                              : const Color(0xFFB45309),
                           height: 1.4,
                         ),
                       ),
@@ -444,11 +510,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                 Navigator.pushNamed(
                                   context,
                                   '/booking-status',
-                                  arguments: _booking!['id'] ?? 101,
+                                  arguments: _positiveId(_booking!['id']),
                                 );
                               },
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: Color(0xFFD97706)),
+                                side: const BorderSide(
+                                  color: Color(0xFFD97706),
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
@@ -500,22 +568,26 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                 Image.network(
                                   'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=200&auto=format&fit=crop&q=80',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                  errorBuilder: (_, _, _) =>
+                                      Container(color: Colors.grey),
                                 ),
                                 Image.network(
                                   'https://images.unsplash.com/photo-1546708973-b339540b5162?w=200&auto=format&fit=crop&q=80',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                  errorBuilder: (_, _, _) =>
+                                      Container(color: Colors.grey),
                                 ),
                                 Image.network(
                                   'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&auto=format&fit=crop&q=80',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                  errorBuilder: (_, _, _) =>
+                                      Container(color: Colors.grey),
                                 ),
                                 Image.network(
                                   'https://images.unsplash.com/photo-1588598198321-9735fd52455b?w=200&auto=format&fit=crop&q=80',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(color: Colors.grey),
+                                  errorBuilder: (_, _, _) =>
+                                      Container(color: Colors.grey),
                                 ),
                               ],
                             ),
@@ -574,27 +646,18 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     ),
 
                     // Cost breakdown items with selected hotel & transport awareness
-                    _buildCostItem(
-                      TripSelectionService.selectedHotel != null
-                          ? 'Accommodation: ${TripSelectionService.selectedHotel!['name']}'
-                          : accommodationLabel,
-                      accommodationCost,
-                    ),
+                    _buildCostItem(accommodationLabel, accommodationCost, transactionCurrency),
                     const SizedBox(height: 8),
-                    _buildCostItem(toursLabel, toursCost),
+                    _buildCostItem(toursLabel, toursCost, transactionCurrency),
                     const SizedBox(height: 8),
-                    _buildCostItem(
-                      TripSelectionService.selectedTransport != null
-                          ? 'Transport: ${TripSelectionService.selectedTransport!['name'] ?? TripSelectionService.selectedTransport!['type']}'
-                          : transportLabel,
-                      transfersCost,
-                    ),
+                    _buildCostItem(transportLabel, transfersCost, transactionCurrency),
                     const SizedBox(height: 8),
                     _buildCostItem(
                       taxesCost > 0
                           ? 'Taxes & partner service fees'
                           : 'Taxes & service fees (included)',
                       taxesCost,
+                      transactionCurrency,
                     ),
 
                     Padding(
@@ -636,7 +699,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           ],
                         ),
                         Text(
-                          formatMoney(total, transactionCurrency),
+                          hasAuthoritativePaymentData
+                              ? formatMoney(total, transactionCurrency)
+                              : 'Amount unavailable',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
@@ -666,9 +731,14 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
+                      color: isDark
+                          ? const Color(0xFF1E3A2F)
+                          : const Color(0xFFE5F1EA),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
@@ -676,7 +746,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                        color: isDark
+                            ? AppColors.leaf400
+                            : AppColors.figmaDarkGreen,
                       ),
                     ),
                   ),
@@ -691,10 +763,14 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   vertical: 12,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFEAF2EC),
+                  color: isDark
+                      ? const Color(0xFF1E3A2F)
+                      : const Color(0xFFEAF2EC),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                    color: isDark
+                        ? AppColors.leaf400
+                        : AppColors.figmaDarkGreen,
                     width: 1.5,
                   ),
                 ),
@@ -702,7 +778,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                   children: [
                     Icon(
                       Icons.credit_card,
-                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                      color: isDark
+                          ? AppColors.leaf400
+                          : AppColors.figmaDarkGreen,
                       size: 20,
                     ),
                     const SizedBox(width: 10),
@@ -722,7 +800,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                             'Visa, Mastercard, Amex supported',
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 11,
-                              color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                              color: isDark
+                                  ? const Color(0xFF9EABA4)
+                                  : const Color(0xFF6B7280),
                             ),
                           ),
                         ],
@@ -730,7 +810,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     ),
                     Icon(
                       Icons.check_circle,
-                      color: isDark ? AppColors.leaf400 : AppColors.figmaDarkGreen,
+                      color: isDark
+                          ? AppColors.leaf400
+                          : AppColors.figmaDarkGreen,
                       size: 18,
                     ),
                   ],
@@ -759,7 +841,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     'Ends with 0002 to test decline',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 10,
-                      color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                      color: isDark
+                          ? const Color(0xFF9EABA4)
+                          : const Color(0xFF6B7280),
                     ),
                   ),
                 ],
@@ -854,17 +938,28 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
               if (_paymentMessage != null) ...[
                 const SizedBox(height: 14),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2C1616) : const Color(0xFFFEF2F2),
+                    color: isDark
+                        ? const Color(0xFF2C1616)
+                        : const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF7F1D1D) : const Color(0xFFFCA5A5),
+                      color: isDark
+                          ? const Color(0xFF7F1D1D)
+                          : const Color(0xFFFCA5A5),
                     ),
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.error_outline, color: Color(0xFFEF4444), size: 18),
+                      const Icon(
+                        Icons.error_outline,
+                        color: Color(0xFFEF4444),
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -888,7 +983,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: (!isConfirmed || _paying) ? null : _pay,
+                  onPressed: (!isConfirmed ||
+                          !hasAuthoritativePaymentData ||
+                          _paying)
+                      ? null
+                      : _pay,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.figmaDarkGreen,
                     foregroundColor: Colors.white,
@@ -916,13 +1015,17 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
-                              isConfirmed ? Icons.lock_outline : Icons.lock_clock,
+                              isConfirmed
+                                  ? Icons.lock_outline
+                                  : Icons.lock_clock,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              isConfirmed
+                              isConfirmed && hasAuthoritativePaymentData
                                   ? 'Confirm & Pay ${formatMoney(total, transactionCurrency)}'
+                                  : isConfirmed
+                                  ? 'Payment details unavailable'
                                   : 'Payment Locked (Awaiting Approval)',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 15,
@@ -942,7 +1045,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     );
   }
 
-  Widget _buildCostItem(String label, double amount) {
+  Widget _buildCostItem(String label, double amount, String currency) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -961,7 +1064,10 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         const SizedBox(width: 8),
         Text(
           amount > 0
-              ? formatMoney(amount, (_booking?['currency']?.toString() ?? currencyNotifier.value))
+              ? formatMoney(
+                  amount,
+                  currency,
+                )
               : 'Included',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,

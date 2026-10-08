@@ -1,13 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/ticket_pdf_service.dart';
-import '../../services/trip_selection_service.dart';
 
 /// Trip confirmation screen matching Figma frame 13 · Trip Confirmation (node 7:11118)
 class TripConfirmationScreen extends StatelessWidget {
   const TripConfirmationScreen({super.key});
+
+  String _bookingDates(Map<String, dynamic> booking) {
+    final legacy = booking['dates']?.toString().trim();
+    if (legacy != null && legacy.isNotEmpty) return legacy;
+    final start = DateTime.tryParse(booking['startDate']?.toString() ?? '');
+    final end = DateTime.tryParse(booking['endDate']?.toString() ?? '');
+    if (start == null || end == null) return 'Dates unavailable';
+    return '${DateFormat('dd MMM yyyy').format(start)} – ${DateFormat('dd MMM yyyy').format(end)}';
+  }
+
+  String _bookingDestinations(Map<String, dynamic> booking) {
+    final raw = booking['orderedDestinations'];
+    if (raw is List) {
+      final names = raw
+          .map((value) => value.toString().trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) return names.join(' · ');
+    }
+    final primary = booking['destinationName']?.toString().trim();
+    return primary == null || primary.isEmpty ? 'Destinations unavailable' : primary;
+  }
+
+  List<Map<String, dynamic>> _bookingItems(Map<String, dynamic> booking) {
+    final raw = booking['bookingItems'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
+
+  String _hotelName(List<Map<String, dynamic>> items, Map<String, dynamic> booking) {
+    for (final item in items) {
+      if (item['hotelName'] != null) return item['hotelName'].toString();
+    }
+    final rootValue = booking['hotelName']?.toString().trim();
+    return rootValue == null || rootValue.isEmpty ? 'Accommodation details unavailable' : rootValue;
+  }
+
+  String _transportName(List<Map<String, dynamic>> items, Map<String, dynamic> booking) {
+    for (final item in items) {
+      if (item['transportOptionId'] != null || item['transportType'] != null) {
+        final type = item['transportType']?.toString().trim();
+        final from = item['routeFrom']?.toString().trim();
+        final to = item['routeTo']?.toString().trim();
+        final route = from != null && from.isNotEmpty && to != null && to.isNotEmpty
+            ? ' ($from → $to)'
+            : '';
+        return '${type == null || type.isEmpty ? 'Transport' : type}$route';
+      }
+    }
+    final rootValue = booking['transportName']?.toString().trim();
+    return rootValue == null || rootValue.isEmpty ? 'Transport details unavailable' : rootValue;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,29 +91,28 @@ class TripConfirmationScreen extends StatelessWidget {
         body: Center(child: Text('Booking reference is unavailable.')),
       );
     }
-    final customerName =
-        booking['customerName']?.toString() ?? 'Maya Fernando';
-    final tripTitle =
-        booking['destination']?.toString() ??
-        TripSelectionService.activeItinerary?['title'] ??
-        'Sri Lanka Discovery';
-    final dates =
-        booking['dates']?.toString() ??
-        TripSelectionService.activeItinerary?['dates'] ??
-        '12–18 October 2026 · 7 days / 6 nights';
-
-    // Dynamic hotel name from shared holder or booking
-    final hotelName = TripSelectionService.selectedHotel != null
-        ? TripSelectionService.selectedHotel!['name']?.toString() ?? 'Selected Hotel'
-        : (booking['hotelName']?.toString() ?? 'Heritance Kandalama + 2 stays');
-
-    // Dynamic transport name from shared holder or booking
-    final transportName = TripSelectionService.selectedTransport != null
-        ? '${TripSelectionService.selectedTransport!['name'] ?? TripSelectionService.selectedTransport!['type']} (${TripSelectionService.selectedTransport!['route'] ?? 'Private'})'
-        : (booking['transportName']?.toString() ?? 'Private car + scenic train');
-
-    final destinations = booking['stops']?.toString() ??
-        'Sigiriya · Kandy · Ella · Mirissa';
+    final customerName = booking['customerName']?.toString().trim();
+    final tripTitle = booking['tripTitle']?.toString().trim().isNotEmpty == true
+        ? booking['tripTitle'].toString()
+        : (booking['destinationName']?.toString().trim().isNotEmpty == true
+            ? booking['destinationName'].toString()
+            : 'Trip details unavailable');
+    final dates = _bookingDates(booking);
+    final items = _bookingItems(booking);
+    final hotelName = _hotelName(items, booking);
+    final transportName = _transportName(items, booking);
+    final destinations = _bookingDestinations(booking);
+    final travellerCount = booking['travellerCount']?.toString().trim();
+    final customerLabel = customerName == null || customerName.isEmpty
+        ? 'Customer unavailable'
+        : customerName;
+    final travellerLabel = travellerCount == null || travellerCount.isEmpty
+        ? 'Traveller count unavailable'
+        : '$travellerCount travellers';
+    final totalCost = booking['totalCost'] is num
+        ? (booking['totalCost'] as num).toDouble()
+        : double.tryParse(booking['totalCost']?.toString() ?? '') ?? 0;
+    final currency = booking['currency']?.toString() ?? '';
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -192,7 +243,9 @@ class TripConfirmationScreen extends StatelessWidget {
                       color: const Color(0xFF10291F).withValues(alpha: 0.08),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
-                    ),
+                    ), /*
+                      value: '$customerLabel · $travellerLabel',
+                  */
                   ],
                 ),
                 child: Column(
@@ -273,8 +326,12 @@ class TripConfirmationScreen extends StatelessWidget {
                       context,
                       icon: Icons.people_outline,
                       label: 'Travelers',
+                      value: '$customerLabel · $travellerLabel',
+                      /*
                       value: '$customerName · 2 Travelers',
-                    ),
+                    */), /*
+                      value: '$customerLabel · $travellerLabel',
+                  */
                   ],
                 ),
               ),
@@ -350,9 +407,15 @@ Stops: $destinations
                           // Real pure-Dart PDF ticket generation
                           final pdfBytes = TicketPdfService.generateTicketPdf(
                             bookingReference: bookingRef,
+                            customerName: customerLabel,
+                            destination: tripTitle,
+                            dates: dates,
+                            stops: destinations,
+                            hotelName: hotelName,
+                            transportTitle: transportName,
+                            totalCost: totalCost,
+                            currency: currency,
                             booking: booking,
-                            hotel: TripSelectionService.selectedHotel,
-                            transport: TripSelectionService.selectedTransport,
                           );
                           ScaffoldMessenger.of(context).hideCurrentSnackBar();
                           ScaffoldMessenger.of(context).showSnackBar(

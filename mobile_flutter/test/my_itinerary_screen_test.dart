@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/screens/tours/my_itinerary_screen.dart';
 import 'package:mobile_flutter/services/api_service.dart';
+import 'package:mobile_flutter/services/trip_selection_service.dart';
 
 void main() {
   setUp(() {
+    TripSelectionService.clear();
     ApiService.mockGetAgentHealth = () async => {'status': 'healthy'};
     ApiService.mockGetAgentLogs = (_) async => [];
     ApiService.mockStreamAgentLogs = (_) =>
@@ -23,6 +25,7 @@ void main() {
   });
 
   tearDown(() {
+    TripSelectionService.clear();
     ApiService.mockGetMyItineraries = null;
     ApiService.mockGetItinerary = null;
     ApiService.mockAcceptItinerary = null;
@@ -220,6 +223,40 @@ void main() {
       expect(find.text('Request Changes'), findsNothing);
     },
   );
+
+  testWidgets('5e. Checkout receives the booking matched to the selected itinerary', (
+    tester,
+  ) async {
+    final itinerary = createSampleItinerary(id: 42, status: 2);
+    Object? checkoutArgument;
+    ApiService.mockGetMyItineraries = () async => [itinerary];
+    ApiService.mockGetItinerary = (_) async => itinerary;
+    ApiService.mockGetMyBookings = () async => [
+      {'id': 999, 'itineraryId': 7},
+      {'id': 901, 'itineraryId': 42},
+    ];
+    TripSelectionService.setActiveBookingContext(itineraryId: 7, bookingId: 999);
+
+    await tester.pumpWidget(
+      buildTestWidget(
+        routes: {
+          '/checkout': (context) {
+            checkoutArgument = ModalRoute.of(context)?.settings.arguments;
+            return const Scaffold(body: Text('Mock Checkout'));
+          },
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await scrollJourneyToBottom(tester);
+    final checkoutButton = find.text('Continue to Checkout');
+    await tester.ensureVisible(checkoutButton);
+    await tester.tap(checkoutButton);
+    await tester.pumpAndSettle();
+
+    expect(checkoutArgument, equals(901));
+    expect(find.text('Mock Checkout'), findsOneWidget);
+  });
 
   testWidgets(
     '5d. Button visibility: Discarded status hides all action buttons and shows notice',

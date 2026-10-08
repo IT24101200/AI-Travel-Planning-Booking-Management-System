@@ -16,6 +16,17 @@ class TripSelectionService {
 
   // Active booking ID to pass forward to Checkout, Status, and Confirmation
   static int? activeBookingId;
+  // The itinerary that owns activeBookingId. This prevents a booking from a
+  // previous trip leaking into a newly selected itinerary.
+  static int? activeBookingItineraryId;
+
+  static void setActiveBookingContext({
+    required int itineraryId,
+    required int bookingId,
+  }) {
+    activeBookingItineraryId = itineraryId;
+    activeBookingId = bookingId;
+  }
 
   /// Resets all in-memory selections
   static void reset() {
@@ -25,6 +36,7 @@ class TripSelectionService {
     selectedTransport = null;
     activeItinerary = null;
     activeBookingId = null;
+    activeBookingItineraryId = null;
   }
 
   /// Alias for reset

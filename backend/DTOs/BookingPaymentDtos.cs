@@ -54,6 +54,12 @@ namespace backend.DTOs
         public int ItineraryId { get; set; }
         public int TripRequestId { get; set; }
         public int? TravellerCount { get; set; }
+        /// <summary>
+        /// Ordered destination names resolved from the booking's TripRequest.
+        /// This is the authoritative display context for checkout and payment views.
+        /// </summary>
+        public List<string> OrderedDestinations { get; set; } = new();
+        public string TripTitle { get; set; } = string.Empty;
         public string? DestinationName { get; set; }
         public string? RequestText { get; set; }
         public DateTime? StartDate { get; set; }

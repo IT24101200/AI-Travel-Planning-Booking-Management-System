@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/currency_notifier.dart';
-import '../../main.dart' show currencyNotifier;
+import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/agent_workflow_card.dart';
 import '../../utils/transport_leg_utils.dart';
@@ -32,17 +33,61 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
       _loadBooking(args);
     } else if (args is Map) {
       final map = Map<String, dynamic>.from(args);
-      if (map['id'] is int && map['bookingReference'] == null) {
-        _loadBooking(map['id'] as int);
+      final id = _positiveId(map['id']);
+      if (id != null) {
+        _loadBooking(id);
       } else {
         setState(() {
-          _booking = map;
+          _booking = null;
+          _error = 'Booking status requires a valid booking context.';
           _loading = false;
         });
       }
+    } else if (TripSelectionService.activeBookingId != null &&
+        TripSelectionService.activeBookingItineraryId != null) {
+      _loadBooking(TripSelectionService.activeBookingId!);
     } else {
-      _loadDefaultOrLatestBooking();
+      setState(() {
+        _error = 'Select a specific booking to view its status.';
+        _loading = false;
+      });
     }
+  }
+
+  int? _positiveId(dynamic value) {
+    final id = int.tryParse(value?.toString() ?? '');
+    return id != null && id > 0 ? id : null;
+  }
+
+  double? _number(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  String _bookingDates(Map<String, dynamic> booking) {
+    final legacy = booking['dates']?.toString().trim();
+    if (legacy != null && legacy.isNotEmpty) return legacy;
+    final start = DateTime.tryParse(booking['startDate']?.toString() ?? '');
+    final end = DateTime.tryParse(booking['endDate']?.toString() ?? '');
+    final travellers = booking['travellerCount'];
+    final travellerLabel = travellers == null ? '' : ' · $travellers travellers';
+    if (start == null || end == null) return 'Dates unavailable$travellerLabel';
+    return '${DateFormat('dd MMM yyyy').format(start)} – ${DateFormat('dd MMM yyyy').format(end)}$travellerLabel';
+  }
+
+  String _bookingDestinations(Map<String, dynamic> booking) {
+    final raw = booking['orderedDestinations'];
+    if (raw is List) {
+      final names = raw
+          .map((value) => value.toString().trim())
+          .where((value) => value.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty) return names.join(' · ');
+    }
+    final primary = booking['destinationName']?.toString().trim();
+    return primary == null || primary.isEmpty
+        ? 'Destinations unavailable'
+        : primary;
   }
 
   String _normalizeBookingStatus(dynamic status) {
@@ -55,38 +100,6 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     return status?.toString() ?? 'Draft';
   }
 
-  /// Load latest booking
-  Future<void> _loadDefaultOrLatestBooking() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final list = await ApiService.getMyBookings();
-      if (list.isNotEmpty && mounted) {
-        final latest = list.first;
-        if (latest is Map<String, dynamic>) {
-          setState(() {
-            _booking = latest;
-            _loading = false;
-          });
-          return;
-        }
-      }
-    } catch (_) {
-      // Fall through to error
-    }
-
-    if (mounted) {
-      setState(() {
-        _booking = null;
-        _error = 'No bookings found. Please plan and request a trip first.';
-        _loading = false;
-      });
-    }
-  }
-
   Future<void> _loadBooking(int id) async {
     setState(() {
       _loading = true;
@@ -96,10 +109,20 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
       final data = await ApiService.getBooking(id);
       if (mounted) {
         setState(() {
-          _booking = data;
-          if (_booking == null) _error = 'Booking not found';
+          final returnedId = _positiveId(data?['id']);
+          _booking = returnedId == id ? data : null;
+          if (_booking == null) _error = 'Booking not found or returned the wrong context.';
           _loading = false;
         });
+        if (_booking != null) {
+          final itineraryId = _positiveId(_booking!['itineraryId']);
+          if (itineraryId != null) {
+            TripSelectionService.setActiveBookingContext(
+              itineraryId: itineraryId,
+              bookingId: id,
+            );
+          }
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -176,22 +199,33 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         ),
         body: ErrorMessage(
           message: _error!,
-          onRetry: _loadDefaultOrLatestBooking,
         ),
       );
     }
 
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final reference = _booking!['bookingReference'] ?? 'ST-284619';
-    final total = (_booking!['totalCost'] ??
-            _booking!['totalEstimatedCost'] ??
-            1712)
-        .toDouble();
-    final tripTitle = _booking!['destination'] ?? 'Sri Lanka Discovery';
-    final dates = _booking!['dates'] ?? '12–18 Oct · 2 travelers';
-    final stops =
-        _booking!['stops'] ?? 'Sigiriya · Kandy · Ella · Mirissa';
+    final bookingId = _positiveId(_booking!['id']);
+    final reference = _booking!['bookingReference']?.toString().trim();
+    final total = _number(_booking!['totalCost']);
+    final currency = _booking!['currency']?.toString().trim() ?? '';
+    if (bookingId == null ||
+        reference == null ||
+        reference.isEmpty ||
+        total == null ||
+        total <= 0 ||
+        currency.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text('Booking pricing or reference data is unavailable.')),
+      );
+    }
+    final tripTitle = (_booking!['tripTitle']?.toString().trim().isNotEmpty ?? false)
+        ? _booking!['tripTitle'].toString()
+        : (_booking!['destinationName']?.toString().trim().isNotEmpty ?? false)
+            ? _booking!['destinationName'].toString()
+            : 'Trip details unavailable';
+    final dates = _bookingDates(_booking!);
+    final stops = _bookingDestinations(_booking!);
 
     final statusKey = _normalizeBookingStatus(_booking!['status']);
     final payments = _booking!['payments'];
@@ -540,7 +574,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Paid · ${formatMoney(total, (_booking?['currency']?.toString() ?? currencyNotifier.value))}',
+                              'Paid · ${formatMoney(total, currency)}',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
@@ -641,7 +675,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       Navigator.pushNamed(
                         context,
                         '/checkout',
-                        arguments: _booking,
+                        arguments: bookingId,
                       );
                     },
                     style: ElevatedButton.styleFrom(
@@ -981,7 +1015,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              hotelItem['hotelName']?.toString() ?? 'Reserved Hotel',
+                              hotelItem['hotelName']?.toString() ?? 'Hotel details unavailable',
                               style: GoogleFonts.plusJakartaSans(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -1010,7 +1044,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Room: ${hotelItem['roomTypeName'] ?? 'Standard Room'}${hotelItem['capacity'] != null ? ' · Up to ${hotelItem['capacity']} guests' : ''}',
+                        'Room: ${hotelItem['roomType'] ?? 'Room type unavailable'}${hotelItem['roomCapacity'] != null ? ' · Up to ${hotelItem['roomCapacity']} guests' : ''}',
                         style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
                       ),
                       if (hotelItem['checkInDate'] != null) ...[
@@ -1020,10 +1054,10 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                           style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
                         ),
                       ],
-                      if (hotelItem['totalPrice'] != null || hotelItem['unitPrice'] != null) ...[
+                      if (hotelItem['subtotal'] != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          formatMoney(hotelItem['totalPrice'] ?? hotelItem['unitPrice'], _booking?['currency']?.toString() ?? 'LKR'),
+                          formatMoney(hotelItem['subtotal'], _booking?['currency']?.toString() ?? ''),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -1071,7 +1105,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
+                              '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? 'Transport'}',
                               style: GoogleFonts.plusJakartaSans(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -1100,7 +1134,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Provider: ${transportItem['transportProvider'] ?? transportItem['transportProviderSnapshot'] ?? 'Island Chauffeur Services'}',
+                        'Provider: ${transportItem['transportProvider'] ?? 'Provider unavailable'}',
                         style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
                       ),
                       if (transportItem['routeFrom'] != null || transportItem['routeTo'] != null || transportItem['pickupLocation'] != null || transportItem['dropoffLocation'] != null) ...[
@@ -1110,10 +1144,10 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                           style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
                         ),
                       ],
-                      if (transportItem['totalPrice'] != null || transportItem['unitPrice'] != null) ...[
+                      if (transportItem['subtotal'] != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          formatMoney(transportItem['totalPrice'] ?? transportItem['unitPrice'], _booking?['currency']?.toString() ?? 'LKR'),
+                          formatMoney(transportItem['subtotal'], _booking?['currency']?.toString() ?? ''),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
