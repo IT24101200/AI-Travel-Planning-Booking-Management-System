@@ -186,7 +186,7 @@ def test_no_transport_returns_clean_failure_without_fallback_ids(
     _transport_availability.return_value = {"isAvailable": False}
     result = booking_agent.build_booking_package(_state())
 
-    assert result["error_code"] == "NO_VALID_TRANSPORT"
+    assert result["error_code"] == "TRANSPORT_CATALOGUE_NO_AVAILABILITY"
     assert "401" not in str(result)
 
 

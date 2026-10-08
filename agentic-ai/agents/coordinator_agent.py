@@ -23,6 +23,14 @@ logger = logging.getLogger("CoordinatorAgent")
 # Retrieve Gemini API key if present
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
+NON_RETRYABLE_FAILURE_CODES = {
+    "TRANSPORT_CATALOGUE_NO_ROUTE",
+    "TRANSPORT_CATALOGUE_NO_DATE_MATCH",
+    "TRANSPORT_CATALOGUE_NO_CAPACITY",
+    "TRANSPORT_CATALOGUE_NO_AVAILABILITY",
+    "TRANSPORT_SEGMENT_UNRESOLVED",
+}
+
 
 def calculate_days(start_date_str: str, end_date_str: str) -> int:
     """Helper to calculate total trip days from ISO date strings."""
@@ -199,12 +207,39 @@ def coordinator_retry_evaluator(state: dict) -> dict:
     current_retries = state.get("retry_count", 0)
     validation = state.get("validation_result", {})
     is_valid = validation.get("is_valid", True)
+    failure_code = validation.get("upstream_error_code") or validation.get("error_code")
 
     if is_valid:
         # All good, trip successfully validated!
         return {
             "status": "AwaitingApproval",
             "next_action": "complete"
+        }
+
+    if failure_code in NON_RETRYABLE_FAILURE_CODES:
+        failure_msg = validation.get("error", "The selected transport catalogue cannot satisfy this request.")
+        log_agent_step(
+            trip_request_id=trip_id,
+            agent_name="CoordinatorAgent",
+            step_name="TerminateTripPlanning",
+            input_data={
+                "retry_count": current_retries,
+                "validation_error": failure_msg,
+                "failure_code": failure_code,
+            },
+            output_data={
+                "status": "Failed",
+                "reason": failure_msg,
+                "failure_code": failure_code,
+                "retryable": False,
+            },
+            status="Failed",
+        )
+        return {
+            "status": "Failed",
+            "failure_reason": failure_msg,
+            "failure_code": failure_code,
+            "next_action": "fail",
         }
 
     if current_retries < 1:
@@ -214,8 +249,16 @@ def coordinator_retry_evaluator(state: dict) -> dict:
             trip_request_id=trip_id,
             agent_name="CoordinatorAgent",
             step_name="TriggerRetryOptimization",
-            input_data={"current_retry": current_retries, "validation_error": validation.get("error")},
-            output_data={"decision": "Retry with budget tightening (-15%)", "new_retry_count": new_retry_count},
+            input_data={
+                "current_retry": current_retries,
+                "validation_error": validation.get("error"),
+                "failure_code": failure_code,
+            },
+            output_data={
+                "decision": "Retry with budget tightening (-15%)",
+                "new_retry_count": new_retry_count,
+                "failure_code": failure_code,
+            },
             status="Retrying"
         )
         return {

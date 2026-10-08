@@ -56,7 +56,7 @@ namespace backend.DTOs
         [Required(ErrorMessage = "Arrival time is required.")]
         public DateTime ArrivalTime { get; set; }
 
-        [Range(1, 2000, ErrorMessage = "Capacity must be at least 1.")]
+        [Range(1, 1000, ErrorMessage = "Capacity must be between 1 and 1000.")]
         public int Capacity { get; set; }
 
         [Range(0, 1000000, ErrorMessage = "Price must be greater than or equal to 0.")]

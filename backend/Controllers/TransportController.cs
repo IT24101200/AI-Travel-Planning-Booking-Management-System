@@ -87,19 +87,62 @@ namespace backend.Controllers
                     sortBy, descending, page, pageSize, currency);
                 var totalCount = await _transportService.GetTotalCountAsync(
                     type, routeFrom, routeTo, minPrice, maxPrice, effectiveStatus);
+                var activeCount = string.Equals(effectiveStatus, "Active", StringComparison.OrdinalIgnoreCase)
+                    ? totalCount
+                    : await _transportService.GetTotalCountAsync(
+                        type, routeFrom, routeTo, minPrice, maxPrice, "Active");
 
                 return Ok(new
                 {
                     data = results,
                     totalCount,
+                    activeCount,
                     page,
                     pageSize,
-                    totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+                    totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / pageSize))
                 });
             }
             catch (ArgumentException ex)
             {
                 return BadRequest(new { code = "INVALID_TRANSPORT_FILTER", message = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Read-only route/date/capacity/availability coverage for staff.
+        /// GET /api/transport/coverage?routeFrom=Batticaloa&amp;routeTo=Colombo
+        /// </summary>
+        [HttpGet("coverage")]
+        [Authorize(Roles = "TravelAgent,Admin")]
+        public async Task<IActionResult> Coverage(
+            [FromQuery] string? routeFrom,
+            [FromQuery] string? routeTo,
+            [FromQuery] DateTime? startDate,
+            [FromQuery] DateTime? endDate,
+            [FromQuery] int travellers = 1,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                if (!startDate.HasValue || !endDate.HasValue)
+                    return BadRequest(new
+                    {
+                        code = "INVALID_COVERAGE_REQUEST",
+                        message = "Start date and end date are required."
+                    });
+
+                var coverage = await _transportService.GetCoverageAsync(
+                    routeFrom ?? string.Empty,
+                    routeTo ?? string.Empty,
+                    startDate.Value,
+                    endDate.Value,
+                    travellers,
+                    cancellationToken);
+                return Ok(coverage);
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { code = "INVALID_COVERAGE_REQUEST", message = ex.Message });
             }
         }
 

@@ -7,11 +7,51 @@ from logger import log_agent_step
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
     search_transports, check_transport_availability, HotelSearchError,
-    TransportSearchError
+    TransportSearchError, classify_transport_failure
 )
 
 load_dotenv()
 aiml_api_key = os.getenv("AIML_API_KEY")
+
+_TRANSPORT_FAILURE_MESSAGES = {
+    "TRANSPORT_CATALOGUE_NO_ROUTE":
+        "No suitable transport is available for the selected route.",
+    "TRANSPORT_CATALOGUE_NO_DATE_MATCH":
+        "No suitable transport is available for the selected route and travel dates.",
+    "TRANSPORT_CATALOGUE_NO_CAPACITY":
+        "No suitable transport is available for the selected party size.",
+    "TRANSPORT_CATALOGUE_NO_AVAILABILITY":
+        "No suitable transport is available for the selected travel dates.",
+}
+
+
+def _booking_failure(trip_id, code, message, diagnostics=None):
+    """Return a safe failure and persist the Booking Agent's final outcome."""
+
+    output_data = {
+        "agent_outcome": "Failed",
+        "error_code": code,
+        "error": message,
+    }
+    if diagnostics:
+        output_data["transport_diagnostics"] = diagnostics
+    log_agent_step(
+        trip_request_id=trip_id,
+        agent_name="BookingAgent",
+        step_name="Booking Agent failed",
+        step_type="Outcome",
+        output_data=output_data,
+        status="Failed",
+    )
+    result = {
+        "status": "AvailabilityFailed",
+        "agent_status": "Failed",
+        "error_code": code,
+        "error": message,
+    }
+    if diagnostics:
+        result["transport_diagnostics"] = diagnostics
+    return result
 
 def _remove_markdown_fences(text):
     cleaned = text.strip()
@@ -32,29 +72,25 @@ def build_booking_package(state):
     currency = str(state.get("currency", "LKR")).upper()
 
     if not isinstance(destination_id, int) or destination_id <= 0:
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "DESTINATION_REQUIRED",
-            "error": "A real database-backed destination is required before inventory can be selected.",
-        }
+        return _booking_failure(
+            trip_id,
+            "DESTINATION_REQUIRED",
+            "A real database-backed destination is required before inventory can be selected.",
+        )
 
     itinerary = state.get("itinerary", {})
     if not isinstance(itinerary, dict) or itinerary.get("error"):
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "INVALID_ITINERARY",
-            "error": itinerary.get("error", "A valid itinerary proposal is required."),
-        }
+        return _booking_failure(
+            trip_id,
+            "INVALID_ITINERARY",
+            itinerary.get("error", "A valid itinerary proposal is required."),
+        )
     
     # 1. Search only inventory belonging to the requested destination.
     try:
         hotels = search_hotels(destination_id, currency=currency)
     except HotelSearchError as error:
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "HOTEL_SEARCH_INCOMPLETE",
-            "error": str(error),
-        }
+        return _booking_failure(trip_id, "HOTEL_SEARCH_INCOMPLETE", str(error))
     available_rooms = []
     
     for hotel in hotels:
@@ -98,13 +134,11 @@ def build_booking_package(state):
             traveller_count=traveller_count,
         )
     except TransportSearchError as error:
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "TRANSPORT_SEARCH_INCOMPLETE",
-            "error": str(error),
-        }
+        return _booking_failure(trip_id, "TRANSPORT_SEARCH_INCOMPLETE", str(error))
 
+    transport_diagnostics = dict(getattr(transports, "diagnostics", {}) or {})
     available_transports = []
+    availability_mismatch_count = 0
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
             avail = check_transport_availability(t.get("id"))
@@ -121,6 +155,25 @@ def build_booking_package(state):
                     "price": t.get("price"),
                     "currency": t.get("currency")
                 })
+            else:
+                availability_mismatch_count += 1
+
+    if not transport_diagnostics:
+        # Keep tests and older integrations that return a plain list safe while
+        # real catalogue searches provide the full funnel diagnostics.
+        transport_diagnostics = {
+            "active_count": len(transports),
+            "capacity_compatible_count": len(transports),
+            "route_compatible_count": len(transports),
+            "date_compatible_count": len(transports),
+            "route_mismatch_count": 0,
+            "date_mismatch_count": 0,
+            "capacity_mismatch_count": 0,
+            "missing_route_legs": [],
+        }
+    transport_diagnostics["availability_mismatch_count"] = availability_mismatch_count
+    transport_diagnostics["availability_compatible_count"] = len(available_transports)
+    transport_diagnostics["final_count"] = len(available_transports)
 
     log_agent_step(
         trip_request_id=trip_id,
@@ -132,17 +185,26 @@ def build_booking_package(state):
     )
 
     if not available_rooms:
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "NO_VALID_ROOM",
-            "error": "No database-backed room is available for the requested dates.",
-        }
+        return _booking_failure(
+            trip_id,
+            "NO_VALID_ROOM",
+            "No suitable room is available for the requested dates.",
+        )
     if not available_transports:
-        return {
-            "status": "AvailabilityFailed",
-            "error_code": "NO_VALID_TRANSPORT",
-            "error": "No database-backed transport option is available.",
-        }
+        transport_error_code = classify_transport_failure(
+            transport_diagnostics,
+            availability_mismatch_count=availability_mismatch_count,
+        )
+        transport_error = _TRANSPORT_FAILURE_MESSAGES.get(
+            transport_error_code,
+            "No suitable transport is available for the selected route and travel dates.",
+        )
+        return _booking_failure(
+            trip_id,
+            transport_error_code,
+            transport_error,
+            diagnostics=transport_diagnostics,
+        )
 
     itinerary_json = json.dumps(itinerary, indent=2, default=str)
     rooms_json = json.dumps(available_rooms, indent=2, default=str)

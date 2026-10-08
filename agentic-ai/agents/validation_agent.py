@@ -295,20 +295,32 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
     except PackageValidationError as error:
         code = getattr(error, "code", "BOOKING_CREATION_FAILED")
         message = str(error)
+        booking_details = state.get("booking_details")
+        upstream_error_code = (
+            booking_details.get("error_code")
+            if isinstance(booking_details, dict)
+            else None
+        )
+        failure_output = {"is_valid": False, "error_code": code, "error": message}
+        if upstream_error_code:
+            failure_output["upstream_error_code"] = upstream_error_code
         log_agent_step(
             trip_request_id=trip_id,
             agent_name="ValidationAgent",
             step_name="Rejected package before approval gate",
             step_type="Validation",
-            output_data={"is_valid": False, "error_code": code, "error": message},
+            output_data=failure_output,
             status="Failed",
         )
+        validation_result = {
+            "is_valid": False,
+            "error_code": code,
+            "error": message,
+        }
+        if upstream_error_code:
+            validation_result["upstream_error_code"] = upstream_error_code
         return {
-            "validation_result": {
-                "is_valid": False,
-                "error_code": code,
-                "error": message,
-            },
+            "validation_result": validation_result,
             "status": "ValidationFailed",
         }
     except Exception as error:
