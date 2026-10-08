@@ -6,6 +6,8 @@ backend/wwwroot/uploads/
 backend/appsettings.Development.json
 backend.Tests/bin/
 backend.Tests/obj/
+tools/DemoTravelCatalogueImporter/obj/
+/witch main
 main.py
 
 # React frontend
