@@ -19,6 +19,11 @@ namespace backend.Models
         public int? RoomId { get; set; }
         public int? TransportOptionId { get; set; }
 
+        // Zero-based authoritative order for transport legs in a
+        // multi-destination booking. NULL preserves legacy single-transport
+        // rows and is invalid for non-transport items.
+        public int? TransportLegIndex { get; set; }
+
         // Immutable transport identity captured when the booking is created.
         // Nullable so existing rows remain readable through the navigation fallback.
         [MaxLength(20)]

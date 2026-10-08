@@ -186,6 +186,61 @@ def _transport_date_matches(transport, start_date, end_date):
     )
 
 
+def _fetch_transport_pages(endpoint, base_params):
+    """Read every page for one server-side query or fail closed."""
+
+    rows = []
+    page = 1
+    total_pages = 1
+    while page <= total_pages:
+        params = dict(base_params)
+        params["page"] = page
+        params["pageSize"] = TRANSPORT_PAGE_SIZE
+        response = requests.get(endpoint, params=params, timeout=10)
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+            raise TransportSearchError("Transport search returned an invalid page payload.")
+
+        raw_total_pages = payload.get("totalPages")
+        if isinstance(raw_total_pages, bool):
+            raise TransportSearchError("Transport search returned invalid pagination metadata.")
+        try:
+            reported_total_pages = int(raw_total_pages)
+        except (TypeError, ValueError):
+            raise TransportSearchError("Transport search returned invalid pagination metadata.") from None
+
+        if reported_total_pages < 0 or reported_total_pages > MAX_TRANSPORT_SEARCH_PAGES:
+            raise TransportSearchError("Transport search pagination exceeded the safe limit.")
+        if reported_total_pages == 0:
+            if payload["data"]:
+                raise TransportSearchError("Transport search returned inconsistent pagination metadata.")
+            total_pages = 1
+        elif page == 1:
+            total_pages = reported_total_pages
+        elif reported_total_pages != total_pages:
+            raise TransportSearchError("Transport search returned inconsistent pagination metadata.")
+
+        for metadata_name, expected in (("page", page), ("pageSize", TRANSPORT_PAGE_SIZE)):
+            if metadata_name in payload:
+                try:
+                    actual = int(payload[metadata_name])
+                except (TypeError, ValueError):
+                    raise TransportSearchError("Transport search returned invalid page metadata.") from None
+                if actual != expected:
+                    raise TransportSearchError("Transport search returned inconsistent page metadata.")
+
+        for transport in payload["data"]:
+            if not isinstance(transport, dict) or transport.get("id") is None:
+                raise TransportSearchError("Transport search returned an invalid transport record.")
+            rows.append(transport)
+
+        if page >= total_pages:
+            break
+        page += 1
+    return rows
+
+
 def search_transports(
     currency=None,
     requested_destinations=None,
@@ -196,8 +251,6 @@ def search_transports(
     endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/transport"
     transports = []
     seen_ids = set()
-    page = 1
-    total_pages = 1
     requested_legs = _requested_route_legs(requested_destinations)
     diagnostics = {
         "raw_count": 0,
@@ -217,52 +270,21 @@ def search_transports(
         "missing_route_legs": [],
     }
     try:
-        while page <= total_pages:
-            params = {
-                "page": page,
-                "pageSize": TRANSPORT_PAGE_SIZE,
-            }
+        # Multi-destination requests query each ordered leg at the API. The
+        # exact client-side comparison remains in place as a fail-closed guard
+        # against broad/incorrect server filtering. Legacy single-destination
+        # and unscoped calls retain the complete-catalogue query.
+        route_queries = requested_legs or [None]
+        for route in route_queries:
+            params = {}
             if currency:
                 params["currency"] = currency
+            if route is not None:
+                params["routeFrom"] = route[0]
+                params["routeTo"] = route[1]
+                params["status"] = "Active"
 
-            response = requests.get(endpoint, params=params, timeout=10)
-            response.raise_for_status()
-            payload = response.json()
-            if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
-                raise TransportSearchError("Transport search returned an invalid page payload.")
-
-            raw_total_pages = payload.get("totalPages")
-            if isinstance(raw_total_pages, bool):
-                raise TransportSearchError("Transport search returned invalid pagination metadata.")
-            try:
-                reported_total_pages = int(raw_total_pages)
-            except (TypeError, ValueError):
-                raise TransportSearchError("Transport search returned invalid pagination metadata.") from None
-
-            if reported_total_pages < 0 or reported_total_pages > MAX_TRANSPORT_SEARCH_PAGES:
-                raise TransportSearchError("Transport search pagination exceeded the safe limit.")
-            if reported_total_pages == 0:
-                if payload["data"]:
-                    raise TransportSearchError("Transport search returned inconsistent pagination metadata.")
-                total_pages = 1
-            else:
-                if page == 1:
-                    total_pages = reported_total_pages
-                elif reported_total_pages != total_pages:
-                    raise TransportSearchError("Transport search returned inconsistent pagination metadata.")
-
-            for metadata_name, expected in (("page", page), ("pageSize", TRANSPORT_PAGE_SIZE)):
-                if metadata_name in payload:
-                    try:
-                        actual = int(payload[metadata_name])
-                    except (TypeError, ValueError):
-                        raise TransportSearchError("Transport search returned invalid page metadata.") from None
-                    if actual != expected:
-                        raise TransportSearchError("Transport search returned inconsistent page metadata.")
-
-            for transport in payload["data"]:
-                if not isinstance(transport, dict) or transport.get("id") is None:
-                    raise TransportSearchError("Transport search returned an invalid transport record.")
+            for transport in _fetch_transport_pages(endpoint, params):
                 transport_id = str(transport["id"])
                 if transport_id in seen_ids:
                     continue
@@ -273,9 +295,9 @@ def search_transports(
                     continue
                 diagnostics["active_count"] += 1
 
+                route_from = _normalize_route_name(transport.get("routeFrom"))
+                route_to = _normalize_route_name(transport.get("routeTo"))
                 if requested_legs:
-                    route_from = _normalize_route_name(transport.get("routeFrom"))
-                    route_to = _normalize_route_name(transport.get("routeTo"))
                     for source, target in requested_legs:
                         if route_from == source and route_to == target:
                             diagnostics["route_coverage"][_route_label(source, target)] += 1
@@ -298,10 +320,6 @@ def search_transports(
                     continue
                 diagnostics["date_compatible_count"] += 1
                 transports.append(transport)
-
-            if page >= total_pages:
-                break
-            page += 1
 
         diagnostics["missing_route_legs"] = [
             label

@@ -22,8 +22,8 @@ public sealed class TransportBusinessException : InvalidOperationException
 }
 
 /// <summary>
-/// Applies the deliberately small transport compatibility contract used by the
-/// current one-transport-per-proposal architecture.
+/// Applies the authoritative route/date contract for legacy single transport
+/// items and explicitly ordered multi-leg transport items.
 /// </summary>
 public static class TransportCompatibility
 {
@@ -31,7 +31,8 @@ public static class TransportCompatibility
         AppDbContext db,
         TransportOption transport,
         TripRequest trip,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        int? transportLegIndex = null)
     {
         if (transport.ArrivalTime <= transport.DepartureTime)
         {
@@ -49,7 +50,7 @@ public static class TransportCompatibility
                 "The selected transport schedule is outside the requested trip dates.");
         }
 
-        var destinationIds = ParseDestinationIds(trip);
+        var destinationIds = ResolveDestinationIds(trip);
         if (destinationIds.Count == 0)
         {
             throw new TransportBusinessException(
@@ -69,6 +70,13 @@ public static class TransportCompatibility
                 "One or more requested destinations could not be resolved for transport validation.");
         }
 
+        if (destinationIds.Count > 1 && !transportLegIndex.HasValue)
+        {
+            throw new TransportBusinessException(
+                "TRANSPORT_MULTI_LEG_SCHEMA_REQUIRED",
+                "A multi-destination transport item must identify its ordered leg.");
+        }
+
         var orderedNames = destinationIds
             .Select(id => destinations.Single(destination => destination.Id == id).Name)
             .Select(Normalize)
@@ -83,11 +91,33 @@ public static class TransportCompatibility
 
         var routeFrom = Normalize(transport.RouteFrom);
         var routeTo = Normalize(transport.RouteTo);
-        var routeMatches = orderedNames.Count == 1
-            ? routeFrom == orderedNames[0] || routeTo == orderedNames[0]
-            : orderedNames
-                .Zip(orderedNames.Skip(1), (from, to) => (from, to))
-                .Any(segment => routeFrom == segment.from && routeTo == segment.to);
+        bool routeMatches;
+        if (orderedNames.Count == 1)
+        {
+            if (transportLegIndex.HasValue)
+            {
+                throw new TransportBusinessException(
+                    "TRANSPORT_LEG_INDEX_INVALID",
+                    "A single-destination trip cannot contain an indexed transport leg.");
+            }
+
+            routeMatches = routeFrom == orderedNames[0] || routeTo == orderedNames[0];
+        }
+        else
+        {
+            var expectedLegCount = orderedNames.Count - 1;
+            if (transportLegIndex is < 0 || transportLegIndex >= expectedLegCount)
+            {
+                throw new TransportBusinessException(
+                    "TRANSPORT_LEG_INDEX_INVALID",
+                    $"Transport leg index must be between 0 and {expectedLegCount - 1}.");
+            }
+
+            var resolvedLegIndex = transportLegIndex.GetValueOrDefault();
+            var expectedFrom = orderedNames[resolvedLegIndex];
+            var expectedTo = orderedNames[resolvedLegIndex + 1];
+            routeMatches = routeFrom == expectedFrom && routeTo == expectedTo;
+        }
 
         if (!routeMatches)
         {
@@ -97,7 +127,7 @@ public static class TransportCompatibility
         }
     }
 
-    private static List<int> ParseDestinationIds(TripRequest trip)
+    public static List<int> ResolveDestinationIds(TripRequest trip)
     {
         if (!string.IsNullOrWhiteSpace(trip.DestinationSelectionsJson))
         {
@@ -127,7 +157,7 @@ public static class TransportCompatibility
         }
 
         return trip.DestinationId.HasValue
-            ? new List<int> { trip.DestinationId.Value }
+            ? new List<int> { trip.DestinationId.GetValueOrDefault() }
             : new List<int>();
     }
 

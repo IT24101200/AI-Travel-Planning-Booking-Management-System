@@ -9,6 +9,7 @@ import '../../widgets/itinerary_route_preview.dart';
 import '../../widgets/itinerary_journey_layout.dart';
 import '../../services/trip_selection_service.dart';
 import '../../widgets/agent_workflow_card.dart';
+import '../../utils/transport_leg_utils.dart';
 
 /// Normalizes status for external callers if needed
 String normalizeItineraryStatus(dynamic status) {
@@ -2289,20 +2290,16 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
 
     Map<String, dynamic>? hotelItem;
-    Map<String, dynamic>? transportItem;
+    final transportItems = orderedTransportItems(bookingItems);
 
     for (final it in bookingItems) {
       final type = it['itemType']?.toString().toLowerCase() ?? '';
       if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
         hotelItem ??= it;
-      } else if (type == 'transport' ||
-          it['vehicleType'] != null ||
-          it['transportProvider'] != null) {
-        transportItem ??= it;
       }
     }
 
-    final hasInventory = hotelItem != null || transportItem != null;
+    final hasInventory = hotelItem != null || transportItems.isNotEmpty;
 
     if (!hasInventory) {
       return Container(
@@ -2478,8 +2475,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           ),
 
         // Booked Transport Card
-        if (transportItem != null)
-          Container(
+        ...transportItems.map((transportItem) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
@@ -2522,7 +2518,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
+                              '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -2553,17 +2549,19 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Provider: ${transportItem['transportProvider'] ?? 'Island Chauffeur Services'}',
+                        'Provider: ${transportItem['transportProvider'] ?? transportItem['transportProviderSnapshot'] ?? 'Island Chauffeur Services'}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           color: Color(0xFF5A7067),
                         ),
                       ),
-                      if (transportItem['pickupLocation'] != null ||
+                      if (transportItem['routeFrom'] != null ||
+                          transportItem['routeTo'] != null ||
+                          transportItem['pickupLocation'] != null ||
                           transportItem['dropoffLocation'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
-                          'Route: ${transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['dropoffLocation'] ?? 'Destination'}',
+                          'Route: ${transportItem['routeFrom'] ?? transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['routeTo'] ?? transportItem['dropoffLocation'] ?? 'Destination'}',
                           style: const TextStyle(
                             fontSize: 10.5,
                             color: Color(0xFF8A9E96),
@@ -2587,7 +2585,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 ),
               ],
             ),
-          ),
+          )),
       ],
     );
   }

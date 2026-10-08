@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Moq;
+using System.Text.Json;
 
 namespace backend.Tests
 {
@@ -214,6 +215,72 @@ namespace backend.Tests
             Assert.Equal("Audit Transport", transportItem.TransportProvider);
             Assert.Equal("Paris", transportItem.RouteFrom);
             Assert.Equal("Lyon", transportItem.RouteTo);
+        }
+
+        [Fact]
+        public async Task CreateBooking_PersistsIndexedTransportForEveryAdjacentLeg()
+        {
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+            context.Destinations.Add(new Destination { Id = 2, Name = "Lyon", Country = "France" });
+            var trip = await context.TripRequests.SingleAsync();
+            trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
+            {
+                new { Id = 1, Name = "Paris", Order = 0 },
+                new { Id = 2, Name = "Lyon", Order = 1 }
+            });
+            await context.SaveChangesAsync();
+
+            var result = await new BookingService(context).CreateBookingAsync(new BookingCreateDto
+            {
+                CustomerId = "cust-1",
+                ItineraryId = 10,
+                Currency = "USD",
+                Items = new List<BookingItemCreateDto>
+                {
+                    new()
+                    {
+                        ItemType = BookingItemType.Transport,
+                        TransportOptionId = 400,
+                        TransportLegIndex = 0,
+                        Quantity = 2,
+                        UnitPrice = 1
+                    }
+                }
+            });
+
+            var item = Assert.Single(result.BookingItems);
+            Assert.Equal(0, item.TransportLegIndex);
+            Assert.Equal(75m, item.UnitPrice);
+            Assert.Equal(150m, item.Subtotal);
+            Assert.Equal("Audit Transport", item.TransportProvider);
+        }
+
+        [Fact]
+        public async Task CreateBooking_RejectsTransportLegIndexOnNonTransportItem()
+        {
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+
+            var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+                new BookingService(context).CreateBookingAsync(new BookingCreateDto
+                {
+                    CustomerId = "cust-1",
+                    ItineraryId = 10,
+                    Currency = "USD",
+                    Items = new List<BookingItemCreateDto>
+                    {
+                        new()
+                        {
+                            ItemType = BookingItemType.Tour,
+                            TourId = 100,
+                            TransportLegIndex = 0,
+                            Quantity = 1
+                        }
+                    }
+                }));
+
+            Assert.Contains("TransportLegIndex", exception.Message);
         }
 
         [Fact]

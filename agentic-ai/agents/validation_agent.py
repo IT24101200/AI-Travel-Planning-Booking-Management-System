@@ -199,23 +199,82 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
         }
     )
 
-    transport = _require_mapping(
-        booking.get("selected_transport"), "selected_transport"
-    )
-    transport_id = _positive_int(
-        transport.get("transport_id") or transport.get("transportId"),
-        "transport_id",
-    )
-    transport_price = _decimal(transport.get("price"), "transport price")
-    calculated_total += transport_price * travellers
-    items.append(
-        {
-            "itemType": 2,
-            "transportOptionId": transport_id,
-            "quantity": travellers,
-            "unitPrice": float(transport_price),
-        }
-    )
+    if len(requested_destinations) > 1:
+        selections = booking.get("transport_selections")
+        expected_count = len(requested_destinations) - 1
+        if not isinstance(selections, list) or len(selections) != expected_count:
+            raise PackageValidationError(
+                "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
+                "A multi-leg transport plan must provide exactly one selection for every adjacent destination leg.",
+            )
+
+        normalized_selections: dict[int, dict[str, Any]] = {}
+        for selection_value in selections:
+            selection = _require_mapping(selection_value, "transport selection")
+            leg_index = selection.get("leg_index", selection.get("legIndex"))
+            if isinstance(leg_index, bool):
+                raise PackageValidationError(
+                    "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
+                    "Each transport selection must contain a non-negative leg_index.",
+                )
+            try:
+                leg_index = int(leg_index)
+            except (TypeError, ValueError):
+                raise PackageValidationError(
+                    "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
+                    "Each transport selection must contain a non-negative leg_index.",
+                ) from None
+            if leg_index < 0 or leg_index >= expected_count or leg_index in normalized_selections:
+                raise PackageValidationError(
+                    "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
+                    "Transport leg indexes must be unique and exactly cover every adjacent destination leg.",
+                )
+            transport_id = _positive_int(
+                selection.get("transport_option_id")
+                or selection.get("transportOptionId")
+                or selection.get("transport_id")
+                or selection.get("transportId"),
+                "transport_option_id",
+            )
+            transport_price = _decimal(
+                selection.get("price", selection.get("unit_price", selection.get("unitPrice"))),
+                "transport price",
+            )
+            normalized_selections[leg_index] = {
+                "transport_option_id": transport_id,
+                "transport_price": transport_price,
+            }
+
+        for leg_index in range(expected_count):
+            selection = normalized_selections[leg_index]
+            calculated_total += selection["transport_price"] * travellers
+            items.append(
+                {
+                    "itemType": 2,
+                    "transportOptionId": selection["transport_option_id"],
+                    "transportLegIndex": leg_index,
+                    "quantity": travellers,
+                    "unitPrice": float(selection["transport_price"]),
+                }
+            )
+    else:
+        transport = _require_mapping(
+            booking.get("selected_transport"), "selected_transport"
+        )
+        transport_id = _positive_int(
+            transport.get("transport_id") or transport.get("transportId"),
+            "transport_id",
+        )
+        transport_price = _decimal(transport.get("price"), "transport price")
+        calculated_total += transport_price * travellers
+        items.append(
+            {
+                "itemType": 2,
+                "transportOptionId": transport_id,
+                "quantity": travellers,
+                "unitPrice": float(transport_price),
+            }
+        )
 
     if abs(calculated_total - reported_total) > Decimal("0.01"):
         raise PackageValidationError(

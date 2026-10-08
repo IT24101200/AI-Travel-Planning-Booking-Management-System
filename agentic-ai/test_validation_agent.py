@@ -60,6 +60,72 @@ def test_valid_package_builds_backend_dto_with_exactly_one_fk_per_item():
     assert checks["approval_gate_enforced"] is True
 
 
+def _multi_leg_state(**overrides):
+    itinerary = {
+        "itinerary_id": 22,
+        "currency": "USD",
+        "schedule": [
+            {
+                "day_number": 1,
+                "items": [{"tour_id": 10, "price": 10, "destination_id": 51}],
+            },
+            {
+                "day_number": 2,
+                "items": [{"tour_id": 11, "price": 20, "destination_id": 54}],
+            },
+            {
+                "day_number": 3,
+                "items": [{"tour_id": 12, "price": 30, "destination_id": 56}],
+            },
+        ],
+    }
+    state = _state(
+        requested_destinations=[
+            {"destination_id": 51, "destination_name": "Colombo", "order": 0},
+            {"destination_id": 54, "destination_name": "Dambulla", "order": 1},
+            {"destination_id": 56, "destination_name": "Arugam Bay", "order": 2},
+        ],
+        itinerary=itinerary,
+    )
+    state["booking_details"] = {
+        "total_package_cost": 670,
+        "total_cost": 670,
+        "currency": "USD",
+        "itinerary": itinerary,
+        "selected_room": {"room_id": 30, "price_per_night": 100},
+        "transport_selections": [
+            {"leg_index": 0, "transport_option_id": 40, "price": 50},
+            {"leg_index": 1, "transport_option_id": 41, "price": 75},
+        ],
+    }
+    state.update(overrides)
+    return state
+
+
+def test_multi_leg_package_builds_one_ordered_transport_item_per_leg():
+    payload, checks = validate_and_build_booking(_multi_leg_state())
+
+    transport_items = [item for item in payload["items"] if item["itemType"] == 2]
+    assert [item["transportOptionId"] for item in transport_items] == [40, 41]
+    assert [item["transportLegIndex"] for item in transport_items] == [0, 1]
+    assert payload["totalCost"] == 670
+    assert checks["within_budget"] is True
+
+
+def test_multi_leg_package_rejects_missing_or_duplicate_leg():
+    state = _multi_leg_state()
+    state["booking_details"]["transport_selections"] = [
+        {"leg_index": 0, "transport_option_id": 40, "price": 50},
+    ]
+    result = validation_node(state)
+    assert result["validation_result"]["error_code"] == "TRANSPORT_LEG_COVERAGE_INCOMPLETE"
+
+    state = _multi_leg_state()
+    state["booking_details"]["transport_selections"][1]["leg_index"] = 0
+    result = validation_node(state)
+    assert result["validation_result"]["error_code"] == "TRANSPORT_LEG_COVERAGE_INCOMPLETE"
+
+
 def test_over_budget_package_returns_clean_retry_signal():
     state = _state(budget_ceiling=900)
     result = validation_node(state)

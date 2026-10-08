@@ -7,7 +7,8 @@ from logger import log_agent_step
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
     search_transports, check_transport_availability, HotelSearchError,
-    TransportSearchError, classify_transport_failure
+    TransportSearchError, classify_transport_failure,
+    _normalize_route_name, _requested_route_legs, _route_label
 )
 
 load_dotenv()
@@ -22,6 +23,8 @@ _TRANSPORT_FAILURE_MESSAGES = {
         "No suitable transport is available for the selected party size.",
     "TRANSPORT_CATALOGUE_NO_AVAILABILITY":
         "No suitable transport is available for the selected travel dates.",
+    "TRANSPORT_MULTI_LEG_SCHEMA_REQUIRED":
+        "The selected multi-leg transport plan requires a database schema update before it can be booked.",
 }
 
 
@@ -139,12 +142,13 @@ def build_booking_package(state):
     transport_diagnostics = dict(getattr(transports, "diagnostics", {}) or {})
     available_transports = []
     availability_mismatch_count = 0
+    requested_legs = _requested_route_legs(requested_destinations)
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
             avail = check_transport_availability(t.get("id"))
             is_trans_avail = avail and (avail.get("isAvailable") is True or avail.get("availableSeats", 0) >= traveller_count)
             if is_trans_avail:
-                available_transports.append({
+                option = {
                     "transport_id": t.get("id"),
                     "type": t.get("type"),
                     "provider": t.get("provider"),
@@ -154,7 +158,19 @@ def build_booking_package(state):
                     "arrival_time": t.get("arrivalTime"),
                     "price": t.get("price"),
                     "currency": t.get("currency")
-                })
+                }
+                if requested_legs:
+                    route_from = _normalize_route_name(t.get("routeFrom"))
+                    route_to = _normalize_route_name(t.get("routeTo"))
+                    option["leg_index"] = next(
+                        (
+                            index
+                            for index, (source, target) in enumerate(requested_legs)
+                            if route_from == source and route_to == target
+                        ),
+                        None,
+                    )
+                available_transports.append(option)
             else:
                 availability_mismatch_count += 1
 
@@ -175,6 +191,20 @@ def build_booking_package(state):
     transport_diagnostics["availability_compatible_count"] = len(available_transports)
     transport_diagnostics["final_count"] = len(available_transports)
 
+    if requested_legs:
+        options_by_leg = {
+            index: [option for option in available_transports if option.get("leg_index") == index]
+            for index in range(len(requested_legs))
+        }
+        missing_legs = [
+            _route_label(source, target)
+            for index, (source, target) in enumerate(requested_legs)
+            if not options_by_leg[index]
+        ]
+        transport_diagnostics["required_leg_count"] = len(requested_legs)
+        transport_diagnostics["available_leg_count"] = len(requested_legs) - len(missing_legs)
+        transport_diagnostics["missing_transport_legs"] = missing_legs
+
     log_agent_step(
         trip_request_id=trip_id,
         agent_name="BookingAgent",
@@ -189,6 +219,13 @@ def build_booking_package(state):
             trip_id,
             "NO_VALID_ROOM",
             "No suitable room is available for the requested dates.",
+        )
+    if requested_legs and transport_diagnostics.get("missing_transport_legs"):
+        return _booking_failure(
+            trip_id,
+            "TRANSPORT_CATALOGUE_NO_ROUTE",
+            "No complete transport plan is available for every selected route leg.",
+            diagnostics=transport_diagnostics,
         )
     if not available_transports:
         transport_error_code = classify_transport_failure(
@@ -205,6 +242,64 @@ def build_booking_package(state):
             transport_error,
             diagnostics=transport_diagnostics,
         )
+
+    if requested_legs:
+        # A multi-leg proposal is selected completely and deterministically.
+        # Keep one database-backed option per adjacent destination leg; never
+        # collapse a true multi-leg trip to one selected_transport object.
+        selected_transports = [
+            min(
+                [option for option in available_transports if option.get("leg_index") == index],
+                key=lambda option: float(option.get("price", 0)),
+            )
+            for index in range(len(requested_legs))
+        ]
+        try:
+            from datetime import datetime
+            d1 = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).date()
+            d2 = datetime.fromisoformat(str(end_date).replace("Z", "+00:00")).date()
+            nights = max(1, (d2 - d1).days)
+        except Exception:
+            nights = 1
+        selected_room = min(available_rooms, key=lambda room: float(room.get("price_per_night", 0)))
+        tour_cost = sum(
+            (Decimal(str(tour["price"])) * traveller_count
+             for day in itinerary.get("schedule", [])
+             for tour in day.get("items", [])),
+            Decimal("0"),
+        )
+        total_cost = (
+            tour_cost
+            + Decimal(str(selected_room["price_per_night"])) * nights
+            + sum(Decimal(str(option["price"])) * traveller_count for option in selected_transports)
+        )
+        multi_leg_package = {
+            "booking_package_id": None,
+            "currency": currency,
+            "itinerary": itinerary,
+            "selected_room": dict(selected_room),
+            "transport_selections": [
+                {
+                    **dict(option),
+                    "transport_option_id": option.get("transport_id"),
+                }
+                for option in selected_transports
+            ],
+            "total_package_cost": float(total_cost),
+            "total_cost": float(total_cost),
+            "persistence_status": "READY_FOR_PERSISTENCE",
+        }
+        try:
+            log_agent_step(
+                trip_request_id=trip_id,
+                agent_name="BookingAgent",
+                step_name="Selected complete multi-leg transport plan",
+                step_type="Plan",
+                output_data=multi_leg_package,
+            )
+        except Exception as error:
+            print(f"Warning: Failed to log multi-leg transport selection: {error}")
+        return multi_leg_package
 
     itinerary_json = json.dumps(itinerary, indent=2, default=str)
     rooms_json = json.dumps(available_rooms, indent=2, default=str)

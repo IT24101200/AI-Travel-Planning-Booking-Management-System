@@ -55,6 +55,30 @@ def test_transport_after_first_page_is_discoverable():
     assert result[-1]["id"] == 22
 
 
+def test_multi_leg_search_sends_each_ordered_route_to_backend():
+    with patch(
+        "tools.availability_tools.requests.get",
+        side_effect=[
+            _response({"data": [_transport(1, "Colombo", "Dambulla")], "totalPages": 1}),
+            _response({"data": [_transport(2, "Dambulla", "Arugam Bay")], "totalPages": 1}),
+        ],
+    ) as get:
+        result = search_transports(
+            currency="LKR",
+            requested_destinations=[
+                {"destination_name": "Colombo"},
+                {"destination_name": "Dambulla"},
+                {"destination_name": "Arugam Bay"},
+            ],
+        )
+
+    assert [item["id"] for item in result] == [1, 2]
+    assert get.call_args_list[0].kwargs["params"]["routeFrom"] == "colombo"
+    assert get.call_args_list[0].kwargs["params"]["routeTo"] == "dambulla"
+    assert get.call_args_list[1].kwargs["params"]["routeFrom"] == "dambulla"
+    assert get.call_args_list[1].kwargs["params"]["routeTo"] == "arugam bay"
+
+
 def test_one_page_makes_one_request():
     with patch(
         "tools.availability_tools.requests.get",

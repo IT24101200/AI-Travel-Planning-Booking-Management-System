@@ -182,7 +182,7 @@ def test_zero_transport_candidates_log_tool_success_and_booking_failure():
     ):
         result = booking_agent.build_booking_package(state)
 
-    assert result["error_code"] == "TRANSPORT_CATALOGUE_NO_DATE_MATCH"
+    assert result["error_code"] == "TRANSPORT_CATALOGUE_NO_ROUTE"
     assert result["agent_status"] == "Failed"
     assert [call.kwargs.get("status", "Success") for call in log_step.call_args_list] == [
         "Success",

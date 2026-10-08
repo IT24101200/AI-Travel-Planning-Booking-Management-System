@@ -79,6 +79,7 @@ namespace backend.Services
             {
                 case ApprovalDecision.Approved:
                     await RoomInventory.ValidateConfirmationAsync(_db, booking.Id);
+                    await TransportInventory.ValidateConfirmationAsync(_db, booking.Id);
                     booking.Status = BookingStatus.Confirmed;
                     booking.Itinerary.Status = ItineraryStatus.Accepted;
                     booking.Itinerary.TripRequest.Status = TripRequestStatus.Approved;

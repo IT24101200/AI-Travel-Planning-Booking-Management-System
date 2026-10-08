@@ -15,6 +15,12 @@ namespace backend.Services;
 /// </summary>
 public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceService
 {
+    private sealed record ValidatedTransportSelection(
+        int? LegIndex,
+        TransportOption Entity,
+        decimal UnitPrice,
+        decimal Total);
+
     private readonly AppDbContext _db;
     private readonly ICurrencyConversionService _currency;
     private readonly IAgentLogStreamService? _logStream;
@@ -183,40 +189,19 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         if (bookedRooms >= roomEntity.TotalRooms)
             throw new ProposalPersistenceException("ROOM_UNAVAILABLE", $"Room {roomId} is not available for the requested dates.");
 
-        var transport = RequireObject(bookingDetails, "selected_transport");
-        var transportId = RequiredInt(transport, "transport_id");
-        var transportEntity = await _db.TransportOptions.FirstOrDefaultAsync(t => t.Id == transportId, cancellationToken);
-        if (transportEntity is null || transportEntity.Status != TransportStatus.Active)
-            throw new ProposalPersistenceException("INVALID_TRANSPORT", $"Transport {transportId} is missing or inactive.");
-
-        try
-        {
-            // The database-backed TripRequest destinations and dates are the
-            // authority; AI route text is never used for this decision.
-            await TransportCompatibility.ValidateAsync(
-                _db,
-                transportEntity,
-                trip,
-                cancellationToken);
-        }
-        catch (TransportBusinessException ex)
-        {
-            throw new ProposalPersistenceException(ex.Code, ex.Message);
-        }
-
-        if (transportEntity.Capacity < trip.TravellerCount)
-            throw new ProposalPersistenceException("TRANSPORT_CAPACITY", $"Transport {transportId} cannot hold all travellers.");
-        var bookedSeats = await _db.BookingItems
-            .Where(item => item.TransportOptionId == transportId && item.ItemType == BookingItemType.Transport &&
-                TransportInventory.ActiveReservationStatuses.Contains(item.Booking.Status))
-            .SumAsync(item => item.Quantity, cancellationToken);
-        if (bookedSeats + trip.TravellerCount > transportEntity.Capacity)
-            throw new ProposalPersistenceException("TRANSPORT_UNAVAILABLE", $"Transport {transportId} has insufficient capacity.");
+        // Resolve and validate every leg before any itinerary or booking save.
+        // Prices, route names, snapshots, capacity, and availability all come
+        // from the database entities, never from AI-supplied presentation data.
+        var validatedTransportSelections = await ValidateTransportSelectionsAsync(
+            bookingDetails,
+            requestedDestinationIds,
+            trip,
+            currency,
+            cancellationToken);
 
         var roomNightlyPrice = _currency.Convert(roomEntity.PricePerNight, roomEntity.Currency, currency);
-        var transportUnitPrice = _currency.Convert(transportEntity.Price, transportEntity.Currency, currency);
         var roomTotal = decimal.Round(roomNightlyPrice * nights, 2, MidpointRounding.AwayFromZero);
-        var transportTotal = decimal.Round(transportUnitPrice * trip.TravellerCount, 2, MidpointRounding.AwayFromZero);
+        var transportTotal = validatedTransportSelections.Sum(selection => selection.Total);
         var calculatedTotal = tourTotal + roomTotal + transportTotal;
         var reportedItineraryTotal = OptionalDecimal(itinerary, "total_estimated_cost") ?? OptionalDecimal(itinerary, "total_cost");
         if (reportedItineraryTotal.HasValue && Math.Abs(reportedItineraryTotal.Value - tourTotal) > 0.01m)
@@ -277,23 +262,23 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     UnitPrice = roomTotal,
                     Subtotal = roomTotal,
                     Currency = currency
-                    },
-                    new BookingItem
-                    {
-                    ItemType = BookingItemType.Transport,
-                    TransportOptionId = transportEntity.Id,
-                    TransportTypeSnapshot = transportEntity.Type.ToString(),
-                    TransportProviderSnapshot = transportEntity.Provider,
-                    TransportRouteFromSnapshot = transportEntity.RouteFrom,
-                    TransportRouteToSnapshot = transportEntity.RouteTo,
-                    TransportDepartureTimeSnapshot = transportEntity.DepartureTime,
-                    TransportArrivalTimeSnapshot = transportEntity.ArrivalTime,
-                    Quantity = trip.TravellerCount,
-                    UnitPrice = transportUnitPrice,
-                    Subtotal = transportTotal,
-                    Currency = currency
                     }
-                }).ToList()
+                }).Concat(validatedTransportSelections.Select(selection => new BookingItem
+                {
+                    ItemType = BookingItemType.Transport,
+                    TransportOptionId = selection.Entity.Id,
+                    TransportLegIndex = selection.LegIndex,
+                    TransportTypeSnapshot = selection.Entity.Type.ToString(),
+                    TransportProviderSnapshot = selection.Entity.Provider,
+                    TransportRouteFromSnapshot = selection.Entity.RouteFrom,
+                    TransportRouteToSnapshot = selection.Entity.RouteTo,
+                    TransportDepartureTimeSnapshot = selection.Entity.DepartureTime,
+                    TransportArrivalTimeSnapshot = selection.Entity.ArrivalTime,
+                    Quantity = trip.TravellerCount,
+                    UnitPrice = selection.UnitPrice,
+                    Subtotal = selection.Total,
+                    Currency = currency
+                })).ToList()
         };
         _db.Bookings.Add(booking);
         trip.PlanJson = planJson.GetRawText();
@@ -347,6 +332,97 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             BookingStatus = booking.Status.ToString(),
             AlreadyPersisted = false
         };
+    }
+
+    private async Task<List<ValidatedTransportSelection>> ValidateTransportSelectionsAsync(
+        JsonElement bookingDetails,
+        IReadOnlyList<int> requestedDestinationIds,
+        TripRequest trip,
+        string currency,
+        CancellationToken cancellationToken)
+    {
+        var requested = new List<(int? LegIndex, int TransportOptionId)>();
+        if (requestedDestinationIds.Count > 1)
+        {
+            var selections = OptionalArray(bookingDetails, "transport_selections");
+            if (!selections.HasValue)
+                throw new ProposalPersistenceException(
+                    "INVALID_TRANSPORT_SELECTIONS",
+                    "A multi-destination proposal must provide transport_selections for every adjacent leg.");
+
+            foreach (var value in selections.Value.EnumerateArray())
+            {
+                var selection = EnsureObject(value, "transport selection");
+                var legIndex = RequiredInt(selection, "leg_index", minimum: 0);
+                var transportOptionId = OptionalInt(selection, "transport_option_id")
+                    ?? OptionalInt(selection, "transport_id")
+                    ?? throw new ProposalPersistenceException(
+                        "INVALID_TRANSPORT_SELECTIONS",
+                        "Every transport selection must contain transport_option_id.");
+                requested.Add((legIndex, transportOptionId));
+            }
+
+            var expectedLegCount = requestedDestinationIds.Count - 1;
+            var indexes = requested.Select(selection => selection.LegIndex).ToList();
+            if (requested.Count != expectedLegCount ||
+                indexes.Any(index => !index.HasValue || index < 0 || index >= expectedLegCount) ||
+                indexes.Distinct().Count() != expectedLegCount)
+            {
+                throw new ProposalPersistenceException(
+                    "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
+                    $"The proposal must contain exactly one transport selection for every leg index 0 through {expectedLegCount - 1}.");
+            }
+        }
+        else
+        {
+            var selection = RequireObject(bookingDetails, "selected_transport");
+            requested.Add((null, RequiredInt(selection, "transport_id")));
+        }
+
+        var validated = new List<ValidatedTransportSelection>();
+        foreach (var selection in requested.OrderBy(item => item.LegIndex ?? int.MaxValue))
+        {
+            var transport = await _db.TransportOptions
+                .FirstOrDefaultAsync(item => item.Id == selection.TransportOptionId, cancellationToken);
+            if (transport is null || transport.Status != TransportStatus.Active)
+                throw new ProposalPersistenceException(
+                    "INVALID_TRANSPORT",
+                    $"Transport {selection.TransportOptionId} is missing or inactive.");
+
+            try
+            {
+                await TransportCompatibility.ValidateAsync(
+                    _db,
+                    transport,
+                    trip,
+                    cancellationToken,
+                    selection.LegIndex);
+            }
+            catch (TransportBusinessException ex)
+            {
+                throw new ProposalPersistenceException(ex.Code, ex.Message);
+            }
+
+            if (transport.Capacity < trip.TravellerCount)
+                throw new ProposalPersistenceException(
+                    "TRANSPORT_CAPACITY",
+                    $"Transport {selection.TransportOptionId} cannot hold all travellers.");
+
+            var bookedSeats = await TransportInventory.CountReservedSeatsAsync(
+                _db,
+                transport.Id,
+                cancellationToken: cancellationToken);
+            if (bookedSeats + trip.TravellerCount > transport.Capacity)
+                throw new ProposalPersistenceException(
+                    "TRANSPORT_UNAVAILABLE",
+                    $"Transport {selection.TransportOptionId} has insufficient capacity.");
+
+            var unitPrice = _currency.Convert(transport.Price, transport.Currency, currency);
+            var total = decimal.Round(unitPrice * trip.TravellerCount, 2, MidpointRounding.AwayFromZero);
+            validated.Add(new ValidatedTransportSelection(selection.LegIndex, transport, unitPrice, total));
+        }
+
+        return validated;
     }
 
     private async Task<string> GenerateBookingReferenceAsync(CancellationToken cancellationToken)

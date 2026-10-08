@@ -3,6 +3,7 @@ import { decideApproval, fetchAgentLogs, fetchBookings } from '../../services/ap
 import { usePageTitle } from '../../lib/hooks.js'
 import { formatPrice } from '../../lib/formatPrice.js'
 import { formatDateOnly, formatLocalInstantDate, formatLocalInstantDateTime } from '../../lib/dateTime.js'
+import { orderedTransportBookingItems } from '../../lib/bookingItemOrdering.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import {
@@ -479,7 +480,7 @@ export default function BookingApprovalDashboard() {
                 ))}
 
                 {/* Transport Reservation Card */}
-                {active.bookingItems.filter(item => item.itemType === 2 || item.itemType === 'Transport' || item.transportType).map((transItem, idx) => (
+                {orderedTransportBookingItems(active.bookingItems).map((transItem, idx) => (
                   <div
                     key={`trans-${idx}`}
                     style={{
@@ -490,6 +491,11 @@ export default function BookingApprovalDashboard() {
                       fontSize: '0.75rem',
                     }}
                   >
+                    {transItem.transportLegIndex != null && (
+                      <div style={{ fontSize: '0.6875rem', color: '#1d4ed8', marginBottom: '2px' }}>
+                        Leg {Number(transItem.transportLegIndex) + 1}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                       <span style={{ fontWeight: 700, color: '#1e40af' }}>
                         🚗 Booked Transport: {transItem.transportType || 'Private Vehicle'}
