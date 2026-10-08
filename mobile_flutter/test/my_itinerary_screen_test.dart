@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/screens/tours/my_itinerary_screen.dart';
 import 'package:mobile_flutter/services/api_service.dart';
 import 'package:mobile_flutter/services/trip_selection_service.dart';
+import 'package:mobile_flutter/widgets/itinerary_route_preview.dart';
 
 void main() {
   setUp(() {
@@ -172,12 +173,39 @@ void main() {
               'checkOutDate': '2026-10-18',
               'subtotal': 4000,
             },
+            {
+              'itemType': 'Transport',
+              'transportType': 'Van',
+              'transportProvider': 'Island Transfers',
+              'departureTime': '2026-10-14T08:00:00',
+              'arrivalTime': '2026-10-14T11:00:00',
+              'routeFrom': 'West',
+              'routeTo': 'East',
+              'subtotal': 6000,
+            },
           ],
         },
       ];
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Travel to East Hotel'),
+        180,
+        scrollable: find.descendant(
+          of: find.byKey(const ValueKey('journey-scroll')),
+          matching: find.byType(Scrollable),
+        ),
+      );
       expect(find.text('Travel to East Hotel'), findsOneWidget);
+      await tester.tap(find.text('Travel to East Hotel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Van · Island Transfers'), findsOneWidget);
+      expect(
+        tester
+            .widget<ItineraryRoutePreview>(find.byType(ItineraryRoutePreview))
+            .selectedItem?['dayNumber'],
+        3,
+      );
       expect(
         find.textContaining('Hotel transfer · Day travel: 120 km, 180 min'),
         findsOneWidget,
@@ -319,39 +347,43 @@ void main() {
     },
   );
 
-  testWidgets('5e. Checkout receives the booking matched to the selected itinerary', (
-    tester,
-  ) async {
-    final itinerary = createSampleItinerary(id: 42, status: 2);
-    Object? checkoutArgument;
-    ApiService.mockGetMyItineraries = () async => [itinerary];
-    ApiService.mockGetItinerary = (_) async => itinerary;
-    ApiService.mockGetMyBookings = () async => [
-      {'id': 999, 'itineraryId': 7},
-      {'id': 901, 'itineraryId': 42},
-    ];
-    TripSelectionService.setActiveBookingContext(itineraryId: 7, bookingId: 999);
+  testWidgets(
+    '5e. Checkout receives the booking matched to the selected itinerary',
+    (tester) async {
+      final itinerary = createSampleItinerary(id: 42, status: 2);
+      Object? checkoutArgument;
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+      ApiService.mockGetMyBookings = () async => [
+        {'id': 999, 'itineraryId': 7},
+        {'id': 901, 'itineraryId': 42},
+      ];
+      TripSelectionService.setActiveBookingContext(
+        itineraryId: 7,
+        bookingId: 999,
+      );
 
-    await tester.pumpWidget(
-      buildTestWidget(
-        routes: {
-          '/checkout': (context) {
-            checkoutArgument = ModalRoute.of(context)?.settings.arguments;
-            return const Scaffold(body: Text('Mock Checkout'));
+      await tester.pumpWidget(
+        buildTestWidget(
+          routes: {
+            '/checkout': (context) {
+              checkoutArgument = ModalRoute.of(context)?.settings.arguments;
+              return const Scaffold(body: Text('Mock Checkout'));
+            },
           },
-        },
-      ),
-    );
-    await tester.pumpAndSettle();
-    await scrollJourneyToBottom(tester);
-    final checkoutButton = find.text('Continue to Checkout');
-    await tester.ensureVisible(checkoutButton);
-    await tester.tap(checkoutButton);
-    await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
+      await scrollJourneyToBottom(tester);
+      final checkoutButton = find.text('Continue to Checkout');
+      await tester.ensureVisible(checkoutButton);
+      await tester.tap(checkoutButton);
+      await tester.pumpAndSettle();
 
-    expect(checkoutArgument, equals(901));
-    expect(find.text('Mock Checkout'), findsOneWidget);
-  });
+      expect(checkoutArgument, equals(901));
+      expect(find.text('Mock Checkout'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     '5d. Button visibility: Discarded status hides all action buttons and shows notice',

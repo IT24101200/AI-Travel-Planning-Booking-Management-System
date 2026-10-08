@@ -53,6 +53,12 @@ The itinerary and full-route maps show all routes and destination pins in blue
 including hotel changes. Selecting an already visible day's route preserves the
 camera; an offscreen selection fits the route without zooming further in.
 Transfer-only days appear in the timeline. All booked hotels are listed.
+Hotel overnights and check-outs also appear between activities in date order,
+including each night at a shared hotel. Selecting an activity or hotel expands
+that day's reserved vehicle, provider, route, timetable and authoritative booked
+total. Days without a transport reservation are labelled explicitly. The selected
+day's road route includes direction arrows; selecting a hotel marks its actual
+coordinates. Older itineraries can load activity-to-hotel road directions.
 
 ## Release steps
 

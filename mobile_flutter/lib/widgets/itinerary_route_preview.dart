@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -91,6 +93,8 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
       final candidate = stop.item;
       if (_sameItem(item, candidate)) return stop;
     }
+    final point = ItineraryRouteService.coordinates(item);
+    if (point != null) return ItineraryRouteStop(item, point);
     return null;
   }
 
@@ -125,8 +129,23 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
 
   Future<void> _loadHotelRoute() async {
     final request = ++_routeRequest;
-    final origin = widget.hotelPoint;
-    final destination = _selectedStop?.point;
+    var origin = widget.hotelPoint;
+    var destination = _selectedStop?.point;
+    if (widget.selectedItem?['stopKind'] != null) {
+      final day = '${widget.selectedItem?['dayNumber']}';
+      final visits = widget.route.stops.where(
+        (stop) =>
+            '${stop.item['dayNumber']}' == day &&
+            stop.item['isTransferDay'] != true,
+      );
+      if (visits.isNotEmpty) {
+        if (widget.selectedItem?['stopKind'] == 'checkout') {
+          destination = visits.first.point;
+        } else {
+          origin = visits.last.point;
+        }
+      }
+    }
     setState(() {
       _hotelRoute = null;
       _hotelRouteError = null;
@@ -141,6 +160,7 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
       if (!mounted || request != _routeRequest) return;
       _hotelRoutes[key] = route;
       setState(() => _hotelRoute = route);
+      _focusSelectedStop();
     } catch (_) {
       if (!mounted || request != _routeRequest) return;
       setState(() {
@@ -300,6 +320,7 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
                         ),
                       ),
                     ),
+                ..._directionMarkers(),
                 Marker(
                   point: _dotPoint,
                   width: 28,
@@ -362,12 +383,49 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
         ),
     ],
   );
+
+  List<Marker> _directionMarkers() {
+    final points = _selectedDayPoints;
+    if (points.length < 2) return [];
+    final count = math.min(3, points.length - 1);
+    return List.generate(count, (index) {
+      final segment = ((index + 1) * (points.length - 1) / (count + 1)).floor();
+      final from = points[segment], to = points[segment + 1];
+      final bearing = const Distance().bearing(from, to);
+      return Marker(
+        point: LatLng(
+          (from.latitude + to.latitude) / 2,
+          (from.longitude + to.longitude) / 2,
+        ),
+        width: 28,
+        height: 28,
+        child: Semantics(
+          label: 'Selected day travel direction',
+          child: Transform.rotate(
+            angle: bearing * math.pi / 180,
+            child: const Icon(
+              Icons.navigation,
+              color: Color(0xFFFCA5A5),
+              size: 25,
+              shadows: [Shadow(color: Colors.white, blurRadius: 3)],
+            ),
+          ),
+        ),
+      );
+    });
+  }
 }
 
 class _ItineraryRoutePreviewState extends State<ItineraryRoutePreview> {
   late Future<ItineraryRoadRoute> _route;
 
   LatLng? get _hotelPoint {
+    if (widget.selectedItem?['hotelStay'] is Map) {
+      final selectedPoint = ItineraryRouteService.coordinates(
+        widget.selectedItem!,
+      );
+      if (selectedPoint != null) return selectedPoint;
+    }
     final items =
         widget.booking?['bookingItems'] ?? widget.itinerary['bookingItems'];
     if (items is! List) return null;

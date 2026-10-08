@@ -213,7 +213,112 @@ void main() {
     expect(roads.last.points, dayTwo);
     expect(roads.last.color, const Color(0xFFFCA5A5));
     expect(roads.first.color, const Color(0xFF2563A6));
+    expect(find.byIcon(Icons.navigation), findsNWidgets(2));
   });
+
+  testWidgets(
+    'hotel stop selection marks the hotel and highlights its day without a tour id',
+    (tester) async {
+      const hotel = LatLng(7.32, 80.66);
+      const dayRoute = [LatLng(7.29, 80.63), hotel];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ItineraryRoutePreview(
+              itinerary: const {'items': []},
+              selectedItem: const {
+                'id': 'night-2',
+                'dayNumber': 2,
+                'stopKind': 'overnight',
+                'tourName': 'Overnight at East Hotel',
+                'latitude': 7.32,
+                'longitude': 80.66,
+                'hotelStay': {'hotelName': 'East Hotel'},
+              },
+              routeLoader: (_) async => const ItineraryRoadRoute(
+                [
+                  ItineraryRouteStop({
+                    'id': 1,
+                    'dayNumber': 1,
+                  }, LatLng(7.29, 80.63)),
+                ],
+                dayRoute,
+                1000,
+                dayRoutes: {2: dayRoute},
+                hotelPoints: [hotel],
+              ),
+              tileProvider: _MemoryTileProvider(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final markers = tester
+          .widget<MarkerLayer>(find.byType(MarkerLayer))
+          .markers;
+      expect(markers.last.point, hotel);
+      expect(
+        tester
+            .widget<PolylineLayer>(find.byType(PolylineLayer))
+            .polylines
+            .last
+            .points,
+        dayRoute,
+      );
+      expect(find.textContaining('GPS unavailable'), findsNothing);
+      expect(find.byIcon(Icons.navigation), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'legacy overnight selection routes from the final activity to its hotel',
+    (tester) async {
+      final requested = <List<LatLng>>[];
+      const tour = LatLng(7.29, 80.63), hotel = LatLng(7.32, 80.66);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ItineraryRoutePreview(
+              itinerary: const {'items': []},
+              selectedItem: const {
+                'id': 'night-1',
+                'dayNumber': 1,
+                'stopKind': 'overnight',
+                'latitude': 7.32,
+                'longitude': 80.66,
+                'hotelStay': {'hotelName': 'East Hotel'},
+              },
+              routeLoader: (_) async => const ItineraryRoadRoute(
+                [
+                  ItineraryRouteStop({'id': 1, 'dayNumber': 1}, tour),
+                ],
+                [tour],
+                0,
+              ),
+              hotelRouteLoader: (points) async {
+                requested.add(points);
+                return ItineraryRoadRoute([], points, 1000);
+              },
+              tileProvider: _MemoryTileProvider(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(requested, [
+        [tour, hotel],
+      ]);
+      expect(
+        tester
+            .widget<PolylineLayer>(find.byType(PolylineLayer))
+            .polylines
+            .last
+            .points,
+        [tour, hotel],
+      );
+      expect(find.byIcon(Icons.navigation), findsOneWidget);
+    },
+  );
 
   testWidgets('journey date selects the hotel booked for that day', (
     tester,

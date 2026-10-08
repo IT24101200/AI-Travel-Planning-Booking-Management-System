@@ -11,6 +11,8 @@ import '../../widgets/itinerary_journey_layout.dart';
 import '../../services/trip_selection_service.dart';
 import '../../widgets/agent_workflow_card.dart';
 import '../../utils/transport_leg_utils.dart';
+import '../../utils/itinerary_flow_utils.dart';
+import '../../widgets/itinerary_stop_details.dart';
 
 /// Normalizes status for external callers if needed
 String normalizeItineraryStatus(dynamic status) {
@@ -130,14 +132,20 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           'id': 'transfer-day-${day['day_number']}',
           'dayNumber': day['day_number'],
           'sequenceOrder': 1,
-          'startTime': '08:00:00',
+          'startTime': day['day_start_time'] ?? '08:00:00',
           'tourName': 'Travel to ${destination['name'] ?? 'next hotel'}',
           'latitude': destination['latitude'],
           'longitude': destination['longitude'],
           'isTransferDay': true,
         });
       }
-      return {...itinerary, 'items': items, 'travelSchedule': schedule};
+      return {
+        ...itinerary,
+        'items': items,
+        'travelSchedule': schedule,
+        if (details is Map && details['room_selections'] is List)
+          'hotelStays': details['room_selections'],
+      };
     } catch (_) {
       return itinerary;
     }
@@ -1444,25 +1452,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
 
     // Parse items
-    final rawItems = itinerary['items'];
-    final List<Map<String, dynamic>> items = [];
-    if (rawItems is List) {
-      for (var it in rawItems) {
-        if (it is Map) {
-          items.add(Map<String, dynamic>.from(it));
-        }
-      }
-    }
-
-    // Sort items by dayNumber and sequenceOrder
-    items.sort((a, b) {
-      final dayA = a['dayNumber'] is int ? a['dayNumber'] as int : 1;
-      final dayB = b['dayNumber'] is int ? b['dayNumber'] as int : 1;
-      if (dayA != dayB) return dayA.compareTo(dayB);
-      final seqA = a['sequenceOrder'] is int ? a['sequenceOrder'] as int : 0;
-      final seqB = b['sequenceOrder'] is int ? b['sequenceOrder'] as int : 0;
-      return seqA.compareTo(seqB);
-    });
+    final items = itineraryFlowItems(itinerary, _booking);
 
     // Recalculate duration if items indicate more days
     if (items.isNotEmpty) {
@@ -1476,6 +1466,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     String stopsTitle = itinerary['title']?.toString() ?? 'Sri Lanka Tour';
     if (items.isNotEmpty) {
       final tourNames = items
+          .where((item) => item['stopKind'] == null)
           .map((i) => (i['tourName'] as String?)?.split(' ').first ?? '')
           .where((s) => s.isNotEmpty)
           .toSet()
@@ -1505,11 +1496,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       map: ItineraryRoutePreview(
         itinerary: itinerary,
         booking: _booking,
-        selectedItem:
-            _selectedJourneyIndex != null &&
-                _selectedJourneyIndex! < items.length
-            ? items[_selectedJourneyIndex!]
-            : null,
+        selectedItem: items.isEmpty
+            ? null
+            : items[(_selectedJourneyIndex ?? 0).clamp(0, items.length - 1)],
       ),
       heading: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1580,7 +1569,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             }
 
             // Format time
-            String timeStr = 'Time pending';
+            final hotelStop = item['stopKind'] != null;
+            String timeStr = item['stopKind'] == 'checkout'
+                ? 'Before departure'
+                : hotelStop
+                ? 'Evening'
+                : 'Time pending';
             if (item['startTime'] != null) {
               final s = item['startTime'].toString();
               timeStr = s.length >= 5 ? s.substring(0, 5) : s;
@@ -1598,7 +1592,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             final travelInfo = dayTravel == null
                 ? ''
                 : ' · Day travel: ${dayTravel['travel_distance_km']} km, ${dayTravel['travel_minutes']} min';
-            final subtitle = item['isTransferDay'] == true
+            final subtitle = hotelStop
+                ? item['stopKind'] == 'checkout'
+                      ? 'Hotel check-out · Continue your journey'
+                      : '${(item['hotelStay'] as Map?)?['isPlanned'] == true ? 'Planned' : 'Reserved'} overnight stay$travelInfo'
+                : item['isTransferDay'] == true
                 ? 'Hotel transfer$travelInfo'
                 : 'LKR ${NumberFormat('#,##0').format(itemPrice)} · Tickets & activities included$travelInfo';
 
@@ -1609,15 +1607,23 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             final isLast = idx == items.length - 1;
 
             return _buildTimelineItem(
+              itemKey: ValueKey('flow-stop-${item['id']}'),
               dayLabel: 'DAY $dayNum',
               dateLabel: dateLabel,
               dotColor: dotColor,
-              icon: _getIconForIndex(idx),
+              icon: hotelStop ? Icons.hotel_outlined : _getIconForIndex(idx),
               time: timeStr,
               title: tourTitle,
               subtitle: subtitle,
               showLine: !isLast,
               selected: isSelected,
+              details: isSelected
+                  ? ItineraryStopDetails(
+                      item: item,
+                      itinerary: itinerary,
+                      booking: _booking,
+                    )
+                  : null,
               onTap: () => setState(() => _selectedJourneyIndex = idx),
             );
           }),
@@ -2256,6 +2262,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   }
 
   Widget _buildTimelineItem({
+    Key? itemKey,
+    Widget? details,
     required String dayLabel,
     required String dateLabel,
     required Color dotColor,
@@ -2268,6 +2276,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     required VoidCallback onTap,
   }) {
     return IntrinsicHeight(
+      key: itemKey,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2345,56 +2354,64 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       ),
                     ],
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEEFAF4),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Icon(
-                            icon,
-                            color: const Color(0xFF13684B),
-                            size: 22,
+                      Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEEFAF4),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Icon(
+                                icon,
+                                color: const Color(0xFF13684B),
+                                size: 22,
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  time,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFFD4A346),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurface,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  subtitle,
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    color: Color(0xFF8A9E96),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              time,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFFD4A346),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              title,
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              subtitle,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: Color(0xFF8A9E96),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      ?details,
                     ],
                   ),
                 ),
