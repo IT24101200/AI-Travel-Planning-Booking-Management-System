@@ -357,7 +357,8 @@ namespace backend.Controllers
                 }
                 catch (ProposalPersistenceException ex)
                 {
-                    await MarkProposalFailedAsync(id, ex.Message, dto.RetryCount ?? 0);
+                    if (ex.Code == "STALE_REVISION") return Conflict(new { code = ex.Code, message = ex.Message });
+                    await MarkProposalFailedAsync(id, ex.Message, dto.RetryCount ?? 0, dto.PlanJson);
                     try
                     {
                         await _tripRequestService.AddAgentLogAsync(new AgentLogCreateDto
@@ -386,6 +387,10 @@ namespace backend.Controllers
             catch (ArgumentException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (ProposalPersistenceException ex)
+            {
+                return Conflict(new { code = ex.Code, message = ex.Message });
             }
             catch (InvalidOperationException ex)
             {
@@ -653,7 +658,7 @@ namespace backend.Controllers
             }
         }
 
-        private async Task MarkProposalFailedAsync(int tripRequestId, string reason, int retryCount)
+        private async Task MarkProposalFailedAsync(int tripRequestId, string reason, int retryCount, System.Text.Json.JsonElement? planJson = null)
         {
             try
             {
@@ -661,7 +666,8 @@ namespace backend.Controllers
                 {
                     Status = "Failed",
                     FailureReason = reason,
-                    RetryCount = retryCount
+                    RetryCount = retryCount,
+                    PlanJson = planJson
                 });
             }
             catch (Exception ex)

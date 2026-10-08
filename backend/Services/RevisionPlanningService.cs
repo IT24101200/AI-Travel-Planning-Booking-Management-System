@@ -60,6 +60,7 @@ public sealed class RevisionPlanningService : IRevisionPlanningService
             airport_arrival_time = trip.AirportArrivalTime.ToString(@"hh\:mm"),
             retry_count = 0,
             revision_feedback = revisionComment,
+            revision_request = CustomerRevisionContract.Read(trip),
             preferred_activities = activities,
         };
 

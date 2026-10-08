@@ -33,12 +33,20 @@ namespace backend.Services
                 throw new ArgumentNullException(nameof(dto));
 
             await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            if (_db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var tripId = await _db.Bookings.Where(b => b.Id == dto.BookingId)
+                    .Select(b => b.Itinerary.TripRequestId).SingleOrDefaultAsync();
+                await _db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock({0})", new object[] { tripId });
+            }
             var booking = await _db.Bookings
                 .Include(b => b.Itinerary)
                     .ThenInclude(i => i.TripRequest)
                 .FirstOrDefaultAsync(b => b.Id == dto.BookingId);
             if (booking == null)
                 throw new KeyNotFoundException($"Booking with ID {dto.BookingId} not found.");
+            if (CustomerRevisionContract.Pending(CustomerRevisionContract.Read(booking.Itinerary.TripRequest)))
+                throw new InvalidOperationException("The customer requested changes. Please review the revised proposal once planning finishes.");
 
             // Rule 1: Booking must be in AwaitingApproval status to receive human approval decision
             if (booking.Status != BookingStatus.AwaitingApproval)

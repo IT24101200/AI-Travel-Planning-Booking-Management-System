@@ -190,8 +190,9 @@ class ApiService {
     final decoded = _decode(response);
     if (decoded == null) return [];
     if (decoded is List) return decoded;
-    if (decoded is Map && decoded['data'] is List)
+    if (decoded is Map && decoded['data'] is List) {
       return decoded['data'] as List<dynamic>;
+    }
     throw const ApiException(
       'The server returned an invalid list. Please retry.',
     );
@@ -200,8 +201,9 @@ class ApiService {
   static Map<String, dynamic>? _object(http.Response response) {
     final decoded = _decode(response);
     if (decoded == null) return null;
-    if (decoded is Map<String, dynamic>)
+    if (decoded is Map<String, dynamic>) {
       return decoded.isEmpty ? null : decoded;
+    }
     throw const ApiException(
       'The server returned an invalid record. Please retry.',
     );
@@ -391,8 +393,9 @@ class ApiService {
       // Save token and user info on successful registration
       if (data['token'] != null) await saveToken(data['token'].toString());
       if (data['userId'] != null) await saveUserId(data['userId'].toString());
-      if (data['fullName'] != null)
+      if (data['fullName'] != null) {
         await saveUserName(data['fullName'].toString());
+      }
     }
     return {'statusCode': response.statusCode, ...data};
   }
@@ -421,8 +424,9 @@ class ApiService {
     if (response.statusCode == 200) {
       if (data['token'] != null) await saveToken(data['token'].toString());
       if (data['userId'] != null) await saveUserId(data['userId'].toString());
-      if (data['fullName'] != null)
+      if (data['fullName'] != null) {
         await saveUserName(data['fullName'].toString());
+      }
     }
     return {'statusCode': response.statusCode, ...data};
   }
@@ -572,6 +576,13 @@ class ApiService {
   static Future<bool> Function(int itineraryId)? mockAcceptItinerary;
   static Future<bool> Function(int itineraryId, String comment)?
   mockRequestItineraryChanges;
+  static Future<Map<String, dynamic>> Function(int id)?
+  mockGetItineraryChangeOptions;
+  static Future<Map<String, dynamic>> Function(
+    int id,
+    Map<String, dynamic> request,
+  )?
+  mockSubmitItineraryChanges;
   static Future<Map<String, dynamic>> Function(int tripRequestId)?
   mockCancelTripRequest;
 
@@ -636,7 +647,30 @@ class ApiService {
     return await updateItineraryStatus(itineraryId, 'Accepted');
   }
 
-  /// Requests changes by setting status back to Draft with customer comment notes
+  static Future<Map<String, dynamic>> getItineraryChangeOptions(int id) async {
+    if (mockGetItineraryChangeOptions != null) {
+      return mockGetItineraryChangeOptions!(id);
+    }
+    return _object(await get('itinerary/$id/changes/options')) ??
+        (throw const ApiException(
+          'No change options were returned. Please retry.',
+        ));
+  }
+
+  static Future<Map<String, dynamic>> submitItineraryChanges(
+    int id,
+    Map<String, dynamic> request,
+  ) async {
+    if (mockSubmitItineraryChanges != null) {
+      return mockSubmitItineraryChanges!(id, request);
+    }
+    return _object(await post('itinerary/$id/changes', request)) ??
+        (throw const ApiException(
+          'The change request was not accepted. Please retry.',
+        ));
+  }
+
+  /// Send customer instructions to the planning agents.
   static Future<bool> requestItineraryChanges(
     int itineraryId, [
     String comment = '',
@@ -644,11 +678,8 @@ class ApiService {
     if (mockRequestItineraryChanges != null) {
       return await mockRequestItineraryChanges!(itineraryId, comment);
     }
-    // TODO(backend): No customer revision endpoint persists notes. The status
-    // controller only permits customers to set Discarded and ignores Notes.
-    throw const ApiException(
-      'Change requests are not supported by the API yet. Please contact your travel agent.',
-    );
+    await submitItineraryChanges(itineraryId, {'notes': comment});
+    return true;
   }
 
   static Future<Map<String, dynamic>> cancelTripRequest(
@@ -802,10 +833,11 @@ class ApiService {
     if (mockCreateTripRequest != null) return mockCreateTripRequest!(data);
     final response = await post('triprequest', data);
     final result = _object(response);
-    if (result == null)
+    if (result == null) {
       throw const ApiException(
         'The server returned no trip request. Please retry.',
       );
+    }
     return {...result, 'statusCode': response.statusCode};
   }
 
@@ -942,11 +974,12 @@ class ApiService {
           if (dataLines.isNotEmpty) {
             try {
               final decoded = jsonDecode(dataLines.join('\n'));
-              if (decoded is Map)
+              if (decoded is Map) {
                 yield AgentLogStreamEvent(
                   eventName,
                   Map<String, dynamic>.from(decoded),
                 );
+              }
             } catch (_) {}
           }
           eventName = 'message';

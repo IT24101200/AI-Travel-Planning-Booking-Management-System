@@ -61,6 +61,19 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         if (trip is null)
             throw new ProposalPersistenceException("TRIP_NOT_FOUND", $"TripRequest {tripRequestId} was not found.");
 
+        CustomerRevisionContract.ValidateCallback(trip, planJson);
+        var revision = CustomerRevisionContract.Read(trip);
+        Booking? revisionBooking = null;
+        if (CustomerRevisionContract.Pending(revision))
+        {
+            var bookingId = revision!["booking_id"]!.GetValue<int>();
+            revisionBooking = await _db.Bookings.Include(b => b.Itinerary).FirstOrDefaultAsync(b => b.Id == bookingId && b.CustomerId == trip.CustomerId && b.Itinerary.TripRequestId == trip.Id, cancellationToken);
+            if (trip.Status != TripRequestStatus.Planning || revisionBooking is null ||
+                revisionBooking.Status is not (BookingStatus.Draft or BookingStatus.AwaitingApproval or BookingStatus.Confirmed) ||
+                await _db.Payments.AnyAsync(p => p.BookingId == bookingId && (p.Status == PaymentStatus.Paid || p.Status == PaymentStatus.Pending), cancellationToken))
+                throw new ProposalPersistenceException("REVISION_STATE_CHANGED", "The booking changed while replanning. Please review the current booking.");
+        }
+
         var existingItinerary = await _db.Itineraries
             .OrderByDescending(i => i.CreatedAt)
             .FirstOrDefaultAsync(i => i.TripRequestId == tripRequestId, cancellationToken);
@@ -71,7 +84,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             if (existingBooking is null)
                 throw new ProposalPersistenceException("PARTIAL_PROPOSAL", "A prior itinerary exists without its booking.");
 
-            if (existingBooking.Status is not (BookingStatus.Cancelled or BookingStatus.Rejected))
+            if (revisionBooking is null && existingBooking.Status is not (BookingStatus.Cancelled or BookingStatus.Rejected))
             {
                 await transaction.CommitAsync(cancellationToken);
                 return new AgentProposalPersistenceResult
@@ -193,7 +206,13 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     throw new ProposalPersistenceException("TRAVEL_TIME_INFEASIBLE", "Daily travel must fit within ten driving hours and finish by 20:00.");
             }
         }
-        var validatedRoomStays = await ValidateRoomStaysAsync(bookingDetails, trip, currency, cancellationToken);
+        if (revisionBooking is not null)
+        {
+            var originalTours = await _db.ItineraryItems.Where(i => i.ItineraryId == revisionBooking.ItineraryId).Select(i => i.TourId).ToListAsync(cancellationToken);
+            if (!originalTours.OrderBy(id => id).SequenceEqual(itineraryItems.Select(i => i.TourId).OrderBy(id => id)))
+                throw new ProposalPersistenceException("REVISION_SELECTION_MISMATCH", "Hotel and transport changes must preserve the selected journeys.");
+        }
+        var validatedRoomStays = await ValidateRoomStaysAsync(bookingDetails, trip, currency, cancellationToken, revisionBooking?.Id);
 
         // Resolve and validate every leg before any itinerary or booking save.
         // Prices, route names, snapshots, capacity, and availability all come
@@ -203,7 +222,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             routeDestinationIds,
             trip,
             currency,
-            cancellationToken);
+            cancellationToken, revisionBooking?.Id);
         if (optimizedOrder.HasValue)
         {
             foreach (var selection in validatedTransportSelections.Where(s => s.LegIndex.HasValue))
@@ -242,6 +261,28 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             throw new ProposalPersistenceException("TOTAL_MISMATCH", $"AI total {reportedTotal.Value} does not match trusted total {calculatedTotal}.");
         if (calculatedTotal > trip.BudgetCeiling)
             throw new ProposalPersistenceException("BUDGET_EXCEEDED", $"Trusted total {calculatedTotal} exceeds budget {trip.BudgetCeiling}.");
+
+        if (revisionBooking is not null)
+        {
+            foreach (var pin in revision!["rooms"]!.AsArray())
+            {
+                var roomId = pin!["room_id"]!.GetValue<int>();
+                var from = DateTime.Parse(pin["check_in"]!.GetValue<string>(), CultureInfo.InvariantCulture);
+                var to = DateTime.Parse(pin["check_out"]!.GetValue<string>(), CultureInfo.InvariantCulture);
+                for (var night = from; night < to; night = night.AddDays(1))
+                    if (!validatedRoomStays.Any(s => s.Entity.Id == roomId && s.CheckIn <= night && s.CheckOut > night))
+                        throw new ProposalPersistenceException("REVISION_SELECTION_MISMATCH", "The revised package did not use the requested hotel for its selected stay.");
+            }
+            foreach (var pin in revision["transports"]!.AsArray())
+            {
+                var leg = pin!["leg_index"]?.GetValue<int>();
+                if (!validatedTransportSelections.Any(s => s.LegIndex == leg && s.Entity.Id == pin["transport_option_id"]!.GetValue<int>()))
+                    throw new ProposalPersistenceException("REVISION_SELECTION_MISMATCH", "The revised package did not use the selected transport for its route leg.");
+            }
+            revisionBooking.Status = BookingStatus.Cancelled;
+            revisionBooking.UpdatedAt = DateTime.UtcNow;
+            revisionBooking.Itinerary.Status = ItineraryStatus.Discarded;
+        }
 
         var itineraryEntity = new Itinerary
         {
@@ -306,7 +347,14 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                 })).ToList()
         };
         _db.Bookings.Add(booking);
-        trip.PlanJson = planJson.GetRawText();
+        if (revisionBooking is not null)
+        {
+            var canonical = System.Text.Json.Nodes.JsonNode.Parse(planJson.GetRawText())!;
+            revision!["status"] = "Applied";
+            canonical["revision_request"] = revision.DeepClone();
+            trip.PlanJson = canonical.ToJsonString();
+        }
+        else trip.PlanJson = planJson.GetRawText();
         trip.RetryCount = retryCount;
         trip.Status = TripRequestStatus.AwaitingApproval;
         trip.FailureReason = null;
@@ -360,7 +408,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
     }
 
     private async Task<List<ValidatedRoomStay>> ValidateRoomStaysAsync(
-        JsonElement bookingDetails, TripRequest trip, string currency, CancellationToken cancellationToken)
+        JsonElement bookingDetails, TripRequest trip, string currency, CancellationToken cancellationToken, int? excludingBookingId = null)
     {
         var requested = new List<(int RoomId, DateTime CheckIn, DateTime CheckOut)>();
         var selections = OptionalArray(bookingDetails, "room_selections");
@@ -392,6 +440,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             if (room.Capacity < trip.TravellerCount)
                 throw new ProposalPersistenceException("ROOM_CAPACITY", $"Room {stay.RoomId} cannot hold all travellers.");
             var booked = await _db.BookingItems.Where(item => item.RoomId == stay.RoomId && item.ItemType == BookingItemType.Room &&
+                (!excludingBookingId.HasValue || item.BookingId != excludingBookingId.Value) &&
                 item.CheckInDate < stay.CheckOut && item.CheckOutDate > stay.CheckIn &&
                 TransportInventory.ActiveReservationStatuses.Contains(item.Booking.Status)).SumAsync(item => item.Quantity, cancellationToken);
             if (booked >= room.TotalRooms)
@@ -408,7 +457,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         IReadOnlyList<int> requestedDestinationIds,
         TripRequest trip,
         string currency,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, int? excludingBookingId = null)
     {
         var requested = new List<(int? LegIndex, int TransportOptionId)>();
         if (requestedDestinationIds.Count > 1 || trip.AirportPickup)
@@ -481,6 +530,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             var bookedSeats = await TransportInventory.CountReservedSeatsAsync(
                 _db,
                 transport.Id,
+                excludingBookingId,
                 cancellationToken: cancellationToken);
             if (bookedSeats + trip.TravellerCount > transport.Capacity)
                 throw new ProposalPersistenceException(

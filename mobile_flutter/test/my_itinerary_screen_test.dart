@@ -32,6 +32,8 @@ void main() {
     ApiService.mockGetItinerary = null;
     ApiService.mockAcceptItinerary = null;
     ApiService.mockRequestItineraryChanges = null;
+    ApiService.mockGetItineraryChangeOptions = null;
+    ApiService.mockSubmitItineraryChanges = null;
     ApiService.mockCancelTripRequest = null;
     ApiService.mockGetAgentHealth = null;
     ApiService.mockGetAgentLogs = null;
@@ -564,16 +566,20 @@ void main() {
   });
 
   testWidgets(
-    '7. Request Changes dialog validates required comment and invokes API',
+    '7. Request Changes validates choices or instructions and starts replanning',
     (WidgetTester tester) async {
       final itinerary = createSampleItinerary(id: 42, status: 1); // Proposed
       String? submittedComment;
 
       ApiService.mockGetMyItineraries = () async => [itinerary];
       ApiService.mockGetItinerary = (id) async => itinerary;
-      ApiService.mockRequestItineraryChanges = (id, comment) async {
-        submittedComment = comment;
-        return true;
+      ApiService.mockGetItineraryChangeOptions = (_) async => {
+        'hotels': [],
+        'transports': [],
+      };
+      ApiService.mockSubmitItineraryChanges = (id, request) async {
+        submittedComment = request['notes'] as String;
+        return {'tripRequestId': 10, 'status': 'Planning'};
       };
 
       await tester.pumpWidget(buildTestWidget());
@@ -586,32 +592,84 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify dialog opened
-      expect(find.text('Request Changes'), findsWidgets);
-      expect(find.text('Submit Request'), findsOneWidget);
+      expect(find.text('Request itinerary changes'), findsOneWidget);
 
       // Try submitting empty comment
-      await tester.tap(find.text('Submit Request'));
+      await tester.tap(find.text('Request changes'));
       await tester.pumpAndSettle();
 
       // Validation error should appear
       expect(
-        find.text('Comment is required to request changes'),
+        find.text('Select an alternative or enter instructions.'),
         findsOneWidget,
       );
       expect(submittedComment, isNull);
 
       // Enter comment and submit
       await tester.enterText(
-        find.byType(TextFormField),
-        'Please add a morning tea plantation visit',
+        find.byKey(const ValueKey('change-notes')),
+        'Prefer the selected quiet hotel',
       );
-      await tester.tap(find.text('Submit Request'));
+      await tester.tap(find.text('Request changes'));
       await tester.pump();
 
-      expect(
-        submittedComment,
-        equals('Please add a morning tea plantation visit'),
+      expect(submittedComment, equals('Prefer the selected quiet hotel'));
+    },
+  );
+
+  testWidgets(
+    'Agent completion opens revised itinerary and its matching booking',
+    (tester) async {
+      final events = StreamController<AgentLogStreamEvent>.broadcast();
+      var revised = false;
+      final original = createSampleItinerary(id: 42, status: 1);
+      final updated = createSampleItinerary(id: 43, status: 1);
+      ApiService.mockGetMyItineraries = () async =>
+          revised ? [original, updated] : [original];
+      ApiService.mockGetItinerary = (id) async => id == 43 ? updated : original;
+      ApiService.mockGetMyBookings = () async => [
+        {
+          'id': revised ? 101 : 100,
+          'itineraryId': revised ? 43 : 42,
+          'tripRequestId': 10,
+          'bookingItems': [],
+        },
+      ];
+      ApiService.mockGetTripRequest = (_) async => {
+        'id': 10,
+        'status': revised ? 'AwaitingApproval' : 'Planned',
+      };
+      ApiService.mockStreamAgentLogs = (_) => events.stream;
+      ApiService.mockGetItineraryChangeOptions = (_) async => {
+        'hotels': [],
+        'transports': [],
+      };
+      ApiService.mockSubmitItineraryChanges = (_, _) async => {
+        'tripRequestId': 10,
+      };
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Edit'));
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('change-notes')),
+        'Please revise hotel',
       );
+      await tester.tap(find.text('Request changes'));
+      await tester.pump(const Duration(milliseconds: 400));
+      revised = true;
+      events.add(
+        const AgentLogStreamEvent('trip-status', {
+          'status': 'AwaitingApproval',
+        }),
+      );
+      await tester.pumpAndSettle();
+      expect(TripSelectionService.activeBookingItineraryId, 43);
+      expect(TripSelectionService.activeBookingId, 101);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await events.close();
     },
   );
 

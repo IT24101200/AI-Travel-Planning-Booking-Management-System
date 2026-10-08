@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from dotenv import load_dotenv
 from logger import log_agent_step
+from customer_revision import room_requested, reserved_quantity, transport_requested
 from route_planning import plan_overnights, RoutePlanningError, AIRPORTS, point, minutes, EARLIEST_TRANSFER_START, DAY_END
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
@@ -127,6 +128,7 @@ def build_booking_package(state):
     end_date = state.get("end_date")
     traveller_count = state.get("traveller_count", 1)
     currency = str(state.get("currency", "LKR")).upper()
+    revision = state.get("revision_request") or {}
 
     if not isinstance(destination_id, int) or destination_id <= 0:
         return _booking_failure(
@@ -154,6 +156,8 @@ def build_booking_package(state):
     for hotel in hotels:
         rooms = search_hotel_rooms(hotel.get("id"), currency=currency)
         for room in rooms:
+            if revision and room.get("id") not in {pin["room_id"] for pin in revision.get("rooms", [])}:
+                continue
             if room.get("capacity", 1) >= traveller_count and str(room.get("status", "Active")).lower() == "active":
                 if geographic:
                     try:
@@ -212,7 +216,8 @@ def build_booking_package(state):
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
             avail = check_transport_availability(t.get("id"))
-            is_trans_avail = avail and (avail.get("isAvailable") is True or avail.get("availableSeats", 0) >= traveller_count)
+            is_trans_avail = avail and (avail.get("availableSeats", 0) + reserved_quantity(revision, "transport_option_id", t.get("id")) >= traveller_count
+                if "availableSeats" in avail else avail.get("isAvailable") is True)
             if is_trans_avail:
                 option = {
                     "transport_id": t.get("id"),
@@ -236,7 +241,8 @@ def build_booking_package(state):
                         ),
                         None,
                     )
-                available_transports.append(option)
+                if transport_requested(revision, option):
+                    available_transports.append(option)
             else:
                 availability_mismatch_count += 1
 
@@ -279,6 +285,10 @@ def build_booking_package(state):
         tool_name="check_transport_availability",
         output_data={"available_transports": len(available_transports)}
     )
+
+    if revision and (not available_rooms or not available_transports or transport_diagnostics.get("missing_transport_legs")):
+        return _booking_failure(trip_id, "REQUESTED_OPTION_UNAVAILABLE",
+            "A requested hotel or transport is no longer available. Your current itinerary is preserved; choose another option and request changes again.")
 
     if not available_rooms:
         return _booking_failure(
@@ -342,10 +352,14 @@ def build_booking_package(state):
         if geographic:
             availability_cache = {}
             def room_available(room, check_in, check_out):
+                if not room_requested(revision, room["room_id"], check_in, check_out):
+                    return False
                 key = (room["room_id"], check_in, check_out)
                 if key not in availability_cache:
                     result = check_room_availability(room["hotel_id"], room["room_id"], check_in, check_out, currency=currency)
-                    availability_cache[key] = bool(result and (result.get("isAvailable") is True or result.get("availableRooms", 0) > 0))
+                    availability_cache[key] = bool(result and (
+                        result.get("availableRooms", 0) + reserved_quantity(revision, "room_id", room["room_id"], check_in, check_out) > 0
+                        if "availableRooms" in result else result.get("isAvailable") is True))
                 return availability_cache[key]
             try:
                 groups = [[option for option in available_transports if option.get("leg_index") == index]

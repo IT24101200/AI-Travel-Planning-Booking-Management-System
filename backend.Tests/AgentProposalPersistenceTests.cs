@@ -324,7 +324,7 @@ public class AgentProposalPersistenceTests
         }
     }
 
-    private static async Task<(AppDbContext Context, SqliteConnection Connection)> CreateContextAsync(
+    internal static async Task<(AppDbContext Context, SqliteConnection Connection)> CreateContextAsync(
         TripRequestStatus status = TripRequestStatus.Planning,
         decimal budget = 1000m)
     {
@@ -399,7 +399,7 @@ public class AgentProposalPersistenceTests
         return (context, connection);
     }
 
-    private static JsonElement Proposal(
+    internal static JsonElement Proposal(
         int tourId = 100,
         int roomId = 20,
         int transportId = 30,

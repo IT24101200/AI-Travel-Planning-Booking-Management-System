@@ -27,11 +27,12 @@ internal static class RoomInventory
     }
 
     internal static async Task<int> BookedPeakAsync(
-        AppDbContext db, int roomId, DateTime checkIn, DateTime checkOut)
+        AppDbContext db, int roomId, DateTime checkIn, DateTime checkOut, int? excludingBookingId = null)
     {
         var bookings = await db.BookingItems.AsNoTracking()
             .Where(i => i.RoomId == roomId && i.ItemType == BookingItemType.Room
                 && i.Booking.Status == BookingStatus.Confirmed
+                && (!excludingBookingId.HasValue || i.BookingId != excludingBookingId.Value)
                 && i.CheckInDate < checkOut && i.CheckOutDate > checkIn)
             .ToListAsync();
         ClipToWindow(bookings, checkIn, checkOut);

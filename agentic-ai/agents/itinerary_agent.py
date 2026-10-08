@@ -5,6 +5,7 @@ function automatically, so importing the file will not create an itinerary.
 """
 
 import json
+from copy import deepcopy
 from logger import log_agent_step
 import os
 
@@ -303,6 +304,25 @@ def build_itinerary(trip_request):
                 "longitude": _get_tour_value(tour, "longitude", "Longitude"),
             }
         )
+
+    revision = trip_request.get("revision_request") or {}
+    if revision:
+        # Hotel/transport changes preserve the customer's selected journeys.
+        # Refresh catalogue fields; the booking planner rebuilds dates and routes.
+        baseline = deepcopy(revision.get("baseline_itinerary") or {})
+        by_id = {tour["id"]: tour for tour in available_tours}
+        total = 0.0
+        for day in baseline.get("schedule", []):
+            for item in day.get("items", []):
+                tour = by_id.get(item.get("tour_id"))
+                if not tour or str(tour.get("status")).lower() != "active":
+                    return {"status": "ItineraryFailed", "error_code": "REVISION_TOUR_UNAVAILABLE",
+                            "error": "A journey from your current itinerary is no longer available."}
+                item.update({key: tour[key] for key in ("price", "currency", "duration", "latitude", "longitude", "destination_id", "destination_name")})
+                item["tour_name"] = tour["name"]
+                total += tour["price"] * trip_request["traveller_count"]
+        baseline["total_estimated_cost"] = round(total, 2)
+        return baseline
 
     if len(requested_destinations) > 1 or trip_request.get("airport_pickup") or all(t.get("latitude") is not None for t in available_tours):
         try:

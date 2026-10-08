@@ -33,6 +33,7 @@ class TripPlanningState(TypedDict, total=False):
     requested_destinations: list[dict[str, Any]]
     raw_request_text: str
     revision_feedback: Optional[str]
+    revision_request: Optional[Dict[str, Any]]
     preferred_activities: Optional[list[str]]
     start_date: str
     end_date: str
@@ -206,7 +207,7 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
         failed_state = {
             "status": "Failed",
             "retry_count": initial_data.get("retry_count", 0),
-            "plan_json": {},
+            "plan_json": {"revision_request": initial_data["revision_request"]} if initial_data.get("revision_request") else {},
             "failure_reason": failure_reason,
         }
         log_agent_step(
@@ -223,7 +224,7 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
         sync_result_to_backend(
             trip_id=trip_id,
             final_status="Failed",
-            plan_json={},
+            plan_json=failed_state["plan_json"],
             retry_count=failed_state["retry_count"],
             failure_reason=failure_reason,
         )
@@ -231,7 +232,10 @@ def run_travel_planning_pipeline(initial_data: dict) -> dict:
 
     # Determine final state values
     final_status = final_state.get("status", "Planned")
-    plan_json = final_state.get("plan_json")
+    plan_json = final_state.get("plan_json") or {}
+    if initial_data.get("revision_request"):
+        plan_json["revision_request"] = initial_data["revision_request"]
+    final_state["plan_json"] = plan_json
     retries = final_state.get("retry_count", 0)
     failure_reason = final_state.get("failure_reason")
 

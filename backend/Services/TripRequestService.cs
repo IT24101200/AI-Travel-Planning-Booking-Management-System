@@ -406,6 +406,10 @@ namespace backend.Services
 
         public async Task<TripRequestDto?> UpdateAgentPlanAsync(int tripRequestId, TripRequestAgentUpdateDto dto)
         {
+            await using var transaction = _db.Database.IsRelational()
+                ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
+            if (_db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
+                await _db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock({0})", new object[] { tripRequestId });
             var trip = await _db.TripRequests
                 .Include(t => t.Destination)
                 .FirstOrDefaultAsync(t => t.Id == tripRequestId);
@@ -413,6 +417,32 @@ namespace backend.Services
             if (trip == null) return null;
 
             var previousStatus = trip.Status;
+            var revision = CustomerRevisionContract.Read(trip);
+            if (revision is not null)
+            {
+                CustomerRevisionContract.ValidateCallback(trip, dto.PlanJson);
+                if (!CustomerRevisionContract.Pending(revision))
+                    throw new ProposalPersistenceException("STALE_REVISION", "This change request has already finished.");
+                if (CustomerRevisionContract.Pending(revision) && string.Equals(dto.Status, "Failed", StringComparison.OrdinalIgnoreCase))
+                {
+                    var bookingId = revision["booking_id"]!.GetValue<int>();
+                    var original = await _db.Bookings.FirstOrDefaultAsync(b => b.Id == bookingId);
+                    if (trip.Status != TripRequestStatus.Planning || original is null || original.Status is BookingStatus.Cancelled or BookingStatus.Rejected)
+                        throw new InvalidOperationException("The current booking is no longer awaiting this revision.");
+                    revision["status"] = "Failed";
+                    var saved = System.Text.Json.Nodes.JsonNode.Parse(trip.PlanJson!)!;
+                    saved["revision_request"] = revision.DeepClone();
+                    trip.PlanJson = saved.ToJsonString();
+                    trip.Status = original.Status == BookingStatus.Confirmed ? TripRequestStatus.Approved :
+                        Enum.Parse<TripRequestStatus>(revision["original_trip_status"]!.GetValue<string>());
+                    trip.FailureReason = "Change request could not be completed: " + (dto.FailureReason ?? "No feasible revised plan was found.");
+                    await _db.SaveChangesAsync();
+                    if (transaction is not null) await transaction.CommitAsync();
+                    var preserved = MapToDto(trip);
+                    _logStream?.PublishTripStatus(trip.Id, preserved.Status, preserved.FailureReason);
+                    return preserved;
+                }
+            }
             var parsedStatus = trip.Status;
             if (!string.IsNullOrWhiteSpace(dto.Status) && !Enum.TryParse<TripRequestStatus>(dto.Status, true, out parsedStatus))
             {
@@ -465,6 +495,7 @@ namespace backend.Services
                 await _db.SaveChangesAsync();
             }
             var result = MapToDto(trip);
+            if (transaction is not null) await transaction.CommitAsync();
             if (!string.IsNullOrWhiteSpace(dto.Status))
                 _logStream?.PublishTripStatus(trip.Id, result.Status, result.FailureReason);
             return result;

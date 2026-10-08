@@ -13,6 +13,7 @@ import '../../widgets/agent_workflow_card.dart';
 import '../../utils/transport_leg_utils.dart';
 import '../../utils/itinerary_flow_utils.dart';
 import '../../widgets/itinerary_stop_details.dart';
+import '../../widgets/itinerary_change_dialog.dart';
 
 /// Normalizes status for external callers if needed
 String normalizeItineraryStatus(dynamic status) {
@@ -169,12 +170,14 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     });
     try {
       final args = ModalRoute.of(context)?.settings.arguments;
-      final directId = args is int
-          ? _positiveId(args)
-          : args is Map
-          ? _positiveId(args['itineraryId']) ??
-                (args.containsKey('items') ? _positiveId(args['id']) : null)
-          : _selectedItineraryId;
+      final directId =
+          _selectedItineraryId ??
+          (args is int
+              ? _positiveId(args)
+              : args is Map
+              ? _positiveId(args['itineraryId']) ??
+                    (args.containsKey('items') ? _positiveId(args['id']) : null)
+              : null);
       final tripRequestId = args is Map
           ? _positiveId(args['tripRequestId'])
           : null;
@@ -237,7 +240,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       } else {
         agentStatus = tripRequest?['status']?.toString();
         final normalizedStatus = agentStatus?.toLowerCase().replaceAll(' ', '');
-        if (normalizedStatus == 'failed') {
+        if (normalizedStatus == 'failed' ||
+            tripRequest?['failureReason'] != null) {
           agentFailureReason = ApiService.safeAgentFailureMessage(
             tripRequest?['failureReason']?.toString(),
           );
@@ -379,11 +383,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       final status = event.data['status']?.toString();
       setState(() {
         _agentStatus = status;
-        _agentFailureReason = status?.toLowerCase() == 'failed'
-            ? ApiService.safeAgentFailureMessage(
-                event.data['failureReason']?.toString(),
-              )
-            : null;
+        _agentFailureReason = event.data['failureReason']?.toString();
         _pending =
             _resolvedTripRequestId != null &&
             _itinerary == null &&
@@ -426,23 +426,48 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
   Future<void> _refetchFinalItinerary(int tripRequestId) async {
     try {
-      final itineraryId = _positiveId(_itinerary?['id']);
-      Map<String, dynamic>? latest;
-      if (itineraryId != null) {
-        latest = await ApiService.getItinerary(itineraryId);
-      } else {
-        final records = await ApiService.getMyItineraries();
-        for (final record in records.whereType<Map>()) {
-          final recordId = _positiveId(record['id']);
-          if (_positiveId(record['tripRequestId']) == tripRequestId &&
-              recordId != null) {
-            latest = await ApiService.getItinerary(recordId);
-            break;
-          }
-        }
+      final records =
+          (await ApiService.getMyItineraries())
+              .whereType<Map>()
+              .where(
+                (record) =>
+                    _positiveId(record['tripRequestId']) == tripRequestId &&
+                    normalizeItineraryStatus(record['status']) != 'Discarded',
+              )
+              .toList()
+            ..sort(
+              (a, b) => (_positiveId(b['id']) ?? 0).compareTo(
+                _positiveId(a['id']) ?? 0,
+              ),
+            );
+      final id = records.isNotEmpty
+          ? _positiveId(records.first['id'])
+          : _positiveId(_itinerary?['id']);
+      if (id == null) {
+        throw const ApiException(
+          'The revised itinerary is not available yet. Refresh to retry.',
+        );
       }
-      if (mounted && latest != null) setState(() => _itinerary = latest);
-    } catch (_) {}
+      final latest = await ApiService.getItinerary(id);
+      final trip = await ApiService.getTripRequest(tripRequestId);
+      if (mounted && latest != null) {
+        setState(() {
+          _itinerary = _withTravelPlan(latest, trip);
+          _selectedItineraryId = id;
+          _selectedJourneyIndex = null;
+          _booking = null;
+          _agentFailureReason = trip?['failureReason']?.toString();
+        });
+        await _loadAuxiliaryDetails(tripRequestId, id);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _refetchedFinalItinerary = false;
+          _agentFailureReason = ApiService.userMessage(error);
+        });
+      }
+    }
   }
 
   Future<void> _checkAgentHealth(int request) async {
@@ -754,195 +779,30 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     }
   }
 
-  /// Opens the Request Changes dialog with required comment field
-  void _showRequestChangesDialog() {
-    final commentController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final messenger = ScaffoldMessenger.of(context);
-    bool isSubmitting = false;
-    String? requestError;
-
-    showDialog(
+  Future<void> _showRequestChangesDialog() async {
+    final itineraryId = _positiveId(_itinerary?['id']);
+    if (itineraryId == null || _agentStatus == 'Planning') return;
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              title: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEEFAF4),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.edit_note,
-                      color: Color(0xFF13684B),
-                      size: 22,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Request Changes',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ],
-              ),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Please describe the changes you would like us to make (dates, activities, hotels, or budget):',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF5A7067),
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (requestError != null)
-                      Text(
-                        requestError!,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    TextFormField(
-                      controller: commentController,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText:
-                            'e.g. Please add a guided safari tour in Yala on Day 3.',
-                        hintStyle: const TextStyle(
-                          fontSize: 12.5,
-                          color: Color(0xFF8A9E96),
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFFEDECE4),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF0E382C),
-                            width: 1.5,
-                          ),
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFFBF9F4),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Comment is required to request changes';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actionsPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () => Navigator.pop(dialogContext),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(
-                      color: Color(0xFF8A9E96),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: isSubmitting
-                      ? null
-                      : () async {
-                          if (!formKey.currentState!.validate()) return;
-                          setDialogState(() => isSubmitting = true);
-                          final comment = commentController.text.trim();
-                          final itineraryId = _itinerary?['id'] as int? ?? 0;
-                          try {
-                            final success =
-                                await ApiService.requestItineraryChanges(
-                                  itineraryId,
-                                  comment,
-                                );
-                            if (!success) {
-                              throw const ApiException(
-                                'Failed to submit changes. Please retry.',
-                              );
-                            }
-                            if (!mounted || !dialogContext.mounted) return;
-                            Navigator.pop(dialogContext);
-                            setState(() {
-                              _itinerary?['status'] = 'Draft';
-                              _itinerary?['notes'] = comment;
-                            });
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Changes requested successfully. Status updated to Draft.',
-                                ),
-                              ),
-                            );
-                          } catch (error) {
-                            if (dialogContext.mounted) {
-                              setDialogState(
-                                () => requestError = ApiService.userMessage(
-                                  error,
-                                ),
-                              );
-                            }
-                          } finally {
-                            if (dialogContext.mounted) {
-                              setDialogState(() => isSubmitting = false);
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0E382C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 10,
-                    ),
-                  ),
-                  child: isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          requestError == null ? 'Submit Request' : 'Retry',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      barrierDismissible: false,
+      builder: (_) => ItineraryChangeDialog(itineraryId: itineraryId),
+    );
+    if (!mounted || result == null) return;
+    final tripId =
+        _positiveId(result['tripRequestId']) ?? _resolvedTripRequestId;
+    setState(() {
+      _agentStatus = 'Planning';
+      _agentFailureReason = null;
+      _refetchedFinalItinerary = false;
+      _agentLogs = [];
+    });
+    if (tripId != null) _startAgentLogStream(tripId);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Changes sent to the agents. Your revised itinerary will appear here when ready.',
+        ),
+      ),
     );
   }
 
@@ -1515,7 +1375,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               ),
             ),
           ),
-          if (_isDraft(status) || _isProposed(status))
+          if ((_isDraft(status) ||
+                  _isProposed(status) ||
+                  status == 'Accepted') &&
+              _agentStatus != 'Planning')
             GestureDetector(
               onTap: _showRequestChangesDialog,
               child: Text(
@@ -2528,6 +2391,21 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         const SizedBox(height: 8),
 
         // Booked Hotel Card
+        if (normalizeItineraryStatus(_itinerary?['status']) != 'Discarded')
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _agentStatus == 'Planning'
+                  ? null
+                  : _showRequestChangesDialog,
+              icon: const Icon(Icons.tune),
+              label: Text(
+                _agentStatus == 'Planning'
+                    ? 'Planning your changes…'
+                    : 'Change hotels or transport',
+              ),
+            ),
+          ),
         for (final hotelItem in hotelItems)
           Container(
             margin: const EdgeInsets.only(bottom: 10),

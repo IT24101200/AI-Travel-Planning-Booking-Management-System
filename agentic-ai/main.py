@@ -47,6 +47,7 @@ class TripPipelineRequest(BaseModel):
     requested_destinations: Optional[list[RequestedDestination]] = None
     raw_request_text: Optional[str] = Field("", description="Raw customer request notes")
     revision_feedback: Optional[str] = Field(None, description="Human travel-agent feedback for a revision run")
+    revision_request: Optional[Dict[str, Any]] = None
     start_date: str = Field(..., description="Start date in ISO format")
     end_date: str = Field(..., description="End date in ISO format")
     traveller_count: int = Field(1, description="Number of travellers")
