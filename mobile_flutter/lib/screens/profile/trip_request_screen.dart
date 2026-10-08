@@ -326,8 +326,8 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     final now = DateTime.now();
     final picked = await showDateRangePicker(
       context: context,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+      firstDate: now.add(const Duration(days: 1)),
+      lastDate: now.add(const Duration(days: 60)),
       initialDateRange: DateTimeRange(start: _startDate, end: _endDate),
       builder: (context, child) {
         final isDark = Theme.of(context).brightness == Brightness.dark;

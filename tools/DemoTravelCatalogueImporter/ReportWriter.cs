@@ -23,8 +23,10 @@ public static class ReportWriter
         bool applyRequested,
         ApplyResult? applyResult = null)
     {
-        var dryRunPath = Path.Combine(repositoryRoot, "DEMO_TRAVEL_CATALOGUE_IMPORT_DRY_RUN.md");
-        var finalPath = Path.Combine(repositoryRoot, "REALISTIC_DEMO_TRAVEL_DATA_IMPORT_REPORT.md");
+        // Keep historical importer reports untouched. This task has its own
+        // audit artifacts so a dry-run/apply cannot overwrite prior evidence.
+        var dryRunPath = Path.Combine(repositoryRoot, "REQUESTED_DESTINATION_TRANSPORT_COVERAGE_FIX_IMPORT_DRY_RUN.md");
+        var finalPath = Path.Combine(repositoryRoot, "REQUESTED_DESTINATION_TRANSPORT_COVERAGE_FIX_IMPORT_REPORT.md");
         File.WriteAllText(dryRunPath, BuildDryRun(target, document, snapshot, plan, applyRequested, applyResult), Encoding.UTF8);
         File.WriteAllText(finalPath, BuildFinalReport(target, document, snapshot, plan, applyRequested, applyResult), Encoding.UTF8);
     }
@@ -170,7 +172,9 @@ public static class ReportWriter
         sb.AppendLine("- Real identities: destination, hotel, and attraction names only after source verification");
         sb.AppendLine("- Verified static data: only field-level verified addresses, contacts, and coordinates; missing fields remain null");
         sb.AppendLine("- Demo prices: room and tour values in LKR");
-        sb.AppendLine("- Demo schedules: generated local Sri Lankan wall-clock departures in the rolling window");
+        sb.AppendLine("- Demo schedules: one local 07:00 Sri Lankan wall-clock departure per ordered destination pair per day in the rolling window; not a live timetable");
+        sb.AppendLine("- Demo transport model: Haversine distance x 1.30 road factor; 45 km/h average; duration rounded up to 30 minutes");
+        sb.AppendLine("- Demo transport fares: ceil((LKR 2,500 + road-km x LKR 35) / LKR 500) x LKR 500; not a live fare");
         sb.AppendLine("- Demo capacities: room allotments and van capacity 8");
         sb.AppendLine();
         sb.AppendLine("## Integrity");
@@ -316,7 +320,7 @@ public static class ReportWriter
         sb.AppendLine("| From | To | Current active | Planned | Earliest planned | Latest planned | Status |");
         sb.AppendLine("|---|---|---:|---:|---|---|---|");
 
-        var routes = CataloguePlanner.RequiredRoutes()
+        var routes = CataloguePlanner.RequiredRoutes(snapshot, plan.DestinationsToInsert)
             .OrderBy(r => r.From, StringComparer.OrdinalIgnoreCase)
             .ThenBy(r => r.To, StringComparer.OrdinalIgnoreCase);
 

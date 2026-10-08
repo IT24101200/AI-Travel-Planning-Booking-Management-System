@@ -8,6 +8,7 @@ namespace backend.Services;
 public static class BusinessClock
 {
     public const string IanaTimeZoneId = "Asia/Colombo";
+    public const int TransportScheduleHorizonDays = 60;
 
     private static readonly TimeZoneInfo SriLankaTimeZone = ResolveTimeZone();
 

@@ -82,6 +82,15 @@ namespace backend.Services
                     $"Today's date ({BusinessClock.IanaTimeZoneId}) is {businessToday:yyyy-MM-dd}.");
             }
 
+            var latestSupportedDate = businessToday.AddDays(BusinessClock.TransportScheduleHorizonDays);
+            if (startDate <= businessToday || endDate > latestSupportedDate)
+            {
+                throw new ArgumentException(
+                    $"Trip dates must be within the demo transport schedule window " +
+                    $"{businessToday.AddDays(1):yyyy-MM-dd} through {latestSupportedDate:yyyy-MM-dd} " +
+                    $"({BusinessClock.IanaTimeZoneId}).");
+            }
+
             // Reject if StartDate is not strictly before EndDate.
             if (startDate >= endDate)
             {

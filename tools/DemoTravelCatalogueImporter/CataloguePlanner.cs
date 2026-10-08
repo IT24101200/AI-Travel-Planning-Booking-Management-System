@@ -3,8 +3,64 @@ namespace DemoTravelCatalogueImporter;
 public static class CataloguePlanner
 {
     private const string DemoProvider = "Demo Private Transfer";
+    public const int TransportScheduleHorizonDays = 60;
+    private const double RoadDistanceFactor = 1.30d;
+    private const double AverageRoadSpeedKmh = 45d;
+    private const decimal DemoTransferBaseFare = 2500m;
+    private const decimal DemoTransferFarePerRoadKm = 35m;
+    private const decimal DemoTransferFareIncrement = 500m;
+    private static readonly TimeSpan DemoDepartureTime = new(7, 0, 0);
+    private static readonly DayOfWeek[] DailySchedule = Enum.GetValues<DayOfWeek>();
     private const string DemoRateNote =
         "Demo catalogue rate - not live booking price; confirm dates, taxes, meal plan, and availability with the property.";
+
+    // Test fixtures and older local snapshots may not carry destination
+    // coordinates. These are the same verified point coordinates used by the
+    // current demo destination catalogue; live snapshots take precedence.
+    private static readonly IReadOnlyDictionary<string, (double Latitude, double Longitude)> VerifiedCoordinateFallbacks =
+        new Dictionary<string, (double Latitude, double Longitude)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ELLA"] = (6.8667, 81.0466),
+            ["GALLE"] = (6.0329, 80.2168),
+            ["MIRISSA"] = (5.9483, 80.4716),
+            ["YALA"] = (6.3728, 81.5185),
+            ["KANDY"] = (7.2906, 80.6337),
+            ["NUWARA ELIYA"] = (6.9497, 80.7891),
+            ["SIGIRIYA"] = (7.9570, 80.7603),
+            ["ANURADHAPURA"] = (8.3114, 80.4037),
+            ["TRINCOMALEE"] = (8.5874, 81.2152),
+            ["JAFFNA"] = (9.6615, 80.0255),
+            ["BATTICALOA"] = (7.7310, 81.6747),
+            ["COLOMBO"] = (6.9271, 79.8612),
+            ["NEGOMBO"] = (7.2083, 79.8358),
+            ["BENTOTA"] = (6.4215, 79.9979),
+            ["DAMBULLA"] = (7.8742, 80.6511),
+            ["POLONNARUWA"] = (7.9395, 81.0003),
+            ["ARUGAM BAY"] = (6.8468506, 81.8306961),
+            ["HIKKADUWA"] = (6.1407, 80.1012)
+        };
+    private static readonly IReadOnlyDictionary<string, string> VerifiedCoordinateFallbackNames =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ELLA"] = "Ella",
+            ["GALLE"] = "Galle",
+            ["MIRISSA"] = "Mirissa",
+            ["YALA"] = "Yala",
+            ["KANDY"] = "Kandy",
+            ["NUWARA ELIYA"] = "Nuwara Eliya",
+            ["SIGIRIYA"] = "Sigiriya",
+            ["ANURADHAPURA"] = "Anuradhapura",
+            ["TRINCOMALEE"] = "Trincomalee",
+            ["JAFFNA"] = "Jaffna",
+            ["BATTICALOA"] = "Batticaloa",
+            ["COLOMBO"] = "Colombo",
+            ["NEGOMBO"] = "Negombo",
+            ["BENTOTA"] = "Bentota",
+            ["DAMBULLA"] = "Dambulla",
+            ["POLONNARUWA"] = "Polonnaruwa",
+            ["ARUGAM BAY"] = "Arugam Bay",
+            ["HIKKADUWA"] = "Hikkaduwa"
+        };
 
     public static ImportPlan Build(
         CatalogueSnapshot snapshot,
@@ -57,6 +113,8 @@ public static class CataloguePlanner
             destinationInserts.Add(destination);
             availableDestinations[key] = destination.Name;
         }
+
+        var selectableDestinations = BuildSelectableDestinations(snapshot.Destinations, destinationInserts);
 
         var existingHotels = snapshot.Hotels
             .Select(h => Normalizers.Hotel(
@@ -149,9 +207,9 @@ public static class CataloguePlanner
             .Select(t => Normalizers.Transport(t.Provider, t.RouteFrom, t.RouteTo, t.DepartureTime))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var plannedTransportKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var routePairs = RouteCatalog();
+        var routePairs = RouteCatalog(selectableDestinations);
         var windowStart = businessToday.AddDays(1);
-        var windowEnd = businessToday.AddDays(60);
+        var windowEnd = businessToday.AddDays(TransportScheduleHorizonDays);
 
         foreach (var existingTransport in snapshot.TransportOptions)
         {
@@ -219,7 +277,11 @@ public static class CataloguePlanner
                     Capacity = 8,
                     Price = route.DemoFare,
                     Currency = "LKR",
-                    Type = "Van"
+                    Type = "Van",
+                    RouteFromLatitude = route.FromLatitude,
+                    RouteFromLongitude = route.FromLongitude,
+                    RouteToLatitude = route.ToLatitude,
+                    RouteToLongitude = route.ToLongitude
                 });
             }
         }
@@ -239,7 +301,21 @@ public static class CataloguePlanner
 
     public static IReadOnlyList<(string From, string To)> RequiredRoutes()
     {
-        return RouteCatalog().Select(route => (route.From, route.To)).ToList();
+        var destinations = VerifiedCoordinateFallbacks
+            .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(pair => new SelectableDestination(
+                VerifiedCoordinateFallbackNames[pair.Key],
+                pair.Value.Latitude,
+                pair.Value.Longitude));
+        return RouteCatalog(destinations).Select(route => (route.From, route.To)).ToList();
+    }
+
+    public static IReadOnlyList<(string From, string To)> RequiredRoutes(
+        CatalogueSnapshot snapshot,
+        IEnumerable<DestinationSeed>? plannedDestinations = null)
+    {
+        var destinations = BuildSelectableDestinations(snapshot.Destinations, plannedDestinations ?? []);
+        return RouteCatalog(destinations).Select(route => (route.From, route.To)).ToList();
     }
 
     public static IReadOnlyList<(string RoomType, int Capacity, int TotalRooms, decimal Price)> RoomPolicy(HotelSeed hotel)
@@ -287,61 +363,83 @@ public static class CataloguePlanner
                !(latitude == 0 && longitude == 0);
     }
 
-    private static IReadOnlyList<RouteSpec> RouteCatalog()
+    private static IReadOnlyList<SelectableDestination> BuildSelectableDestinations(
+        IEnumerable<ExistingDestination> existingDestinations,
+        IEnumerable<DestinationSeed> plannedDestinations)
     {
-        var routes = new List<RouteSpec>();
+        var result = new Dictionary<string, SelectableDestination>(StringComparer.OrdinalIgnoreCase);
+        foreach (var destination in existingDestinations)
+        {
+            if (TryResolveCoordinates(destination.NormalizedName, destination.Latitude, destination.Longitude, out var coordinates))
+            {
+                result[Normalizers.Name(destination.Name)] = new SelectableDestination(
+                    destination.Name,
+                    coordinates.Latitude,
+                    coordinates.Longitude);
+            }
+        }
 
-        AddBoth(routes, "Colombo", "Kandy", 180, 6500m, true);
-        AddBoth(routes, "Kandy", "Ella", 240, 8000m, true);
-        AddBoth(routes, "Colombo", "Galle", 150, 5500m, true);
-        AddBoth(routes, "Galle", "Mirissa", 75, 3500m, true);
-        AddBoth(routes, "Colombo", "Anuradhapura", 270, 7500m, true);
-        AddBoth(routes, "Anuradhapura", "Sigiriya", 120, 4500m, true);
-        AddBoth(routes, "Colombo", "Trincomalee", 360, 9500m, true);
-        AddBoth(routes, "Trincomalee", "Batticaloa", 150, 5500m, true);
-        AddBoth(routes, "Colombo", "Jaffna", 390, 11000m, true);
-        AddBoth(routes, "Jaffna", "Anuradhapura", 300, 8500m, true);
+        foreach (var destination in plannedDestinations)
+        {
+            if (destination.Verified && CoordinatesAreValid(destination.Latitude, destination.Longitude))
+            {
+                result[Normalizers.Name(destination.Name)] = new SelectableDestination(
+                    destination.Name,
+                    destination.Latitude,
+                    destination.Longitude);
+            }
+        }
 
-        AddBoth(routes, "Kandy", "Nuwara Eliya", 150, 5000m, false);
-        AddBoth(routes, "Kandy", "Sigiriya", 150, 5000m, false);
-        AddBoth(routes, "Kandy", "Dambulla", 120, 4500m, false);
-        AddBoth(routes, "Ella", "Nuwara Eliya", 150, 5000m, false);
-        AddBoth(routes, "Ella", "Yala", 210, 7000m, false);
-        AddBoth(routes, "Galle", "Bentota", 90, 3500m, false);
-        AddBoth(routes, "Galle", "Hikkaduwa", 45, 3000m, false);
-        AddBoth(routes, "Batticaloa", "Arugam Bay", 150, 6000m, false);
-        AddBoth(routes, "Anuradhapura", "Polonnaruwa", 120, 4500m, false);
-        AddBoth(routes, "Dambulla", "Polonnaruwa", 120, 4500m, false);
-
-        // Explicit coverage for the previously failing multi-destination path.
-        AddBoth(routes, "Colombo", "Dambulla", 210, 6500m, true);
-        AddBoth(routes, "Dambulla", "Arugam Bay", 300, 8500m, true);
-        // Demo-only coverage for the currently supported Colombo -> Bentota ->
-        // Arugam Bay multi-destination scenario. Fares and schedules are
-        // operational demo values, not live provider quotations.
-        AddBoth(routes, "Colombo", "Bentota", 120, 4500m, true);
-        AddBoth(routes, "Bentota", "Arugam Bay", 420, 12000m, true);
-        AddBoth(routes, "Batticaloa", "Colombo", 420, 11000m, true);
-        AddBoth(routes, "Colombo", "Ella", 330, 9500m, true);
-
-        return routes;
+        return result.Values
+            .OrderBy(destination => destination.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    private static void AddBoth(
-        ICollection<RouteSpec> routes,
-        string from,
-        string to,
-        int durationMinutes,
-        decimal fare,
-        bool core)
+    private static IReadOnlyList<RouteSpec> RouteCatalog(IEnumerable<SelectableDestination> destinations)
     {
-        var weekdays = core
-            ? new[] { DayOfWeek.Tuesday, DayOfWeek.Thursday, DayOfWeek.Saturday }
-            : new[] { DayOfWeek.Friday };
-        var departure = core ? new TimeSpan(6, 30, 0) : new TimeSpan(7, 0, 0);
+        var ordered = destinations
+            .GroupBy(destination => Normalizers.Name(destination.Name), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(destination => destination.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var routes = new List<RouteSpec>(ordered.Count * Math.Max(0, ordered.Count - 1));
 
-        routes.Add(new RouteSpec(from, to, durationMinutes, fare, weekdays, departure));
-        routes.Add(new RouteSpec(to, from, durationMinutes, fare, weekdays, departure));
+        foreach (var from in ordered)
+        {
+            foreach (var to in ordered)
+            {
+                if (ReferenceEquals(from, to) ||
+                    string.Equals(Normalizers.Name(from.Name), Normalizers.Name(to.Name), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var straightLineKm = HaversineKilometres(
+                    from.Latitude,
+                    from.Longitude,
+                    to.Latitude,
+                    to.Longitude);
+                var roadDistanceKm = straightLineKm * RoadDistanceFactor;
+                var durationMinutes = RoundUpToThirtyMinutes(roadDistanceKm / AverageRoadSpeedKmh * 60d);
+                var fare = RoundUpToIncrement(
+                    DemoTransferBaseFare + (decimal)roadDistanceKm * DemoTransferFarePerRoadKm,
+                    DemoTransferFareIncrement);
+
+                routes.Add(new RouteSpec(
+                    from.Name,
+                    to.Name,
+                    durationMinutes,
+                    fare,
+                    DailySchedule,
+                    DemoDepartureTime,
+                    from.Latitude,
+                    from.Longitude,
+                    to.Latitude,
+                    to.Longitude));
+            }
+        }
+
+        return routes;
     }
 
     private sealed record RouteSpec(
@@ -350,5 +448,44 @@ public static class CataloguePlanner
         int DurationMinutes,
         decimal DemoFare,
         IReadOnlyCollection<DayOfWeek> Weekdays,
-        TimeSpan DepartureTime);
+        TimeSpan DepartureTime,
+        double FromLatitude,
+        double FromLongitude,
+        double ToLatitude,
+        double ToLongitude);
+
+    private static bool TryResolveCoordinates(
+        string normalizedName,
+        double? latitude,
+        double? longitude,
+        out (double Latitude, double Longitude) coordinates)
+    {
+        if (CoordinatesAreValid(latitude, longitude))
+        {
+            coordinates = (latitude!.Value, longitude!.Value);
+            return true;
+        }
+
+        return VerifiedCoordinateFallbacks.TryGetValue(normalizedName, out coordinates);
+    }
+
+    private static double HaversineKilometres(double latitude1, double longitude1, double latitude2, double longitude2)
+    {
+        const double earthRadiusKilometres = 6371d;
+        var latitudeDelta = DegreesToRadians(latitude2 - latitude1);
+        var longitudeDelta = DegreesToRadians(longitude2 - longitude1);
+        var a = Math.Pow(Math.Sin(latitudeDelta / 2d), 2d) +
+                Math.Cos(DegreesToRadians(latitude1)) *
+                Math.Cos(DegreesToRadians(latitude2)) *
+                Math.Pow(Math.Sin(longitudeDelta / 2d), 2d);
+        return earthRadiusKilometres * 2d * Math.Asin(Math.Sqrt(a));
+    }
+
+    private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
+
+    private static int RoundUpToThirtyMinutes(double minutes) =>
+        Math.Max(60, (int)(Math.Ceiling(minutes / 30d) * 30d));
+
+    private static decimal RoundUpToIncrement(decimal value, decimal increment) =>
+        Math.Ceiling(value / increment) * increment;
 }
