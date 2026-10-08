@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/trip_selection_service.dart';
+import '../../services/date_time_contract.dart';
 import '../../services/currency_notifier.dart';
 import '../../main.dart' show currencyNotifier;
 import '../../widgets/common_widgets.dart';
@@ -270,8 +271,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
             accommodationCost += subtotal;
             if (item['checkInDate'] != null && item['checkOutDate'] != null) {
               try {
-                final dIn = DateTime.parse(item['checkInDate'].toString());
-                final dOut = DateTime.parse(item['checkOutDate'].toString());
+                final dIn = parseDateOnly(item['checkInDate']);
+                final dOut = parseDateOnly(item['checkOutDate']);
+                if (dIn == null || dOut == null) continue;
                 final nights = dOut.difference(dIn).inDays;
                 if (nights > 0) {
                   accommodationLabel = '$nights-night accommodation';

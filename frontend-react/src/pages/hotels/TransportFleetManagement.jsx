@@ -8,6 +8,7 @@ import {
   updateTransport
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { formatLocalSchedule } from '../../lib/dateTime.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import { transportErrorMessage } from '../../services/transportErrors.js'
@@ -38,9 +39,7 @@ const MODES = ['All', 'Car', 'Van', 'Train', 'Bus', 'Flight']
 function formatDateTimeFigma(isoString) {
   if (!isoString) return '—'
   try {
-    const d = new Date(isoString)
-    if (isNaN(d.getTime())) return '—'
-    return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    return formatLocalSchedule(isoString)
   } catch {
     return isoString
   }

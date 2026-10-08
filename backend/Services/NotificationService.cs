@@ -356,8 +356,8 @@ namespace backend.Services
                 ReferenceId = n.ReferenceId,
                 EventKey = n.EventKey,
                 Status = n.Status.ToString(),
-                ReadAt = n.ReadAt,
-                SentAt = n.SentAt
+                ReadAt = DateTimeContract.AsStoredUtc(n.ReadAt),
+                SentAt = DateTimeContract.AsStoredUtc(n.SentAt)
             };
         }
     }

@@ -211,7 +211,7 @@ public sealed class PaymentService : IPaymentService
         StripeReference = payment.StripeReference,
         FailureReason = payment.FailureReason,
         ExchangeRateToLkr = payment.ExchangeRateToLkr,
-        PaymentDate = payment.PaymentDate
+        PaymentDate = DateTimeContract.AsStoredUtc(payment.PaymentDate)
     };
 
     private static string? SafeFailure(string? message) =>

@@ -7,6 +7,7 @@ import {
   notificationErrorMessage
 } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
+import { formatNotificationInstant } from '../../lib/dateTime.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import {
@@ -79,14 +80,11 @@ export default function NotificationLogs() {
 
           const formattedId = n.id ? String(n.id) : `NTF-${88241 - idx}`
 
-          let displayTimestamp = '28 Sep · 10:18'
-          if (n.sentAt) {
-            const d = new Date(n.sentAt)
-            displayTimestamp = `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-          } else if (n.createdAt) {
-            const d = new Date(n.createdAt)
-            displayTimestamp = `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-          }
+          const displayTimestamp = n.sentAt
+            ? formatNotificationInstant(n.sentAt)
+            : n.createdAt
+              ? formatNotificationInstant(n.createdAt)
+              : '28 Sep · 10:18'
 
           // Match customer profile for reliable name & contact
           const matchedCust = trueCustomers.find(c => c.id === n.customerId)

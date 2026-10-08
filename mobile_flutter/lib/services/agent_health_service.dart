@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
+import 'date_time_contract.dart';
 
 enum AgentConnectionState { checking, connected, degraded, unavailable }
 
@@ -34,7 +35,7 @@ class AgentConnectionStatus {
       _ => AgentConnectionState.unavailable,
     };
     final rawLatency = json['latencyMs'];
-    final checkedAt = DateTime.tryParse(json['checkedAtUtc']?.toString() ?? '');
+    final checkedAt = parseInstant(json['checkedAtUtc']);
 
     return AgentConnectionStatus(
       state: state,

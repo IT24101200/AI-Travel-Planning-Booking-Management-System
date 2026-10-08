@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
+import '../../services/date_time_contract.dart';
 
 /// Notifications & Alerts Screen
 /// Aligned with Component A (Customer Profile, Preferences, Notifications & Trip Requests)
@@ -62,9 +63,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             status.toLowerCase() != 'read' &&
             (readAtRaw == null || readAtRaw.isEmpty);
         final sentAtRaw = raw['sentAt']?.toString() ?? '';
-        final DateTime? sentAt = DateTime.tryParse(sentAtRaw);
+        final DateTime? sentAt = parseInstant(sentAtRaw);
         final DateTime? readAt = readAtRaw != null
-            ? DateTime.tryParse(readAtRaw)
+            ? parseInstant(readAtRaw)
             : null;
 
         // Map database message type to visual category, tag, and icon

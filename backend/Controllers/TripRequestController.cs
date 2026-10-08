@@ -158,7 +158,7 @@ namespace backend.Controllers
                 trip.Status,
                 trip.RetryCount,
                 trip.FailureReason,
-                trip.CreatedAt
+                CreatedAt = DateTimeContract.AsStoredUtc(trip.CreatedAt)
             });
         }
 

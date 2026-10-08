@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../app_constants.dart';
 import '../services/api_service.dart';
+import '../services/date_time_contract.dart';
 
 /// 4-Agent Multi-Agent Workflow Card
 /// Displays live execution status, logs, and outputs for:
@@ -697,8 +698,10 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                         String timeStr = '';
                         if (timestamp != null) {
                           try {
-                            final dt = DateTime.parse(timestamp).toLocal();
-                            timeStr = DateFormat('HH:mm:ss').format(dt);
+                            final dt = parseInstant(timestamp);
+                            if (dt != null) {
+                              timeStr = DateFormat('HH:mm:ss').format(dt);
+                            }
                           } catch (_) {}
                         }
 

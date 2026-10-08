@@ -54,8 +54,9 @@ namespace backend.Services
         /// </summary>
         public async Task<ItineraryDto?> GetItineraryByIdAsync(int itineraryId)
         {
-            return await ReadItineraries()
+            var itinerary = await ReadItineraries()
                 .FirstOrDefaultAsync(i => i.Id == itineraryId);
+            return itinerary is null ? null : NormalizeInstantFields(itinerary);
         }
 
         /// <summary>
@@ -64,10 +65,11 @@ namespace backend.Services
         /// </summary>
         public async Task<List<ItineraryDto>> GetItinerariesByCustomerAsync(string customerId)
         {
-            return await ReadItineraries()
+            var itineraries = await ReadItineraries()
                 .Where(i => i.CustomerId == customerId)
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
+            return itineraries.Select(NormalizeInstantFields).ToList();
         }
 
         /// <summary>
@@ -242,9 +244,10 @@ namespace backend.Services
         /// </summary>
         public async Task<List<ItineraryDto>> GetAllItinerariesAsync()
         {
-            return await ReadItineraries()
+            var itineraries = await ReadItineraries()
                 .OrderByDescending(i => i.CreatedAt)
                 .ToListAsync();
+            return itineraries.Select(NormalizeInstantFields).ToList();
         }
 
         // Read-only projection shared by the list and detail endpoints.
@@ -282,5 +285,11 @@ namespace backend.Services
                     ,Currency = item.Currency
                 }).ToList()
             };
+
+        private static ItineraryDto NormalizeInstantFields(ItineraryDto itinerary)
+        {
+            itinerary.CreatedAt = DateTimeContract.AsStoredUtc(itinerary.CreatedAt);
+            return itinerary;
+        }
     }
 }

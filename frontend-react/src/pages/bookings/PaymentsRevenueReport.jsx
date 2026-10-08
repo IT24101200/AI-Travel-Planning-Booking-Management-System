@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchPayments, fetchRevenueSummary } from '../../services/apiClient.js'
 import { usePageTitle } from '../../lib/hooks.js'
 import { formatPrice } from '../../lib/formatPrice.js'
+import { formatLocalInstantDate } from '../../lib/dateTime.js'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import {
   DownloadIcon,
@@ -154,8 +155,7 @@ export default function PaymentsRevenueReport() {
 
   function formatTimestamp(value) {
     if (!value) return 'Not available'
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? 'Not available' : date.toLocaleDateString()
+    return formatLocalInstantDate(value)
   }
 
   function renderCurrencyTotals(values, emptyLabel = 'Not available') {
