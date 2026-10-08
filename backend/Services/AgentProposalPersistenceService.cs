@@ -175,11 +175,10 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         if (roomEntity.Capacity < trip.TravellerCount)
             throw new ProposalPersistenceException("ROOM_CAPACITY", $"Room {roomId} cannot hold all travellers.");
 
-        var activeStatuses = new[] { BookingStatus.Draft, BookingStatus.AwaitingApproval, BookingStatus.Confirmed };
         var bookedRooms = await _db.BookingItems
             .Where(item => item.RoomId == roomId && item.ItemType == BookingItemType.Room &&
                 item.CheckInDate < trip.EndDate && item.CheckOutDate > trip.StartDate &&
-                activeStatuses.Contains(item.Booking.Status))
+                TransportInventory.ActiveReservationStatuses.Contains(item.Booking.Status))
             .SumAsync(item => item.Quantity, cancellationToken);
         if (bookedRooms >= roomEntity.TotalRooms)
             throw new ProposalPersistenceException("ROOM_UNAVAILABLE", $"Room {roomId} is not available for the requested dates.");
@@ -189,11 +188,27 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         var transportEntity = await _db.TransportOptions.FirstOrDefaultAsync(t => t.Id == transportId, cancellationToken);
         if (transportEntity is null || transportEntity.Status != TransportStatus.Active)
             throw new ProposalPersistenceException("INVALID_TRANSPORT", $"Transport {transportId} is missing or inactive.");
+
+        try
+        {
+            // The database-backed TripRequest destinations and dates are the
+            // authority; AI route text is never used for this decision.
+            await TransportCompatibility.ValidateAsync(
+                _db,
+                transportEntity,
+                trip,
+                cancellationToken);
+        }
+        catch (TransportBusinessException ex)
+        {
+            throw new ProposalPersistenceException(ex.Code, ex.Message);
+        }
+
         if (transportEntity.Capacity < trip.TravellerCount)
             throw new ProposalPersistenceException("TRANSPORT_CAPACITY", $"Transport {transportId} cannot hold all travellers.");
         var bookedSeats = await _db.BookingItems
             .Where(item => item.TransportOptionId == transportId && item.ItemType == BookingItemType.Transport &&
-                activeStatuses.Contains(item.Booking.Status))
+                TransportInventory.ActiveReservationStatuses.Contains(item.Booking.Status))
             .SumAsync(item => item.Quantity, cancellationToken);
         if (bookedSeats + trip.TravellerCount > transportEntity.Capacity)
             throw new ProposalPersistenceException("TRANSPORT_UNAVAILABLE", $"Transport {transportId} has insufficient capacity.");
@@ -267,6 +282,12 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     {
                     ItemType = BookingItemType.Transport,
                     TransportOptionId = transportEntity.Id,
+                    TransportTypeSnapshot = transportEntity.Type.ToString(),
+                    TransportProviderSnapshot = transportEntity.Provider,
+                    TransportRouteFromSnapshot = transportEntity.RouteFrom,
+                    TransportRouteToSnapshot = transportEntity.RouteTo,
+                    TransportDepartureTimeSnapshot = transportEntity.DepartureTime,
+                    TransportArrivalTimeSnapshot = transportEntity.ArrivalTime,
                     Quantity = trip.TravellerCount,
                     UnitPrice = transportUnitPrice,
                     Subtotal = transportTotal,

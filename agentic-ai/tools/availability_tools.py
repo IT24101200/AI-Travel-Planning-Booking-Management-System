@@ -1,15 +1,22 @@
 import os
 import requests
+from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 BACKEND_BASE_URL = os.getenv("BACKEND_API_URL") or os.getenv("BACKEND_URL", "http://127.0.0.1:5138")
 HOTEL_PAGE_SIZE = 50
 MAX_HOTEL_SEARCH_PAGES = 100
+TRANSPORT_PAGE_SIZE = 50
+MAX_TRANSPORT_SEARCH_PAGES = 100
 
 
 class HotelSearchError(RuntimeError):
     """Raised when the complete paginated hotel catalogue cannot be read."""
+
+
+class TransportSearchError(RuntimeError):
+    """Raised when the complete paginated transport catalogue cannot be read."""
 
 
 def search_hotels(destination_id=None, currency=None):
@@ -103,17 +110,147 @@ def check_room_availability(hotel_id, room_id, check_in, check_out, currency=Non
         print(f"Error checking availability for room {room_id}: {e}")
         return None
 
-def search_transports(currency=None):
-    endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/transport"
+def _normalize_route_name(value):
+    return " ".join(str(value or "").strip().split()).casefold()
+
+
+def _parse_transport_datetime(value):
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _transport_route_matches(transport, requested_destinations):
+    if requested_destinations is None:
+        return True
+
+    names = [
+        _normalize_route_name(item.get("destination_name", item.get("name")))
+        for item in requested_destinations
+        if isinstance(item, dict)
+    ]
+    names = [name for name in names if name]
+    if not names:
+        return False
+
+    route_from = _normalize_route_name(transport.get("routeFrom"))
+    route_to = _normalize_route_name(transport.get("routeTo"))
+    if len(names) == 1:
+        return route_from == names[0] or route_to == names[0]
+    return any(
+        route_from == source and route_to == target
+        for source, target in zip(names, names[1:])
+    )
+
+
+def _transport_date_matches(transport, start_date, end_date):
+    if start_date is None and end_date is None:
+        return True
+    if start_date is None or end_date is None:
+        return False
     try:
-        response = requests.get(endpoint, params={"currency": currency} if currency else {}, timeout=10)
-        response.raise_for_status()
-        transports_data = response.json()
-        transports = transports_data.get("data", []) if isinstance(transports_data, dict) else transports_data
-        return [t for t in transports if isinstance(t, dict) and str(t.get("status", "")).lower() == "active"]
-    except Exception as e:
-        print(f"Error searching transports: {e}")
-        return []
+        departure = _parse_transport_datetime(transport.get("departureTime"))
+        arrival = _parse_transport_datetime(transport.get("arrivalTime"))
+        start = _parse_transport_datetime(start_date)
+        end = _parse_transport_datetime(end_date)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return (
+        arrival > departure
+        and departure.date() >= start.date()
+        and arrival.date() <= end.date()
+    )
+
+
+def search_transports(
+    currency=None,
+    requested_destinations=None,
+    start_date=None,
+    end_date=None,
+    traveller_count=None,
+):
+    endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/transport"
+    transports = []
+    seen_ids = set()
+    page = 1
+    total_pages = 1
+    try:
+        while page <= total_pages:
+            params = {
+                "page": page,
+                "pageSize": TRANSPORT_PAGE_SIZE,
+            }
+            if currency:
+                params["currency"] = currency
+
+            response = requests.get(endpoint, params=params, timeout=10)
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+                raise TransportSearchError("Transport search returned an invalid page payload.")
+
+            raw_total_pages = payload.get("totalPages")
+            if isinstance(raw_total_pages, bool):
+                raise TransportSearchError("Transport search returned invalid pagination metadata.")
+            try:
+                reported_total_pages = int(raw_total_pages)
+            except (TypeError, ValueError):
+                raise TransportSearchError("Transport search returned invalid pagination metadata.") from None
+
+            if reported_total_pages < 0 or reported_total_pages > MAX_TRANSPORT_SEARCH_PAGES:
+                raise TransportSearchError("Transport search pagination exceeded the safe limit.")
+            if reported_total_pages == 0:
+                if payload["data"]:
+                    raise TransportSearchError("Transport search returned inconsistent pagination metadata.")
+                total_pages = 1
+            else:
+                if page == 1:
+                    total_pages = reported_total_pages
+                elif reported_total_pages != total_pages:
+                    raise TransportSearchError("Transport search returned inconsistent pagination metadata.")
+
+            for metadata_name, expected in (("page", page), ("pageSize", TRANSPORT_PAGE_SIZE)):
+                if metadata_name in payload:
+                    try:
+                        actual = int(payload[metadata_name])
+                    except (TypeError, ValueError):
+                        raise TransportSearchError("Transport search returned invalid page metadata.") from None
+                    if actual != expected:
+                        raise TransportSearchError("Transport search returned inconsistent page metadata.")
+
+            for transport in payload["data"]:
+                if not isinstance(transport, dict) or transport.get("id") is None:
+                    raise TransportSearchError("Transport search returned an invalid transport record.")
+                transport_id = str(transport["id"])
+                if transport_id in seen_ids:
+                    continue
+                seen_ids.add(transport_id)
+
+                if str(transport.get("status", "")).casefold() != "active":
+                    continue
+                if traveller_count is not None:
+                    try:
+                        if int(transport.get("capacity", 0)) < int(traveller_count):
+                            continue
+                    except (TypeError, ValueError):
+                        continue
+                if not _transport_route_matches(transport, requested_destinations):
+                    continue
+                if not _transport_date_matches(transport, start_date, end_date):
+                    continue
+                transports.append(transport)
+
+            if page >= total_pages:
+                break
+            page += 1
+
+        return transports
+    except TransportSearchError:
+        raise
+    except Exception as error:
+        # A later page failure must never be represented as a complete page-one
+        # result. Callers receive a stable failure and no partial catalogue.
+        raise TransportSearchError("Transport search could not be completed.") from error
 
 def check_transport_availability(transport_id):
     endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/transport/{transport_id}/availability"

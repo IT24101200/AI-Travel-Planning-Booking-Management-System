@@ -257,6 +257,10 @@ namespace backend.Data
                 entity.Property(bi => bi.UnitPrice).HasColumnType("decimal(18,2)");
                 entity.Property(bi => bi.Subtotal).HasColumnType("decimal(18,2)");
                 entity.Property(bi => bi.Currency).HasMaxLength(3).HasDefaultValue("LKR");
+                entity.Property(bi => bi.TransportTypeSnapshot).HasMaxLength(20);
+                entity.Property(bi => bi.TransportProviderSnapshot).HasMaxLength(150);
+                entity.Property(bi => bi.TransportRouteFromSnapshot).HasMaxLength(200);
+                entity.Property(bi => bi.TransportRouteToSnapshot).HasMaxLength(200);
 
                 entity.HasOne(bi => bi.Booking)
                       .WithMany(b => b.BookingItems)

@@ -21,6 +21,6 @@ namespace backend.Services
         /// <summary>
         /// Check how many seats are available on a specific transport option.
         /// </summary>
-        Task<TransportAvailabilityDto?> CheckTransportAvailabilityAsync(int transportOptionId);
+        Task<TransportAvailabilityDto?> CheckTransportAvailabilityAsync(int transportOptionId, bool includeInactive = false);
     }
 }

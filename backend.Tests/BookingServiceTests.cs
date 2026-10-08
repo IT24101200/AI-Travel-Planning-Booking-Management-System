@@ -46,8 +46,14 @@ namespace backend.Tests
             {
                 Id = 1,
                 CustomerId = "cust-1",
+                DestinationId = 1,
                 RawRequestText = "Trip to Paris",
-                Status = TripRequestStatus.Planning
+                Status = TripRequestStatus.Planning,
+                StartDate = DateTime.UtcNow.Date.AddDays(5),
+                EndDate = DateTime.UtcNow.Date.AddDays(20),
+                TravellerCount = 2,
+                BudgetCeiling = 100000,
+                Currency = "USD"
             });
 
             context.Itineraries.Add(new Itinerary
@@ -203,6 +209,11 @@ namespace backend.Tests
             Assert.Equal(25000m, result.BookingItems.Single(i => i.ItemType == BookingItemType.Room).UnitPrice);
             Assert.Equal(75m, result.BookingItems.Single(i => i.ItemType == BookingItemType.Transport).UnitPrice);
             Assert.Equal(125350m, result.BookingItems.Sum(i => i.Subtotal));
+            var transportItem = result.BookingItems.Single(i => i.ItemType == BookingItemType.Transport);
+            Assert.Equal("Car", transportItem.TransportType);
+            Assert.Equal("Audit Transport", transportItem.TransportProvider);
+            Assert.Equal("Paris", transportItem.RouteFrom);
+            Assert.Equal("Lyon", transportItem.RouteTo);
         }
 
         [Fact]

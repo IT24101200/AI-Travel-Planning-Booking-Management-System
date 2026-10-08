@@ -66,19 +66,22 @@ namespace backend.Services
         /// Check transport availability (how many seats are left).
         /// </summary>
         public async Task<TransportAvailabilityDto?> CheckTransportAvailabilityAsync(
-            int transportOptionId)
+            int transportOptionId,
+            bool includeInactive = false)
         {
-            var transport = await _context.TransportOptions.FindAsync(transportOptionId);
+            var query = _context.TransportOptions.Where(option => option.Id == transportOptionId);
+            if (!includeInactive)
+                query = query.Where(option => option.Status == TransportStatus.Active);
+
+            var transport = await query.SingleOrDefaultAsync();
             if (transport is null) return null;
 
             // ── Real Transport Availability Calculation ──
             // Sum seats booked in active bookings (Draft, AwaitingApproval, Confirmed)
-            var activeStatuses = new[] { BookingStatus.Draft, BookingStatus.AwaitingApproval, BookingStatus.Confirmed };
-
             var bookedSeats = await _context.BookingItems
                 .Where(bi => bi.TransportOptionId == transportOptionId
                           && bi.ItemType == BookingItemType.Transport
-                          && activeStatuses.Contains(bi.Booking.Status))
+                          && TransportInventory.ActiveReservationStatuses.Contains(bi.Booking.Status))
                 .SumAsync(bi => bi.Quantity);
 
             return new TransportAvailabilityDto

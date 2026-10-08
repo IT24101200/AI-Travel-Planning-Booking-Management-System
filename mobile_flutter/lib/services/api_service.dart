@@ -141,6 +141,11 @@ class ApiService {
   static Future<List<dynamic>> Function({String? currency})? mockGetHotels;
   static Future<List<dynamic>> Function({String? currency})?
   mockGetTransportOptions;
+  static Future<http.Response> Function({
+    required int page,
+    required int pageSize,
+    String? currency,
+  })? mockGetTransportPage;
   static Future<Map<String, dynamic>> Function(Map<String, dynamic>)?
   mockCreateBooking;
   static Future<Map<String, dynamic>?> Function(int id)? mockGetBooking;
@@ -689,11 +694,77 @@ class ApiService {
     if (mockGetTransportOptions != null) {
       return mockGetTransportOptions!(currency: currency);
     }
-    return _list(
-      await get(
-        'transport${currency == null ? '' : '?currency=${Uri.encodeQueryComponent(currency)}'}',
-      ),
-    );
+
+    const pageSize = 50;
+    const maxPages = 100;
+    final options = <dynamic>[];
+    final seenIds = <String>{};
+    var page = 1;
+    var totalPages = 1;
+
+    do {
+      final response = mockGetTransportPage != null
+          ? await mockGetTransportPage!(
+              page: page,
+              pageSize: pageSize,
+              currency: currency,
+            )
+          : await get(
+              Uri(
+                path: 'transport',
+                queryParameters: {
+                  'page': '$page',
+                  'pageSize': '$pageSize',
+                  'currency': ?currency,
+                },
+              ).toString(),
+            );
+
+      final decoded = _decode(response);
+      if (decoded is! Map || decoded['data'] is! List) {
+        throw const ApiException(
+          'The transport catalogue returned an invalid page. Please retry.',
+          errorCode: 'TRANSPORT_PAGINATION_INVALID',
+        );
+      }
+
+      final rawTotalPages = decoded['totalPages'];
+      final parsedTotalPages = int.tryParse('$rawTotalPages');
+      final pageData = decoded['data'] as List;
+      if (parsedTotalPages == null ||
+          parsedTotalPages < 0 ||
+          parsedTotalPages > maxPages ||
+          (parsedTotalPages == 0 && pageData.isNotEmpty)) {
+        throw const ApiException(
+          'The transport catalogue returned invalid pagination data. Please retry.',
+          errorCode: 'TRANSPORT_PAGINATION_INVALID',
+        );
+      }
+      totalPages = parsedTotalPages == 0 ? 1 : parsedTotalPages;
+
+      for (final item in pageData) {
+        if (item is! Map || item['id'] == null) {
+          throw const ApiException(
+            'The transport catalogue returned an invalid record. Please retry.',
+            errorCode: 'TRANSPORT_PAGINATION_INVALID',
+          );
+        }
+        final id = '${item['id']}';
+        if (seenIds.add(id)) options.add(item);
+      }
+
+      if (page >= totalPages) break;
+      page++;
+    } while (page <= maxPages);
+
+    if (page > maxPages && page <= totalPages) {
+      throw const ApiException(
+        'The transport catalogue is too large to load safely. Please retry.',
+        errorCode: 'TRANSPORT_PAGINATION_LIMIT',
+      );
+    }
+
+    return options;
   }
 
   static Future<Map<String, dynamic>> createTripRequest(

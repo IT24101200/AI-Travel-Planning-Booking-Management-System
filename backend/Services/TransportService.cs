@@ -3,6 +3,7 @@ using backend.Data;
 using backend.DTOs;
 using backend.Models;
 using backend.Models.Enums;
+using System.Data;
 
 namespace backend.Services
 {
@@ -42,13 +43,7 @@ namespace backend.Services
 
             // ── Filter by transport type ──
             if (!string.IsNullOrWhiteSpace(type))
-            {
-                // Try to parse the type string into our enum
-                if (Enum.TryParse<TransportType>(type, ignoreCase: true, out var parsedType))
-                {
-                    query = query.Where(t => t.Type == parsedType);
-                }
-            }
+                query = query.Where(t => t.Type == ParseTypeFilter(type));
 
             // ── Filter by route ──
             if (!string.IsNullOrWhiteSpace(routeFrom))
@@ -73,8 +68,7 @@ namespace backend.Services
             // ── Filter by status (default: Active) ──
             if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
             {
-                if (Enum.TryParse<TransportStatus>(status, true, out var statusFilter))
-                    query = query.Where(t => t.Status == statusFilter);
+                query = query.Where(t => t.Status == ParseStatusFilter(status));
             }
             else if (string.IsNullOrWhiteSpace(status))
             {
@@ -106,11 +100,8 @@ namespace backend.Services
         {
             var query = _context.TransportOptions.AsQueryable();
 
-            if (!string.IsNullOrWhiteSpace(type) &&
-                Enum.TryParse<TransportType>(type, ignoreCase: true, out var parsedType))
-            {
-                query = query.Where(t => t.Type == parsedType);
-            }
+            if (!string.IsNullOrWhiteSpace(type))
+                query = query.Where(t => t.Type == ParseTypeFilter(type));
 
             if (!string.IsNullOrWhiteSpace(routeFrom))
                 query = query.Where(t => t.RouteFrom.ToLower().Contains(routeFrom.ToLower()));
@@ -126,8 +117,7 @@ namespace backend.Services
 
             if (!string.IsNullOrWhiteSpace(status) && !status.Equals("All", StringComparison.OrdinalIgnoreCase))
             {
-                if (Enum.TryParse<TransportStatus>(status, true, out var statusFilter))
-                    query = query.Where(t => t.Status == statusFilter);
+                query = query.Where(t => t.Status == ParseStatusFilter(status));
             }
             else if (string.IsNullOrWhiteSpace(status))
             {
@@ -137,9 +127,16 @@ namespace backend.Services
             return await query.CountAsync();
         }
 
-        public async Task<TransportOptionDto?> GetByIdAsync(int id, string? currency = null)
+        public async Task<TransportOptionDto?> GetByIdAsync(
+            int id,
+            string? currency = null,
+            bool includeInactive = false)
         {
-            var transport = await _context.TransportOptions.FindAsync(id);
+            var query = _context.TransportOptions.Where(option => option.Id == id);
+            if (!includeInactive)
+                query = query.Where(option => option.Status == TransportStatus.Active);
+
+            var transport = await query.SingleOrDefaultAsync();
             var targetCurrency = string.IsNullOrWhiteSpace(currency) ? null : _currency.Normalize(currency);
             return transport is null ? null : ToDto(transport, targetCurrency);
         }
@@ -179,11 +176,26 @@ namespace backend.Services
         public async Task<bool> UpdateAsync(int id, CreateTransportOptionDto dto)
         {
             dto.Currency = _currency.Normalize(dto.Currency, "Transport currency");
-            var transport = await _context.TransportOptions.FindAsync(id);
-            if (transport is null) return false;
+            await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+            var transport = await TransportInventory.LoadForUpdateAsync(_context, id);
+            if (transport is null)
+            {
+                await transaction.CommitAsync();
+                return false;
+            }
 
             transport.Type               = ParseType(dto.Type);
             ValidateSchedule(dto);
+            if (dto.Capacity < transport.Capacity)
+            {
+                var reservedSeats = await TransportInventory.CountReservedSeatsAsync(_context, id);
+                if (dto.Capacity < reservedSeats)
+                {
+                    throw new TransportBusinessException(
+                        "TRANSPORT_CAPACITY_CONFLICT",
+                        "Transport capacity cannot be reduced below seats already reserved.");
+                }
+            }
             transport.Provider           = dto.Provider;
             transport.RouteFrom          = dto.RouteFrom;
             transport.RouteTo            = dto.RouteTo;
@@ -200,6 +212,7 @@ namespace backend.Services
             transport.ImageUrl = dto.ImageUrl;
 
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
             return true;
         }
 
@@ -220,15 +233,33 @@ namespace backend.Services
 
         private static TransportStatus ParseStatus(string? value)
         {
-            return string.IsNullOrWhiteSpace(value)
-                ? TransportStatus.Active
-                : Enum.Parse<TransportStatus>(value, ignoreCase: true);
+            if (string.IsNullOrWhiteSpace(value)) return TransportStatus.Active;
+            if (TryParseDefined(value, out TransportStatus parsed)) return parsed;
+            throw new ArgumentException("Transport status must be Active or Inactive.");
         }
 
         private static TransportType ParseType(string? value)
         {
-            if (Enum.TryParse<TransportType>(value, true, out var parsed)) return parsed;
+            if (TryParseDefined(value, out TransportType parsed)) return parsed;
             throw new ArgumentException("Transport type must be Car, Van, Train, Bus, or Flight.");
+        }
+
+        private static TransportType ParseTypeFilter(string value)
+        {
+            if (TryParseDefined(value, out TransportType parsed)) return parsed;
+            throw new ArgumentException("Transport type filter is invalid.");
+        }
+
+        private static TransportStatus ParseStatusFilter(string value)
+        {
+            if (TryParseDefined(value, out TransportStatus parsed)) return parsed;
+            throw new ArgumentException("Transport status filter is invalid.");
+        }
+
+        private static bool TryParseDefined<TEnum>(string? value, out TEnum parsed)
+            where TEnum : struct, Enum
+        {
+            return Enum.TryParse(value, ignoreCase: true, out parsed) && Enum.IsDefined(parsed);
         }
 
         private static void ValidateSchedule(CreateTransportOptionDto dto)

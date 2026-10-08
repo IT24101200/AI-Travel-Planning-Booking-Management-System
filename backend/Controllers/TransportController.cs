@@ -25,6 +25,9 @@ namespace backend.Controllers
             _availabilityService = availabilityService;
         }
 
+        private bool CanManageInactive =>
+            User.IsInRole("TravelAgent") || User.IsInRole("Admin");
+
         /// <summary>
         /// Search transport options with filters and pagination.
         /// GET /api/transport?type=Flight&routeFrom=Colombo&page=1&pageSize=10
@@ -48,20 +51,56 @@ namespace backend.Controllers
             if (pageSize < 1) pageSize = 10;
             if (pageSize > 50) pageSize = 50;
 
-            var results = await _transportService.SearchAsync(
-                type, routeFrom, routeTo, minPrice, maxPrice, status,
-                sortBy, descending, page, pageSize, currency);
-            var totalCount = await _transportService.GetTotalCountAsync(
-                type, routeFrom, routeTo, minPrice, maxPrice, status);
-
-            return Ok(new
+            if (!string.IsNullOrWhiteSpace(type) &&
+                (!Enum.TryParse<backend.Models.Enums.TransportType>(type, true, out var parsedType) ||
+                 !Enum.IsDefined(parsedType)))
             {
-                data = results,
-                totalCount,
-                page,
-                pageSize,
-                totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
-            });
+                return BadRequest(new
+                {
+                    code = "INVALID_TRANSPORT_TYPE",
+                    message = "Transport type filter is invalid."
+                });
+            }
+
+            if (!string.IsNullOrWhiteSpace(status) &&
+                !status.Equals("All", StringComparison.OrdinalIgnoreCase) &&
+                (!Enum.TryParse<backend.Models.Enums.TransportStatus>(status, true, out var parsedStatus) ||
+                 !Enum.IsDefined(parsedStatus)))
+            {
+                return BadRequest(new
+                {
+                    code = "INVALID_TRANSPORT_STATUS",
+                    message = "Transport status filter is invalid."
+                });
+            }
+
+            // Public catalogue reads are always active-only. Staff may request
+            // Inactive or All explicitly for fleet management.
+            var effectiveStatus = CanManageInactive
+                ? status
+                : "Active";
+
+            try
+            {
+                var results = await _transportService.SearchAsync(
+                    type, routeFrom, routeTo, minPrice, maxPrice, effectiveStatus,
+                    sortBy, descending, page, pageSize, currency);
+                var totalCount = await _transportService.GetTotalCountAsync(
+                    type, routeFrom, routeTo, minPrice, maxPrice, effectiveStatus);
+
+                return Ok(new
+                {
+                    data = results,
+                    totalCount,
+                    page,
+                    pageSize,
+                    totalPages = (int)Math.Ceiling((double)totalCount / pageSize)
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { code = "INVALID_TRANSPORT_FILTER", message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -72,7 +111,10 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> GetById(int id, [FromQuery] string? currency = null)
         {
-            var transport = await _transportService.GetByIdAsync(id, currency);
+            var transport = await _transportService.GetByIdAsync(
+                id,
+                currency,
+                includeInactive: CanManageInactive);
             if (transport is null) return NotFound();
             return Ok(transport);
         }
@@ -94,6 +136,10 @@ namespace backend.Controllers
             {
                 return BadRequest(new { message = ex.Message });
             }
+            catch (TransportBusinessException ex)
+            {
+                return Conflict(new { code = ex.Code, message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -113,6 +159,10 @@ namespace backend.Controllers
             catch (ArgumentException ex)
             {
                 return BadRequest(new { message = ex.Message });
+            }
+            catch (TransportBusinessException ex)
+            {
+                return Conflict(new { code = ex.Code, message = ex.Message });
             }
         }
 
@@ -151,7 +201,9 @@ namespace backend.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> CheckAvailability(int id)
         {
-            var availability = await _availabilityService.CheckTransportAvailabilityAsync(id);
+            var availability = await _availabilityService.CheckTransportAvailabilityAsync(
+                id,
+                includeInactive: CanManageInactive);
             if (availability is null) return NotFound();
             return Ok(availability);
         }

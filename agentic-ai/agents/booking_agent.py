@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 from logger import log_agent_step
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
-    search_transports, check_transport_availability, HotelSearchError
+    search_transports, check_transport_availability, HotelSearchError,
+    TransportSearchError
 )
 
 load_dotenv()
@@ -81,8 +82,28 @@ def build_booking_package(state):
         output_data={"available_rooms": len(available_rooms)}
     )
 
-    # 2. Search Transports
-    transports = search_transports(currency=currency)
+    # 2. Search transports from the complete, route/date-compatible catalogue.
+    requested_destinations = state.get("requested_destinations")
+    if requested_destinations is None:
+        requested_destinations = [{
+            "destination_id": destination_id,
+            "destination_name": state.get("destination_name", ""),
+        }]
+    try:
+        transports = search_transports(
+            currency=currency,
+            requested_destinations=requested_destinations,
+            start_date=start_date,
+            end_date=end_date,
+            traveller_count=traveller_count,
+        )
+    except TransportSearchError as error:
+        return {
+            "status": "AvailabilityFailed",
+            "error_code": "TRANSPORT_SEARCH_INCOMPLETE",
+            "error": str(error),
+        }
+
     available_transports = []
     for t in transports:
         if t.get("capacity", 1) >= traveller_count:
@@ -93,6 +114,10 @@ def build_booking_package(state):
                     "transport_id": t.get("id"),
                     "type": t.get("type"),
                     "provider": t.get("provider"),
+                    "route_from": t.get("routeFrom"),
+                    "route_to": t.get("routeTo"),
+                    "departure_time": t.get("departureTime"),
+                    "arrival_time": t.get("arrivalTime"),
                     "price": t.get("price"),
                     "currency": t.get("currency")
                 })
