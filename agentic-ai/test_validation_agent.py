@@ -1,8 +1,9 @@
 """Deterministic tests for Student D's validation and approval gate."""
 
 from unittest.mock import patch
+import pytest
 
-from agents.validation_agent import validate_and_build_booking, validation_node
+from agents.validation_agent import validate_and_build_booking, validation_node, PackageValidationError
 from tools.validation_tools import BackendToolError, create_booking, initiate_payment
 
 
@@ -120,6 +121,20 @@ def test_multi_leg_package_builds_one_ordered_transport_item_per_leg():
     assert [item["transportLegIndex"] for item in transport_items] == [0, 1]
     assert payload["totalCost"] == 670
     assert checks["within_budget"] is True
+
+
+@pytest.mark.parametrize("daily_minutes,valid", [(600, True), (601, False)])
+def test_geographic_daily_driving_limit_is_ten_hours(daily_minutes, valid):
+    state = _multi_leg_state()
+    itinerary = state["booking_details"]["itinerary"]
+    itinerary["route_destination_ids"] = [51, 54, 56]
+    itinerary["schedule"][0]["travel_minutes"] = daily_minutes
+    if valid:
+        validate_and_build_booking(state)
+    else:
+        with pytest.raises(PackageValidationError) as error:
+            validate_and_build_booking(state)
+        assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
 
 
 def test_multi_leg_package_rejects_missing_or_duplicate_leg():

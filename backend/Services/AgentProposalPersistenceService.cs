@@ -189,8 +189,8 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             foreach (var day in schedule.EnumerateArray())
             {
                 var driving = OptionalDecimal(day, "travel_minutes");
-                if (!driving.HasValue || driving < 0 || driving > 360 || RequiredTime(day, "day_end_time") > TimeSpan.FromHours(18))
-                    throw new ProposalPersistenceException("TRAVEL_TIME_INFEASIBLE", "Daily travel must fit within six driving hours and finish by 18:00.");
+                if (!driving.HasValue || driving < 0 || driving > 600 || RequiredTime(day, "day_end_time") > TimeSpan.FromHours(20))
+                    throw new ProposalPersistenceException("TRAVEL_TIME_INFEASIBLE", "Daily travel must fit within ten driving hours and finish by 20:00.");
             }
         }
         var validatedRoomStays = await ValidateRoomStaysAsync(bookingDetails, trip, currency, cancellationToken);

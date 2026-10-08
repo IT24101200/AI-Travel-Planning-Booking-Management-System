@@ -236,10 +236,19 @@ def build_booking_package(state):
             "No suitable room is available for the requested dates.",
         )
     if requested_legs and transport_diagnostics.get("missing_transport_legs"):
+        missing = transport_diagnostics["missing_transport_legs"]
+        only_airport_missing = state.get("airport_pickup") and all(
+            leg.startswith(AIRPORTS[state.get("airport_code") or "CMB"]["name"] + " -> ")
+            for leg in missing
+        )
+        remedy = (
+            " or turn off airport pickup and request a new plan."
+            if only_airport_missing else " and request a new plan."
+        )
         return _booking_failure(
             trip_id,
             "TRANSPORT_CATALOGUE_NO_ROUTE",
-            "No complete transport plan is available for every selected route leg.",
+            "No available transport covers: " + "; ".join(missing) + ". Add matching transport inventory" + remedy,
             diagnostics=transport_diagnostics,
         )
     if not available_transports:

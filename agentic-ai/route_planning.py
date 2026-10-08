@@ -12,9 +12,9 @@ AIRPORTS = {
     "CMB": {"name": "Bandaranaike International Airport", "latitude": 7.1802, "longitude": 79.8842},
     "HRI": {"name": "Mattala Rajapaksa International Airport", "latitude": 6.2845, "longitude": 81.1241},
 }
-MAX_DRIVING_MINUTES = 360
+MAX_DRIVING_MINUTES = 600
 DAY_START = 8 * 60
-DAY_END = 18 * 60
+DAY_END = 20 * 60
 
 
 class RoutePlanningError(ValueError):
@@ -353,7 +353,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
         labels = [label for bucket in buckets.values() for label in bucket]
         if not labels:
             code = "BUDGET_EXCEEDED" if saw_budget else "TRAVEL_TIME_INFEASIBLE"
-            message = "No complete hotel and journey plan fits the budget. Increase the budget or reduce destinations." if saw_budget else "No available hotel and journey plan fits the travel days with at most six hours driving and an 08:00–18:00 day. Add travel days or reduce destinations."
+            message = "No complete hotel and journey plan fits the budget. Increase the budget or reduce destinations." if saw_budget else "No available hotel and journey plan fits the travel days with at most ten hours driving and an 08:00–20:00 day. Add travel days or reduce destinations."
             raise RoutePlanningError(code, message)
         if len(labels) > 20000:
             raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "This trip has too many hotel combinations. Please select fewer destinations.")
@@ -367,7 +367,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
         else:
             stays.append({**stay, "nights": 1})
     return {**itinerary, "schedule": best[4], "travel_distance_km": round(best[3], 2),
-            "travel_policy": {"max_driving_minutes": MAX_DRIVING_MINUTES, "day_start": "08:00", "day_end": "18:00", "shared_hotel_radius_km": 50, "midway_hotel_radius_km": 70}}, stays
+            "travel_policy": {"max_driving_minutes": MAX_DRIVING_MINUTES, "day_start": "08:00", "day_end": "20:00", "shared_hotel_radius_km": 50, "midway_hotel_radius_km": 70}}, stays
 
 
 def endpoint(record):

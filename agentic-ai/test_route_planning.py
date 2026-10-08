@@ -63,7 +63,7 @@ def test_nearby_destinations_can_share_a_hotel_and_stays_cover_all_nights():
     assert stays[0]["nights"] == 3
     assert stays[0]["check_in"] == "2026-10-10"
     assert stays[0]["check_out"] == "2026-10-13"
-    assert all(day["travel_minutes"] <= 360 for day in plan["schedule"])
+    assert all(day["travel_minutes"] <= 600 for day in plan["schedule"])
 
 
 def test_distant_destinations_use_multiple_hotels_without_revisiting_city():
@@ -76,14 +76,57 @@ def test_distant_destinations_use_multiple_hotels_without_revisiting_city():
 def test_midway_hotel_within_70km_can_balance_two_journeys():
     plan, stays = plan_overnights(state(3), itinerary([tour(1, 1, 80), tour(2, 2, 81.3)]), [room(1, 80.65)], lambda *_: True, LineRoads)
     assert stays[0]["hotel_id"] == 1
-    assert all(day["travel_minutes"] <= 360 for day in plan["schedule"])
+    assert all(day["travel_minutes"] <= 600 for day in plan["schedule"])
 
 
 def test_long_route_uses_intermediate_hotel_and_transfer_day():
     plan, stays = plan_overnights(state(5), itinerary([tour(1, 1, 80), tour(2, 2, 84)]), [room(1, 80), room(2, 82), room(3, 84)], lambda *_: True, LineRoads)
     assert 2 in {stay["hotel_id"] for stay in stays}
     assert any(not day["items"] and day["travel_legs"] for day in plan["schedule"])
-    assert all(day["travel_minutes"] <= 360 for day in plan["schedule"])
+    assert all(day["travel_minutes"] <= 600 for day in plan["schedule"])
+
+
+def test_ten_hour_driving_transfer_fits_with_breaks_before_twenty_hundred():
+    tours = [tour(1, 1, 80), tour(2, 2, 84)]
+    departure, arrival = datetime(2026, 10, 12, 8), datetime(2026, 10, 12, 19, 40)
+    request = {**state(5), "transport_windows": {1: (None, departure), 2: (arrival, None)},
+        "transport_events": [{"source": tours[0], "target": tours[1], "target_index": 1,
+            "departure": departure, "arrival": arrival}]}
+    plan, _ = plan_overnights(request, itinerary(tours), [room(1, 80), room(2, 84)], lambda *_: True, LineRoads)
+    transfer = next(day for day in plan["schedule"] if day["date"] == "2026-10-12")
+    assert transfer["travel_minutes"] == 600
+    assert transfer["day_end_time"] == "19:40:00"
+    assert plan["travel_policy"]["max_driving_minutes"] == 600
+
+
+@pytest.mark.parametrize("distance_km", [650, 800])
+def test_very_distant_destinations_split_driving_across_hotel_nights(distance_km):
+    end = 80 + distance_km / 100
+    tours = [tour(1, 1, 80), tour(2, 2, end)]
+    rooms = [room(1, 80), room(2, (80 + end) / 2), room(3, end)]
+    plan, stays = plan_overnights(state(6), itinerary(tours), rooms, lambda *_: True, LineRoads)
+    assert {stay["hotel_id"] for stay in stays} == {1, 2, 3}
+    assert sum(stay["nights"] for stay in stays) == 5
+    assert [item["tour_id"] for day in plan["schedule"] for item in day["items"]] == [1, 2]
+    assert all(day["travel_minutes"] <= 600 for day in plan["schedule"])
+    assert all(day["day_end_time"] <= "20:00:00" for day in plan["schedule"])
+    assert any(not day["items"] and day["travel_legs"] for day in plan["schedule"])
+
+
+def test_very_distant_destinations_without_intermediate_hotel_are_rejected():
+    with pytest.raises(RoutePlanningError) as error:
+        plan_overnights(state(6), itinerary([tour(1, 1, 80), tour(2, 2, 88)]),
+            [room(1, 80), room(2, 88)], lambda *_: True, LineRoads)
+    assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
+
+
+def test_more_than_ten_hours_driving_is_rejected_even_with_time_in_day():
+    tours = [tour(1, 1, 80), tour(2, 2, 84.1)]
+    request = {**state(5), "transport_events": [{"source": tours[0], "target": tours[1], "target_index": 1,
+        "departure": datetime(2026, 10, 12, 8), "arrival": datetime(2026, 10, 12, 20)}]}
+    with pytest.raises(RoutePlanningError) as error:
+        plan_overnights(request, itinerary(tours), [room(1, 80), room(2, 84.1)], lambda *_: True, LineRoads)
+    assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
 
 
 @pytest.mark.parametrize("budget,rooms,code", [(250, [room(1, 80, 500)], "BUDGET_EXCEEDED"), (100000, [room(1, 85)], "TRAVEL_TIME_INFEASIBLE")])

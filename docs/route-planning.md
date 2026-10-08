@@ -15,7 +15,7 @@ direct road distance plus 10 km. Nearby destinations may therefore share a hotel
 distant destinations receive separate stays. Transfer-only days can use an
 intermediate hotel when the inventory and transport timetable allow it.
 
-Each day runs from 08:00 to 18:00 with at most six driving hours, up to two
+Each day runs from 08:00 to 20:00 with at most ten driving hours, up to two
 journeys, 20 minutes of breaks per two driving hours and a 45-minute meal/rest
 allowance after a journey. Tour durations and preferred earliest start times are
 preserved. Pickup allows one hour after the supplied airport arrival time.

@@ -79,6 +79,7 @@ def test_multi_leg_selection_fails_closed_with_missing_leg_details():
     result = _run([_transport(10, "Colombo", "Dambulla", 6500)])
 
     assert result["error_code"] == "TRANSPORT_CATALOGUE_NO_ROUTE"
+    assert "Dambulla -> Arugam Bay" in result["error"]
     assert result["transport_diagnostics"]["missing_transport_legs"] == [
         "Dambulla -> Arugam Bay"
     ]

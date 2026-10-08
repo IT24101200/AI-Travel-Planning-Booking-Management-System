@@ -1040,7 +1040,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   },
                 ),
                 const Text(
-                  'We allow an hour after arrival before pickup. Plans include driving breaks and finish by 18:00.',
+                  'We allow an hour after arrival before pickup. Plans allow up to 10 driving hours per day, include breaks and finish by 20:00.',
                 ),
                 const SizedBox(height: 16),
               ],

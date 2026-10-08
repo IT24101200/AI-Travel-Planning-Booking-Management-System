@@ -211,8 +211,8 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
             raise PackageValidationError("INVALID_DESTINATION_ORDER", "The optimized route must contain every requested destination exactly once.")
         visited = []
         for day in schedule:
-            if _decimal(day.get("travel_minutes", 0), "daily driving") > 360:
-                raise PackageValidationError("TRAVEL_TIME_INFEASIBLE", "A day exceeds six hours driving.")
+            if _decimal(day.get("travel_minutes", 0), "daily driving") > 600:
+                raise PackageValidationError("TRAVEL_TIME_INFEASIBLE", "A day exceeds ten hours driving.")
             for item in day.get("items", []):
                 destination = item.get("destination_id")
                 if not visited or visited[-1] != destination:

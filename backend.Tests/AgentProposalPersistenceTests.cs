@@ -12,6 +12,36 @@ namespace backend.Tests;
 
 public class AgentProposalPersistenceTests
 {
+    [Theory]
+    [InlineData(600, "20:00:00", true)]
+    [InlineData(601, "20:00:00", false)]
+    [InlineData(600, "20:01:00", false)]
+    public async Task DailyDrivingLimitIsTenHoursWithTwentyHundredFinish(int minutes, string endTime, bool valid)
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(Proposal().GetRawText())!;
+            node["itinerary"]!["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[1]");
+            foreach (var day in node["itinerary"]!["schedule"]!.AsArray())
+            {
+                day!["travel_minutes"] = minutes;
+                day["day_end_time"] = endTime;
+            }
+            var service = new AgentProposalPersistenceService(context);
+            if (valid)
+                await service.PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
+            else
+            {
+                var error = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                    service.PersistAsync(1, JsonSerializer.SerializeToElement(node), 0));
+                Assert.Equal("TRAVEL_TIME_INFEASIBLE", error.Code);
+                Assert.Empty(await context.Bookings.ToListAsync());
+            }
+        }
+    }
+
     [Fact]
     public async Task OptimizedDestinationOrderUsesMatchingTransportLegs()
     {

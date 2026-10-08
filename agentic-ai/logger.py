@@ -7,6 +7,7 @@ If the backend is not running, falls back to local console logging.
 import os
 import json
 import logging
+import re
 from datetime import datetime, timezone
 import httpx
 from dotenv import load_dotenv
@@ -20,6 +21,19 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s"
 )
 console = logging.getLogger("AgentLogger")
+
+
+class _RedactApiKeys(logging.Filter):
+    def filter(self, record):
+        message = record.getMessage()
+        redacted = re.sub(r"([?&](?:key|api_key|access_token)=)[^&\s\"']+", r"\1[REDACTED]", message, flags=re.IGNORECASE)
+        if redacted != message:
+            record.msg, record.args = redacted, ()
+        return True
+
+
+for _logger in (console, logging.getLogger("httpx")):
+    _logger.addFilter(_RedactApiKeys())
 
 def _normalise_backend_url(value: str) -> str:
     normalised = value.rstrip("/")
@@ -69,6 +83,11 @@ def log_agent_step(
 
     # Print clean progress line to console
     console.info(f"[{agent_name}] Step: '{step_name}' | Status: {status} | TripRequest: {trip_request_id}")
+    if status == "Failed" and isinstance(output_data, dict):
+        code = output_data.get("error_code") or output_data.get("failure_code")
+        reason = output_data.get("error") or output_data.get("reason")
+        if code or reason:
+            console.warning("[%s] TripRequest %s rejected: %s | %s", agent_name, trip_request_id, code or "FAILED", reason or "See the agent audit log.")
 
     payload = {
         "tripRequestId": trip_request_id,
