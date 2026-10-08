@@ -39,6 +39,9 @@ class TripPlanningState(TypedDict, total=False):
     traveller_count: int
     budget_ceiling: float
     currency: str
+    airport_pickup: bool
+    airport_code: str
+    airport_arrival_time: str
     retry_count: int
     status: str
     trip_days: int

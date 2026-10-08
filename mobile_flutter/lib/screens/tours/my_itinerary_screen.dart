@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -96,6 +97,52 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     return id != null && id > 0 ? id : null;
   }
 
+  Map<String, dynamic>? _withTravelPlan(
+    Map<String, dynamic>? itinerary,
+    Map<String, dynamic>? trip,
+  ) {
+    if (itinerary == null) return null;
+    try {
+      final raw = trip?['planJson'];
+      final plan = raw is String ? jsonDecode(raw) : raw;
+      if (plan is! Map) return itinerary;
+      final details = plan['booking_details'];
+      final planned = details is Map
+          ? details['itinerary'] ?? plan['itinerary']
+          : plan['itinerary'];
+      if (planned is! Map || planned['schedule'] is! List) return itinerary;
+      final schedule = planned['schedule'] as List;
+      if (!schedule.whereType<Map>().any((day) => day['travel_legs'] is List)) {
+        return itinerary;
+      }
+      final items = (itinerary['items'] as List? ?? [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+      for (final day in schedule.whereType<Map>()) {
+        if ((day['items'] as List? ?? []).isNotEmpty) continue;
+        final legs = day['travel_legs'];
+        if (legs is! List || legs.isEmpty) continue;
+        final last = legs.last;
+        final destination = last is Map ? last['to'] : null;
+        if (destination is! Map) continue;
+        items.add({
+          'id': 'transfer-day-${day['day_number']}',
+          'dayNumber': day['day_number'],
+          'sequenceOrder': 1,
+          'startTime': '08:00:00',
+          'tourName': 'Travel to ${destination['name'] ?? 'next hotel'}',
+          'latitude': destination['latitude'],
+          'longitude': destination['longitude'],
+          'isTransferDay': true,
+        });
+      }
+      return {...itinerary, 'items': items, 'travelSchedule': schedule};
+    } catch (_) {
+      return itinerary;
+    }
+  }
+
   Future<void> _fetchItinerary() async {
     final healthRequest = ++_healthRequest;
     setState(() {
@@ -143,8 +190,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         }
         if (choices.isNotEmpty) {
           final id = _positiveId(choices.first['id']);
-          if (id == null)
+          if (id == null) {
             throw const ApiException('The itinerary has no valid ID.');
+          }
           selected = await ApiService.getItinerary(id);
         }
       }
@@ -193,7 +241,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
       if (!mounted || healthRequest != _healthRequest) return;
       setState(() {
-        _itinerary = selected;
+        _itinerary = _withTravelPlan(selected, tripRequest);
         _itineraries = choices;
         _agentStatus = agentStatus;
         _agentFailureReason = agentFailureReason;
@@ -306,7 +354,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           ? () => _scheduleAgentReconnect(tripRequestId)
           : null,
       onError: ApiService.mockStreamAgentLogs == null
-          ? (_, __) => _scheduleAgentReconnect(tripRequestId)
+          ? (_, _) => _scheduleAgentReconnect(tripRequestId)
           : null,
       cancelOnError: true,
     );
@@ -352,8 +400,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       if (!mounted || !_reconnectLiveUpdates) return;
       try {
         final logs = await ApiService.getAgentLogs(tripRequestId);
-        if (mounted)
+        if (mounted) {
           setState(() => _agentLogs = _mergeAgentLogs(_agentLogs, logs));
+        }
       } catch (_) {}
       _startAgentLogStream(tripRequestId);
     }
@@ -452,23 +501,24 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     });
     try {
       final selected = await ApiService.getItinerary(id);
+      final tripId = _positiveId(selected?['tripRequestId']);
+      final trip = tripId == null
+          ? null
+          : await ApiService.getTripRequest(tripId);
       if (mounted) {
         setState(() {
-          _itinerary = selected;
+          _itinerary = _withTravelPlan(selected, trip);
+          _booking = null;
           _tripStartDate = parseDateOnly(
             selected?['startDate']?.toString() ?? '',
           );
         });
-        unawaited(
-          _loadAuxiliaryDetails(
-            _positiveId(selected?['tripRequestId']),
-            id,
-          ),
-        );
+        unawaited(_loadAuxiliaryDetails(tripId, id));
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _errorMessage = ApiService.userMessage(error));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -477,29 +527,36 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   // ── Status helper utilities ──
 
   String _getStatusLabel(dynamic status) {
-    if (status == 0 || status == '0' || status == 'Draft' || status == 'draft')
+    if (status == 0 ||
+        status == '0' ||
+        status == 'Draft' ||
+        status == 'draft') {
       return 'Draft';
+    }
     if (status == 1 ||
         status == '1' ||
         status == 'Proposed' ||
         status == 'proposed' ||
         status == 'Awaiting Approval' ||
-        status == 'AWAITING APPROVAL')
+        status == 'AWAITING APPROVAL') {
       return 'Proposed';
+    }
     if (status == 2 ||
         status == '2' ||
         status == 'Accepted' ||
         status == 'accepted' ||
         status == 'Confirmed' ||
-        status == 'CONFIRMED')
+        status == 'CONFIRMED') {
       return 'Accepted';
+    }
     if (status == 3 ||
         status == '3' ||
         status == 'Discarded' ||
         status == 'discarded' ||
         status == 'Cancelled' ||
-        status == 'CANCELLED')
+        status == 'CANCELLED') {
       return 'Discarded';
+    }
     return status?.toString() ?? 'Draft';
   }
 
@@ -618,8 +675,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     setState(() => _isActionLoading = true);
     try {
       final success = await ApiService.acceptItinerary(id);
-      if (!success)
+      if (!success) {
         throw const ApiException('Failed to accept itinerary. Please retry.');
+      }
       if (!mounted) return;
       setState(() => _itinerary?['status'] = 'Accepted');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -815,10 +873,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                                   itineraryId,
                                   comment,
                                 );
-                            if (!success)
+                            if (!success) {
                               throw const ApiException(
                                 'Failed to submit changes. Please retry.',
                               );
+                            }
                             if (!mounted || !dialogContext.mounted) return;
                             Navigator.pop(dialogContext);
                             setState(() {
@@ -841,8 +900,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                               );
                             }
                           } finally {
-                            if (dialogContext.mounted)
+                            if (dialogContext.mounted) {
                               setDialogState(() => isSubmitting = false);
+                            }
                           }
                         },
                   style: ElevatedButton.styleFrom(
@@ -1015,8 +1075,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
   String _getHeaderSubtitle() {
     if (_itinerary == null) return 'Your Travel Plan';
-    final title = _booking?['tripTitle']?.toString() ??
-        _itinerary!['title']?.toString();
+    final title =
+        _booking?['tripTitle']?.toString() ?? _itinerary!['title']?.toString();
     final startStr = _itinerary!['startDate']?.toString();
     final endStr = _itinerary!['endDate']?.toString();
     if (startStr != null && endStr != null) {
@@ -1431,10 +1491,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     final totalCost = bookingTotal is num
         ? bookingTotal
         : itinerary['totalEstimatedCost'];
-    final currency = (bookingTotal is num
-            ? (_booking == null ? null : _booking!['currency'])
-            : itinerary['currency'])
-        ?.toString() ??
+    final currency =
+        (bookingTotal is num
+                ? (_booking == null ? null : _booking!['currency'])
+                : itinerary['currency'])
+            ?.toString() ??
         '';
     final formattedCost = totalCost is num
         ? '$currency ${NumberFormat('#,##0').format(totalCost)}'.trim()
@@ -1443,6 +1504,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     return ItineraryJourneyLayout(
       map: ItineraryRoutePreview(
         itinerary: itinerary,
+        booking: _booking,
         selectedItem:
             _selectedJourneyIndex != null &&
                 _selectedJourneyIndex! < items.length
@@ -1526,13 +1588,24 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
             final tourTitle = item['tourName']?.toString() ?? 'Tour Activity';
             final itemPrice = item['priceAtSelection'] ?? 0;
-            final subtitle =
-                'LKR ${NumberFormat('#,##0').format(itemPrice)} · Tickets & activities included';
+            final travelSchedule = itinerary['travelSchedule'];
+            final dayTravel = travelSchedule is List
+                ? travelSchedule
+                      .whereType<Map>()
+                      .where((day) => day['day_number'] == dayNum)
+                      .firstOrNull
+                : null;
+            final travelInfo = dayTravel == null
+                ? ''
+                : ' · Day travel: ${dayTravel['travel_distance_km']} km, ${dayTravel['travel_minutes']} min';
+            final subtitle = item['isTransferDay'] == true
+                ? 'Hotel transfer$travelInfo'
+                : 'LKR ${NumberFormat('#,##0').format(itemPrice)} · Tickets & activities included$travelInfo';
 
             final isSelected = idx == (_selectedJourneyIndex ?? 0);
             final dotColor = isSelected
-                ? const Color(0xFF7DD3FC)
-                : const Color(0xFF0E382C);
+                ? const Color(0xFFFCA5A5)
+                : const Color(0xFF2563A6);
             final isLast = idx == items.length - 1;
 
             return _buildTimelineItem(
@@ -1854,7 +1927,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
               onPressed: _isActionLoading ? null : _showRequestChangesDialog,
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFF0E382C), width: 1.5),
-                foregroundColor: const Color(0xFF0E382C),
+                foregroundColor: const Color.fromARGB(255, 233, 241, 239),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(26),
                 ),
@@ -2336,7 +2409,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   Widget _buildReservedInventorySection() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final bookingCurrency = _booking?['currency']?.toString() ??
+    final bookingCurrency =
+        _booking?['currency']?.toString() ??
         _itinerary?['currency']?.toString() ??
         '';
 
@@ -2351,22 +2425,23 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       }
     }
 
-    Map<String, dynamic>? hotelItem;
+    final hotelItems = <Map<String, dynamic>>[];
     final transportItems = orderedTransportItems(bookingItems);
 
     for (final it in bookingItems) {
       final type = it['itemType']?.toString().toLowerCase() ?? '';
       if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
-        hotelItem ??= it;
+        hotelItems.add(it);
       }
     }
 
-    if (hotelItem != null) {
-      hotelItem['roomTypeName'] = hotelItem['roomType'] ?? 'Room type unavailable';
+    for (final hotelItem in hotelItems) {
+      hotelItem['roomTypeName'] =
+          hotelItem['roomType'] ?? 'Room type unavailable';
       hotelItem['capacity'] = hotelItem['roomCapacity'];
     }
 
-    final hasInventory = hotelItem != null || transportItems.isNotEmpty;
+    final hasInventory = hotelItems.isNotEmpty || transportItems.isNotEmpty;
 
     if (!hasInventory) {
       return Container(
@@ -2387,25 +2462,31 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                 color: const Color(0xFF0E382C).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.verified_outlined,
-                color: Color(0xFF0E382C),
+                color: theme.colorScheme.primary,
                 size: 20,
               ),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'AI Commercial Package Integration',
-                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     'Hotels and private transport are coordinated dynamically by our Booking Agent upon request submission.',
-                    style: TextStyle(fontSize: 11.5, color: Color(0xFF5A7067)),
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -2430,14 +2511,14 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         const SizedBox(height: 8),
 
         // Booked Hotel Card
-        if (hotelItem != null)
+        for (final hotelItem in hotelItems)
           Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2824) : Colors.white,
+              color: theme.cardTheme.color ?? theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFD1E3D9)),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.02),
@@ -2476,7 +2557,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                             child: Text(
                               hotelItem['hotelName']?.toString() ??
                                   'Hotel details unavailable',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
                               ),
@@ -2507,18 +2588,18 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       const SizedBox(height: 3),
                       Text(
                         'Room: ${hotelItem['roomTypeName'] ?? 'Room type unavailable'}${hotelItem['capacity'] != null ? ' · Up to ${hotelItem['capacity']} guests' : ''}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11.5,
-                          color: Color(0xFF5A7067),
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       if (hotelItem['checkInDate'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           'Check-in: ${hotelItem['checkInDate'].toString().split('T').first}${hotelItem['checkOutDate'] != null ? ' · Check-out: ${hotelItem['checkOutDate'].toString().split('T').first}' : ''}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10.5,
-                            color: Color(0xFF8A9E96),
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -2526,10 +2607,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         const SizedBox(height: 4),
                         Text(
                           '${bookingCurrency.isEmpty ? '' : '$bookingCurrency '}${NumberFormat('#,##0').format(hotelItem['subtotal'])}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF0E382C),
+                            color: theme.colorScheme.primary,
                           ),
                         ),
                       ],
@@ -2546,9 +2627,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E2824) : Colors.white,
+              color: theme.cardTheme.color ?? theme.colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFD1E3D9)),
+              border: Border.all(color: theme.colorScheme.outlineVariant),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.02),
@@ -2586,7 +2667,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                           Expanded(
                             child: Text(
                               '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? transportItem['vehicleType'] ?? 'Transport details unavailable'} Transfer',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
                               ),
@@ -2617,9 +2698,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       const SizedBox(height: 3),
                       Text(
                         'Provider: ${transportItem['transportProvider'] ?? 'Provider unavailable'}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 11.5,
-                          color: Color(0xFF5A7067),
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                       if (transportItem['routeFrom'] != null ||
@@ -2629,9 +2710,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         const SizedBox(height: 2),
                         Text(
                           'Route: ${transportItem['routeFrom'] ?? transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['routeTo'] ?? transportItem['dropoffLocation'] ?? 'Destination'}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10.5,
-                            color: Color(0xFF8A9E96),
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -2639,10 +2720,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         const SizedBox(height: 4),
                         Text(
                           '${bookingCurrency.isEmpty ? '' : '$bookingCurrency '}${NumberFormat('#,##0').format(transportItem['subtotal'])}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF0E382C),
+                            color: theme.colorScheme.primary,
                           ),
                         ),
                       ],
@@ -2695,7 +2776,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E2824) : Colors.white,
+        color: theme.cardTheme.color ?? theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFEDECE4),
@@ -2720,10 +2801,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                   letterSpacing: 0.5,
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.receipt_long_outlined,
                 size: 16,
-                color: Color(0xFF8A9E96),
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -2759,7 +2840,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             ),
           ] else
             _buildBreakdownRow('AI itinerary estimate', totalCost, currency),
-          const Divider(height: 20, color: Color(0xFFE4E7E2)),
+          Divider(height: 20, color: theme.colorScheme.outlineVariant),
           Row(
             children: [
               Expanded(
@@ -2780,10 +2861,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 15,
-                    color: Color(0xFF0E382C),
+                    color: theme.colorScheme.primary,
                   ),
                 ),
               ),
@@ -2800,6 +2881,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     String currency, {
     String? freeLabel,
   }) {
+    final theme = Theme.of(context);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -2808,7 +2890,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             label,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF5A7067)),
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -2819,7 +2904,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.end,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: theme.colorScheme.onSurface,
+            ),
           ),
         ),
       ],

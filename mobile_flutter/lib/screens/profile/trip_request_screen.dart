@@ -41,6 +41,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   // Travelers count
   int _travelers = 2;
+  bool _airportPickup = false;
+  String _airportCode = 'CMB';
+  TimeOfDay _airportArrival = const TimeOfDay(hour: 8, minute: 0);
 
   // Budget ceiling in LKR (default: LKR 250,000)
   double _budgetCeiling = 250000;
@@ -147,11 +150,12 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         });
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _submissionError =
               'Unable to load destinations from the database.',
         );
+      }
       return;
     }
   }
@@ -274,8 +278,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         }
       }
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _preferencesError = ApiService.userMessage(error));
+      }
     }
   }
 
@@ -362,8 +367,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
   /// Generate AI Itinerary and dispatch to multi-agent pipeline
   Future<void> _generateItinerary() async {
     if (!TripBudgetRange(_budgetMinimum, _budgetCeiling).isValid) {
-      setState(() => _submissionError =
-          'The budget gap must be at least 30% of the maximum budget.');
+      setState(
+        () => _submissionError =
+            'The budget gap must be at least 30% of the maximum budget.',
+      );
       return;
     }
     final destination = _destinationCtrl.text.trim();
@@ -410,6 +417,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         'travellerCount': _travelers,
         'budgetCeiling': _budgetCeiling,
         'currency': _currency,
+        'airportPickup': _airportPickup,
+        'airportCode': _airportCode,
+        'airportArrivalTime':
+            '${_airportArrival.hour.toString().padLeft(2, '0')}:${_airportArrival.minute.toString().padLeft(2, '0')}:00',
       });
       final id = int.tryParse(response['id']?.toString() ?? '');
       if (response['statusCode'] != 201 || id == null || id <= 0) {
@@ -434,8 +445,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         arguments: {'tripRequestId': id},
       );
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _submissionError = ApiService.userMessage(error));
+      }
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -962,7 +974,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   ),
                   semanticFormatterCallback: (value) => 'LKR ${value.round()}',
                   onChanged: (values) {
-                    final current = TripBudgetRange(_budgetMinimum, _budgetCeiling);
+                    final current = TripBudgetRange(
+                      _budgetMinimum,
+                      _budgetCeiling,
+                    );
                     final updated = values.start != _budgetMinimum
                         ? current.moveMinimum(values.start)
                         : current.moveMaximum(values.end);
@@ -979,6 +994,56 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
               ),
 
               const SizedBox(height: 8),
+
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Airport pickup'),
+                subtitle: const Text(
+                  'Include arrival transfer in the route and budget.',
+                ),
+                value: _airportPickup,
+                onChanged: (value) =>
+                    setState(() => _airportPickup = value ?? false),
+              ),
+              if (_airportPickup) ...[
+                DropdownButtonFormField<String>(
+                  initialValue: _airportCode,
+                  decoration: const InputDecoration(
+                    labelText: 'Arrival airport',
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'CMB',
+                      child: Text('Bandaranaike (CMB)'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'HRI',
+                      child: Text('Mattala (HRI)'),
+                    ),
+                  ],
+                  onChanged: (value) =>
+                      setState(() => _airportCode = value ?? 'CMB'),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.schedule),
+                  label: Text(
+                    'Arrival time: ${_airportArrival.format(context)}',
+                  ),
+                  onPressed: () async {
+                    final time = await showTimePicker(
+                      context: context,
+                      initialTime: _airportArrival,
+                    );
+                    if (time != null && mounted) {
+                      setState(() => _airportArrival = time);
+                    }
+                  },
+                ),
+                const Text(
+                  'We allow an hour after arrival before pickup. Plans include driving breaks and finish by 18:00.',
+                ),
+                const SizedBox(height: 16),
+              ],
 
               // ── Travel Interests ──
               Text(

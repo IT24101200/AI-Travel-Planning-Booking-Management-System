@@ -36,5 +36,10 @@ namespace backend.DTOs
         [Required]
         [MaxLength(10)]
         public string Currency { get; set; } = "LKR";
+
+        public bool AirportPickup { get; set; }
+        [RegularExpression("^(CMB|HRI)$")]
+        public string AirportCode { get; set; } = "CMB";
+        public TimeSpan AirportArrivalTime { get; set; } = TimeSpan.FromHours(8);
     }
 }

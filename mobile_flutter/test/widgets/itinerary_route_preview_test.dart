@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -54,7 +55,7 @@ void main() {
   );
 
   testWidgets(
-    'first stop is blue; tapping another stop animates the dot and camera without reloading directions',
+    'visible stops animate the dot without moving or zooming the map or reloading directions',
     (tester) async {
       var loads = 0;
       await tester.pumpWidget(_SelectionHarness(onLoad: () => loads++));
@@ -68,6 +69,8 @@ void main() {
       final controller = tester
           .widget<FlutterMap>(find.byType(FlutterMap))
           .mapController!;
+      final initialCenter = controller.camera.center;
+      final initialZoom = controller.camera.zoom;
       expect(dot(), const LatLng(7.29, 80.63));
       expect(
         tester
@@ -97,9 +100,8 @@ void main() {
             .map((marker) => marker.point),
         [const LatLng(7.29, 80.63), const LatLng(7.33, 80.67)],
       );
-      expect(controller.camera.center.latitude, closeTo(7.31, 0.000001));
-      expect(controller.camera.center.longitude, closeTo(80.65, 0.000001));
-      expect(controller.camera.zoom, closeTo(14.5, 0.000001));
+      expect(controller.camera.center, initialCenter);
+      expect(controller.camera.zoom, initialZoom);
       expect(loads, 1);
       expect(
         tester.widget<FlutterMap>(find.byType(FlutterMap)).mapController,
@@ -107,6 +109,254 @@ void main() {
       );
     },
   );
+
+  testWidgets('offscreen stops move into view without zooming in', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_SelectionHarness(onLoad: () {}));
+    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!;
+    controller.move(const LatLng(6.9, 79.8), 12);
+    await tester.pumpAndSettle();
+    expect(
+      controller.camera.visibleBounds.contains(const LatLng(7.31, 80.65)),
+      isFalse,
+    );
+    await tester.tap(find.text('Second stop'));
+    await tester.pumpAndSettle();
+    expect(
+      controller.camera.visibleBounds.contains(const LatLng(7.31, 80.65)),
+      isTrue,
+    );
+    expect(controller.camera.zoom, lessThanOrEqualTo(12));
+  });
+
+  testWidgets(
+    'selected hotel route is light red and all other roads are blue',
+    (tester) async {
+      final requests = <List<LatLng>>[];
+      await tester.pumpWidget(
+        _SelectionHarness(
+          onLoad: () {},
+          booking: const {
+            'bookingItems': [
+              {
+                'itemType': 'Room',
+                'hotelLatitude': 7.28,
+                'hotelLongitude': 80.62,
+              },
+            ],
+          },
+          hotelRouteLoader: (points) async {
+            requests.add(points);
+            return ItineraryRoadRoute([], [
+              points.first,
+              const LatLng(7.285, 80.625),
+              points.last,
+            ], 1200);
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      final controller = tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .mapController!;
+      final center = controller.camera.center;
+      final zoom = controller.camera.zoom;
+      await tester.tap(find.text('Second stop'));
+      await tester.pumpAndSettle();
+      final roads = tester
+          .widget<PolylineLayer>(find.byType(PolylineLayer))
+          .polylines;
+      expect(roads.first.color, const Color(0xFF2563A6));
+      expect(roads.last.color, const Color(0xFFFCA5A5));
+      expect(roads.last.points, [
+        const LatLng(7.28, 80.62),
+        const LatLng(7.285, 80.625),
+        const LatLng(7.31, 80.65),
+      ]);
+      expect(requests.last, [
+        const LatLng(7.28, 80.62),
+        const LatLng(7.31, 80.65),
+      ]);
+      expect(find.byIcon(Icons.hotel), findsOneWidget);
+      expect(controller.camera.center, center);
+      expect(controller.camera.zoom, zoom);
+    },
+  );
+
+  testWidgets('selected day highlights its complete hotel and journey route', (
+    tester,
+  ) async {
+    const dayTwo = [
+      LatLng(7.29, 80.63),
+      LatLng(7.31, 80.65),
+      LatLng(7.33, 80.67),
+    ];
+    await tester.pumpWidget(
+      _SelectionHarness(
+        onLoad: () {},
+        dayRoutes: const {
+          1: [LatLng(7.29, 80.63), LatLng(7.31, 80.65)],
+          2: dayTwo,
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Second stop'));
+    await tester.pumpAndSettle();
+    final roads = tester
+        .widget<PolylineLayer>(find.byType(PolylineLayer))
+        .polylines;
+    expect(roads.last.points, dayTwo);
+    expect(roads.last.color, const Color(0xFFFCA5A5));
+    expect(roads.first.color, const Color(0xFF2563A6));
+  });
+
+  testWidgets('journey date selects the hotel booked for that day', (
+    tester,
+  ) async {
+    final origins = <LatLng>[];
+    await tester.pumpWidget(
+      _SelectionHarness(
+        onLoad: () {},
+        booking: const {
+          'bookingItems': [
+            {
+              'itemType': 'Room',
+              'hotelLatitude': 7.28,
+              'hotelLongitude': 80.62,
+              'checkInDate': '2026-10-12',
+              'checkOutDate': '2026-10-13',
+            },
+            {
+              'itemType': 'Room',
+              'hotelLatitude': 7.32,
+              'hotelLongitude': 80.66,
+              'checkInDate': '2026-10-13',
+              'checkOutDate': '2026-10-15',
+            },
+          ],
+        },
+        hotelRouteLoader: (points) async {
+          origins.add(points.first);
+          return ItineraryRoadRoute([], points, 1200);
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(origins.last, const LatLng(7.28, 80.62));
+    await tester.tap(find.text('Second stop'));
+    await tester.pumpAndSettle();
+    expect(origins.last, const LatLng(7.32, 80.66));
+  });
+
+  testWidgets(
+    'visible daily route does not refocus on a different overnight hotel',
+    (tester) async {
+      await tester.pumpWidget(
+        _SelectionHarness(
+          onLoad: () {},
+          booking: const {
+            'bookingItems': [
+              {
+                'itemType': 'Room',
+                'hotelLatitude': 6.4,
+                'hotelLongitude': 80.0,
+              },
+            ],
+          },
+          dayRoutes: const {
+            2: [LatLng(7.30, 80.64), LatLng(7.31, 80.65), LatLng(7.32, 80.66)],
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+      final controller = tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .mapController!;
+      controller.move(const LatLng(7.31, 80.65), 12);
+      await tester.pumpAndSettle();
+      final center = controller.camera.center;
+      final zoom = controller.camera.zoom;
+      await tester.tap(find.text('Second stop'));
+      await tester.pumpAndSettle();
+      expect(controller.camera.center, center);
+      expect(controller.camera.zoom, zoom);
+    },
+  );
+
+  testWidgets('failed hotel directions keep other roads and offer retry', (
+    tester,
+  ) async {
+    var attempts = 0;
+    await tester.pumpWidget(
+      _SelectionHarness(
+        onLoad: () {},
+        booking: const {
+          'bookingItems': [
+            {
+              'itemType': 'Room',
+              'hotelLatitude': 7.28,
+              'hotelLongitude': 80.62,
+            },
+          ],
+        },
+        hotelRouteLoader: (points) async {
+          if (++attempts == 1) throw Exception('Routing unavailable');
+          return ItineraryRoadRoute([], points, 1200);
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines,
+      hasLength(1),
+    );
+    await tester.tap(find.text('Hotel directions unavailable. Retry'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines,
+      hasLength(2),
+    );
+    expect(find.text('Hotel directions unavailable. Retry'), findsNothing);
+  });
+
+  testWidgets('late hotel directions cannot replace the latest journey route', (
+    tester,
+  ) async {
+    final requests = <Completer<ItineraryRoadRoute>>[];
+    final endpoints = <List<LatLng>>[];
+    await tester.pumpWidget(
+      _SelectionHarness(
+        onLoad: () {},
+        booking: const {
+          'bookingItems': [
+            {'itemType': 1, 'hotelLatitude': 7.28, 'hotelLongitude': 80.62},
+          ],
+        },
+        hotelRouteLoader: (points) {
+          endpoints.add(points);
+          final request = Completer<ItineraryRoadRoute>();
+          requests.add(request);
+          return request.future;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Second stop'));
+    await tester.pumpAndSettle();
+    requests.last.complete(ItineraryRoadRoute([], endpoints.last, 1200));
+    await tester.pumpAndSettle();
+    requests.first.complete(ItineraryRoadRoute([], endpoints.first, 1200));
+    await tester.pumpAndSettle();
+    final roads = tester
+        .widget<PolylineLayer>(find.byType(PolylineLayer))
+        .polylines;
+    expect(roads.last.points.last, const LatLng(7.31, 80.65));
+  });
 
   testWidgets(
     'rapid selection switches finish at the latest scheduled occurrence',
@@ -163,8 +413,16 @@ void main() {
 }
 
 class _SelectionHarness extends StatefulWidget {
-  const _SelectionHarness({required this.onLoad});
+  const _SelectionHarness({
+    required this.onLoad,
+    this.booking,
+    this.hotelRouteLoader = ItineraryRouteService.fetchRoadRoute,
+    this.dayRoutes = const {},
+  });
   final VoidCallback onLoad;
+  final Map<String, dynamic>? booking;
+  final Future<ItineraryRoadRoute> Function(List<LatLng>) hotelRouteLoader;
+  final Map<int, List<LatLng>> dayRoutes;
 
   @override
   State<_SelectionHarness> createState() => _SelectionHarnessState();
@@ -178,7 +436,7 @@ class _SelectionHarnessState extends State<_SelectionHarness> {
     {'id': 3, 'tourId': 67, 'dayNumber': 3, 'sequenceOrder': 1},
     {'id': 4, 'tourId': 68, 'dayNumber': 4, 'tourName': 'Missing venue'},
   ];
-  static const itinerary = {'items': items};
+  static const itinerary = {'items': items, 'startDate': '2026-10-12'};
   final tileProvider = _MemoryTileProvider();
 
   @override
@@ -188,6 +446,8 @@ class _SelectionHarnessState extends State<_SelectionHarness> {
         children: [
           ItineraryRoutePreview(
             itinerary: itinerary,
+            booking: widget.booking,
+            hotelRouteLoader: widget.hotelRouteLoader,
             selectedItem: selected,
             tileProvider: tileProvider,
             routeLoader: (_) async {
@@ -204,6 +464,7 @@ class _SelectionHarnessState extends State<_SelectionHarness> {
                   LatLng(7.33, 80.67),
                 ],
                 4000,
+                dayRoutes: widget.dayRoutes,
               );
             },
           ),

@@ -472,7 +472,7 @@ namespace backend.Services
                 .Where(item => item.ItemType == BookingItemType.Transport)
                 .ToList();
             var destinationIds = TransportCompatibility.ResolveDestinationIds(trip);
-            var expectedLegCount = Math.Max(0, destinationIds.Count - 1);
+            var expectedLegCount = Math.Max(0, destinationIds.Count - 1) + (trip.AirportPickup ? 1 : 0);
 
             if (requestedItems.Any(item => item.ItemType != BookingItemType.Transport && item.TransportLegIndex.HasValue))
                 throw new ArgumentException("TransportLegIndex is only valid for transport booking items.");

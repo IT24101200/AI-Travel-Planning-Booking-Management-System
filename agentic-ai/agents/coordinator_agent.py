@@ -24,6 +24,12 @@ logger = logging.getLogger("CoordinatorAgent")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 NON_RETRYABLE_FAILURE_CODES = {
+    "TRAVEL_TIME_INFEASIBLE",
+    "MISSING_ROUTE_COORDINATES",
+    "ROAD_ROUTING_UNAVAILABLE",
+    "ROUTE_SEARCH_LIMIT",
+    "ROUTE_TOO_LARGE",
+    "TRANSPORT_TIMETABLE_INFEASIBLE",
     "TRANSPORT_CATALOGUE_NO_ROUTE",
     "TRANSPORT_CATALOGUE_NO_DATE_MATCH",
     "TRANSPORT_CATALOGUE_NO_CAPACITY",
@@ -38,7 +44,7 @@ def calculate_days(start_date_str: str, end_date_str: str) -> int:
         d1 = datetime.fromisoformat(start_date_str.replace("Z", ""))
         d2 = datetime.fromisoformat(end_date_str.replace("Z", ""))
         days = (d2.date() - d1.date()).days
-        return max(1, days)
+        return max(1, days + 1)
     except Exception:
         return 3  # Default fallback days
 

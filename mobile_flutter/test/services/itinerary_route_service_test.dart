@@ -7,6 +7,73 @@ import 'package:latlong2/latlong.dart';
 import 'package:mobile_flutter/services/itinerary_route_service.dart';
 
 void main() {
+  test('daily road routes retain airport, tours and changing hotels', () async {
+    Map<String, dynamic> endpoint(double lon, String kind) => {
+      'latitude': 7.5,
+      'longitude': lon,
+      'kind': kind,
+    };
+    final airport = endpoint(79.9, 'airport');
+    final hotel1 = endpoint(80.1, 'hotel');
+    final tour = endpoint(80.2, 'tour');
+    final hotel2 = endpoint(80.3, 'hotel');
+    final requests = <String>[];
+    final client = MockClient((request) async {
+      final coordinates = request.url.path.split('/').last;
+      requests.add(coordinates);
+      return http.Response(
+        jsonEncode({
+          'code': 'Ok',
+          'routes': [
+            {
+              'distance': 1000,
+              'geometry': {
+                'coordinates': coordinates
+                    .split(';')
+                    .map((pair) => pair.split(',').map(double.parse).toList())
+                    .toList(),
+              },
+            },
+          ],
+        }),
+        200,
+      );
+    });
+    final route = await ItineraryRouteService.load({
+      'items': [
+        {'tourId': 1, 'dayNumber': 2, ...tour},
+      ],
+      'travelSchedule': [
+        {
+          'day_number': 1,
+          'travel_legs': [
+            {'from': airport, 'to': hotel1},
+          ],
+        },
+        {
+          'day_number': 2,
+          'travel_legs': [
+            {'from': hotel1, 'to': tour},
+            {'from': tour, 'to': hotel2},
+          ],
+        },
+      ],
+    }, client: client);
+    expect(requests, ['79.9,7.5;80.1,7.5', '80.1,7.5;80.2,7.5;80.3,7.5']);
+    expect(route.dayRoutes[2], [
+      const LatLng(7.5, 80.1),
+      const LatLng(7.5, 80.2),
+      const LatLng(7.5, 80.3),
+    ]);
+    expect(route.hotelPoints, [
+      const LatLng(7.5, 80.1),
+      const LatLng(7.5, 80.3),
+    ]);
+    expect(route.airportPoints, [const LatLng(7.5, 79.9)]);
+    expect(route.distanceMeters, 2000);
+    client.close();
+  });
+
   test('orders stops by itinerary day and sequence instead of city names', () {
     final items = ItineraryRouteService.orderedItems({
       'items': [

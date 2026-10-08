@@ -1,9 +1,12 @@
 import json
 import os
 import requests
+from datetime import datetime, timedelta
+from itertools import product
 from decimal import Decimal
 from dotenv import load_dotenv
 from logger import log_agent_step
+from route_planning import plan_overnights, RoutePlanningError, AIRPORTS, point
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
     search_transports, check_transport_availability, HotelSearchError,
@@ -85,13 +88,14 @@ def build_booking_package(state):
     if not isinstance(itinerary, dict) or itinerary.get("error"):
         return _booking_failure(
             trip_id,
-            "INVALID_ITINERARY",
+            itinerary.get("error_code", "INVALID_ITINERARY"),
             itinerary.get("error", "A valid itinerary proposal is required."),
         )
     
-    # 1. Search only inventory belonging to the requested destination.
+    geographic = bool(itinerary.get("route_destination_ids"))
+    # Geographic plans may use a nearby or intermediate hotel in another city.
     try:
-        hotels = search_hotels(destination_id, currency=currency)
+        hotels = search_hotels(None if geographic else destination_id, currency=currency)
     except HotelSearchError as error:
         return _booking_failure(trip_id, "HOTEL_SEARCH_INCOMPLETE", str(error))
     available_rooms = []
@@ -99,8 +103,13 @@ def build_booking_package(state):
     for hotel in hotels:
         rooms = search_hotel_rooms(hotel.get("id"), currency=currency)
         for room in rooms:
-            if room.get("capacity", 1) >= traveller_count:
-                avail = check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date, currency=currency)
+            if room.get("capacity", 1) >= traveller_count and str(room.get("status", "Active")).lower() == "active":
+                if geographic:
+                    try:
+                        point(hotel)
+                    except RoutePlanningError:
+                        continue
+                avail = {"isAvailable": True} if geographic else check_room_availability(hotel.get("id"), room.get("id"), start_date, end_date, currency=currency)
                 is_room_avail = avail and (avail.get("isAvailable") is True or avail.get("availableRooms", 0) > 0)
                 if is_room_avail:
                     available_rooms.append({
@@ -109,7 +118,8 @@ def build_booking_package(state):
                         "room_id": room.get("id"),
                         "room_type": room.get("roomType"),
                         "price_per_night": room.get("pricePerNight"),
-                        "currency": room.get("currency")
+                        "currency": room.get("currency"),
+                        **({"latitude": hotel["latitude"], "longitude": hotel["longitude"], "destination_id": hotel.get("destinationId")} if geographic else {}),
                     })
                     
     log_agent_step(
@@ -128,6 +138,11 @@ def build_booking_package(state):
             "destination_id": destination_id,
             "destination_name": state.get("destination_name", ""),
         }]
+    if geographic:
+        by_id = {d["destination_id"]: d for d in requested_destinations}
+        requested_destinations = [by_id[i] for i in itinerary["route_destination_ids"]]
+    if state.get("airport_pickup"):
+        requested_destinations = [{"destination_name": AIRPORTS[state.get("airport_code") or "CMB"]["name"]}, *requested_destinations]
     try:
         transports = search_transports(
             currency=currency,
@@ -243,7 +258,7 @@ def build_booking_package(state):
             diagnostics=transport_diagnostics,
         )
 
-    if requested_legs:
+    if requested_legs or geographic:
         # A multi-leg proposal is selected completely and deterministically.
         # Keep one database-backed option per adjacent destination leg; never
         # collapse a true multi-leg trip to one selected_transport object.
@@ -253,7 +268,7 @@ def build_booking_package(state):
                 key=lambda option: float(option.get("price", 0)),
             )
             for index in range(len(requested_legs))
-        ]
+        ] if requested_legs else [min(available_transports, key=lambda option: float(option.get("price", 0)))]
         try:
             from datetime import datetime
             d1 = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).date()
@@ -262,6 +277,69 @@ def build_booking_package(state):
         except Exception:
             nights = 1
         selected_room = min(available_rooms, key=lambda room: float(room.get("price_per_night", 0)))
+        room_selections = None
+        if geographic:
+            availability_cache = {}
+            def room_available(room, check_in, check_out):
+                key = (room["room_id"], check_in, check_out)
+                if key not in availability_cache:
+                    result = check_room_availability(room["hotel_id"], room["room_id"], check_in, check_out, currency=currency)
+                    availability_cache[key] = bool(result and (result.get("isAvailable") is True or result.get("availableRooms", 0) > 0))
+                return availability_cache[key]
+            try:
+                groups = [[option for option in available_transports if option.get("leg_index") == index]
+                          for index in range(len(requested_legs))] if requested_legs else [available_transports]
+                combination_count = 1
+                for group in groups:
+                    combination_count *= len(group)
+                if combination_count > 256:
+                    raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "Too many transport timetable combinations are available. Please narrow the travel dates or destinations.")
+                candidates = []
+                last_error = None
+                for combination in product(*groups):
+                    windows = {}
+                    events = []
+                    route_ids = itinerary["route_destination_ids"]
+                    representatives = {item["destination_id"]: item for day in itinerary["schedule"] for item in day["items"]}
+                    offset = int(bool(state.get("airport_pickup")))
+                    valid_times = True
+                    for leg_index, option in enumerate(combination if requested_legs else []):
+                        departure = datetime.fromisoformat(str(option["departure_time"]).replace("Z", "+00:00")).replace(tzinfo=None)
+                        arrival = datetime.fromisoformat(str(option["arrival_time"]).replace("Z", "+00:00")).replace(tzinfo=None)
+                        target_index = leg_index + 1 - offset
+                        events.append({"source": representatives[route_ids[leg_index - offset]] if leg_index >= offset else {**AIRPORTS[state.get("airport_code") or "CMB"], "kind": "airport"},
+                            "target": representatives[route_ids[target_index]], "target_index": target_index,
+                            "departure": departure, "arrival": arrival})
+                        if target_index >= 0:
+                            target = route_ids[target_index]
+                            windows[target] = (arrival, windows.get(target, (None, None))[1])
+                        if leg_index >= offset:
+                            source = route_ids[leg_index - offset]
+                            windows[source] = (windows.get(source, (None, None))[0], departure)
+                        elif state.get("airport_pickup"):
+                            ready = datetime.fromisoformat(str(start_date).replace("Z", "+00:00")).replace(tzinfo=None, hour=0, minute=0, second=0)
+                            from route_planning import minutes
+                            ready += timedelta(minutes=minutes(state.get("airport_arrival_time")) + 60)
+                            valid_times &= departure >= ready
+                    if not valid_times:
+                        last_error = RoutePlanningError("TRANSPORT_TIMETABLE_INFEASIBLE", "Airport pickup transport departs before you are ready after arrival.")
+                        continue
+                    transport_cost = sum(float(t["price"]) * traveller_count for t in combination)
+                    try:
+                        plan, stays = plan_overnights({**state, "transport_windows": windows, "transport_events": events,
+                            "budget_ceiling": float(state["budget_ceiling"]) - transport_cost}, itinerary, available_rooms, room_available)
+                        cost = transport_cost + sum(float(r["price_per_night"]) * r["nights"] for r in stays)
+                        candidates.append((plan["travel_distance_km"], cost, plan, stays, list(combination)))
+                    except RoutePlanningError as error:
+                        last_error = error
+                if not candidates:
+                    raise last_error or RoutePlanningError("TRANSPORT_TIMETABLE_INFEASIBLE", "No transport timetable fits the journeys and hotel stays.")
+                _, _, itinerary, room_selections, selected_transports = min(candidates, key=lambda candidate: candidate[:2])
+                if any(not room_available(room, room["check_in"], room["check_out"]) for room in room_selections):
+                    raise RoutePlanningError("NO_VALID_ROOM", "A selected hotel is no longer available for the complete stay. Please retry.")
+                selected_room = room_selections[0]
+            except RoutePlanningError as error:
+                return _booking_failure(trip_id, error.code, str(error))
         tour_cost = sum(
             (Decimal(str(tour["price"])) * traveller_count
              for day in itinerary.get("schedule", [])
@@ -270,7 +348,7 @@ def build_booking_package(state):
         )
         total_cost = (
             tour_cost
-            + Decimal(str(selected_room["price_per_night"])) * nights
+            + (sum((Decimal(str(r["price_per_night"])) * r["nights"] for r in room_selections), Decimal("0")) if room_selections is not None else Decimal(str(selected_room["price_per_night"])) * nights)
             + sum(Decimal(str(option["price"])) * traveller_count for option in selected_transports)
         )
         multi_leg_package = {
@@ -278,13 +356,14 @@ def build_booking_package(state):
             "currency": currency,
             "itinerary": itinerary,
             "selected_room": dict(selected_room),
-            "transport_selections": [
+            **({"room_selections": room_selections} if room_selections is not None else {}),
+            **({"transport_selections": [
                 {
                     **dict(option),
                     "transport_option_id": option.get("transport_id"),
                 }
                 for option in selected_transports
-            ],
+            ]} if requested_legs else {"selected_transport": dict(selected_transports[0])}),
             "total_package_cost": float(total_cost),
             "total_cost": float(total_cost),
             "persistence_status": "READY_FOR_PERSISTENCE",
@@ -476,4 +555,4 @@ def booking_node(state: dict) -> dict:
     result = build_booking_package(state)
     if isinstance(result, dict) and "total_package_cost" in result and "total_cost" not in result:
         result["total_cost"] = result["total_package_cost"]
-    return {**state, "booking_details": result}
+    return {**state, "booking_details": result, "itinerary": result.get("itinerary", state.get("itinerary", {}))}

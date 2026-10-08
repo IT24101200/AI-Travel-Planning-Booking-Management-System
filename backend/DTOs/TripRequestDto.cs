@@ -18,6 +18,9 @@ namespace backend.DTOs
         public int TravellerCount { get; set; }
         public decimal BudgetCeiling { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public bool AirportPickup { get; set; }
+        public string AirportCode { get; set; } = "CMB";
+        public TimeSpan AirportArrivalTime { get; set; }
         public string Status { get; set; } = string.Empty;
         public int RetryCount { get; set; }
         public string? PlanJson { get; set; }

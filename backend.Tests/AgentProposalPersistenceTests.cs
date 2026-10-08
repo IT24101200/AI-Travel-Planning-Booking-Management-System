@@ -12,6 +12,126 @@ namespace backend.Tests;
 
 public class AgentProposalPersistenceTests
 {
+    [Fact]
+    public async Task OptimizedDestinationOrderUsesMatchingTransportLegs()
+    {
+        var (context, connection) = await CreateThreeDestinationContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var first = await context.TransportOptions.SingleAsync(t => t.Id == 30);
+            first.RouteTo = "Third Destination";
+            first.DepartureTime = new DateTime(2026, 10, 10, 12, 0, 0);
+            first.ArrivalTime = new DateTime(2026, 10, 10, 15, 0, 0);
+            var second = await context.TransportOptions.SingleAsync(t => t.Id == 31);
+            second.RouteFrom = "Third Destination";
+            second.RouteTo = "Second Destination";
+            second.DepartureTime = new DateTime(2026, 10, 11, 12, 0, 0);
+            second.ArrivalTime = new DateTime(2026, 10, 11, 15, 0, 0);
+            await context.SaveChangesAsync();
+            var node = System.Text.Json.Nodes.JsonNode.Parse(ThreeDestinationProposal().GetRawText())!;
+            var itinerary = node["itinerary"]!;
+            itinerary["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[1,3,2]");
+            itinerary["schedule"]![1]!["items"]![0]!["tour_id"] = 102;
+            itinerary["schedule"]![2]!["items"]![0]!["tour_id"] = 101;
+            foreach (var day in itinerary["schedule"]!.AsArray())
+            {
+                day!["travel_minutes"] = 120;
+                day["day_end_time"] = "17:00:00";
+            }
+            await new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
+            var trip = await context.TripRequests.SingleAsync();
+            Assert.Equal(new[] { 1, 3, 2 }, TransportCompatibility.ResolveDestinationIds(trip));
+            Assert.Equal("Third Destination", (await context.BookingItems.SingleAsync(item => item.TransportLegIndex == 0)).TransportRouteToSnapshot);
+        }
+    }
+
+    [Fact]
+    public async Task OptimizedPlanRejectsTransportDepartingBeforeSourceVisitsFinish()
+    {
+        var (context, connection) = await CreateThreeDestinationContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(ThreeDestinationProposal().GetRawText())!;
+            node["itinerary"]!["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[1,2,3]");
+            foreach (var day in node["itinerary"]!["schedule"]!.AsArray())
+            {
+                day!["travel_minutes"] = 120;
+                day["day_end_time"] = "17:00:00";
+            }
+            var error = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0));
+            Assert.Equal("TRANSPORT_TIMETABLE_INFEASIBLE", error.Code);
+            Assert.Empty(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task MultipleHotelStaysPersistTheirOwnDatesAndTrustedPrices()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            context.Hotels.Add(new Hotel { Id = 11, DestinationId = 1, Name = "Second Hotel", Status = HotelStatus.Active });
+            context.Rooms.Add(new Room { Id = 21, HotelId = 11, RoomType = "Double", Capacity = 2, TotalRooms = 3, PricePerNight = 75m, Currency = "USD" });
+            await context.SaveChangesAsync();
+            var node = System.Text.Json.Nodes.JsonNode.Parse(Proposal(total: 375m).GetRawText())!;
+            node["booking_details"]!["room_selections"] = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"room_id":20,"check_in":"2026-10-10","check_out":"2026-10-11"},
+                 {"room_id":21,"check_in":"2026-10-11","check_out":"2026-10-12"}]
+                """);
+            await new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
+            var stays = await context.BookingItems.Where(item => item.ItemType == BookingItemType.Room).OrderBy(item => item.CheckInDate).ToListAsync();
+            Assert.Equal(2, stays.Count);
+            Assert.Equal(new decimal[] { 50m, 75m }, stays.Select(item => item.Subtotal));
+            Assert.Equal(stays[0].CheckOutDate, stays[1].CheckInDate);
+            Assert.Equal(375m, (await context.Bookings.SingleAsync()).TotalCost);
+        }
+    }
+
+    [Fact]
+    public async Task HotelStayGapIsRejectedWithoutPartialBooking()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(Proposal().GetRawText())!;
+            node["booking_details"]!["room_selections"] = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"room_id":20,"check_in":"2026-10-10","check_out":"2026-10-11"}]
+                """);
+            var error = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0));
+            Assert.Equal("INVALID_ROOM_STAYS", error.Code);
+            Assert.Empty(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AirportPickupRequiresAnIndexedAirportTransfer()
+    {
+        var (context, connection) = await CreateContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var trip = await context.TripRequests.SingleAsync();
+            trip.AirportPickup = true;
+            var transport = await context.TransportOptions.SingleAsync();
+            transport.RouteFrom = TransportCompatibility.AirportName("CMB");
+            await context.SaveChangesAsync();
+            var node = System.Text.Json.Nodes.JsonNode.Parse(Proposal().GetRawText())!;
+            node["booking_details"]!["transport_selections"] = System.Text.Json.Nodes.JsonNode.Parse("""
+                [{"leg_index":0,"transport_option_id":30}]
+                """);
+            await new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
+            var transfer = await context.BookingItems.SingleAsync(item => item.ItemType == BookingItemType.Transport);
+            Assert.Equal(0, transfer.TransportLegIndex);
+            Assert.Equal(TransportCompatibility.AirportName("CMB"), transfer.TransportRouteFromSnapshot);
+        }
+    }
+
     private static async Task<(AppDbContext Context, SqliteConnection Connection)> CreateThreeDestinationContextAsync()
     {
         var (context, connection) = await CreateContextAsync();

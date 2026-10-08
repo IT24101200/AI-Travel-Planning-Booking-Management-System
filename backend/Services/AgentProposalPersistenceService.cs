@@ -20,6 +20,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         TransportOption Entity,
         decimal UnitPrice,
         decimal Total);
+    private sealed record ValidatedRoomStay(Room Entity, DateTime CheckIn, DateTime CheckOut, decimal Total);
 
     private readonly AppDbContext _db;
     private readonly ICurrencyConversionService _currency;
@@ -112,6 +113,8 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         var tripDays = (trip.EndDate.Date - trip.StartDate.Date).Days + 1;
         var itineraryItems = new List<ItineraryItem>();
         var scheduledDestinationIds = new HashSet<int>();
+        var visitedDestinations = new List<int>();
+        var tourDestinations = new Dictionary<int, int>();
         decimal tourTotal = 0m;
 
         foreach (var day in schedule.EnumerateArray())
@@ -144,6 +147,9 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                 if (requestedDestinationIds.Count > 0 && !requestedDestinationIds.Contains(tour.DestinationId))
                     throw new ProposalPersistenceException("INVALID_TOUR_DESTINATION", $"Tour {tourId} is not in the requested destination.");
                 scheduledDestinationIds.Add(tour.DestinationId);
+                tourDestinations[tour.Id] = tour.DestinationId;
+                if (visitedDestinations.LastOrDefault() != tour.DestinationId)
+                    visitedDestinations.Add(tour.DestinationId);
                 var transactionTourPrice = _currency.Convert(tour.Price, tour.Currency, currency);
                 tourTotal += transactionTourPrice * trip.TravellerCount;
                 itineraryItems.Add(new ItineraryItem
@@ -172,35 +178,57 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             }
         }
 
-        var nights = Math.Max(1, (trip.EndDate.Date - trip.StartDate.Date).Days);
-        var room = RequireObject(bookingDetails, "selected_room");
-        var roomId = RequiredInt(room, "room_id");
-        var roomEntity = await _db.Rooms.Include(r => r.Hotel).FirstOrDefaultAsync(r => r.Id == roomId, cancellationToken);
-        if (roomEntity is null || roomEntity.Status != RoomStatus.Active || roomEntity.Hotel.Status != HotelStatus.Active)
-            throw new ProposalPersistenceException("INVALID_ROOM", $"Room {roomId} is missing or inactive.");
-        if (roomEntity.Capacity < trip.TravellerCount)
-            throw new ProposalPersistenceException("ROOM_CAPACITY", $"Room {roomId} cannot hold all travellers.");
-
-        var bookedRooms = await _db.BookingItems
-            .Where(item => item.RoomId == roomId && item.ItemType == BookingItemType.Room &&
-                item.CheckInDate < trip.EndDate && item.CheckOutDate > trip.StartDate &&
-                TransportInventory.ActiveReservationStatuses.Contains(item.Booking.Status))
-            .SumAsync(item => item.Quantity, cancellationToken);
-        if (bookedRooms >= roomEntity.TotalRooms)
-            throw new ProposalPersistenceException("ROOM_UNAVAILABLE", $"Room {roomId} is not available for the requested dates.");
+        var routeDestinationIds = requestedDestinationIds;
+        var optimizedOrder = OptionalArray(itinerary, "route_destination_ids");
+        if (optimizedOrder.HasValue)
+        {
+            routeDestinationIds = optimizedOrder.Value.EnumerateArray().Select(value => value.GetInt32()).ToList();
+            if (!routeDestinationIds.OrderBy(id => id).SequenceEqual(requestedDestinationIds.OrderBy(id => id)) ||
+                !visitedDestinations.SequenceEqual(routeDestinationIds))
+                throw new ProposalPersistenceException("DESTINATION_BACKTRACKING", "The route must visit every selected destination once and finish its journeys before moving on.");
+            foreach (var day in schedule.EnumerateArray())
+            {
+                var driving = OptionalDecimal(day, "travel_minutes");
+                if (!driving.HasValue || driving < 0 || driving > 360 || RequiredTime(day, "day_end_time") > TimeSpan.FromHours(18))
+                    throw new ProposalPersistenceException("TRAVEL_TIME_INFEASIBLE", "Daily travel must fit within six driving hours and finish by 18:00.");
+            }
+        }
+        var validatedRoomStays = await ValidateRoomStaysAsync(bookingDetails, trip, currency, cancellationToken);
 
         // Resolve and validate every leg before any itinerary or booking save.
         // Prices, route names, snapshots, capacity, and availability all come
         // from the database entities, never from AI-supplied presentation data.
         var validatedTransportSelections = await ValidateTransportSelectionsAsync(
             bookingDetails,
-            requestedDestinationIds,
+            routeDestinationIds,
             trip,
             currency,
             cancellationToken);
+        if (optimizedOrder.HasValue)
+        {
+            foreach (var selection in validatedTransportSelections.Where(s => s.LegIndex.HasValue))
+            {
+                var index = selection.LegIndex!.Value;
+                var offset = trip.AirportPickup ? 1 : 0;
+                var target = routeDestinationIds[index + 1 - offset];
+                var firstVisit = itineraryItems.Where(item => tourDestinations[item.TourId] == target)
+                    .Min(item => trip.StartDate.Date.AddDays(item.DayNumber - 1).Add(item.StartTime));
+                if (selection.Entity.ArrivalTime > firstVisit)
+                    throw new ProposalPersistenceException("TRANSPORT_TIMETABLE_INFEASIBLE", "Transport arrives after the first journey at its destination.");
+                if (index >= offset)
+                {
+                    var source = routeDestinationIds[index - offset];
+                    var lastVisit = itineraryItems.Where(item => tourDestinations[item.TourId] == source)
+                        .Max(item => trip.StartDate.Date.AddDays(item.DayNumber - 1).Add(item.EndTime));
+                    if (selection.Entity.DepartureTime < lastVisit)
+                        throw new ProposalPersistenceException("TRANSPORT_TIMETABLE_INFEASIBLE", "Transport departs before all journeys at its source destination are complete.");
+                }
+                else if (selection.Entity.DepartureTime < trip.StartDate.Date.Add(trip.AirportArrivalTime).AddHours(1))
+                    throw new ProposalPersistenceException("TRANSPORT_TIMETABLE_INFEASIBLE", "Airport pickup departs before the arrival allowance is complete.");
+            }
+        }
 
-        var roomNightlyPrice = _currency.Convert(roomEntity.PricePerNight, roomEntity.Currency, currency);
-        var roomTotal = decimal.Round(roomNightlyPrice * nights, 2, MidpointRounding.AwayFromZero);
+        var roomTotal = validatedRoomStays.Sum(stay => stay.Total);
         var transportTotal = validatedTransportSelections.Sum(selection => selection.Total);
         var calculatedTotal = tourTotal + roomTotal + transportTotal;
         var reportedItineraryTotal = OptionalDecimal(itinerary, "total_estimated_cost") ?? OptionalDecimal(itinerary, "total_cost");
@@ -250,20 +278,17 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     UnitPrice = item.PriceAtSelection,
                     Subtotal = item.PriceAtSelection * trip.TravellerCount,
                     Currency = currency
-                }).Concat(new[]
-                {
-                    new BookingItem
+                }).Concat(validatedRoomStays.Select(stay => new BookingItem
                     {
                     ItemType = BookingItemType.Room,
-                    RoomId = roomEntity.Id,
-                    CheckInDate = trip.StartDate,
-                    CheckOutDate = trip.EndDate,
+                    RoomId = stay.Entity.Id,
+                    CheckInDate = stay.CheckIn,
+                    CheckOutDate = stay.CheckOut,
                     Quantity = 1,
-                    UnitPrice = roomTotal,
-                    Subtotal = roomTotal,
+                    UnitPrice = stay.Total,
+                    Subtotal = stay.Total,
                     Currency = currency
-                    }
-                }).Concat(validatedTransportSelections.Select(selection => new BookingItem
+                    })).Concat(validatedTransportSelections.Select(selection => new BookingItem
                 {
                     ItemType = BookingItemType.Transport,
                     TransportOptionId = selection.Entity.Id,
@@ -334,6 +359,50 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         };
     }
 
+    private async Task<List<ValidatedRoomStay>> ValidateRoomStaysAsync(
+        JsonElement bookingDetails, TripRequest trip, string currency, CancellationToken cancellationToken)
+    {
+        var requested = new List<(int RoomId, DateTime CheckIn, DateTime CheckOut)>();
+        var selections = OptionalArray(bookingDetails, "room_selections");
+        if (selections.HasValue)
+        {
+            var next = trip.StartDate.Date;
+            foreach (var value in selections.Value.EnumerateArray())
+            {
+                var stay = EnsureObject(value, "hotel stay");
+                if (!DateTime.TryParse(OptionalString(stay, "check_in"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var checkIn) ||
+                    !DateTime.TryParse(OptionalString(stay, "check_out"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var checkOut) ||
+                    checkIn.Date != next || checkOut.Date <= checkIn.Date || checkOut.Date > trip.EndDate.Date)
+                    throw new ProposalPersistenceException("INVALID_ROOM_STAYS", "Hotel stays must cover every trip night exactly once in date order.");
+                requested.Add((RequiredInt(stay, "room_id"), checkIn.Date, checkOut.Date));
+                next = checkOut.Date;
+            }
+            if (requested.Count == 0 || next != trip.EndDate.Date)
+                throw new ProposalPersistenceException("INVALID_ROOM_STAYS", "Hotel stays must cover the complete trip.");
+        }
+        else
+            requested.Add((RequiredInt(RequireObject(bookingDetails, "selected_room"), "room_id"), trip.StartDate, trip.EndDate));
+
+        var result = new List<ValidatedRoomStay>();
+        foreach (var stay in requested)
+        {
+            var room = await _db.Rooms.Include(r => r.Hotel).FirstOrDefaultAsync(r => r.Id == stay.RoomId, cancellationToken);
+            if (room is null || room.Status != RoomStatus.Active || room.Hotel.Status != HotelStatus.Active)
+                throw new ProposalPersistenceException("INVALID_ROOM", $"Room {stay.RoomId} is missing or inactive.");
+            if (room.Capacity < trip.TravellerCount)
+                throw new ProposalPersistenceException("ROOM_CAPACITY", $"Room {stay.RoomId} cannot hold all travellers.");
+            var booked = await _db.BookingItems.Where(item => item.RoomId == stay.RoomId && item.ItemType == BookingItemType.Room &&
+                item.CheckInDate < stay.CheckOut && item.CheckOutDate > stay.CheckIn &&
+                TransportInventory.ActiveReservationStatuses.Contains(item.Booking.Status)).SumAsync(item => item.Quantity, cancellationToken);
+            if (booked >= room.TotalRooms)
+                throw new ProposalPersistenceException("ROOM_UNAVAILABLE", $"Room {stay.RoomId} is not available for its planned stay dates.");
+            var nightly = _currency.Convert(room.PricePerNight, room.Currency, currency);
+            result.Add(new ValidatedRoomStay(room, stay.CheckIn, stay.CheckOut,
+                decimal.Round(nightly * Math.Max(1, (stay.CheckOut.Date - stay.CheckIn.Date).Days), 2, MidpointRounding.AwayFromZero)));
+        }
+        return result;
+    }
+
     private async Task<List<ValidatedTransportSelection>> ValidateTransportSelectionsAsync(
         JsonElement bookingDetails,
         IReadOnlyList<int> requestedDestinationIds,
@@ -342,7 +411,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         CancellationToken cancellationToken)
     {
         var requested = new List<(int? LegIndex, int TransportOptionId)>();
-        if (requestedDestinationIds.Count > 1)
+        if (requestedDestinationIds.Count > 1 || trip.AirportPickup)
         {
             var selections = OptionalArray(bookingDetails, "transport_selections");
             if (!selections.HasValue)
@@ -362,7 +431,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                 requested.Add((legIndex, transportOptionId));
             }
 
-            var expectedLegCount = requestedDestinationIds.Count - 1;
+            var expectedLegCount = requestedDestinationIds.Count - 1 + (trip.AirportPickup ? 1 : 0);
             var indexes = requested.Select(selection => selection.LegIndex).ToList();
             if (requested.Count != expectedLegCount ||
                 indexes.Any(index => !index.HasValue || index < 0 || index >= expectedLegCount) ||
@@ -396,7 +465,8 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
                     transport,
                     trip,
                     cancellationToken,
-                    selection.LegIndex);
+                    selection.LegIndex,
+                    requestedDestinationIds);
             }
             catch (TransportBusinessException ex)
             {

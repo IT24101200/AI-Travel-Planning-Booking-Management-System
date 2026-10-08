@@ -134,7 +134,7 @@ internal static class TransportInventory
                 "The booking has no authoritative trip request for transport confirmation.");
 
         var destinationIds = TransportCompatibility.ResolveDestinationIds(trip);
-        var expectedLegCount = Math.Max(0, destinationIds.Count - 1);
+        var expectedLegCount = Math.Max(0, destinationIds.Count - 1) + (trip.AirportPickup ? 1 : 0);
         if (expectedLegCount == 0)
         {
             if (transportItems.Any(item => item.TransportLegIndex.HasValue))

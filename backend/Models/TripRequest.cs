@@ -47,6 +47,11 @@ namespace backend.Models
         [MaxLength(10)]
         public string Currency { get; set; } = "LKR";
 
+        public bool AirportPickup { get; set; }
+        [MaxLength(3)]
+        public string AirportCode { get; set; } = "CMB";
+        public TimeSpan AirportArrivalTime { get; set; } = TimeSpan.FromHours(8);
+
         [Required]
         public TripRequestStatus Status { get; set; } = TripRequestStatus.Pending;
 

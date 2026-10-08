@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 # The tools directory is next to the agents directory. When the agentic-ai
 # directory is the Python working directory, this imports tools/search_tours.py.
 from tools.search_tours import search_tours
+from route_planning import grouped_itinerary, RoutePlanningError
 from destination_contract import (
     DestinationContractError,
     normalize_requested_destinations,
@@ -298,8 +299,16 @@ def build_itinerary(trip_request):
                     "DefaultStartTime",
                 ),
                 "status": _get_tour_value(tour, "status", "Status"),
+                "latitude": _get_tour_value(tour, "latitude", "Latitude"),
+                "longitude": _get_tour_value(tour, "longitude", "Longitude"),
             }
         )
+
+    if len(requested_destinations) > 1 or trip_request.get("airport_pickup") or all(t.get("latitude") is not None for t in available_tours):
+        try:
+            return grouped_itinerary(trip_request, available_tours, requested_destinations)
+        except RoutePlanningError as error:
+            return {"status": "ItineraryFailed", "error_code": error.code, "error": str(error)}
 
     # JSON formatting keeps the structured trip and tour data unambiguous in
     # the prompt. default=str safely represents date-like values if supplied.
@@ -533,6 +542,9 @@ def itinerary_node(state: dict) -> dict:
         or state.get("budget_ceiling"),
         "preferred_activities": state.get("preferred_activities", []),
         "currency": state.get("currency", "LKR"),
+        "airport_pickup": state.get("airport_pickup", False),
+        "airport_code": state.get("airport_code", "CMB"),
+        "airport_arrival_time": state.get("airport_arrival_time", "08:00"),
     }
 
     if not requested_destinations:

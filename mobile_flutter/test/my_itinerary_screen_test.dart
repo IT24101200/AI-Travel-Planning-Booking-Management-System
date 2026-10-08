@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/screens/tours/my_itinerary_screen.dart';
@@ -100,6 +101,100 @@ void main() {
     }
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'planned transfer days and every dated hotel stay are displayed',
+    (tester) async {
+      final itinerary = createSampleItinerary();
+      ApiService.mockGetMyItineraries = () async => [itinerary];
+      ApiService.mockGetItinerary = (_) async => itinerary;
+      const endpoint = {
+        'name': 'East Hotel',
+        'kind': 'hotel',
+        'latitude': 7.29,
+        'longitude': 80.63,
+      };
+      ApiService.mockGetTripRequest = (_) async => {
+        'id': 10,
+        'status': 'Planned',
+        'planJson': jsonEncode({
+          'itinerary': {
+            'schedule': [
+              {
+                'day_number': 1,
+                'items': [
+                  {'tour_id': 4},
+                ],
+                'travel_legs': [],
+                'travel_distance_km': 10,
+                'travel_minutes': 30,
+              },
+              {
+                'day_number': 2,
+                'items': [
+                  {'tour_id': 7},
+                ],
+                'travel_legs': [],
+                'travel_distance_km': 20,
+                'travel_minutes': 45,
+              },
+              {
+                'day_number': 3,
+                'items': [],
+                'travel_legs': [
+                  {'from': endpoint, 'to': endpoint},
+                ],
+                'travel_distance_km': 120,
+                'travel_minutes': 180,
+              },
+            ],
+          },
+        }),
+      };
+      ApiService.mockGetMyBookings = () async => [
+        {
+          'id': 5,
+          'itineraryId': 1,
+          'tripRequestId': 10,
+          'currency': 'LKR',
+          'bookingItems': [
+            {
+              'itemType': 'Room',
+              'hotelName': 'West Hotel',
+              'checkInDate': '2026-10-12',
+              'checkOutDate': '2026-10-14',
+              'subtotal': 2000,
+            },
+            {
+              'itemType': 'Room',
+              'hotelName': 'East Hotel',
+              'checkInDate': '2026-10-14',
+              'checkOutDate': '2026-10-18',
+              'subtotal': 4000,
+            },
+          ],
+        },
+      ];
+      await tester.pumpWidget(buildTestWidget());
+      await tester.pumpAndSettle();
+      expect(find.text('Travel to East Hotel'), findsOneWidget);
+      expect(
+        find.textContaining('Hotel transfer · Day travel: 120 km, 180 min'),
+        findsOneWidget,
+      );
+      await tester.scrollUntilVisible(
+        find.text('West Hotel'),
+        200,
+        scrollable: find.descendant(
+          of: find.byKey(const ValueKey('journey-scroll')),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      expect(find.text('West Hotel'), findsOneWidget);
+      expect(find.text('East Hotel'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('1. Loading state displays indicator and loading text', (
     WidgetTester tester,

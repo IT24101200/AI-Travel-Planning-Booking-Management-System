@@ -99,6 +99,8 @@ namespace backend.Services
                     $"end date ({endDate:yyyy-MM-dd}).");
             }
 
+            if (dto.AirportPickup && (dto.AirportCode is not ("CMB" or "HRI") || dto.AirportArrivalTime < TimeSpan.Zero || dto.AirportArrivalTime >= TimeSpan.FromDays(1)))
+                throw new ArgumentException("Select a valid airport and arrival time for pickup.");
             var destinationIds = NormalizeDestinationIds(dto);
             var destinationEntities = destinationIds.Count == 0
                 ? new List<Destination>()
@@ -139,6 +141,9 @@ namespace backend.Services
                 TravellerCount = dto.TravellerCount,
                 BudgetCeiling = dto.BudgetCeiling,
                 Currency = dto.Currency,
+                AirportPickup = dto.AirportPickup,
+                AirportCode = dto.AirportCode,
+                AirportArrivalTime = dto.AirportArrivalTime,
                 Status = TripRequestStatus.Pending,
                 RetryCount = 0,
                 CreatedAt = DateTime.UtcNow
@@ -505,6 +510,9 @@ namespace backend.Services
                 TravellerCount = t.TravellerCount,
                 BudgetCeiling = t.BudgetCeiling,
                 Currency = t.Currency,
+                AirportPickup = t.AirportPickup,
+                AirportCode = t.AirportCode,
+                AirportArrivalTime = t.AirportArrivalTime,
                 Status = t.Status.ToString(),
                 RetryCount = t.RetryCount,
                 PlanJson = t.PlanJson,

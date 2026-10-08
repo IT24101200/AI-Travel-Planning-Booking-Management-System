@@ -50,6 +50,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
   bool _isSatellite = false;
   List<MapStopItem> _stops = [];
   List<LatLng> _roadPoints = [];
+  Map<int, List<LatLng>> _dayRoutes = {};
+  List<LatLng> _hotels = [];
+  List<LatLng> _airports = [];
+  List<int> _stopDays = [];
   String _tripTitle = 'Trip route';
   String _totalKm = '0';
   String? _routeError;
@@ -64,7 +68,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
   Future<void> _loadRoute() async {
     final args = ModalRoute.of(context)?.settings.arguments;
     if (args is! Map) {
-      setState(() => _routeError = 'Open this map from a saved itinerary to see its route.');
+      setState(
+        () => _routeError =
+            'Open this map from a saved itinerary to see its route.',
+      );
       return;
     }
     setState(() => _routeError = null);
@@ -76,6 +83,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
       setState(() {
         _tripTitle = args['title']?.toString() ?? 'Your trip route';
         _roadPoints = route.points;
+        _dayRoutes = route.dayRoutes;
+        _hotels = route.hotelPoints;
+        _airports = route.airportPoints;
+        _stopDays = route.stops
+            .map((s) => int.tryParse('${s.item['dayNumber']}') ?? 1)
+            .toList();
         _missingStops = route.missingStops;
         _totalKm = (route.distanceMeters / 1000).toStringAsFixed(1);
         _activeStopIndex = 0;
@@ -93,7 +106,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
             image: AppDestinations.getImageForDestination(name),
             latLng: entry.value.point,
             icon: Icons.location_on,
-            color: AppColors.figmaDarkGreen,
+            color: const Color(0xFF2563A6),
           );
         }).toList();
       });
@@ -113,7 +126,17 @@ class _TripMapScreenState extends State<TripMapScreen> {
     if (index < 0 || index >= _stops.length) return;
     setState(() => _activeStopIndex = index);
     final stop = _stops[index];
-    _mapController.move(stop.latLng, 9.8);
+    final camera = _mapController.camera;
+    final points = [stop.latLng, ...?_dayRoutes[_stopDays[index]]];
+    if (!points.every(camera.visibleBounds.contains)) {
+      _mapController.fitCamera(
+        CameraFit.bounds(
+          bounds: LatLngBounds.fromPoints(points),
+          padding: const EdgeInsets.all(60),
+          maxZoom: camera.zoom,
+        ),
+      );
+    }
   }
 
   /// Fits all stops in camera view
@@ -124,7 +147,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
     _mapController.fitCamera(
       CameraFit.bounds(
         bounds: bounds,
-        padding: EdgeInsets.fromLTRB(50, 120, 50, MediaQuery.sizeOf(context).height * 0.35),
+        padding: EdgeInsets.fromLTRB(
+          50,
+          120,
+          50,
+          MediaQuery.sizeOf(context).height * 0.35,
+        ),
         maxZoom: 15,
       ),
     );
@@ -135,15 +163,23 @@ class _TripMapScreenState extends State<TripMapScreen> {
     if (_stops.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Trip route')),
-        body: Center(child: _routeError == null
-            ? const CircularProgressIndicator()
-            : Padding(padding: const EdgeInsets.all(24), child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(_routeError!, textAlign: TextAlign.center),
-                  TextButton(onPressed: _loadRoute, child: const Text('Retry directions')),
-                ],
-              ))),
+        body: Center(
+          child: _routeError == null
+              ? const CircularProgressIndicator()
+              : Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(_routeError!, textAlign: TextAlign.center),
+                      TextButton(
+                        onPressed: _loadRoute,
+                        child: const Text('Retry directions'),
+                      ),
+                    ],
+                  ),
+                ),
+        ),
       );
     }
     final activeStop = _stops[_activeStopIndex];
@@ -159,8 +195,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
               mapController: _mapController,
               options: MapOptions(
                 initialCameraFit: CameraFit.bounds(
-                  bounds: LatLngBounds.fromPoints([..._roadPoints, ..._stops.map((s) => s.latLng)]),
-                  padding: EdgeInsets.fromLTRB(50, 120, 50, MediaQuery.sizeOf(context).height * 0.35),
+                  bounds: LatLngBounds.fromPoints([
+                    ..._roadPoints,
+                    ..._stops.map((s) => s.latLng),
+                  ]),
+                  padding: EdgeInsets.fromLTRB(
+                    50,
+                    120,
+                    50,
+                    MediaQuery.sizeOf(context).height * 0.35,
+                  ),
                   maxZoom: 15,
                 ),
                 minZoom: 1,
@@ -184,35 +228,69 @@ class _TripMapScreenState extends State<TripMapScreen> {
                     polylines: [
                       Polyline(
                         points: routePoints,
-                        color: const Color(0xFF0F4735).withValues(alpha: 0.92),
+                        color: const Color(0xFF2563A6),
                         strokeWidth: 4.5,
-                        borderColor: AppColors.figmaGold,
+                        borderColor: Colors.white,
                         borderStrokeWidth: 1.8,
                       ),
+                      if ((_dayRoutes[_stopDays[_activeStopIndex]]?.length ??
+                              0) >
+                          1)
+                        Polyline(
+                          points: _dayRoutes[_stopDays[_activeStopIndex]]!,
+                          color: const Color(0xFFFCA5A5),
+                          strokeWidth: 5,
+                          borderColor: Colors.white,
+                          borderStrokeWidth: 1,
+                        ),
                     ],
                   ),
 
                 // Interactive Markers positioned at real Sri Lankan GPS waypoints
                 MarkerLayer(
-                  markers: _stops.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final stop = entry.value;
-                    final isSelected = index == _activeStopIndex;
+                  markers: [
+                    ..._stops.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final stop = entry.value;
+                      final isSelected = index == _activeStopIndex;
 
-                    return Marker(
-                      point: stop.latLng,
-                      width: isSelected ? 50 : 40,
-                      height: isSelected ? 50 : 40,
-                      child: GestureDetector(
-                        onTap: () => _focusStop(index),
-                        child: _buildMapPin(
-                          icon: stop.icon,
-                          color: stop.color,
-                          isSelected: isSelected,
+                      return Marker(
+                        point: stop.latLng,
+                        width: isSelected ? 50 : 40,
+                        height: isSelected ? 50 : 40,
+                        child: GestureDetector(
+                          onTap: () => _focusStop(index),
+                          child: _buildMapPin(
+                            icon: stop.icon,
+                            color: stop.color,
+                            isSelected: isSelected,
+                          ),
+                        ),
+                      );
+                    }),
+                    for (final p in _hotels)
+                      Marker(
+                        point: p,
+                        width: 30,
+                        height: 30,
+                        child: const Icon(
+                          Icons.hotel,
+                          color: Color(0xFF2563A6),
+                          size: 28,
                         ),
                       ),
-                    );
-                  }).toList(),
+                    for (final p in _airports)
+                      Marker(
+                        point: p,
+                        width: 30,
+                        height: 30,
+                        child: const Icon(
+                          Icons.flight,
+                          color: Color(0xFF2563A6),
+                          size: 28,
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -228,7 +306,9 @@ class _TripMapScreenState extends State<TripMapScreen> {
                 borderRadius: BorderRadius.circular(12),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
-                  child: Text('Route incomplete. Missing GPS: ${_missingStops.toSet().join(', ')}'),
+                  child: Text(
+                    'Route incomplete. Missing GPS: ${_missingStops.toSet().join(', ')}',
+                  ),
                 ),
               ),
             ),
@@ -302,7 +382,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           duration: const Duration(seconds: 1),
-                          content: Text(_isSatellite ? 'Switched to Satellite View' : 'Switched to Street Map'),
+                          content: Text(
+                            _isSatellite
+                                ? 'Switched to Satellite View'
+                                : 'Switched to Street Map',
+                          ),
                         ),
                       );
                     },
@@ -310,12 +394,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: _isSatellite ? AppColors.figmaGold : Theme.of(context).cardColor,
+                        color: _isSatellite
+                            ? AppColors.figmaGold
+                            : Theme.of(context).cardColor,
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
                         Icons.layers_outlined,
-                        color: _isSatellite ? Colors.white : Theme.of(context).colorScheme.primary,
+                        color: _isSatellite
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.primary,
                         size: 18,
                       ),
                     ),
@@ -349,7 +437,10 @@ class _TripMapScreenState extends State<TripMapScreen> {
                   const SizedBox(height: 6),
                   _buildLegendItem(Icons.hotel_outlined, 'Hotel'),
                   const SizedBox(height: 6),
-                  _buildLegendItem(Icons.account_balance_outlined, 'Attraction'),
+                  _buildLegendItem(
+                    Icons.account_balance_outlined,
+                    'Attraction',
+                  ),
                   const SizedBox(height: 6),
                   _buildLegendItem(Icons.directions_car_outlined, 'Transport'),
                 ],
@@ -418,8 +509,14 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.chevron_left, size: 22, color: Color(0xFF6B7280)),
-                        onPressed: _activeStopIndex > 0 ? () => _focusStop(_activeStopIndex - 1) : null,
+                        icon: const Icon(
+                          Icons.chevron_left,
+                          size: 22,
+                          color: Color(0xFF6B7280),
+                        ),
+                        onPressed: _activeStopIndex > 0
+                            ? () => _focusStop(_activeStopIndex - 1)
+                            : null,
                       ),
                       Container(
                         width: 36,
@@ -432,7 +529,11 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       IconButton(
                         visualDensity: VisualDensity.compact,
                         padding: EdgeInsets.zero,
-                        icon: const Icon(Icons.chevron_right, size: 22, color: Color(0xFF6B7280)),
+                        icon: const Icon(
+                          Icons.chevron_right,
+                          size: 22,
+                          color: Color(0xFF6B7280),
+                        ),
                         onPressed: _activeStopIndex < _stops.length - 1
                             ? () => _focusStop(_activeStopIndex + 1)
                             : null,
@@ -454,14 +555,16 @@ class _TripMapScreenState extends State<TripMapScreen> {
                                 width: 80,
                                 height: 80,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _buildPlaceholderThumbnail(),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildPlaceholderThumbnail(),
                               )
                             : Image.network(
                                 activeStop.image,
                                 width: 80,
                                 height: 80,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => _buildPlaceholderThumbnail(),
+                                errorBuilder: (context, error, stackTrace) =>
+                                    _buildPlaceholderThumbnail(),
                               ),
                       ),
                       const SizedBox(width: 14),
@@ -606,10 +709,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
       width: 80,
       height: 80,
       color: const Color(0xFFE5E7EB),
-      child: const Icon(
-        Icons.landscape,
-        color: Color(0xFF9CA3AF),
-      ),
+      child: const Icon(Icons.landscape, color: Color(0xFF9CA3AF)),
     );
   }
 
@@ -654,7 +754,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
         color: color,
         shape: BoxShape.circle,
         border: Border.all(
-          color: isSelected ? AppColors.figmaGold : Colors.white,
+          color: isSelected ? const Color(0xFFFCA5A5) : Colors.white,
           width: isSelected ? 3.0 : 2.5,
         ),
         boxShadow: [
@@ -665,11 +765,7 @@ class _TripMapScreenState extends State<TripMapScreen> {
           ),
         ],
       ),
-      child: Icon(
-        icon,
-        color: Colors.white,
-        size: isSelected ? 24 : 18,
-      ),
+      child: Icon(icon, color: Colors.white, size: isSelected ? 24 : 18),
     );
   }
 

@@ -25,6 +25,8 @@ def _tour(tour_id, destination_id, destination_name):
         "category": "Culture",
         "default_start_time": "09:00:00",
         "status": "Active",
+        "latitude": 7.0,
+        "longitude": 80.0 + destination_id / 100,
     }
 
 
@@ -58,6 +60,15 @@ class _UnavailableLlmClient:
         return _UnavailableLlmResponse()
 
 
+class _OfflineRoads:
+    def __init__(self, records):
+        pass
+
+    def leg(self, a, b):
+        distance = abs(a['longitude'] - b['longitude']) * 100
+        return distance, distance * 1.5
+
+
 def test_exact_three_destinations_are_searched_and_scheduled_in_order():
     tours = [
         _tour(101, 11, "Anuradhapura"),
@@ -70,7 +81,7 @@ def test_exact_three_destinations_are_searched_and_scheduled_in_order():
         calls.append(destination_id)
         return [tour for tour in tours if tour["destination_id"] == destination_id]
 
-    with patch("agents.itinerary_agent.search_tours", side_effect=search), patch(
+    with patch("route_planning.RoadMatrix", _OfflineRoads), patch("agents.itinerary_agent.search_tours", side_effect=search), patch(
         "httpx.Client", return_value=_UnavailableLlmClient()
     ), patch.dict(os.environ, {"GOOGLE_API_KEY_ITINERARY": "test-key"}):
         result = build_itinerary(_request())
@@ -125,7 +136,7 @@ def test_validation_rejects_missing_jaffna_coverage():
 def test_single_destination_legacy_contract_still_works():
     request = _request(DESTINATIONS[:1])
     request.pop("requested_destinations")
-    with patch(
+    with patch("route_planning.RoadMatrix", _OfflineRoads), patch(
         "agents.itinerary_agent.search_tours",
         return_value=[_tour(101, 11, "Anuradhapura")],
     ), patch("httpx.Client", return_value=_UnavailableLlmClient()), patch.dict(

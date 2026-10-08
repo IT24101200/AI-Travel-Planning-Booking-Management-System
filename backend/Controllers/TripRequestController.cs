@@ -585,6 +585,9 @@ namespace backend.Controllers
                     traveller_count = trip.TravellerCount,
                     budget_ceiling = (double)trip.BudgetCeiling,
                     currency = trip.Currency,
+                    airport_pickup = trip.AirportPickup,
+                    airport_code = trip.AirportCode,
+                    airport_arrival_time = trip.AirportArrivalTime.ToString(@"hh\:mm"),
                     retry_count = trip.RetryCount,
                     preferred_activities = preferredActivities
                 };

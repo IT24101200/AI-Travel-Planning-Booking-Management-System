@@ -60,6 +60,16 @@ def test_valid_package_builds_backend_dto_with_exactly_one_fk_per_item():
     assert checks["approval_gate_enforced"] is True
 
 
+def test_legacy_same_day_package_keeps_one_night_minimum():
+    state = _state(end_date="2026-10-01T00:00:00Z")
+    state["booking_details"]["total_cost"] = 750
+    state["booking_details"]["total_package_cost"] = 750
+    payload, _ = validate_and_build_booking(state)
+    assert payload["totalCost"] == 750
+    room = next(item for item in payload["items"] if item["itemType"] == 1)
+    assert room["unitPrice"] == 100
+
+
 def _multi_leg_state(**overrides):
     itinerary = {
         "itinerary_id": 22,

@@ -7,6 +7,7 @@ backend/appsettings.Development.json
 backend.Tests/bin/
 backend.Tests/obj/
 tools/DemoTravelCatalogueImporter/obj/
+tools/DemoTravelCatalogueImporter/bin/
 /witch main
 main.py
 

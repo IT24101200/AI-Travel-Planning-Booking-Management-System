@@ -52,6 +52,9 @@ class TripPipelineRequest(BaseModel):
     traveller_count: int = Field(1, description="Number of travellers")
     budget_ceiling: float = Field(..., description="Budget ceiling")
     currency: str = Field("USD", description="Currency code")
+    airport_pickup: bool = False
+    airport_code: str = Field("CMB", pattern="^(CMB|HRI)$")
+    airport_arrival_time: str = Field("08:00", pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d(?::00)?$")
     retry_count: Optional[int] = Field(0, description="Initial retry count")
     preferred_activities: Optional[list[str]] = Field(default_factory=list)
 

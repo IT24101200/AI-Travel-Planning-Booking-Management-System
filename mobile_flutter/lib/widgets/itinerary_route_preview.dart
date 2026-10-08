@@ -3,18 +3,23 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../services/itinerary_route_service.dart';
+import '../services/date_time_contract.dart';
 
 class ItineraryRoutePreview extends StatefulWidget {
   const ItineraryRoutePreview({
     super.key,
     required this.itinerary,
     this.selectedItem,
+    this.booking,
     this.routeLoader = ItineraryRouteService.load,
+    this.hotelRouteLoader = ItineraryRouteService.fetchRoadRoute,
     this.tileProvider,
   });
   final Map<String, dynamic> itinerary;
   final Map<String, dynamic>? selectedItem;
+  final Map<String, dynamic>? booking;
   final Future<ItineraryRoadRoute> Function(Map<String, dynamic>) routeLoader;
+  final Future<ItineraryRoadRoute> Function(List<LatLng>) hotelRouteLoader;
   final TileProvider? tileProvider;
 
   @override
@@ -26,11 +31,15 @@ class _JourneyPreviewMap extends StatefulWidget {
     super.key,
     required this.route,
     required this.selectedItem,
+    required this.hotelPoint,
+    required this.hotelRouteLoader,
     this.tileProvider,
   });
 
   final ItineraryRoadRoute route;
   final Map<String, dynamic>? selectedItem;
+  final LatLng? hotelPoint;
+  final Future<ItineraryRoadRoute> Function(List<LatLng>) hotelRouteLoader;
   final TileProvider? tileProvider;
 
   @override
@@ -48,6 +57,10 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
   double _zoomFrom = 0;
   double _zoomTo = 0;
   bool _mapReady = false;
+  final _hotelRoutes = <String, ItineraryRoadRoute>{};
+  ItineraryRoadRoute? _hotelRoute;
+  String? _hotelRouteError;
+  int _routeRequest = 0;
 
   double get _progress => Curves.easeInOutCubic.transform(_animation.value);
 
@@ -81,6 +94,13 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
     return null;
   }
 
+  List<LatLng> get _selectedDayPoints =>
+      widget.route.dayRoutes[int.tryParse(
+        '${widget.selectedItem?['dayNumber'] ?? widget.route.stops.first.item['dayNumber']}',
+      )] ??
+      _hotelRoute?.points ??
+      const [];
+
   @override
   void initState() {
     super.initState();
@@ -90,13 +110,42 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
       duration: const Duration(milliseconds: 550),
       value: 1,
     )..addListener(_moveCamera);
+    _loadHotelRoute();
   }
 
   @override
   void didUpdateWidget(_JourneyPreviewMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_sameItem(oldWidget.selectedItem, widget.selectedItem)) {
+    if (!_sameItem(oldWidget.selectedItem, widget.selectedItem) ||
+        oldWidget.hotelPoint != widget.hotelPoint) {
       _focusSelectedStop();
+      _loadHotelRoute();
+    }
+  }
+
+  Future<void> _loadHotelRoute() async {
+    final request = ++_routeRequest;
+    final origin = widget.hotelPoint;
+    final destination = _selectedStop?.point;
+    setState(() {
+      _hotelRoute = null;
+      _hotelRouteError = null;
+    });
+    if (origin == null || destination == null || origin == destination) return;
+    if (widget.route.dayRoutes.isNotEmpty) return;
+    final key = '$origin/$destination';
+    try {
+      final route =
+          _hotelRoutes[key] ??
+          await widget.hotelRouteLoader([origin, destination]);
+      if (!mounted || request != _routeRequest) return;
+      _hotelRoutes[key] = route;
+      setState(() => _hotelRoute = route);
+    } catch (_) {
+      if (!mounted || request != _routeRequest) return;
+      setState(() {
+        _hotelRouteError = 'Hotel directions unavailable.';
+      });
     }
   }
 
@@ -116,10 +165,24 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
     _animation.stop();
     _dotFrom = currentDot;
     _dotTo = stop.point;
-    _cameraFrom = camera.center;
-    _cameraTo = stop.point;
+    final focusPoints = [
+      stop.point,
+      if (widget.route.dayRoutes.isEmpty) ?widget.hotelPoint,
+      ..._selectedDayPoints,
+    ];
+    _cameraFrom = _cameraTo = null;
     _zoomFrom = camera.zoom;
-    _zoomTo = 14.5;
+    _zoomTo = camera.zoom;
+    if (!focusPoints.every(camera.visibleBounds.contains)) {
+      final fitted = CameraFit.bounds(
+        bounds: LatLngBounds.fromPoints(focusPoints),
+        padding: const EdgeInsets.fromLTRB(32, 64, 32, 32),
+        maxZoom: camera.zoom,
+      ).fit(camera);
+      _cameraFrom = camera.center;
+      _cameraTo = fitted.center;
+      _zoomTo = fitted.zoom;
+    }
     _animation.forward(from: 0);
   }
 
@@ -140,6 +203,7 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
             bounds: LatLngBounds.fromPoints([
               ...widget.route.points,
               ...widget.route.stops.map((s) => s.point),
+              ?widget.hotelPoint,
             ]),
             padding: const EdgeInsets.fromLTRB(32, 64, 32, 32),
             maxZoom: 15,
@@ -170,22 +234,56 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
             userAgentPackageName: 'com.serendibtrails.travel',
             tileProvider: widget.tileProvider,
           ),
-          if (widget.route.points.length > 1)
+          if (widget.route.points.length > 1 || _hotelRoute != null)
             PolylineLayer(
               polylines: [
                 Polyline(
                   points: widget.route.points,
-                  color: const Color(0xFF0E382C),
+                  color: const Color(0xFF2563A6),
                   strokeWidth: 4,
                   borderStrokeWidth: 1.5,
-                  borderColor: const Color(0xFFD4A346),
+                  borderColor: Colors.white,
                 ),
+                if (_selectedDayPoints.length > 1)
+                  Polyline(
+                    points: _selectedDayPoints,
+                    color: const Color(0xFFFCA5A5),
+                    strokeWidth: 5,
+                    borderStrokeWidth: 1,
+                    borderColor: Colors.white,
+                  ),
               ],
             ),
           AnimatedBuilder(
             animation: _animation,
             builder: (context, _) => MarkerLayer(
               markers: [
+                for (final hotel in {
+                  ...widget.route.hotelPoints,
+                  ?widget.hotelPoint,
+                })
+                  Marker(
+                    point: hotel,
+                    width: 30,
+                    height: 30,
+                    child: const Icon(
+                      Icons.hotel,
+                      color: Color(0xFF2563A6),
+                      size: 28,
+                      semanticLabel: 'Booked hotel',
+                    ),
+                  ),
+                for (final airport in widget.route.airportPoints)
+                  Marker(
+                    point: airport,
+                    width: 30,
+                    height: 30,
+                    child: const Icon(
+                      Icons.flight,
+                      color: Color(0xFF2563A6),
+                      size: 28,
+                    ),
+                  ),
                 ...widget.route.stops
                     .where(
                       (stop) => stop.point != _dotTo && stop.point != _dotPoint,
@@ -197,7 +295,7 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
                         height: 26,
                         child: const Icon(
                           Icons.location_on,
-                          color: Color(0xFF0E382C),
+                          color: Color(0xFF2563A6),
                           size: 26,
                         ),
                       ),
@@ -212,12 +310,12 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
                       key: const ValueKey('journey-location-dot'),
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7DD3FC).withValues(alpha: 0.25),
+                        color: const Color(0xFF2563A6).withValues(alpha: 0.25),
                         shape: BoxShape.circle,
                       ),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFF7DD3FC),
+                          color: const Color(0xFF2563A6),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
                         ),
@@ -250,12 +348,62 @@ class _JourneyPreviewMapState extends State<_JourneyPreviewMap>
             ),
           ),
         ),
+      if (_hotelRouteError != null)
+        Positioned(
+          left: 12,
+          bottom: 26,
+          child: Material(
+            borderRadius: BorderRadius.circular(8),
+            child: TextButton(
+              onPressed: _loadHotelRoute,
+              child: Text('$_hotelRouteError Retry'),
+            ),
+          ),
+        ),
     ],
   );
 }
 
 class _ItineraryRoutePreviewState extends State<ItineraryRoutePreview> {
   late Future<ItineraryRoadRoute> _route;
+
+  LatLng? get _hotelPoint {
+    final items =
+        widget.booking?['bookingItems'] ?? widget.itinerary['bookingItems'];
+    if (items is! List) return null;
+    final selected =
+        widget.selectedItem ??
+        ItineraryRouteService.orderedItems(widget.itinerary).firstOrNull;
+    final start = parseDateOnly(widget.itinerary['startDate']);
+    final day = int.tryParse('${selected?['dayNumber']}') ?? 1;
+    final date = start?.add(Duration(days: day - 1));
+    LatLng? checkoutHotel;
+    for (final item in items.whereType<Map>()) {
+      final type = item['itemType']?.toString().toLowerCase();
+      if (type != 'room' &&
+          type != 'hotel' &&
+          type != '1' &&
+          item['hotelName'] == null) {
+        continue;
+      }
+      final point = ItineraryRouteService.coordinates({
+        'latitude': item['hotelLatitude'],
+        'longitude': item['hotelLongitude'],
+      });
+      if (point == null) continue;
+      final checkIn = parseDateOnly(item['checkInDate']);
+      final checkOut = parseDateOnly(item['checkOutDate']);
+      if (date != null) {
+        if (checkIn != null && date.isBefore(checkIn)) continue;
+        if (checkOut != null && !date.isBefore(checkOut)) {
+          if (date == checkOut) checkoutHotel = point;
+          continue;
+        }
+      }
+      return point;
+    }
+    return checkoutHotel;
+  }
 
   Future<ItineraryRoadRoute> _loadRoute() {
     final future = widget.routeLoader(widget.itinerary);
@@ -325,6 +473,8 @@ class _ItineraryRoutePreviewState extends State<ItineraryRoutePreview> {
                 key: ValueKey(route),
                 route: route,
                 selectedItem: widget.selectedItem,
+                hotelPoint: _hotelPoint,
+                hotelRouteLoader: widget.hotelRouteLoader,
                 tileProvider: widget.tileProvider,
               ),
               Positioned(

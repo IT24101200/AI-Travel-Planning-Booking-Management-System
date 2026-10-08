@@ -178,30 +178,51 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                 + ", ".join(str(destination_id) for destination_id in sorted(missing_ids)),
             )
 
-    room = _require_mapping(booking.get("selected_room"), "selected_room")
-    room_id = _positive_int(room.get("room_id") or room.get("roomId"), "room_id")
-    room_price = _decimal(
-        room.get("price_per_night", room.get("pricePerNight")),
-        "room price_per_night",
-    )
-    room_total = room_price * nights
-    calculated_total += room_total
-    items.append(
-        {
-            "itemType": 1,
-            "roomId": room_id,
-            "checkInDate": state.get("start_date"),
-            "checkOutDate": state.get("end_date"),
-            "quantity": 1,
-            # Quantity represents rooms for the backend availability count, so
-            # UnitPrice snapshots the complete stay rather than the nightly rate.
-            "unitPrice": float(room_total),
-        }
-    )
+    selections = booking.get("room_selections")
+    legacy_room = selections is None
+    if selections is None:
+        selections = [{**_require_mapping(booking.get("selected_room"), "selected_room"),
+                       "check_in": state.get("start_date"), "check_out": state.get("end_date")}]
+    if not isinstance(selections, list) or not selections:
+        raise PackageValidationError("INVALID_ROOM_STAYS", "At least one dated hotel stay is required.")
+    expected_check_in = datetime.fromisoformat(str(state["start_date"]).replace("Z", "+00:00")).date()
+    trip_end = datetime.fromisoformat(str(state["end_date"]).replace("Z", "+00:00")).date()
+    for value in selections:
+        room = _require_mapping(value, "room stay")
+        room_id = _positive_int(room.get("room_id") or room.get("roomId"), "room_id")
+        check_in = datetime.fromisoformat(str(room["check_in"]).replace("Z", "+00:00")).date()
+        check_out = datetime.fromisoformat(str(room["check_out"]).replace("Z", "+00:00")).date()
+        same_day_legacy = legacy_room and check_in == check_out == trip_end
+        if check_in != expected_check_in or (check_out <= check_in and not same_day_legacy) or check_out > trip_end:
+            raise PackageValidationError("INVALID_ROOM_STAYS", "Hotel stays must cover every trip night exactly once, in date order.")
+        expected_check_in = check_out
+        room_price = _decimal(room.get("price_per_night", room.get("pricePerNight")), "room price_per_night")
+        room_total = room_price * max(1, (check_out - check_in).days)
+        calculated_total += room_total
+        items.append({"itemType": 1, "roomId": room_id,
+                      "checkInDate": check_in.isoformat(), "checkOutDate": check_out.isoformat(),
+                      "quantity": 1, "unitPrice": float(room_total)})
+    if expected_check_in != trip_end:
+        raise PackageValidationError("INVALID_ROOM_STAYS", "Hotel stays do not cover the complete trip.")
 
-    if len(requested_destinations) > 1:
+    route_ids = itinerary.get("route_destination_ids")
+    if route_ids is not None:
+        if sorted(route_ids) != sorted(d["destination_id"] for d in requested_destinations):
+            raise PackageValidationError("INVALID_DESTINATION_ORDER", "The optimized route must contain every requested destination exactly once.")
+        visited = []
+        for day in schedule:
+            if _decimal(day.get("travel_minutes", 0), "daily driving") > 360:
+                raise PackageValidationError("TRAVEL_TIME_INFEASIBLE", "A day exceeds six hours driving.")
+            for item in day.get("items", []):
+                destination = item.get("destination_id")
+                if not visited or visited[-1] != destination:
+                    visited.append(destination)
+        if visited != route_ids:
+            raise PackageValidationError("DESTINATION_BACKTRACKING", "Complete a destination's journeys before travelling to the next destination.")
+
+    if len(requested_destinations) > 1 or state.get("airport_pickup"):
         selections = booking.get("transport_selections")
-        expected_count = len(requested_destinations) - 1
+        expected_count = len(requested_destinations) - 1 + int(bool(state.get("airport_pickup")))
         if not isinstance(selections, list) or len(selections) != expected_count:
             raise PackageValidationError(
                 "TRANSPORT_LEG_COVERAGE_INCOMPLETE",
@@ -334,6 +355,8 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
             "customer_id": state.get("customer_id"),
             "requested_destinations": state.get("requested_destinations", []),
             "destination_ids": state.get("destination_ids", []),
+            "airport_pickup": state.get("airport_pickup", False),
+            "airport_code": state.get("airport_code", "CMB"),
             "plan_summary": state.get("plan_summary", {}),
             "itinerary": state.get("itinerary", {}),
             "booking_details": state.get("booking_details", {}),

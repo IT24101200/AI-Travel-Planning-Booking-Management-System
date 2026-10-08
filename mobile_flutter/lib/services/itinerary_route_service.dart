@@ -17,11 +17,17 @@ class ItineraryRoadRoute {
     this.points,
     this.distanceMeters, {
     this.missingStops = const [],
+    this.dayRoutes = const {},
+    this.hotelPoints = const [],
+    this.airportPoints = const [],
   });
   final List<ItineraryRouteStop> stops;
   final List<LatLng> points;
   final double distanceMeters;
   final List<String> missingStops;
+  final Map<int, List<LatLng>> dayRoutes;
+  final List<LatLng> hotelPoints;
+  final List<LatLng> airportPoints;
 }
 
 class ItineraryRouteService {
@@ -66,7 +72,10 @@ class ItineraryRouteService {
     return items;
   }
 
-  static Future<ItineraryRoadRoute> load(Map itinerary) async {
+  static Future<ItineraryRoadRoute> load(
+    Map itinerary, {
+    http.Client? client,
+  }) async {
     final items = orderedItems(itinerary);
     if (items.isEmpty) {
       throw const ApiException('This itinerary has no map stops yet.');
@@ -93,6 +102,50 @@ class ItineraryRouteService {
         continue;
       }
       stops.add(ItineraryRouteStop(item, point));
+    }
+    final travelSchedule = itinerary['travelSchedule'];
+    if (travelSchedule is List) {
+      final dayRoutes = <int, List<LatLng>>{};
+      final hotels = <LatLng>{};
+      final airports = <LatLng>{};
+      final allPoints = <LatLng>[];
+      double distance = 0;
+      for (final day in travelSchedule.whereType<Map>()) {
+        final dayNumber = int.tryParse('${day['day_number']}');
+        final legs = day['travel_legs'];
+        if (dayNumber == null || legs is! List) continue;
+        final waypoints = <LatLng>[];
+        for (final leg in legs.whereType<Map>()) {
+          for (final endpoint in [leg['from'], leg['to']]) {
+            if (endpoint is! Map) continue;
+            final p = coordinates(endpoint);
+            if (p == null) {
+              throw const ApiException(
+                'A planned travel leg has missing GPS coordinates.',
+              );
+            }
+            if (endpoint['kind'] == 'hotel') hotels.add(p);
+            if (endpoint['kind'] == 'airport') airports.add(p);
+            if (waypoints.isEmpty || waypoints.last != p) waypoints.add(p);
+          }
+        }
+        final road = await _cachedRoadRoute(waypoints, client: client);
+        dayRoutes[dayNumber] = road.points;
+        allPoints.addAll(road.points);
+        distance += road.distanceMeters;
+      }
+      if (stops.isEmpty) {
+        throw const ApiException('This itinerary has no map stops yet.');
+      }
+      return ItineraryRoadRoute(
+        stops,
+        allPoints,
+        distance,
+        missingStops: missingStops,
+        dayRoutes: dayRoutes,
+        hotelPoints: hotels.toList(),
+        airportPoints: airports.toList(),
+      );
     }
     // Remove only consecutive duplicates; preserve return visits and stop order.
     final waypoints = <LatLng>[];
@@ -124,7 +177,7 @@ class ItineraryRouteService {
         missingStops: missingStops,
       );
     }
-    final route = await fetchRoadRoute(waypoints);
+    final route = await fetchRoadRoute(waypoints, client: client);
     final result = ItineraryRoadRoute(
       stops,
       route.points,
@@ -134,6 +187,18 @@ class ItineraryRouteService {
     if (_cache.length >= 20) _cache.remove(_cache.keys.first);
     _cache[key] = result;
     return result;
+  }
+
+  static Future<ItineraryRoadRoute> _cachedRoadRoute(
+    List<LatLng> points, {
+    http.Client? client,
+  }) async {
+    if (points.length < 2) return ItineraryRoadRoute([], points, 0);
+    final key = points.map((p) => '${p.longitude},${p.latitude}').join(';');
+    if (_cache.containsKey(key)) return _cache[key]!;
+    final route = await fetchRoadRoute(points, client: client);
+    if (_cache.length >= 20) _cache.remove(_cache.keys.first);
+    return _cache[key] = route;
   }
 
   static Future<ItineraryRoadRoute> fetchRoadRoute(

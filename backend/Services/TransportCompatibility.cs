@@ -32,7 +32,8 @@ public static class TransportCompatibility
         TransportOption transport,
         TripRequest trip,
         CancellationToken cancellationToken = default,
-        int? transportLegIndex = null)
+        int? transportLegIndex = null,
+        IReadOnlyList<int>? plannedDestinationIds = null)
     {
         if (transport.ArrivalTime <= transport.DepartureTime)
         {
@@ -50,7 +51,7 @@ public static class TransportCompatibility
                 "The selected transport schedule is outside the requested trip dates.");
         }
 
-        var destinationIds = ResolveDestinationIds(trip);
+        var destinationIds = plannedDestinationIds?.ToList() ?? ResolveDestinationIds(trip);
         if (destinationIds.Count == 0)
         {
             throw new TransportBusinessException(
@@ -70,7 +71,7 @@ public static class TransportCompatibility
                 "One or more requested destinations could not be resolved for transport validation.");
         }
 
-        if (destinationIds.Count > 1 && !transportLegIndex.HasValue)
+        if ((destinationIds.Count > 1 || trip.AirportPickup) && !transportLegIndex.HasValue)
         {
             throw new TransportBusinessException(
                 "TRANSPORT_MULTI_LEG_SCHEMA_REQUIRED",
@@ -81,6 +82,8 @@ public static class TransportCompatibility
             .Select(id => destinations.Single(destination => destination.Id == id).Name)
             .Select(Normalize)
             .ToList();
+        if (trip.AirportPickup)
+            orderedNames.Insert(0, AirportName(trip.AirportCode));
 
         if (orderedNames.Any(string.IsNullOrWhiteSpace))
         {
@@ -147,7 +150,7 @@ public static class TransportCompatibility
                             "TRANSPORT_SEGMENT_UNRESOLVED",
                             "The requested destination segment is invalid for transport validation.");
                     }
-                    return ids;
+                    return ResolvePlannedOrder(trip, ids);
                 }
             }
             catch (JsonException)
@@ -167,5 +170,20 @@ public static class TransportCompatibility
         return string.Join(
             " ",
             value.Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    public static string AirportName(string code) => code == "HRI"
+        ? "Mattala Rajapaksa International Airport" : "Bandaranaike International Airport";
+
+    private static List<int> ResolvePlannedOrder(TripRequest trip, List<int> requested)
+    {
+        if (string.IsNullOrWhiteSpace(trip.PlanJson)) return requested;
+        using var plan = JsonDocument.Parse(trip.PlanJson);
+        if (!plan.RootElement.TryGetProperty("itinerary", out var itinerary) ||
+            !itinerary.TryGetProperty("route_destination_ids", out var order)) return requested;
+        var ids = order.EnumerateArray().Select(id => id.GetInt32()).ToList();
+        if (!ids.OrderBy(id => id).SequenceEqual(requested.OrderBy(id => id)))
+            throw new TransportBusinessException("TRANSPORT_SEGMENT_UNRESOLVED", "The planned route does not match the selected destinations.");
+        return ids;
     }
 }
