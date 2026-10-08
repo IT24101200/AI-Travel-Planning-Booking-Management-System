@@ -108,6 +108,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       _isCheckingAgentHealth = false;
       _pending = false;
       _itinerary = null;
+      _booking = null;
       _tripStartDate = null;
       _selectedJourneyIndex = null;
     });
@@ -246,7 +247,21 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         }
       }
       if (mounted && booking != null) {
-        setState(() => _booking = booking);
+        final bookingItineraryId = _positiveId(booking['itineraryId']);
+        if (itineraryId == null || bookingItineraryId == itineraryId) {
+          setState(() => _booking = booking);
+          final bookingId = _positiveId(booking['id']);
+          if (bookingItineraryId != null && bookingId != null) {
+            TripSelectionService.setActiveBookingContext(
+              itineraryId: bookingItineraryId,
+              bookingId: bookingId,
+            );
+          }
+        }
+      } else if (itineraryId != null &&
+          TripSelectionService.activeBookingItineraryId == itineraryId) {
+        TripSelectionService.activeBookingId = null;
+        TripSelectionService.activeBookingItineraryId = null;
       }
     } catch (_) {}
 
@@ -433,6 +448,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       _selectedJourneyIndex = null;
       _isLoading = true;
       _errorMessage = null;
+      _booking = null;
     });
     try {
       final selected = await ApiService.getItinerary(id);
@@ -443,6 +459,12 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             selected?['startDate']?.toString() ?? '',
           );
         });
+        unawaited(
+          _loadAuxiliaryDetails(
+            _positiveId(selected?['tripRequestId']),
+            id,
+          ),
+        );
       }
     } catch (error) {
       if (mounted)
@@ -627,22 +649,20 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     TripSelectionService.activeItinerary = _itinerary;
 
     try {
-      int? bookingId = TripSelectionService.activeBookingId;
-
-      if (bookingId == null) {
-        try {
-          final bookings = await ApiService.getMyBookings();
-          for (final b in bookings) {
-            if (b is Map && _positiveId(b['itineraryId']) == id) {
-              bookingId = _positiveId(b['id']);
-              break;
-            }
-          }
-        } catch (_) {}
+      int? bookingId;
+      final bookings = await ApiService.getMyBookings();
+      for (final b in bookings) {
+        if (b is Map && _positiveId(b['itineraryId']) == id) {
+          bookingId = _positiveId(b['id']);
+          if (bookingId != null) break;
+        }
       }
 
       if (bookingId != null) {
-        TripSelectionService.activeBookingId = bookingId;
+        TripSelectionService.setActiveBookingContext(
+          itineraryId: id,
+          bookingId: bookingId,
+        );
       }
 
       if (!mounted) return;
@@ -995,7 +1015,8 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
 
   String _getHeaderSubtitle() {
     if (_itinerary == null) return 'Your Travel Plan';
-    final title = _itinerary!['title']?.toString();
+    final title = _booking?['tripTitle']?.toString() ??
+        _itinerary!['title']?.toString();
     final startStr = _itinerary!['startDate']?.toString();
     final endStr = _itinerary!['endDate']?.toString();
     if (startStr != null && endStr != null) {
@@ -1404,9 +1425,17 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       }
     }
 
-    // Total cost in LKR
-    final totalCost = itinerary['totalEstimatedCost'];
-    final currency = itinerary['currency']?.toString() ?? '';
+    // A persisted booking is the commercial source of truth. Before a booking
+    // exists, show only the itinerary estimate and label it as such.
+    final bookingTotal = _booking?['totalCost'];
+    final totalCost = bookingTotal is num
+        ? bookingTotal
+        : itinerary['totalEstimatedCost'];
+    final currency = (bookingTotal is num
+            ? (_booking == null ? null : _booking!['currency'])
+            : itinerary['currency'])
+        ?.toString() ??
+        '';
     final formattedCost = totalCost is num
         ? '$currency ${NumberFormat('#,##0').format(totalCost)}'.trim()
         : 'Cost pending';
@@ -1748,7 +1777,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
         ),
 
         // ── Commercial Package Price Breakdown ──
-        _buildPriceBreakdownSection(totalCost is num ? totalCost : 0, currency),
+        _buildPriceBreakdownSection(
+          totalCost is num ? totalCost : 0,
+          currency,
+          hasAuthoritativeBooking: bookingTotal is num,
+        ),
 
         const SizedBox(height: 18),
 
@@ -2303,6 +2336,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
   Widget _buildReservedInventorySection() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final bookingCurrency = _booking?['currency']?.toString() ??
+        _itinerary?['currency']?.toString() ??
+        '';
 
     final bookingItemsRaw =
         _booking?['bookingItems'] ?? _itinerary?['bookingItems'];
@@ -2323,6 +2359,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
         hotelItem ??= it;
       }
+    }
+
+    if (hotelItem != null) {
+      hotelItem['roomTypeName'] = hotelItem['roomType'] ?? 'Room type unavailable';
+      hotelItem['capacity'] = hotelItem['roomCapacity'];
     }
 
     final hasInventory = hotelItem != null || transportItems.isNotEmpty;
@@ -2434,7 +2475,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                           Expanded(
                             child: Text(
                               hotelItem['hotelName']?.toString() ??
-                                  'Reserved Hotel',
+                                  'Hotel details unavailable',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -2465,7 +2506,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Room: ${hotelItem['roomTypeName'] ?? 'Standard Room'}${hotelItem['capacity'] != null ? ' · Up to ${hotelItem['capacity']} guests' : ''}',
+                        'Room: ${hotelItem['roomTypeName'] ?? 'Room type unavailable'}${hotelItem['capacity'] != null ? ' · Up to ${hotelItem['capacity']} guests' : ''}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           color: Color(0xFF5A7067),
@@ -2481,11 +2522,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                           ),
                         ),
                       ],
-                      if (hotelItem['totalPrice'] != null ||
-                          hotelItem['unitPrice'] != null) ...[
+                      if (hotelItem['subtotal'] != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'LKR ${NumberFormat('#,##0').format(hotelItem['totalPrice'] ?? hotelItem['unitPrice'])}',
+                          '${bookingCurrency.isEmpty ? '' : '$bookingCurrency '}${NumberFormat('#,##0').format(hotelItem['subtotal'])}',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -2545,7 +2585,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? transportItem['vehicleType'] ?? 'Private Vehicle'} Transfer',
+                              '${transportLegLabel(transportItem) != null ? '${transportLegLabel(transportItem)} · ' : ''}${transportItem['transportType'] ?? transportItem['vehicleType'] ?? 'Transport details unavailable'} Transfer',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -2576,7 +2616,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Provider: ${transportItem['transportProvider'] ?? transportItem['transportProviderSnapshot'] ?? 'Island Chauffeur Services'}',
+                        'Provider: ${transportItem['transportProvider'] ?? 'Provider unavailable'}',
                         style: const TextStyle(
                           fontSize: 11.5,
                           color: Color(0xFF5A7067),
@@ -2595,11 +2635,10 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
                           ),
                         ),
                       ],
-                      if (transportItem['totalPrice'] != null ||
-                          transportItem['unitPrice'] != null) ...[
+                      if (transportItem['subtotal'] != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'LKR ${NumberFormat('#,##0').format(transportItem['totalPrice'] ?? transportItem['unitPrice'])}',
+                          '${bookingCurrency.isEmpty ? '' : '$bookingCurrency '}${NumberFormat('#,##0').format(transportItem['subtotal'])}',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
@@ -2618,7 +2657,11 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
     );
   }
 
-  Widget _buildPriceBreakdownSection(num totalCost, String currency) {
+  Widget _buildPriceBreakdownSection(
+    num totalCost,
+    String currency, {
+    required bool hasAuthoritativeBooking,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -2632,7 +2675,7 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
       for (var it in bookingItemsRaw) {
         if (it is Map) {
           final type = it['itemType']?.toString().toLowerCase() ?? '';
-          final p = it['totalPrice'] ?? it['unitPrice'] ?? 0;
+          final p = it['subtotal'];
           if (p is num) {
             if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
               hotelCost += p;
@@ -2646,10 +2689,6 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
           }
         }
       }
-    }
-
-    if (tourCost == 0 && hotelCost == 0 && transportCost == 0) {
-      tourCost = totalCost;
     }
 
     return Container(
@@ -2669,7 +2708,9 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'COMMERCIAL BREAKDOWN',
+                hasAuthoritativeBooking
+                    ? 'COMMERCIAL BREAKDOWN'
+                    : 'ESTIMATED ITINERARY COST',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
@@ -2687,32 +2728,45 @@ class _MyItineraryScreenState extends State<MyItineraryScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _buildBreakdownRow('Tours & Experiences', tourCost, currency),
-          if (hotelCost > 0) ...[
-            const SizedBox(height: 6),
-            _buildBreakdownRow('Hotel Accommodation', hotelCost, currency),
-          ],
-          if (transportCost > 0) ...[
+          if (hasAuthoritativeBooking) ...[
+            if (bookingItemsRaw is List && bookingItemsRaw.isNotEmpty) ...[
+              _buildBreakdownRow('Tours & Experiences', tourCost, currency),
+              if (hotelCost > 0) ...[
+                const SizedBox(height: 6),
+                _buildBreakdownRow('Hotel Accommodation', hotelCost, currency),
+              ],
+              if (transportCost > 0) ...[
+                const SizedBox(height: 6),
+                _buildBreakdownRow(
+                  'Private Transport & Driver',
+                  transportCost,
+                  currency,
+                ),
+              ],
+            ] else
+              _buildBreakdownRow(
+                'Itemized booking data unavailable',
+                0,
+                currency,
+                freeLabel: 'Review required',
+              ),
             const SizedBox(height: 6),
             _buildBreakdownRow(
-              'Private Transport & Driver',
-              transportCost,
+              'Taxes & Agent Handling',
+              0,
               currency,
+              freeLabel: 'Included',
             ),
-          ],
-          const SizedBox(height: 6),
-          _buildBreakdownRow(
-            'Taxes & Agent Handling',
-            0,
-            currency,
-            freeLabel: 'Included',
-          ),
+          ] else
+            _buildBreakdownRow('AI itinerary estimate', totalCost, currency),
           const Divider(height: 20, color: Color(0xFFE4E7E2)),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Total Commercial Cost',
+                  hasAuthoritativeBooking
+                      ? 'Total Commercial Cost'
+                      : 'Estimated Total',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),

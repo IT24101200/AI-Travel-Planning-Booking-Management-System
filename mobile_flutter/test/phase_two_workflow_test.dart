@@ -171,6 +171,7 @@ void main() {
         'totalCost': 1200.0,
         'currency': 'USD',
       };
+      ApiService.mockGetBooking = (id) async => Map<String, dynamic>.from(booking);
 
       await tester.pumpWidget(wrapWithArgs(const BookingStatusScreen(), args: booking));
       await tester.pumpAndSettle();
@@ -195,6 +196,7 @@ void main() {
         'totalCost': 950.0,
         'currency': 'USD',
       };
+      ApiService.mockGetBooking = (id) async => Map<String, dynamic>.from(rawMap);
 
       await tester.pumpWidget(wrapWithArgs(
         const BookingStatusScreen(),
@@ -233,6 +235,7 @@ void main() {
         'totalCost': 950.0,
         'currency': 'USD',
       };
+      ApiService.mockGetBooking = (id) async => Map<String, dynamic>.from(paidBooking);
 
       await tester.pumpWidget(wrapWithArgs(const BookingStatusScreen(), args: paidBooking));
       await tester.pumpAndSettle();
@@ -252,11 +255,14 @@ void main() {
       final bookingData = {
         'id': 201,
         'bookingReference': 'ST-2026-201',
+        'customerName': 'Test Traveler',
         'destination': 'Hill Country Trek',
         'status': 1, // AwaitingApproval
         'bookingStatus': 'AwaitingApproval',
         'totalCost': 980.0,
+        'currency': 'LKR',
       };
+      ApiService.mockGetBooking = (id) async => Map<String, dynamic>.from(bookingData);
 
       await tester.pumpWidget(wrapWithArgs(const CheckoutPaymentScreen(), args: bookingData));
       await tester.pumpAndSettle();
@@ -284,11 +290,14 @@ void main() {
       final bookingData = {
         'id': 202,
         'bookingReference': 'ST-2026-202',
+        'customerName': 'Test Traveler',
         'destination': 'Hill Country Trek',
         'status': 2, // Confirmed
         'bookingStatus': 'Confirmed',
         'totalCost': 980.0,
+        'currency': 'LKR',
       };
+      ApiService.mockGetBooking = (id) async => Map<String, dynamic>.from(bookingData);
 
       ApiService.mockCreatePayment = (payload) async => {
         'statusCode': 400,
@@ -323,11 +332,14 @@ void main() {
       final bookingData = {
         'id': 203,
         'bookingReference': 'ST-2026-203',
+        'customerName': 'Test Traveler',
         'destination': 'Hill Country Trek',
         'status': 2, // Confirmed
         'bookingStatus': 'Confirmed',
         'totalCost': 980.0,
+        'currency': 'LKR',
       };
+      ApiService.mockGetBooking = (id) async => Map<String, dynamic>.from(bookingData);
 
       ApiService.mockCreatePayment = (payload) async => {
         'statusCode': 200,
@@ -363,13 +375,12 @@ void main() {
       addTearDown(() => tester.view.resetPhysicalSize());
 
       TripSelectionService.selectedHotel = {
-        'id': 5,
-        'name': 'Aliya Resort & Spa',
+        'id': 999,
+        'name': 'Stale hotel from another booking',
       };
       TripSelectionService.selectedTransport = {
-        'id': 9,
-        'name': 'Luxury Electric Van',
-        'route': 'Sigiriya - Kandy',
+        'id': 999,
+        'name': 'Stale transport from another booking',
       };
 
       final bookingData = {
@@ -380,6 +391,20 @@ void main() {
         'dates': '14–20 Oct 2026',
         'status': 'Confirmed',
         'paymentStatus': 'Paid',
+        'tripTitle': 'Sigiriya to Kandy',
+        'orderedDestinations': ['Sigiriya', 'Kandy'],
+        'travellerCount': 2,
+        'currency': 'LKR',
+        'totalCost': 980.0,
+        'bookingItems': [
+          {'hotelName': 'Aliya Resort & Spa'},
+          {
+            'transportOptionId': 9,
+            'transportType': 'Luxury Electric Van',
+            'routeFrom': 'Sigiriya',
+            'routeTo': 'Kandy',
+          },
+        ],
       };
 
       await tester.pumpWidget(wrapWithArgs(const TripConfirmationScreen(), args: bookingData));
@@ -387,7 +412,7 @@ void main() {
 
       // Booking reference
       expect(find.text('ST-2026-301'), findsOneWidget);
-      // Dynamic hotel and transport from TripSelectionService
+      // Confirmation uses persisted booking items, not stale shared selections.
       expect(find.text('Aliya Resort & Spa'), findsOneWidget);
       expect(find.textContaining('Luxury Electric Van'), findsOneWidget);
 

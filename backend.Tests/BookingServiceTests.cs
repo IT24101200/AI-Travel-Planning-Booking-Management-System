@@ -218,6 +218,149 @@ namespace backend.Tests
         }
 
         [Fact]
+        public async Task CreateBooking_RejectsCatalogItemsOutsideRequestedDestinations()
+        {
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+            context.Destinations.Add(new Destination
+            {
+                Id = 2,
+                Name = "Kandy",
+                Country = "Sri Lanka"
+            });
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 401,
+                Type = TransportType.Car,
+                Provider = "Audit Transport",
+                RouteFrom = "Paris",
+                RouteTo = "Kandy",
+                DepartureTime = DateTime.UtcNow.AddDays(10),
+                ArrivalTime = DateTime.UtcNow.AddDays(10).AddHours(2),
+                Capacity = 10,
+                Price = 75,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+            context.Tours.Add(new Tour
+            {
+                Id = 101,
+                DestinationId = 2,
+                Name = "Kandy Temple Visit",
+                Category = "Culture",
+                Price = 100,
+                Currency = "USD"
+            });
+            context.Hotels.Add(new Hotel
+            {
+                Id = 201,
+                DestinationId = 2,
+                Name = "Kandy Hotel",
+                Status = HotelStatus.Active
+            });
+            context.Rooms.Add(new Room
+            {
+                Id = 301,
+                HotelId = 201,
+                RoomType = "Deluxe",
+                Capacity = 2,
+                TotalRooms = 5,
+                PricePerNight = 100,
+                Currency = "USD",
+                Status = RoomStatus.Active
+            });
+            await context.SaveChangesAsync();
+
+            var service = new BookingService(context);
+
+            var tourException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.CreateBookingAsync(new BookingCreateDto
+                {
+                    CustomerId = "cust-1",
+                    ItineraryId = 10,
+                    Currency = "USD",
+                    Items = new List<BookingItemCreateDto>
+                    {
+                        new() { ItemType = BookingItemType.Tour, TourId = 101, Quantity = 1 }
+                    }
+                }));
+
+            Assert.Contains("tour does not belong", tourException.Message);
+
+            var roomException = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.CreateBookingAsync(new BookingCreateDto
+                {
+                    CustomerId = "cust-1",
+                    ItineraryId = 10,
+                    Currency = "USD",
+                    Items = new List<BookingItemCreateDto>
+                    {
+                        new()
+                        {
+                            ItemType = BookingItemType.Room,
+                            RoomId = 301,
+                            CheckInDate = new DateTime(2030, 1, 10),
+                            CheckOutDate = new DateTime(2030, 1, 11),
+                            Quantity = 1
+                        }
+                    }
+                }));
+
+            Assert.Contains("hotel does not belong", roomException.Message);
+        }
+
+        [Fact]
+        public async Task CreateBooking_MapsOrderedDestinationContextToBookingDto()
+        {
+            using var context = CreateContext();
+            await SeedDependenciesAsync(context);
+            context.Destinations.Add(new Destination
+            {
+                Id = 2,
+                Name = "Kandy",
+                Country = "Sri Lanka"
+            });
+            context.TransportOptions.Add(new TransportOption
+            {
+                Id = 401,
+                Type = TransportType.Car,
+                Provider = "Audit Transport",
+                RouteFrom = "Paris",
+                RouteTo = "Kandy",
+                DepartureTime = DateTime.UtcNow.AddDays(10),
+                ArrivalTime = DateTime.UtcNow.AddDays(10).AddHours(2),
+                Capacity = 10,
+                Price = 75,
+                Currency = "USD",
+                Status = TransportStatus.Active
+            });
+            var trip = await context.TripRequests.SingleAsync();
+            trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
+            {
+                new { Id = 1, Name = "Paris", Order = 0 },
+                new { Id = 2, Name = "Kandy", Order = 1 }
+            });
+            await context.SaveChangesAsync();
+
+            var result = await new BookingService(context).CreateBookingAsync(new BookingCreateDto
+            {
+                CustomerId = "cust-1",
+                ItineraryId = 10,
+                Currency = "USD",
+                Items = new List<BookingItemCreateDto>
+                {
+                    new() { ItemType = BookingItemType.Tour, TourId = 100, Quantity = 1 },
+                    new() { ItemType = BookingItemType.Transport, TransportOptionId = 401, TransportLegIndex = 0, Quantity = 1 }
+                }
+            });
+
+            Assert.Equal(new[] { "Paris", "Kandy" }, result.OrderedDestinations);
+            Assert.Equal("Paris → Kandy", result.TripTitle);
+            Assert.Equal(1, result.TripRequestId);
+            Assert.Equal(10, result.ItineraryId);
+        }
+
+        [Fact]
         public async Task CreateBooking_PersistsIndexedTransportForEveryAdjacentLeg()
         {
             using var context = CreateContext();

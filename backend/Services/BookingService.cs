@@ -382,6 +382,11 @@ namespace backend.Services
                         if (tour is null || !string.Equals(tour.Status, "Active", StringComparison.OrdinalIgnoreCase))
                             throw new InvalidOperationException("The selected tour is no longer available.");
 
+                        EnsureDestinationBelongsToTrip(
+                            tour.DestinationId,
+                            trip,
+                            "tour");
+
                         authoritativeUnitPrice = _currency.Convert(
                             tour.Price, tour.Currency, bookingCurrency);
                         subtotal = decimal.Round(
@@ -401,6 +406,11 @@ namespace backend.Services
                             .FirstOrDefaultAsync(r => r.Id == item.RoomId.Value);
                         if (room is null || room.Status != RoomStatus.Active || room.Hotel.Status != HotelStatus.Active)
                             throw new InvalidOperationException("The selected room is no longer available.");
+
+                        EnsureDestinationBelongsToTrip(
+                            room.Hotel.DestinationId,
+                            trip,
+                            "hotel");
 
                         authoritativeUnitPrice = _currency.Convert(
                             room.PricePerNight, room.Currency, bookingCurrency);
@@ -526,6 +536,9 @@ namespace backend.Services
 
         private async Task<BookingDto> MapToDtoAsync(Booking b)
         {
+            var orderedDestinations = await ResolveOrderedDestinationNamesAsync(
+                b.Itinerary?.TripRequest);
+
             // Fetch AgentLogs if itinerary is present
             var agentLogs = new List<AgentLogDto>();
             if (b.Itinerary != null)
@@ -559,6 +572,8 @@ namespace backend.Services
                 ItineraryId = b.ItineraryId,
                 TripRequestId = b.Itinerary?.TripRequestId ?? 0,
                 TravellerCount = b.Itinerary?.TripRequest?.TravellerCount,
+                OrderedDestinations = orderedDestinations,
+                TripTitle = BuildTripTitle(orderedDestinations),
                 DestinationName = b.Itinerary?.TripRequest?.Destination?.Name,
                 RequestText = b.Itinerary?.TripRequest?.RawRequestText,
                 StartDate = b.Itinerary?.StartDate,
@@ -654,6 +669,59 @@ namespace backend.Services
                     PaymentDate = DateTimeContract.AsStoredUtc(p.PaymentDate)
                 }).ToList(),
                 AgentLogs = agentLogs
+            };
+        }
+
+        private void EnsureDestinationBelongsToTrip(
+            int destinationId,
+            TripRequest trip,
+            string itemKind)
+        {
+            var tripDestinationIds = TransportCompatibility.ResolveDestinationIds(trip);
+            if (!tripDestinationIds.Contains(destinationId))
+            {
+                throw new InvalidOperationException(
+                    $"The selected {itemKind} does not belong to a destination in this trip.");
+            }
+        }
+
+        private async Task<List<string>> ResolveOrderedDestinationNamesAsync(
+            TripRequest? trip)
+        {
+            if (trip is null)
+                return new List<string>();
+
+            List<int> destinationIds;
+            try
+            {
+                destinationIds = TransportCompatibility.ResolveDestinationIds(trip);
+            }
+            catch (TransportBusinessException)
+            {
+                return new List<string>();
+            }
+
+            if (destinationIds.Count == 0)
+                return new List<string>();
+
+            var namesById = await _db.Destinations
+                .AsNoTracking()
+                .Where(destination => destinationIds.Contains(destination.Id))
+                .ToDictionaryAsync(destination => destination.Id, destination => destination.Name);
+
+            return destinationIds
+                .Where(namesById.ContainsKey)
+                .Select(id => namesById[id])
+                .ToList();
+        }
+
+        private static string BuildTripTitle(IReadOnlyCollection<string> destinations)
+        {
+            return destinations.Count switch
+            {
+                0 => string.Empty,
+                1 => destinations.First(),
+                _ => string.Join(" → ", destinations)
             };
         }
     }
