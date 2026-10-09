@@ -207,8 +207,12 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
 
     route_ids = itinerary.get("route_destination_ids")
     if route_ids is not None:
-        if sorted(route_ids) != sorted(d["destination_id"] for d in requested_destinations):
-            raise PackageValidationError("INVALID_DESTINATION_ORDER", "The optimized route must contain every requested destination exactly once.")
+        requested_order = [destination["destination_id"] for destination in requested_destinations]
+        if route_ids != requested_order:
+            raise PackageValidationError(
+                "INVALID_DESTINATION_ORDER",
+                "The planned route must preserve the customer's requested destination order.",
+            )
         visited = []
         for day in schedule:
             if _decimal(day.get("travel_minutes", 0), "daily driving") > 600:
@@ -383,9 +387,16 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
             if isinstance(booking_details, dict)
             else None
         )
+        planning_diagnostics = (
+            booking_details.get("planning_diagnostics")
+            if isinstance(booking_details, dict)
+            else None
+        )
         failure_output = {"is_valid": False, "error_code": code, "error": message}
         if upstream_error_code:
             failure_output["upstream_error_code"] = upstream_error_code
+        if planning_diagnostics:
+            failure_output["planning_diagnostics"] = planning_diagnostics
         log_agent_step(
             trip_request_id=trip_id,
             agent_name="ValidationAgent",
@@ -401,6 +412,8 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
         }
         if upstream_error_code:
             validation_result["upstream_error_code"] = upstream_error_code
+        if planning_diagnostics:
+            validation_result["planning_diagnostics"] = planning_diagnostics
         return {
             "validation_result": validation_result,
             "status": "ValidationFailed",

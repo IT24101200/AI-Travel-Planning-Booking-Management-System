@@ -40,13 +40,22 @@ class ApiService {
     return url.endsWith('/api') ? url : '$url/api';
   }
 
-  /// Convert backend-relative media paths into URLs reachable by this client.
+  /// Convert project-owned media paths into URLs reachable by this client.
+  ///
+  /// Arbitrary third-party absolute URLs are rejected so Flutter web does not
+  /// create browser requests that can fail on CORS or disappear later.
   static String resolveMediaUrl(String? path) {
     if (path == null || path.trim().isEmpty) return '';
     final value = path.trim();
-    if (value.startsWith('http://') ||
-        value.startsWith('https://') ||
-        value.startsWith('assets/')) {
+    if (value.startsWith('assets/')) {
+      return value;
+    }
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      final uri = Uri.tryParse(value);
+      final projectUri = Uri.tryParse(baseUrl);
+      if (uri == null || projectUri == null || uri.host != projectUri.host) {
+        return '';
+      }
       return value;
     }
     final serverRoot = baseUrl.endsWith('/api')

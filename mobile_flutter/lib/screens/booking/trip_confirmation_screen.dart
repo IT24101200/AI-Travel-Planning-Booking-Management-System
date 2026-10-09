@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/ticket_pdf_service.dart';
 import '../../widgets/trip_confirmation_details.dart';
+import '../../widgets/common_widgets.dart';
 
 /// Trip confirmation screen matching Figma frame 13 · Trip Confirmation (node 7:11118)
 class TripConfirmationScreen extends StatelessWidget {
@@ -294,17 +295,9 @@ class TripConfirmationScreen extends StatelessWidget {
                       child: SizedBox(
                         height: 116,
                         width: double.infinity,
-                        child: Image.network(
-                          'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=800&auto=format&fit=crop&q=80',
+                        child: AppNetworkImage(
+                          imageUrl: 'assets/photos/explore-hero.jpg',
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Container(
-                                color: const Color(0xFF374151),
-                                child: const Icon(
-                                  Icons.landscape,
-                                  color: Colors.white54,
-                                ),
-                              ),
                         ),
                       ),
                     ),

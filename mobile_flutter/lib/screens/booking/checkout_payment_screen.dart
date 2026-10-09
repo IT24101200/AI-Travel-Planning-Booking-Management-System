@@ -575,29 +575,21 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                               padding: EdgeInsets.zero,
                               physics: const NeverScrollableScrollPhysics(),
                               children: [
-                                Image.network(
-                                  'https://images.unsplash.com/photo-1586861635167-e5223aadc9fe?w=200&auto=format&fit=crop&q=80',
+                                AppNetworkImage(
+                                  imageUrl: 'assets/photos/explore-hero.jpg',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey),
                                 ),
-                                Image.network(
-                                  'https://images.unsplash.com/photo-1546708973-b339540b5162?w=200&auto=format&fit=crop&q=80',
+                                AppNetworkImage(
+                                  imageUrl: 'assets/photos/kandy-1280.jpg',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey),
                                 ),
-                                Image.network(
-                                  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&auto=format&fit=crop&q=80',
+                                AppNetworkImage(
+                                  imageUrl: 'assets/photos/nuwara-eliya-1280.jpg',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey),
                                 ),
-                                Image.network(
-                                  'https://images.unsplash.com/photo-1588598198321-9735fd52455b?w=200&auto=format&fit=crop&q=80',
+                                AppNetworkImage(
+                                  imageUrl: 'assets/photos/sigiriya-1280.jpg',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) =>
-                                      Container(color: Colors.grey),
                                 ),
                               ],
                             ),

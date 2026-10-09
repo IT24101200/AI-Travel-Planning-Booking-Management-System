@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../app_constants.dart';
 import '../services/api_service.dart';
 import '../services/currency_notifier.dart';
+import '../widgets/common_widgets.dart';
 import 'profile/trip_history_screen.dart';
 import 'profile/notifications_screen.dart';
 import 'profile/profile_preferences_screen.dart';
@@ -956,13 +957,11 @@ class _ExploreTabState extends State<_ExploreTab> {
         errorBuilder: (_, _, _) => imagePlaceholder,
       );
     } else {
-      tourImage = Image.network(
-        imageUrl,
-        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
+      tourImage = AppNetworkImage(
+        imageUrl: imageUrl,
         width: 76,
         height: 64,
         fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => imagePlaceholder,
       );
     }
 

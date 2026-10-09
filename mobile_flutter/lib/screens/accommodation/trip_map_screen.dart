@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:latlong2/latlong.dart';
 import '../../app_constants.dart';
 import '../../services/itinerary_route_service.dart';
+import '../../widgets/common_widgets.dart';
 
 /// Model representing an interactive stop on the Sri Lankan itinerary route map
 class MapStopItem {
@@ -549,23 +550,12 @@ class _TripMapScreenState extends State<TripMapScreen> {
                       // Thumbnail
                       ClipRRect(
                         borderRadius: BorderRadius.circular(14),
-                        child: activeStop.image.startsWith('assets/')
-                            ? Image.asset(
-                                activeStop.image,
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _buildPlaceholderThumbnail(),
-                              )
-                            : Image.network(
-                                activeStop.image,
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    _buildPlaceholderThumbnail(),
-                              ),
+                        child: AppNetworkImage(
+                          imageUrl: activeStop.image,
+                          width: 80,
+                          height: 80,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                       const SizedBox(width: 14),
                       // Details Column
@@ -701,15 +691,6 @@ class _TripMapScreenState extends State<TripMapScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildPlaceholderThumbnail() {
-    return Container(
-      width: 80,
-      height: 80,
-      color: const Color(0xFFE5E7EB),
-      child: const Icon(Icons.landscape, color: Color(0xFF9CA3AF)),
     );
   }
 

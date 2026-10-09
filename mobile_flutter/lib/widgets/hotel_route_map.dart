@@ -227,7 +227,7 @@ class _HotelRouteMapState extends State<HotelRouteMap> {
                           TileLayer(
                             urlTemplate:
                                 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                            userAgentPackageName: 'com.example.mobile_flutter',
+                            userAgentPackageName: 'com.serendibtrails.travel',
                             tileProvider: widget.tileProvider,
                           ),
                           if (_route != null)
