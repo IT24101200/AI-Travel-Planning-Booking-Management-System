@@ -173,8 +173,10 @@ namespace backend.Controllers
                 {
                     destination_id = destination.Id,
                     destination_name = destination.Name,
-                    order = destination.Order
+                    order = destination.Order,
+                    is_starter = destination.IsStarter
                 }),
+                starter_location_id = trip.StarterLocationId,
                 raw_request_text = trip.RawRequestText,
                 start_date = trip.StartDate.ToString("o"),
                 end_date = trip.EndDate.ToString("o"),

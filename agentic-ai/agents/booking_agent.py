@@ -6,6 +6,7 @@ from decimal import Decimal
 from dotenv import load_dotenv
 from logger import log_agent_step
 from customer_revision import room_requested, reserved_quantity, transport_requested
+from destination_contract import is_valid_route_order
 from route_planning import plan_overnights, RoutePlanningError, AIRPORTS, point, minutes, EARLIEST_TRANSFER_START, DAY_END
 from tools.availability_tools import (
     search_hotels, search_hotel_rooms, check_room_availability,
@@ -155,11 +156,16 @@ def build_booking_package(state):
         }]
     requested_order = [item["destination_id"] for item in requested_destinations]
     planned_order = itinerary.get("route_destination_ids")
-    if planned_order is not None and planned_order != requested_order:
+    if planned_order is not None and not is_valid_route_order(
+        planned_order,
+        requested_order,
+        starter_location_id=state.get("starter_location_id"),
+        airport_pickup=bool(state.get("airport_pickup")),
+    ):
         return _booking_failure(
             trip_id,
             "INVALID_DESTINATION_ORDER",
-            "The planned route must preserve the customer's requested destination order.",
+            "The planned route must include every selected destination and respect the selected route origin.",
         )
     
     geographic = bool(itinerary.get("route_destination_ids"))

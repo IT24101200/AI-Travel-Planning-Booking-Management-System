@@ -53,18 +53,40 @@ def test_all_journeys_in_a_city_are_contiguous():
         plan = grouped_itinerary(state(7), tours, destinations)
     visits = [d["items"][0]["destination_id"] for d in plan["schedule"]]
     compressed = [city for i, city in enumerate(visits) if i == 0 or city != visits[i-1]]
-    assert compressed == plan["route_destination_ids"] == [1, 2, 3]
+    assert compressed == plan["route_destination_ids"] == [2, 1, 3]
     assert len(compressed) == len(set(compressed)) == 3
 
 
-def test_grouped_itinerary_preserves_customer_destination_order():
-    destinations = [{"destination_id": i, "destination_name": str(i)} for i in (1, 2)]
-    tours = [tour(1, 1, 81.7), tour(2, 2, 80)]
+def test_grouped_itinerary_starts_at_selected_location_and_optimizes_remaining_stops():
+    destinations = [{"destination_id": i, "destination_name": str(i)} for i in (1, 2, 3)]
+    tours = [tour(1, 1, 81.7), tour(2, 2, 80), tour(3, 3, 81.8)]
+    with patch("route_planning.RoadMatrix", LineRoads):
+        plan = grouped_itinerary({**state(5), "starter_location_id": 1}, tours, destinations)
+
+    assert plan["route_destination_ids"] == [1, 3, 2]
+    assert [item["destination_id"] for day in plan["schedule"] for item in day["items"]] == [1, 3, 2]
+
+
+def test_grouped_itinerary_without_starter_lets_optimizer_choose_first_stop():
+    destinations = [{"destination_id": i, "destination_name": str(i)} for i in (1, 2, 3)]
+    tours = [tour(1, 1, 81.7), tour(2, 2, 80), tour(3, 3, 81.8)]
     with patch("route_planning.RoadMatrix", LineRoads):
         plan = grouped_itinerary(state(5), tours, destinations)
 
-    assert plan["route_destination_ids"] == [1, 2]
-    assert [item["destination_id"] for day in plan["schedule"] for item in day["items"]] == [1, 2]
+    assert plan["route_destination_ids"] == [2, 1, 3]
+
+
+def test_airport_pickup_is_the_origin_when_no_destination_starter_is_selected():
+    destinations = [{"destination_id": i, "destination_name": str(i)} for i in (1, 2, 3)]
+    tours = [tour(1, 1, 81.7), tour(2, 2, 80), tour(3, 3, 81.8)]
+    with patch("route_planning.RoadMatrix", LineRoads):
+        plan = grouped_itinerary(
+            {**state(5), "airport_pickup": True, "airport_code": "CMB"},
+            tours,
+            destinations,
+        )
+
+    assert plan["route_destination_ids"] == [2, 1, 3]
 
 
 def test_nearby_destinations_can_share_a_hotel_and_stays_cover_all_nights():

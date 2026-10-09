@@ -137,8 +137,19 @@ def test_geographic_daily_driving_limit_is_ten_hours(daily_minutes, valid):
         assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
 
 
-def test_geographic_package_rejects_reordered_customer_destinations():
+def test_geographic_package_accepts_reordered_destinations_without_starter():
     state = _multi_leg_state()
+    itinerary = state["booking_details"]["itinerary"]
+    itinerary["route_destination_ids"] = [54, 51, 56]
+    itinerary["schedule"][0]["items"][0]["destination_id"] = 54
+    itinerary["schedule"][1]["items"][0]["destination_id"] = 51
+
+    payload, _ = validate_and_build_booking(state)
+    assert [item["transportLegIndex"] for item in payload["items"] if item["itemType"] == 2] == [0, 1]
+
+
+def test_geographic_package_rejects_route_that_changes_explicit_starter():
+    state = _multi_leg_state(starter_location_id=51)
     itinerary = state["booking_details"]["itinerary"]
     itinerary["route_destination_ids"] = [54, 51, 56]
 
@@ -146,6 +157,35 @@ def test_geographic_package_rejects_reordered_customer_destinations():
         validate_and_build_booking(state)
 
     assert error.value.code == "INVALID_DESTINATION_ORDER"
+
+
+def test_geographic_package_accepts_optimized_route_after_selected_starter():
+    state = _multi_leg_state(starter_location_id=51)
+    itinerary = state["booking_details"]["itinerary"]
+    itinerary["route_destination_ids"] = [51, 56, 54]
+    itinerary["schedule"][1]["items"][0]["destination_id"] = 56
+    itinerary["schedule"][2]["items"][0]["destination_id"] = 54
+
+    payload, _ = validate_and_build_booking(state)
+
+    transport_items = [item for item in payload["items"] if item["itemType"] == 2]
+    assert [item["transportLegIndex"] for item in transport_items] == [0, 1]
+
+
+def test_airport_origin_allows_optimizer_to_reorder_destinations():
+    state = _multi_leg_state(airport_pickup=True)
+    state["booking_details"]["total_package_cost"] = 720
+    state["booking_details"]["total_cost"] = 720
+    state["booking_details"]["transport_selections"].append(
+        {"leg_index": 2, "transport_option_id": 42, "price": 25}
+    )
+    itinerary = state["booking_details"]["itinerary"]
+    itinerary["route_destination_ids"] = [54, 51, 56]
+    itinerary["schedule"][0]["items"][0]["destination_id"] = 54
+    itinerary["schedule"][1]["items"][0]["destination_id"] = 51
+
+    payload, _ = validate_and_build_booking(state)
+    assert [item["transportLegIndex"] for item in payload["items"] if item["itemType"] == 2] == [0, 1, 2]
 
 
 def test_multi_leg_package_rejects_missing_or_duplicate_leg():

@@ -13,6 +13,39 @@ class DestinationContractError(ValueError):
         self.code = code
 
 
+def is_valid_route_order(
+    planned_order: Any,
+    requested_order: list[int],
+    *,
+    starter_location_id: Any = None,
+    airport_pickup: bool = False,
+) -> bool:
+    """Validate route membership without inventing a starter constraint.
+
+    A customer-selected starter must be first. With no selected starter, the
+    route may be any complete permutation so the optimizer can choose the
+    shortest open path. Airport pickup supersedes destination starters and is
+    validated as the route origin by the planner's airport leg.
+    """
+    if not isinstance(planned_order, list) or not requested_order:
+        return False
+    if len(planned_order) != len(requested_order):
+        return False
+    try:
+        planned_ids = [int(value) for value in planned_order]
+        requested_ids = [int(value) for value in requested_order]
+    except (TypeError, ValueError):
+        return False
+    if sorted(planned_ids) != sorted(requested_ids):
+        return False
+    if airport_pickup or starter_location_id is None:
+        return True
+    try:
+        return planned_ids[0] == int(starter_location_id)
+    except (TypeError, ValueError):
+        return False
+
+
 def normalize_requested_destinations(payload: dict[str, Any], *, required: bool = False) -> list[dict[str, Any]]:
     """Return ordered ``destination_id``/``destination_name`` records.
 

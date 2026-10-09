@@ -32,6 +32,7 @@ class TripPlanningState(TypedDict, total=False):
     destination_name: str
     destination_ids: list[int]
     requested_destinations: list[dict[str, Any]]
+    starter_location_id: Optional[int]
     raw_request_text: str
     revision_feedback: Optional[str]
     revision_request: Optional[Dict[str, Any]]

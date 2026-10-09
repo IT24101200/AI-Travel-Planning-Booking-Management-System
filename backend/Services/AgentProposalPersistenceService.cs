@@ -121,6 +121,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         var bookingDetails = RequireObject(root, "booking_details");
         var requestedDestinationIds = ParseRequestedDestinationIds(trip);
         ValidateProposalDestinationContract(root, requestedDestinationIds);
+        var starterLocationId = ParseStarterLocationId(trip);
         var currency = _currency.Normalize(trip.Currency, "TripRequest currency");
         var schedule = RequireArray(itinerary, "schedule");
         var tripDays = (trip.EndDate.Date - trip.StartDate.Date).Days + 1;
@@ -196,10 +197,14 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         if (suppliedRoute.HasValue)
         {
             routeDestinationIds = suppliedRoute.Value.EnumerateArray().Select(value => value.GetInt32()).ToList();
-            if (!routeDestinationIds.SequenceEqual(requestedDestinationIds))
+            if (!IsValidRoutePermutation(
+                    routeDestinationIds,
+                    requestedDestinationIds,
+                    starterLocationId,
+                    trip.AirportPickup))
                 throw new ProposalPersistenceException(
                     "DESTINATION_ORDER_CONTRACT_MISMATCH",
-                    "The planned route must preserve the customer's requested destination order.");
+                    "The planned route must include every selected destination and respect the selected route origin.");
             if (!visitedDestinations.SequenceEqual(routeDestinationIds))
                 throw new ProposalPersistenceException("DESTINATION_BACKTRACKING", "The route must visit every selected destination once and finish its journeys before moving on.");
             foreach (var day in schedule.EnumerateArray())
@@ -628,6 +633,31 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             : new List<int>();
     }
 
+    private static int? ParseStarterLocationId(TripRequest trip)
+    {
+        if (string.IsNullOrWhiteSpace(trip.DestinationSelectionsJson))
+            return null;
+
+        try
+        {
+            var selections = JsonSerializer.Deserialize<List<TripRequestDestinationSelection>>(
+                trip.DestinationSelectionsJson);
+            var starters = selections?
+                .Where(selection => selection.IsStarter)
+                .Select(selection => selection.Id)
+                .ToList() ?? new List<int>();
+            if (starters.Count > 1)
+                throw new ProposalPersistenceException(
+                    "INVALID_STARTER_LOCATION",
+                    "A trip request cannot contain more than one selected starter location.");
+            return starters.Count == 1 ? starters[0] : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private static void ValidateProposalDestinationContract(JsonElement root, IReadOnlyCollection<int> requestedDestinationIds)
     {
         if (requestedDestinationIds.Count <= 1) return;
@@ -644,10 +674,28 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             .Select(id => id!.Value)
             .ToList();
 
-        if (!requestedDestinationIds.SequenceEqual(suppliedIds))
+        if (suppliedIds.Count != requestedDestinationIds.Count
+            || suppliedIds.Distinct().Count() != requestedDestinationIds.Count
+            || !suppliedIds.SequenceEqual(requestedDestinationIds))
             throw new ProposalPersistenceException(
                 "DESTINATION_CONTRACT_MISMATCH",
-                "The proposal destination list must preserve the TripRequest destination order.");
+                "The proposal destination list must preserve every selected destination and its submitted selection order.");
+    }
+
+    private static bool IsValidRoutePermutation(
+        IReadOnlyList<int> plannedDestinationIds,
+        IReadOnlyList<int> requestedDestinationIds,
+        int? starterLocationId,
+        bool airportPickup)
+    {
+        if (plannedDestinationIds.Count != requestedDestinationIds.Count || requestedDestinationIds.Count == 0)
+            return false;
+
+        if (plannedDestinationIds.Distinct().Count() != requestedDestinationIds.Count
+            || !plannedDestinationIds.OrderBy(id => id).SequenceEqual(requestedDestinationIds.OrderBy(id => id)))
+            return false;
+
+        return airportPickup || !starterLocationId.HasValue || plannedDestinationIds[0] == starterLocationId.Value;
     }
 
     private static string? OptionalString(JsonElement parent, string name)
