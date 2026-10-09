@@ -6,6 +6,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace backend.Services
 {
+    public sealed class CustomerDeletionConflictException : InvalidOperationException
+    {
+        public IReadOnlyDictionary<string, int> Details { get; }
+
+        public CustomerDeletionConflictException(string message, IReadOnlyDictionary<string, int> details)
+            : base(message)
+        {
+            Details = details;
+        }
+    }
+
     public class CustomerService : ICustomerService
     {
         private readonly AppDbContext _db;
@@ -37,22 +48,34 @@ namespace backend.Services
                 .Include(c => c.TripRequests)
                 .AsQueryable();
 
-            // Search by name or phone
+            // Search across the directory identity and profile fields.  Email is
+            // owned by ASP.NET Identity, so keep the lookup server-side instead
+            // of requiring the frontend to download every page first.
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var term = search.ToLower();
+                var term = search.Trim().ToLower();
                 query = query.Where(c =>
                     c.FullName.ToLower().Contains(term) ||
-                    (c.Phone != null && c.Phone.Contains(term)));
+                    (c.Phone != null && c.Phone.ToLower().Contains(term)) ||
+                    _db.Users.Any(u => u.Id == c.Id && u.Email != null && u.Email.ToLower().Contains(term)));
             }
 
             // Sort
             query = sortBy?.ToLower() switch
             {
-                "name" => descending ? query.OrderByDescending(c => c.FullName) : query.OrderBy(c => c.FullName),
-                "joined" => descending ? query.OrderByDescending(c => c.JoinedAt) : query.OrderBy(c => c.JoinedAt),
-                "lastactive" => descending ? query.OrderByDescending(c => c.LastActiveAt) : query.OrderBy(c => c.LastActiveAt),
-                _ => query.OrderByDescending(c => c.JoinedAt)
+                "name" => descending
+                    ? query.OrderByDescending(c => c.FullName).ThenBy(c => c.Id)
+                    : query.OrderBy(c => c.FullName).ThenBy(c => c.Id),
+                "joined" => descending
+                    ? query.OrderByDescending(c => c.JoinedAt).ThenBy(c => c.Id)
+                    : query.OrderBy(c => c.JoinedAt).ThenBy(c => c.Id),
+                "lastactive" => descending
+                    ? query.OrderByDescending(c => c.LastActiveAt).ThenBy(c => c.Id)
+                    : query.OrderBy(c => c.LastActiveAt).ThenBy(c => c.Id),
+                "trips" => descending
+                    ? query.OrderByDescending(c => c.TripRequests.Count).ThenBy(c => c.Id)
+                    : query.OrderBy(c => c.TripRequests.Count).ThenBy(c => c.Id),
+                _ => query.OrderByDescending(c => c.JoinedAt).ThenBy(c => c.Id)
             };
 
             var customers = await query
@@ -61,13 +84,16 @@ namespace backend.Services
                 .ToListAsync();
 
             var agents = await _db.TravelAgents.ToDictionaryAsync(ta => ta.Id);
+            var userEmails = await _db.Users
+                .Where(u => customers.Select(c => c.Id).Contains(u.Id))
+                .ToDictionaryAsync(u => u.Id, u => u.Email ?? string.Empty);
 
             var dtos = new List<CustomerDto>();
             foreach (var c in customers)
             {
-                var user = await _userManager.FindByIdAsync(c.Id);
                 agents.TryGetValue(c.Id, out var agent);
-                dtos.Add(MapToDto(c, user?.Email, agent?.Department));
+                userEmails.TryGetValue(c.Id, out var email);
+                dtos.Add(MapToDto(c, email, agent?.Department));
             }
 
             return dtos;
@@ -79,10 +105,11 @@ namespace backend.Services
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var term = search.ToLower();
+                var term = search.Trim().ToLower();
                 query = query.Where(c =>
                     c.FullName.ToLower().Contains(term) ||
-                    (c.Phone != null && c.Phone.Contains(term)));
+                    (c.Phone != null && c.Phone.ToLower().Contains(term)) ||
+                    _db.Users.Any(u => u.Id == c.Id && u.Email != null && u.Email.ToLower().Contains(term)));
             }
 
             return await query.CountAsync();
@@ -152,6 +179,47 @@ namespace backend.Services
             var customer = await _db.Customers.FindAsync(customerId);
             if (customer == null) return false;
 
+            var user = await _userManager.FindByIdAsync(customerId);
+            if (user?.Email?.Equals("admin@serendibtrails.lk", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                throw new CustomerDeletionConflictException(
+                    "The system administrator account is protected and cannot be deleted.",
+                    new Dictionary<string, int> { ["systemAdministrator"] = 1 });
+            }
+
+            var isAdministrator = string.Equals(customer.Role, "Admin", StringComparison.OrdinalIgnoreCase)
+                || (user != null && await _userManager.IsInRoleAsync(user, "Admin"));
+            if (isAdministrator)
+            {
+                var administrators = await _userManager.GetUsersInRoleAsync("Admin");
+                if (administrators.Count <= 1)
+                {
+                    throw new CustomerDeletionConflictException(
+                        "The last administrator account is protected and cannot be deleted.",
+                        new Dictionary<string, int> { ["lastAdministrator"] = 1 });
+                }
+            }
+
+            var references = new Dictionary<string, int>
+            {
+                ["tripRequests"] = await _db.TripRequests.CountAsync(t => t.CustomerId == customerId),
+                ["itineraries"] = await _db.Itineraries.CountAsync(i => i.CustomerId == customerId),
+                ["bookings"] = await _db.Bookings.CountAsync(b => b.CustomerId == customerId),
+                ["bookingApprovals"] = await _db.BookingApprovals.CountAsync(a => a.TravelAgentId == customerId),
+            };
+            references["payments"] = await _db.Payments
+                .Where(p => _db.Bookings.Any(b => b.Id == p.BookingId && b.CustomerId == customerId))
+                .CountAsync();
+
+            var protectedHistory = references.Where(pair => pair.Value > 0)
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            if (protectedHistory.Count > 0)
+            {
+                throw new CustomerDeletionConflictException(
+                    "This user cannot be deleted because booking or trip history must be retained.",
+                    protectedHistory);
+            }
+
             // Remove associated travel agent record if any
             var agent = await _db.TravelAgents.FindAsync(customerId);
             if (agent != null) _db.TravelAgents.Remove(agent);
@@ -164,7 +232,6 @@ namespace backend.Services
             _db.Customers.Remove(customer);
 
             // Remove ASP.NET Identity user
-            var user = await _userManager.FindByIdAsync(customerId);
             if (user != null) await _userManager.DeleteAsync(user);
 
             await _db.SaveChangesAsync();
