@@ -214,7 +214,8 @@ namespace backend.Services
             string referenceType,
             string referenceId,
             string eventKey,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            TripConfirmationDto? tripDetails = null)
         {
             if (string.IsNullOrWhiteSpace(customerId))
                 throw new ArgumentException("A customer is required for an automatic notification.", nameof(customerId));
@@ -249,6 +250,7 @@ namespace backend.Services
                 Channel = NotificationChannel.InApp,
                 MessageType = messageType,
                 Content = content,
+                TripDetailsJson = tripDetails is null ? null : System.Text.Json.JsonSerializer.Serialize(tripDetails),
                 ReferenceType = referenceType,
                 ReferenceId = referenceId,
                 EventKey = eventKey,
@@ -352,6 +354,7 @@ namespace backend.Services
                 Channel = n.Channel.ToString(),
                 MessageType = n.MessageType.ToString(),
                 Content = n.Content,
+                TripDetails = ReadTripDetails(n.TripDetailsJson),
                 ReferenceType = n.ReferenceType,
                 ReferenceId = n.ReferenceId,
                 EventKey = n.EventKey,
@@ -359,6 +362,13 @@ namespace backend.Services
                 ReadAt = DateTimeContract.AsStoredUtc(n.ReadAt),
                 SentAt = DateTimeContract.AsStoredUtc(n.SentAt)
             };
+        }
+
+        private static TripConfirmationDto? ReadTripDetails(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            try { return System.Text.Json.JsonSerializer.Deserialize<TripConfirmationDto>(json); }
+            catch (System.Text.Json.JsonException) { return null; }
         }
     }
 }

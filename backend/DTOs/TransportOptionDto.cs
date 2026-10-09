@@ -8,6 +8,13 @@ namespace backend.DTOs
         public int Id { get; set; }
         public string Type { get; set; } = string.Empty;
         public string Provider { get; set; } = string.Empty;
+
+        [MaxLength(30)]
+        public string? ContactPhone { get; set; }
+
+        [MaxLength(254)]
+        [EmailAddress]
+        public string? ContactEmail { get; set; }
         public string RouteFrom { get; set; } = string.Empty;
         public string RouteTo { get; set; } = string.Empty;
 
@@ -36,6 +43,13 @@ namespace backend.DTOs
         [Required(ErrorMessage = "Provider name is required.")]
         [MaxLength(150, ErrorMessage = "Provider cannot exceed 150 characters.")]
         public string Provider { get; set; } = string.Empty;
+
+        [MaxLength(30)]
+        public string? ContactPhone { get; set; }
+
+        [MaxLength(254)]
+        [EmailAddress]
+        public string? ContactEmail { get; set; }
 
         [Required(ErrorMessage = "Origin route (RouteFrom) is required.")]
         [MaxLength(200, ErrorMessage = "RouteFrom cannot exceed 200 characters.")]

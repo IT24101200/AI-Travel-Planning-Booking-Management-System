@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/date_time_contract.dart';
+import '../../widgets/trip_confirmation_details.dart';
 
 /// Notifications & Alerts Screen
 /// Aligned with Component A (Customer Profile, Preferences, Notifications & Trip Requests)
@@ -245,6 +246,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           'category': category,
           'referenceType': raw['referenceType']?.toString(),
           'referenceId': raw['referenceId']?.toString(),
+          if (raw['tripDetails'] is Map) 'tripDetails': raw['tripDetails'],
         });
       }
 
@@ -317,19 +319,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     });
     try {
       await ApiService.markAllNotificationsRead();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('All alerts marked as read.')),
         );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
         for (final item in _alerts) {
           final previous = snapshots[item['id']];
-          if (previous != null)
+          if (previous != null) {
             item
               ..clear()
               ..addAll(previous);
+          }
         }
       });
       _showReadError(error, _markAllAsRead);
@@ -365,7 +369,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       } else {
         await ApiService.markNotificationRead(id);
       }
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -373,6 +377,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
           ),
         );
+      }
     } catch (error) {
       if (!mounted) return;
       setState(
@@ -394,7 +399,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (modalCtx) => _buildDetailBottomSheet(modalCtx, item),
+      builder: (modalCtx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(modalCtx).height * 0.9,
+          ),
+          child: SingleChildScrollView(
+            child: _buildDetailBottomSheet(modalCtx, item),
+          ),
+        ),
+      ),
     );
   }
 
@@ -440,9 +454,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(ApiService.userMessage(error))),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(ApiService.userMessage(error))));
       }
     }
   }
@@ -1202,6 +1216,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
             ),
           ),
+
+          if (item['tripDetails'] is Map)
+            TripConfirmationDetails(
+              details: Map<String, dynamic>.from(item['tripDetails'] as Map),
+            ),
 
           if (referenceAction != null) ...[
             const SizedBox(height: 12),

@@ -26,6 +26,9 @@ namespace backend.Models
         [MaxLength(2000)]
         public string Content { get; set; } = string.Empty;
 
+        [Column(TypeName = "text")]
+        public string? TripDetailsJson { get; set; }
+
         /// <summary>
         /// The domain entity that a customer can safely navigate to, when one exists.
         /// </summary>

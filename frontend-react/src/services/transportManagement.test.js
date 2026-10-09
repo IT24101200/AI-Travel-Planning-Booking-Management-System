@@ -102,6 +102,8 @@ test('status updates preserve the complete transport schedule payload', () => {
     type: 'Bus',
     provider: 'Approved Provider',
     routeFrom: 'Colombo',
+    contactPhone: null,
+    contactEmail: null,
     routeTo: 'Ella',
     departureTime: '2026-10-15T08:00',
     arrivalTime: '2026-10-15T12:00',
@@ -146,4 +148,14 @@ test('transport errors never expose raw backend details', () => {
     transportErrorMessage({ response: { status: 409, data: { code: 'TRANSPORT_CAPACITY_CONFLICT' } } }),
     'Capacity cannot be reduced below seats already reserved.'
   )
+})
+
+test('transport payload preserves operator contact details when a schedule changes status', () => {
+  const payload = buildTransportPayload({
+    type: 'Car', provider: 'Operator', from: 'Airport', to: 'Kandy',
+    contactPhone: ' +94 77 555 0100 ', contactEmail: ' operator@example.test ',
+    status: 'Inactive', capacity: 4, price: 12000, currency: 'LKR'
+  })
+  assert.equal(payload.contactPhone, '+94 77 555 0100')
+  assert.equal(payload.contactEmail, 'operator@example.test')
 })

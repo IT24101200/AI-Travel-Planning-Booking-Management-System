@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/ticket_pdf_service.dart';
+import '../../widgets/trip_confirmation_details.dart';
 
 /// Trip confirmation screen matching Figma frame 13 · Trip Confirmation (node 7:11118)
 class TripConfirmationScreen extends StatelessWidget {
@@ -28,37 +29,53 @@ class TripConfirmationScreen extends StatelessWidget {
       if (names.isNotEmpty) return names.join(' · ');
     }
     final primary = booking['destinationName']?.toString().trim();
-    return primary == null || primary.isEmpty ? 'Destinations unavailable' : primary;
+    return primary == null || primary.isEmpty
+        ? 'Destinations unavailable'
+        : primary;
   }
 
   List<Map<String, dynamic>> _bookingItems(Map<String, dynamic> booking) {
     final raw = booking['bookingItems'];
     if (raw is! List) return const [];
-    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
   }
 
-  String _hotelName(List<Map<String, dynamic>> items, Map<String, dynamic> booking) {
+  String _hotelName(
+    List<Map<String, dynamic>> items,
+    Map<String, dynamic> booking,
+  ) {
     for (final item in items) {
       if (item['hotelName'] != null) return item['hotelName'].toString();
     }
     final rootValue = booking['hotelName']?.toString().trim();
-    return rootValue == null || rootValue.isEmpty ? 'Accommodation details unavailable' : rootValue;
+    return rootValue == null || rootValue.isEmpty
+        ? 'Accommodation details unavailable'
+        : rootValue;
   }
 
-  String _transportName(List<Map<String, dynamic>> items, Map<String, dynamic> booking) {
+  String _transportName(
+    List<Map<String, dynamic>> items,
+    Map<String, dynamic> booking,
+  ) {
     for (final item in items) {
       if (item['transportOptionId'] != null || item['transportType'] != null) {
         final type = item['transportType']?.toString().trim();
         final from = item['routeFrom']?.toString().trim();
         final to = item['routeTo']?.toString().trim();
-        final route = from != null && from.isNotEmpty && to != null && to.isNotEmpty
+        final route =
+            from != null && from.isNotEmpty && to != null && to.isNotEmpty
             ? ' ($from → $to)'
             : '';
         return '${type == null || type.isEmpty ? 'Transport' : type}$route';
       }
     }
     final rootValue = booking['transportName']?.toString().trim();
-    return rootValue == null || rootValue.isEmpty ? 'Transport details unavailable' : rootValue;
+    return rootValue == null || rootValue.isEmpty
+        ? 'Transport details unavailable'
+        : rootValue;
   }
 
   @override
@@ -74,14 +91,18 @@ class TripConfirmationScreen extends StatelessWidget {
     final bookingStatus = booking['status']?.toString().toLowerCase();
     final isConfirmed = bookingStatus == 'confirmed' || bookingStatus == '2';
     final payments = booking['payments'];
-    final isPaid = booking['paymentStatus']?.toString().toLowerCase() == 'paid' ||
-        (payments is List && payments.any((payment) {
-          return payment is Map &&
-              payment['status']?.toString().toLowerCase() == 'paid';
-        }));
+    final isPaid =
+        booking['paymentStatus']?.toString().toLowerCase() == 'paid' ||
+        (payments is List &&
+            payments.any((payment) {
+              return payment is Map &&
+                  payment['status']?.toString().toLowerCase() == 'paid';
+            }));
     if (!isConfirmed || !isPaid) {
       return const Scaffold(
-        body: Center(child: Text('Payment is required before the ticket is available.')),
+        body: Center(
+          child: Text('Payment is required before the ticket is available.'),
+        ),
       );
     }
 
@@ -95,8 +116,8 @@ class TripConfirmationScreen extends StatelessWidget {
     final tripTitle = booking['tripTitle']?.toString().trim().isNotEmpty == true
         ? booking['tripTitle'].toString()
         : (booking['destinationName']?.toString().trim().isNotEmpty == true
-            ? booking['destinationName'].toString()
-            : 'Trip details unavailable');
+              ? booking['destinationName'].toString()
+              : 'Trip details unavailable');
     final dates = _bookingDates(booking);
     final items = _bookingItems(booking);
     final hotelName = _hotelName(items, booking);
@@ -133,10 +154,14 @@ class TripConfirmationScreen extends StatelessWidget {
                   width: 92,
                   height: 92,
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E3A2F) : const Color(0xFFE5F1EA),
+                    color: isDark
+                        ? const Color(0xFF1E3A2F)
+                        : const Color(0xFFE5F1EA),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isDark ? const Color(0xFF2E5E4B) : const Color(0xFFC8E4D4),
+                      color: isDark
+                          ? const Color(0xFF2E5E4B)
+                          : const Color(0xFFC8E4D4),
                       width: 8,
                     ),
                   ),
@@ -175,7 +200,9 @@ class TripConfirmationScreen extends StatelessWidget {
                   'Your Sri Lankan journey is secured. Tickets and partner contacts are now available offline.',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
-                    color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                    color: isDark
+                        ? const Color(0xFF9EABA4)
+                        : const Color(0xFF6B7280),
                     height: 1.4,
                   ),
                   textAlign: TextAlign.center,
@@ -189,7 +216,9 @@ class TripConfirmationScreen extends StatelessWidget {
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: bookingRef));
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Copied "$bookingRef" to clipboard')),
+                    SnackBar(
+                      content: Text('Copied "$bookingRef" to clipboard'),
+                    ),
                   );
                 },
                 child: Container(
@@ -198,7 +227,9 @@ class TripConfirmationScreen extends StatelessWidget {
                     vertical: 7,
                   ),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF2C261A) : const Color(0xFFF6EBCB),
+                    color: isDark
+                        ? const Color(0xFF2C261A)
+                        : const Color(0xFFF6EBCB),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -209,7 +240,9 @@ class TripConfirmationScreen extends StatelessWidget {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? const Color(0xFFE5D7B5) : const Color(0xFF6B7280),
+                          color: isDark
+                              ? const Color(0xFFE5D7B5)
+                              : const Color(0xFF6B7280),
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -219,7 +252,9 @@ class TripConfirmationScreen extends StatelessWidget {
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
-                          color: isDark ? AppColors.figmaGold : const Color(0xFF123F32),
+                          color: isDark
+                              ? AppColors.figmaGold
+                              : const Color(0xFF123F32),
                         ),
                       ),
                     ],
@@ -236,16 +271,18 @@ class TripConfirmationScreen extends StatelessWidget {
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                    color: isDark
+                        ? const Color(0xFF2E3D36)
+                        : const Color(0xFFE4E7E2),
                   ),
                   boxShadow: [
                     BoxShadow(
                       color: const Color(0xFF10291F).withValues(alpha: 0.08),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
-                    ), /*
+                    ) /*
                       value: '$customerLabel · $travellerLabel',
-                  */
+                  */,
                   ],
                 ),
                 child: Column(
@@ -262,12 +299,12 @@ class TripConfirmationScreen extends StatelessWidget {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) =>
                               Container(
-                            color: const Color(0xFF374151),
-                            child: const Icon(
-                              Icons.landscape,
-                              color: Colors.white54,
-                            ),
-                          ),
+                                color: const Color(0xFF374151),
+                                child: const Icon(
+                                  Icons.landscape,
+                                  color: Colors.white54,
+                                ),
+                              ),
                         ),
                       ),
                     ),
@@ -288,7 +325,9 @@ class TripConfirmationScreen extends StatelessWidget {
                       dates,
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
-                        color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                        color: isDark
+                            ? const Color(0xFF9EABA4)
+                            : const Color(0xFF6B7280),
                       ),
                     ),
 
@@ -296,7 +335,9 @@ class TripConfirmationScreen extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       child: Divider(
                         height: 1,
-                        color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                        color: isDark
+                            ? const Color(0xFF2E3D36)
+                            : const Color(0xFFE4E7E2),
                       ),
                     ),
 
@@ -329,9 +370,10 @@ class TripConfirmationScreen extends StatelessWidget {
                       value: '$customerLabel · $travellerLabel',
                       /*
                       value: '$customerName · 2 Travelers',
-                    */), /*
+                    */
+                    ) /*
                       value: '$customerLabel · $travellerLabel',
-                  */
+                  */,
                   ],
                 ),
               ),
@@ -347,7 +389,8 @@ class TripConfirmationScreen extends StatelessWidget {
                       child: OutlinedButton(
                         onPressed: () {
                           // Real clipboard share implementation
-                          final shareText = '''
+                          final shareText =
+                              '''
 Serendib Trails - Confirmed Trip Itinerary
 Reference: $bookingRef
 Customer: $customerName
@@ -356,12 +399,15 @@ Dates: $dates
 Hotel: $hotelName
 Transport: $transportName
 Stops: $destinations
-'''.trim();
+'''
+                                  .trim();
                           Clipboard.setData(ClipboardData(text: shareText));
                           ScaffoldMessenger.of(context).hideCurrentSnackBar();
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Trip itinerary copied to clipboard!'),
+                              content: Text(
+                                'Trip itinerary copied to clipboard!',
+                              ),
                               duration: Duration(seconds: 2),
                             ),
                           );
@@ -369,7 +415,9 @@ Stops: $destinations
                         style: OutlinedButton.styleFrom(
                           backgroundColor: theme.cardColor,
                           side: BorderSide(
-                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                            color: isDark
+                                ? const Color(0xFF2E3D36)
+                                : const Color(0xFFE4E7E2),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
@@ -382,7 +430,9 @@ Stops: $destinations
                             Icon(
                               Icons.share_outlined,
                               size: 16,
-                              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+                              color: isDark
+                                  ? AppColors.leaf400
+                                  : const Color(0xFF123F32),
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -390,7 +440,9 @@ Stops: $destinations
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? Colors.white : const Color(0xFF123F32),
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF123F32),
                               ),
                             ),
                           ],
@@ -430,7 +482,9 @@ Stops: $destinations
                         style: OutlinedButton.styleFrom(
                           backgroundColor: theme.cardColor,
                           side: BorderSide(
-                            color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFE4E7E2),
+                            color: isDark
+                                ? const Color(0xFF2E3D36)
+                                : const Color(0xFFE4E7E2),
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
@@ -443,7 +497,9 @@ Stops: $destinations
                             Icon(
                               Icons.download_outlined,
                               size: 16,
-                              color: isDark ? AppColors.leaf400 : const Color(0xFF123F32),
+                              color: isDark
+                                  ? AppColors.leaf400
+                                  : const Color(0xFF123F32),
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -451,7 +507,9 @@ Stops: $destinations
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: isDark ? Colors.white : const Color(0xFF123F32),
+                                color: isDark
+                                    ? Colors.white
+                                    : const Color(0xFF123F32),
                               ),
                             ),
                           ],
@@ -464,14 +522,23 @@ Stops: $destinations
 
               const SizedBox(height: 14),
 
-              // ── Next Step Reminder Box ──
+              if (booking['tripDetails'] is Map)
+                TripConfirmationDetails(
+                  details: Map<String, dynamic>.from(
+                    booking['tripDetails'] as Map,
+                  ),
+                ),
+
+              // ── Saved confirmation ──
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
                   vertical: 11,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF221F18) : const Color(0xFFF6EBCB),
+                  color: isDark
+                      ? const Color(0xFF221F18)
+                      : const Color(0xFFF6EBCB),
                   borderRadius: BorderRadius.circular(13),
                 ),
                 child: Row(
@@ -484,11 +551,13 @@ Stops: $destinations
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        "We'll remind you about visa, weather and packing details 7 days before departure.",
+                        'Your trip confirmation is saved in Alerts, including your full plan, hotels, transport and available contacts.',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
-                          color: isDark ? const Color(0xFFE5D7B5) : const Color(0xFF17211D),
+                          color: isDark
+                              ? const Color(0xFFE5D7B5)
+                              : const Color(0xFF17211D),
                         ),
                       ),
                     ),
@@ -574,7 +643,9 @@ Stops: $destinations
                 label,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
-                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                  color: isDark
+                      ? const Color(0xFF9EABA4)
+                      : const Color(0xFF6B7280),
                 ),
               ),
               Text(

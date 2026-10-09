@@ -85,6 +85,8 @@ export default function TransportFleetManagement() {
   const [formData, setFormData] = useState({
     type: 'Car',
     provider: '',
+    contactPhone: '',
+    contactEmail: '',
     from: '',
     to: '',
     price: '',
@@ -126,6 +128,8 @@ export default function TransportFleetManagement() {
             code: `TR-${t.id}`,
             type: typeStr,
             provider: t.provider,
+            contactPhone: t.contactPhone || '',
+            contactEmail: t.contactEmail || '',
             from: t.routeFrom,
             to: t.routeTo,
             price: Number(t.price),
@@ -185,6 +189,8 @@ export default function TransportFleetManagement() {
     setFormData({
       type: sch.type,
       provider: sch.provider,
+      contactPhone: sch.contactPhone || '',
+      contactEmail: sch.contactEmail || '',
       from: sch.from,
       to: sch.to,
       price: sch.price,
@@ -203,6 +209,8 @@ export default function TransportFleetManagement() {
     setFormData({
       type: 'Car',
       provider: '',
+      contactPhone: '',
+      contactEmail: '',
       from: '',
       to: '',
       price: '',
@@ -725,6 +733,21 @@ export default function TransportFleetManagement() {
                   value={formData.provider}
                   onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
                 />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <label>
+                  Contact phone
+                  <input type="tel" maxLength={30} className="staff-search-box"
+                    style={{ width: '100%' }} value={formData.contactPhone}
+                    onChange={(e) => setFormData({ ...formData, contactPhone: e.target.value })} />
+                </label>
+                <label>
+                  Contact email
+                  <input type="email" maxLength={254} className="staff-search-box"
+                    style={{ width: '100%' }} value={formData.contactEmail}
+                    onChange={(e) => setFormData({ ...formData, contactEmail: e.target.value })} />
+                </label>
               </div>
 
               {/* Cover Image Upload & Media Selection */}
