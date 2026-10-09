@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../app_constants.dart';
 import '../../services/api_service.dart';
 import '../../services/date_time_contract.dart';
+import '../../widgets/common_widgets.dart';
 
 class TourDetailsScreen extends StatefulWidget {
   const TourDetailsScreen({super.key});
@@ -571,11 +572,7 @@ class _TourDetailsScreenState extends State<TourDetailsScreen> {
             ],
             flexibleSpace: FlexibleSpaceBar(
               background: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => _buildImagePlaceholder(),
-                    )
+                  ? AppNetworkImage(imageUrl: imageUrl, fit: BoxFit.cover)
                   : _buildImagePlaceholder(),
             ),
           ),

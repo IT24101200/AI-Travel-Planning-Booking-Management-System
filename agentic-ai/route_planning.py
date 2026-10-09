@@ -20,9 +20,10 @@ MAX_DAY_MINUTES = DAY_END - DAY_START
 
 
 class RoutePlanningError(ValueError):
-    def __init__(self, code, message):
+    def __init__(self, code, message, details=None):
         super().__init__(message)
         self.code = code
+        self.details = details or {}
 
 
 def point(record):
@@ -160,11 +161,17 @@ def choose_tours(state, tours, destinations):
 
 
 def grouped_itinerary(state, tours, destinations):
+    """Build a grouped itinerary in the customer's persisted destination order.
+
+    ``requested_destinations`` is an ordered product contract.  The
+    ``ordered_destinations`` helper remains available for explicit offline
+    route-analysis callers, but it must not silently rewrite a customer's
+    itinerary while building a bookable proposal.
+    """
     selected = choose_tours(state, tours, destinations)
-    origin = airport(state)
-    matrix = RoadMatrix([*selected, *([origin] if origin else [])])
-    order = ordered_destinations(destinations, selected, matrix, origin)
-    selected.sort(key=lambda t: (order.index(t["destination_id"]), minutes(t.get("default_start_time"))))
+    order = [destination["destination_id"] for destination in destinations]
+    destination_order = {destination_id: index for index, destination_id in enumerate(order)}
+    selected.sort(key=lambda t: (destination_order[t["destination_id"]], minutes(t.get("default_start_time"))))
     schedule = []
     for index, tour in enumerate(selected):
         start = minutes(tour.get("default_start_time"))
@@ -258,7 +265,7 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                     current = target
                     return driving <= MAX_DRIVING_MINUTES and now <= day_limit
                 def take_transfers(destination_index=None):
-                    nonlocal transfer_index, now
+                    nonlocal transfer_index, now, current, driving, km, legs
                     while transfer_index < len(transfers):
                         event = transfers[transfer_index]
                         if destination_index is not None and event["target_index"] > destination_index:
@@ -273,10 +280,26 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                         if not travel(event["source"]) or now > departure_minute:
                             return False
                         now = departure_minute
-                        if not travel(event["target"]) or now > arrival_minute:
+                        scheduled_minutes = (arrival - departure).total_seconds() / 60
+                        if scheduled_minutes <= 0:
                             return False
+                        # A booked TransportOption is a dated departure with an
+                        # authoritative arrival time.  Its schedule, rather
+                        # than the OSRM estimate between representative tour
+                        # coordinates, controls the actual transfer duration.
+                        # OSRM remains useful for distance telemetry, but its
+                        # duration must not reject an otherwise valid booking.
+                        leg_km, _ = matrix.leg(current, event["target"])
+                        if isfinite(leg_km):
+                            km += leg_km
+                        driving += scheduled_minutes
+                        legs.append({"from": endpoint(current), "to": endpoint(event["target"]),
+                                     "distance_km": round(leg_km, 2) if isfinite(leg_km) else None,
+                                     "duration_minutes": round(scheduled_minutes, 1),
+                                     "scheduled": True})
+                        current = event["target"]
                         now = arrival_minute
-                        if now > day_limit:
+                        if driving > MAX_DRIVING_MINUTES or now > day_limit:
                             return False
                         transfer_index += 1
                     return True
@@ -365,11 +388,36 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
                         bucket[:] = [old for old in bucket if not (new_cost <= old[2] and distance + km <= old[3] and new_effort <= old[7])]
                         bucket.append(label)
                     now, current, driving, km, legs = saved
+        previous_labels = labels
         labels = [label for bucket in buckets.values() for label in bucket]
         if not labels:
             code = "BUDGET_EXCEEDED" if saw_budget else "TRAVEL_TIME_INFEASIBLE"
-            message = "No complete hotel and journey plan fits the budget. Increase the budget or reduce destinations." if saw_budget else "No available hotel and journey plan fits the travel days with at most ten driving hours, a twelve-hour day and a finish by 20:00. Early booked transfers may start from 06:00. Add travel days or reduce destinations."
-            raise RoutePlanningError(code, message)
+            requested_names = [
+                destination.get("destination_name") or str(destination["destination_id"])
+                for destination in state.get("requested_destinations", [])
+            ]
+            route_label = " -> ".join(requested_names) or "the requested destination order"
+            message = (
+                "No complete hotel and journey plan fits the budget. "
+                "Increase the budget or reduce destinations."
+                if saw_budget
+                else f"The requested route ({route_label}) cannot fit into {days} days "
+                     "with the available hotel stays and booked transfer times. "
+                     "The planner requires at most ten driving hours per day, a "
+                     "twelve-hour day ending by 20:00, and transfer departures no "
+                     "earlier than 06:00."
+            )
+            raise RoutePlanningError(code, message, {
+                "requested_days": days,
+                "failed_day": day_index + 1,
+                "destination_count": len(destination_ids),
+                "remaining_tours": len(tours) - min((label[0] for label in previous_labels), default=0),
+                "max_driving_minutes": MAX_DRIVING_MINUTES,
+                "max_day_minutes": MAX_DAY_MINUTES,
+                "earliest_transfer_start": "06:00",
+                "finish_by": "20:00",
+                "transport_duration_source": "scheduled_arrival_minus_departure",
+            })
         if len(labels) > 20000:
             raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "This trip has too many hotel combinations. Please select fewer destinations.")
     # Small distance differences can be traded for more balanced driving days.

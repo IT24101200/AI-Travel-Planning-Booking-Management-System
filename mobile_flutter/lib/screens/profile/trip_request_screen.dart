@@ -761,6 +761,70 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                           }).toList(),
                         ),
                       ),
+                      if (destCount > 1) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF17261F)
+                                : const Color(0xFFF2F7F1),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: isDark
+                                  ? const Color(0xFF2E3D36)
+                                  : const Color(0xFFDCE8D9),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'PLANNED DESTINATION ORDER',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.4,
+                                  color: isDark
+                                      ? AppColors.leaf400
+                                      : AppColors.figmaDarkGreen,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'The AI will keep this order for transport legs.',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  color: isDark
+                                      ? const Color(0xFFB8C6BD)
+                                      : const Color(0xFF6E7772),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              ...(_parseDestinations(_destinationCtrl.text)
+                                      .isNotEmpty
+                                  ? _parseDestinations(_destinationCtrl.text)
+                                  : _selectedDestinations.toList())
+                                  .asMap()
+                                  .entries
+                                  .map(
+                                    (entry) => Padding(
+                                      padding: const EdgeInsets.only(top: 2),
+                                      child: Text(
+                                        '${entry.key + 1}. ${entry.value}',
+                                        style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: theme.colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   );
                 },

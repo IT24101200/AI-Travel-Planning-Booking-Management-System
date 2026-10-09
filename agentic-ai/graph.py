@@ -17,6 +17,7 @@ from agents.coordinator_agent import coordinator_plan, coordinator_retry_evaluat
 from agents.itinerary_agent import itinerary_node
 from agents.booking_agent import booking_node
 from agents.validation_agent import validation_node
+from feasibility_preflight import preflight_node
 from destination_contract import normalize_requested_destinations
 from logger import log_agent_step, BACKEND_URL, agent_service_headers
 import httpx
@@ -48,6 +49,7 @@ class TripPlanningState(TypedDict, total=False):
     trip_days: int
     plan_summary: Dict[str, Any]
     target_budgets: Dict[str, Any]
+    preflight: Dict[str, Any]
     itinerary: Dict[str, Any]
     booking_details: Dict[str, Any]
     validation_result: Dict[str, Any]
@@ -64,12 +66,18 @@ def should_retry(state: TripPlanningState) -> str:
     return END
 
 
+def after_preflight(state: TripPlanningState) -> str:
+    """Skip itinerary/LLM work when a deterministic request check fails."""
+    return "evaluator" if state.get("status") == "PreflightFailed" else "itinerary"
+
+
 def build_travel_planning_graph():
     """Builds and compiles the 4-agent LangGraph."""
     workflow = StateGraph(TripPlanningState)
 
-    # Register the 4 agent nodes + 1 evaluation node
+    # Register the 4 agent nodes, deterministic preflight, and evaluation node.
     workflow.add_node("coordinator", lambda state: _run_logged_node("CoordinatorAgent", coordinator_plan, state))
+    workflow.add_node("preflight", lambda state: _run_logged_node("CoordinatorAgent", preflight_node, state))
     workflow.add_node("itinerary", lambda state: _run_logged_node("ItineraryAgent", itinerary_node, state))
     workflow.add_node("booking", lambda state: _run_logged_node("BookingAgent", booking_node, state))
     workflow.add_node("validation", lambda state: _run_logged_node("ValidationAgent", validation_node, state))
@@ -77,7 +85,12 @@ def build_travel_planning_graph():
 
     # Linear execution flow
     workflow.add_edge(START, "coordinator")
-    workflow.add_edge("coordinator", "itinerary")
+    workflow.add_edge("coordinator", "preflight")
+    workflow.add_conditional_edges(
+        "preflight",
+        after_preflight,
+        {"itinerary": "itinerary", "evaluator": "evaluator"},
+    )
     workflow.add_edge("itinerary", "booking")
     workflow.add_edge("booking", "validation")
     workflow.add_edge("validation", "evaluator")

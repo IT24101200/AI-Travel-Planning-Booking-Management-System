@@ -552,26 +552,15 @@ class _TripHistoryScreenState extends State<TripHistoryScreen> {
   }
 
   Widget _buildTripImage(String imagePath) {
-    if (imagePath.startsWith('assets/')) {
-      return Image.asset(
-        imagePath,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-          color: const Color(0xFF1E3A2F),
-          alignment: Alignment.center,
-          child: const Icon(Icons.landscape, color: Colors.white54),
-        ),
-      );
-    }
-    return Image.network(
-      imagePath,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => Container(
+    final resolved = ApiService.resolveMediaUrl(imagePath);
+    if (resolved.isEmpty) {
+      return Container(
         color: const Color(0xFF1E3A2F),
         alignment: Alignment.center,
         child: const Icon(Icons.landscape, color: Colors.white54),
-      ),
-    );
+      );
+    }
+    return AppNetworkImage(imageUrl: resolved, fit: BoxFit.cover);
   }
 
   @override

@@ -53,8 +53,18 @@ def test_all_journeys_in_a_city_are_contiguous():
         plan = grouped_itinerary(state(7), tours, destinations)
     visits = [d["items"][0]["destination_id"] for d in plan["schedule"]]
     compressed = [city for i, city in enumerate(visits) if i == 0 or city != visits[i-1]]
-    assert compressed == plan["route_destination_ids"]
+    assert compressed == plan["route_destination_ids"] == [1, 2, 3]
     assert len(compressed) == len(set(compressed)) == 3
+
+
+def test_grouped_itinerary_preserves_customer_destination_order():
+    destinations = [{"destination_id": i, "destination_name": str(i)} for i in (1, 2)]
+    tours = [tour(1, 1, 81.7), tour(2, 2, 80)]
+    with patch("route_planning.RoadMatrix", LineRoads):
+        plan = grouped_itinerary(state(5), tours, destinations)
+
+    assert plan["route_destination_ids"] == [1, 2]
+    assert [item["destination_id"] for day in plan["schedule"] for item in day["items"]] == [1, 2]
 
 
 def test_nearby_destinations_can_share_a_hotel_and_stays_cover_all_nights():
@@ -88,14 +98,14 @@ def test_long_route_uses_intermediate_hotel_and_transfer_day():
 
 def test_ten_hour_driving_transfer_fits_with_breaks_before_twenty_hundred():
     tours = [tour(1, 1, 80), tour(2, 2, 84)]
-    departure, arrival = datetime(2026, 10, 12, 8), datetime(2026, 10, 12, 19, 40)
+    departure, arrival = datetime(2026, 10, 12, 8), datetime(2026, 10, 12, 18)
     request = {**state(5), "transport_windows": {1: (None, departure), 2: (arrival, None)},
         "transport_events": [{"source": tours[0], "target": tours[1], "target_index": 1,
             "departure": departure, "arrival": arrival}]}
     plan, _ = plan_overnights(request, itinerary(tours), [room(1, 80), room(2, 84)], lambda *_: True, LineRoads)
     transfer = next(day for day in plan["schedule"] if day["date"] == "2026-10-12")
     assert transfer["travel_minutes"] == 600
-    assert transfer["day_end_time"] == "19:40:00"
+    assert transfer["day_end_time"] == "18:00:00"
     assert plan["travel_policy"]["max_driving_minutes"] == 600
 
 
@@ -154,17 +164,19 @@ def test_hotel_move_waits_for_booked_transfer_day_and_time():
     assert stays[0]["check_out"] == "2026-10-12"
     transfer = next(day for day in plan["schedule"] if day["date"] == "2026-10-12")
     assert transfer["end_hotel_id"] == 2
-    assert transfer["travel_minutes"] == 300
+    assert transfer["travel_minutes"] == 360
     assert all(day["end_hotel_id"] == 1 for day in plan["schedule"] if day["date"] < "2026-10-12")
 
 
-def test_transfer_timetable_must_allow_actual_road_travel_and_breaks():
+def test_transfer_timetable_uses_authoritative_scheduled_duration():
     tours = [tour(1, 1, 80), tour(2, 2, 82)]
     request = {**state(5), "transport_events": [{"source": tours[0], "target": tours[1], "target_index": 1,
         "departure": datetime(2026, 10, 12, 9), "arrival": datetime(2026, 10, 12, 10)}]}
-    with pytest.raises(RoutePlanningError) as error:
-        plan_overnights(request, itinerary(tours), [room(1, 80), room(2, 82)], lambda *_: True, LineRoads)
-    assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
+    plan, _ = plan_overnights(request, itinerary(tours), [room(1, 80), room(2, 82)], lambda *_: True, LineRoads)
+    transfer_day = next(day for day in plan["schedule"] if day["date"] == "2026-10-12")
+    assert transfer_day["travel_minutes"] == 60
+    scheduled_leg = next(leg for leg in transfer_day["travel_legs"] if leg.get("scheduled"))
+    assert scheduled_leg["duration_minutes"] == 60
 
 
 def test_early_booked_transfer_includes_hotel_approach_and_preserves_daily_span():
@@ -174,7 +186,7 @@ def test_early_booked_transfer_includes_hotel_approach_and_preserves_daily_span(
     plan, _ = plan_overnights(request, itinerary(tours), [room(1, 79.9), room(2, 82)], lambda *_: True, LineRoads)
     transfer = next(day for day in plan["schedule"] if day["date"] == "2026-10-12")
     assert transfer["day_start_time"] == "06:45:00"
-    assert transfer["travel_minutes"] == 315
+    assert transfer["travel_minutes"] == 375
     assert transfer["day_end_time"] <= "18:45:00"
     assert all(day["day_start_time"] == "08:00:00" for day in plan["schedule"] if day["date"] != "2026-10-12")
 

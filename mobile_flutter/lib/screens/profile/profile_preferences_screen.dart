@@ -387,17 +387,9 @@ class _ProfilePreferencesScreenState extends State<ProfilePreferencesScreen> {
                           ),
                         ),
                         child: ClipOval(
-                          child: Image.network(
-                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80',
+                          child: AppNetworkImage(
+                            imageUrl: 'assets/photos/explore-hero.jpg',
                             fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              color: const Color(0xFF1E5E4B),
-                              child: const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                                size: 36,
-                              ),
-                            ),
                           ),
                         ),
                       ),

@@ -93,6 +93,7 @@ def _booking_failure(trip_id, code, message, diagnostics=None):
     }
     if diagnostics:
         output_data["transport_diagnostics"] = diagnostics
+        output_data["planning_diagnostics"] = diagnostics
     log_agent_step(
         trip_request_id=trip_id,
         agent_name="BookingAgent",
@@ -109,6 +110,7 @@ def _booking_failure(trip_id, code, message, diagnostics=None):
     }
     if diagnostics:
         result["transport_diagnostics"] = diagnostics
+        result["planning_diagnostics"] = diagnostics
     return result
 
 def _remove_markdown_fences(text):
@@ -143,6 +145,21 @@ def build_booking_package(state):
             trip_id,
             itinerary.get("error_code", "INVALID_ITINERARY"),
             itinerary.get("error", "A valid itinerary proposal is required."),
+        )
+
+    requested_destinations = state.get("requested_destinations")
+    if requested_destinations is None:
+        requested_destinations = [{
+            "destination_id": destination_id,
+            "destination_name": state.get("destination_name", ""),
+        }]
+    requested_order = [item["destination_id"] for item in requested_destinations]
+    planned_order = itinerary.get("route_destination_ids")
+    if planned_order is not None and planned_order != requested_order:
+        return _booking_failure(
+            trip_id,
+            "INVALID_DESTINATION_ORDER",
+            "The planned route must preserve the customer's requested destination order.",
         )
     
     geographic = bool(itinerary.get("route_destination_ids"))
@@ -187,12 +204,6 @@ def build_booking_package(state):
     )
 
     # 2. Search transports from the complete, route/date-compatible catalogue.
-    requested_destinations = state.get("requested_destinations")
-    if requested_destinations is None:
-        requested_destinations = [{
-            "destination_id": destination_id,
-            "destination_name": state.get("destination_name", ""),
-        }]
     if geographic:
         by_id = {d["destination_id"]: d for d in requested_destinations}
         requested_destinations = [by_id[i] for i in itinerary["route_destination_ids"]]
@@ -418,7 +429,12 @@ def build_booking_package(state):
                     raise RoutePlanningError("NO_VALID_ROOM", "A selected hotel is no longer available for the complete stay. Please retry.")
                 selected_room = room_selections[0]
             except RoutePlanningError as error:
-                return _booking_failure(trip_id, error.code, str(error))
+                diagnostics = dict(getattr(error, "details", {}) or {})
+                diagnostics.update({
+                    "evaluated_timetables": evaluated if "evaluated" in locals() else 0,
+                    "search_limited": search_limited if "search_limited" in locals() else False,
+                })
+                return _booking_failure(trip_id, error.code, str(error), diagnostics=diagnostics)
         tour_cost = sum(
             (Decimal(str(tour["price"])) * traveller_count
              for day in itinerary.get("schedule", [])
