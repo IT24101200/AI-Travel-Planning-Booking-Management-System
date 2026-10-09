@@ -52,8 +52,10 @@ namespace backend.Tests
             Assert.Equal("Pending", result.Status);
         }
 
-        [Fact]
-        public async Task CreateAsync_ExplicitStarterIsPersistedWithoutChangingSelectionContract()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task CreateAsync_ExplicitStarterIsPersistedWithoutChangingSelectionContract(bool airportPickup)
         {
             await using var context = CreateContext();
             context.Destinations.AddRange(
@@ -66,6 +68,7 @@ namespace backend.Tests
             {
                 DestinationIds = new() { 11, 22, 33 },
                 StarterLocationId = 22,
+                AirportPickup = airportPickup,
                 RawRequestText = "Start in Colombo, then optimize the route",
                 StartDate = DateTime.UtcNow.Date.AddDays(7),
                 EndDate = DateTime.UtcNow.Date.AddDays(13),
@@ -75,6 +78,7 @@ namespace backend.Tests
             });
 
             Assert.Equal(22, result.StarterLocationId);
+            Assert.Equal(airportPickup, result.AirportPickup);
             Assert.Equal(22, result.DestinationId);
             Assert.Equal(22, result.Destinations.Single(destination => destination.IsStarter).Id);
             Assert.Contains("IsStarter", (await context.TripRequests.SingleAsync()).DestinationSelectionsJson);

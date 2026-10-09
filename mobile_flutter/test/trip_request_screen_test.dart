@@ -154,7 +154,10 @@ void main() {
     expect(submitted?['destinationId'], 11);
     expect(submitted?['airportPickup'], false);
     expect(submitted?['starterLocationId'], isNull);
-    expect(submitted?['rawRequestText'], contains('Route origin: AI optimized.'));
+    expect(
+      submitted?['rawRequestText'],
+      contains('Route origin: AI optimized.'),
+    );
     expect(submitted?['destinationIds'], [11, 22, 33]);
     expect(submitted?['destinations'], [
       {'id': 11, 'name': 'Anuradhapura', 'order': 0},
@@ -194,10 +197,10 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('starter-location-dropdown')));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('starter-location-option-Colombo')),
-      );
+      await tester.tap(find.text('Colombo').last);
       await tester.pump();
+      expect(find.text('First destination: Colombo'), findsOneWidget);
+      expect(find.text('Remaining destinations to optimize'), findsOneWidget);
 
       await tester.ensureVisible(find.text('Generate AI Itinerary'));
       await tester.tap(find.text('Generate AI Itinerary'));
@@ -237,16 +240,27 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ActionChip, 'Ella'));
     await tester.tap(find.widgetWithText(ActionChip, 'Kandy'));
+    await tester.pumpAndSettle();
+    final starter = find.byKey(const ValueKey('starter-location-dropdown'));
+    expect(starter, findsOneWidget);
+    await tester.ensureVisible(starter);
+    await tester.tap(starter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kandy').last);
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Airport pickup'));
     await tester.tap(find.text('Airport pickup'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('starter-location-dropdown')), findsNothing);
+    expect(starter, findsOneWidget);
     expect(find.text('Arrival airport'), findsOneWidget);
+    expect(find.text('Arrive at CMB airport'), findsOneWidget);
+    expect(find.textContaining('Airport → Kandy'), findsOneWidget);
+    expect(find.text('Rest before journeys when needed'), findsOneWidget);
     await tester.ensureVisible(find.text('Generate AI Itinerary'));
     await tester.tap(find.text('Generate AI Itinerary'));
     await tester.pumpAndSettle();
     expect(submitted?['airportPickup'], true);
-    expect(submitted?['starterLocationId'], isNull);
+    expect(submitted?['starterLocationId'], 2);
     expect(submitted?['airportCode'], 'CMB');
     expect(submitted?['airportArrivalTime'], '08:00:00');
   });

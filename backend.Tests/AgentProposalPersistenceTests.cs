@@ -81,13 +81,16 @@ public class AgentProposalPersistenceTests
         }
     }
 
-    [Fact]
-    public async Task RouteThatChangesTheSelectedStarterIsRejected()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RouteThatChangesTheSelectedStarterIsRejected(bool airportPickup)
     {
         var (context, connection) = await CreateThreeDestinationContextAsync();
         await using (context)
         await using (connection)
         {
+            (await context.TripRequests.SingleAsync()).AirportPickup = airportPickup;
             var node = System.Text.Json.Nodes.JsonNode.Parse(ThreeDestinationProposal().GetRawText())!;
             node["itinerary"]!["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[2,1,3]");
 

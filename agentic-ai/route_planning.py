@@ -176,21 +176,13 @@ def grouped_itinerary(state, tours, destinations):
     requested_order = [destination["destination_id"] for destination in destinations]
     airport_origin = airport(state)
     explicit_starter_id = state.get("starter_location_id")
-    if explicit_starter_id is not None and airport_origin is not None:
-        raise RoutePlanningError(
-            "STARTER_CONFLICT",
-            "Airport pickup is already the route origin; destination starter selection is not applicable.",
-        )
-
     try:
         explicit_starter_id = int(explicit_starter_id) if explicit_starter_id is not None else None
     except (TypeError, ValueError):
         raise RoutePlanningError("INVALID_STARTER_LOCATION", "The selected starter location is invalid.") from None
 
     matrix = RoadMatrix([*selected, *([airport_origin] if airport_origin else [])])
-    if airport_origin:
-        order = ordered_destinations(destinations, selected, matrix, airport_origin)
-    elif explicit_starter_id is not None:
+    if explicit_starter_id is not None:
         if explicit_starter_id not in requested_order:
             raise RoutePlanningError(
                 "INVALID_STARTER_LOCATION",
@@ -205,6 +197,8 @@ def grouped_itinerary(state, tours, destinations):
         ]
         if remaining:
             order.extend(ordered_destinations(remaining, selected, matrix, starter))
+    elif airport_origin:
+        order = ordered_destinations(destinations, selected, matrix, airport_origin)
     else:
         order = ordered_destinations(destinations, selected, matrix)
     destination_order = {destination_id: index for index, destination_id in enumerate(order)}

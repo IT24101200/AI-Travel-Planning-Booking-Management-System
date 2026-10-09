@@ -75,14 +75,30 @@ def test_all_journeys_in_a_city_are_contiguous():
     assert len(compressed) == len(set(compressed)) == 3
 
 
-def test_grouped_itinerary_starts_at_selected_location_and_optimizes_remaining_stops():
+@pytest.mark.parametrize("airport_pickup", [False, True])
+def test_grouped_itinerary_starts_at_selected_location_and_optimizes_remaining_stops(airport_pickup):
     destinations = [{"destination_id": i, "destination_name": str(i)} for i in (1, 2, 3)]
     tours = [tour(1, 1, 81.7), tour(2, 2, 80), tour(3, 3, 81.8)]
     with patch("route_planning.RoadMatrix", LineRoads):
-        plan = grouped_itinerary({**state(5), "starter_location_id": 1}, tours, destinations)
+        plan = grouped_itinerary({**state(5), "starter_location_id": 1, "airport_pickup": airport_pickup}, tours, destinations)
 
     assert plan["route_destination_ids"] == [1, 3, 2]
     assert [item["destination_id"] for day in plan["schedule"] for item in day["items"]] == [1, 3, 2]
+
+
+def test_airport_transfer_arriving_too_late_for_journey_books_starter_hotel_first():
+    destination = tour(1, 1, 80)
+    origin = airport({"airport_pickup": True})
+    request = {**state(2), "airport_pickup": True, "airport_arrival_time": "16:00",
+        "starter_location_id": 1,
+        "transport_events": [{"source": origin, "target": destination, "target_index": 0,
+            "departure": datetime(2026, 10, 10, 17), "arrival": datetime(2026, 10, 10, 18)}]}
+    plan, stays = plan_overnights(request, itinerary([destination]), [room(1, 80)], lambda *_: True, LineRoads)
+    assert plan["schedule"][0]["items"] == []
+    assert plan["schedule"][0]["end_hotel_id"] == 1
+    assert plan["schedule"][1]["items"][0]["tour_id"] == 1
+    assert stays[0]["check_in"] == "2026-10-10"
+    assert stays[0]["check_out"] == "2026-10-11"
 
 
 def test_grouped_itinerary_without_starter_lets_optimizer_choose_first_stop():

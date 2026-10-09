@@ -695,7 +695,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             || !plannedDestinationIds.OrderBy(id => id).SequenceEqual(requestedDestinationIds.OrderBy(id => id)))
             return false;
 
-        return airportPickup || !starterLocationId.HasValue || plannedDestinationIds[0] == starterLocationId.Value;
+        return !starterLocationId.HasValue || plannedDestinationIds[0] == starterLocationId.Value;
     }
 
     private static string? OptionalString(JsonElement parent, string name)

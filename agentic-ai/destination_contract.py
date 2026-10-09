@@ -24,8 +24,8 @@ def is_valid_route_order(
 
     A customer-selected starter must be first. With no selected starter, the
     route may be any complete permutation so the optimizer can choose the
-    shortest open path. Airport pickup supersedes destination starters and is
-    validated as the route origin by the planner's airport leg.
+    shortest open path. Airport pickup precedes the first destination; a
+    selected starter still pins that first destination.
     """
     if not isinstance(planned_order, list) or not requested_order:
         return False
@@ -38,7 +38,7 @@ def is_valid_route_order(
         return False
     if sorted(planned_ids) != sorted(requested_ids):
         return False
-    if airport_pickup or starter_location_id is None:
+    if starter_location_id is None:
         return True
     try:
         return planned_ids[0] == int(starter_location_id)

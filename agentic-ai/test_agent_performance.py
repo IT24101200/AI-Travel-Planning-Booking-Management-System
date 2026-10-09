@@ -101,3 +101,43 @@ def test_budget_retry_reuses_theme_and_recomputes_reduced_budgets():
     assert result["plan_summary"]["theme"] == "Beach getaway"
     assert result["plan_summary"]["effective_target_budget"] == 8500
     assert result["target_budgets"]["hotels_budget"] == 3825
+
+
+def test_http_request_preserves_starter_for_sync_and_async_planning():
+    from fastapi import BackgroundTasks
+    from main import TripPipelineRequest, run_pipeline_async, run_pipeline_sync
+
+    request = TripPipelineRequest(
+        trip_request_id=1, destination_id=1, starter_location_id=2,
+        airport_pickup=True, requested_destinations=[
+            {"destination_id": 1}, {"destination_id": 2}],
+        start_date="2026-10-10", end_date="2026-10-15", budget_ceiling=100000,
+    )
+    with patch("main.run_travel_planning_pipeline", return_value={"status": "AwaitingApproval"}) as pipeline:
+        run_pipeline_sync(request)
+        assert pipeline.call_args.args[0]["starter_location_id"] == 2
+        tasks = BackgroundTasks()
+        run_pipeline_async(request, tasks)
+        assert tasks.tasks[0].args[0]["starter_location_id"] == 2
+        assert tasks.tasks[0].args[0]["airport_pickup"] is True
+
+
+def test_airport_pickup_does_not_override_selected_destination_starter():
+    from destination_contract import is_valid_route_order
+
+    assert is_valid_route_order([2, 3, 1], [1, 2, 3], starter_location_id=2, airport_pickup=True)
+    assert not is_valid_route_order([1, 2, 3], [1, 2, 3], starter_location_id=2, airport_pickup=True)
+    assert not is_valid_route_order([2, 1], [1, 2, 3], starter_location_id=2, airport_pickup=True)
+
+
+def test_rejected_backend_callback_is_reported_as_failed_planning():
+    import graph
+
+    with (
+        patch.object(graph.travel_app, "invoke", return_value={"status": "AwaitingApproval"}),
+        patch.object(graph, "log_agent_step"),
+        patch.object(graph, "sync_result_to_backend", return_value=False),
+    ):
+        result = graph.run_travel_planning_pipeline({"trip_request_id": 1})
+    assert result["status"] == "Failed"
+    assert "could not save" in result["failure_reason"]

@@ -184,6 +184,13 @@ def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, ret
                 logger.info("Final callback completed for TripRequest #%s: HTTP %s", trip_id, response.status_code)
                 return True
             logger.warning("Final callback rejected for TripRequest #%s: HTTP %s", trip_id, response.status_code)
+            try:
+                error = response.json()
+                if isinstance(error, dict):
+                    logger.warning("Backend proposal rejection for TripRequest #%s: code=%s message=%s",
+                                   trip_id, error.get("code"), error.get("message"))
+            except ValueError:
+                pass
     except Exception as e:
         logger.exception("Final callback failed for TripRequest #%s: %s", trip_id, e)
     return False
@@ -276,13 +283,17 @@ def _run_travel_planning_pipeline(initial_data: dict) -> dict:
     failure_reason = final_state.get("failure_reason")
 
     # Sync back to backend DB
-    sync_result_to_backend(
+    synced = sync_result_to_backend(
         trip_id=trip_id,
         final_status=final_status,
         plan_json=plan_json,
         retry_count=retries,
         failure_reason=failure_reason
     )
+    if synced is False and final_status != "Failed":
+        final_status = "Failed"
+        final_state["status"] = final_status
+        final_state["failure_reason"] = "The backend could not save the generated proposal. Check the planning log for the rejection reason."
 
     logger.info("Pipeline completed for TripRequest #%s with status=%s", trip_id, final_status)
 
