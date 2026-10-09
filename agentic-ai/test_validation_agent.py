@@ -137,6 +137,17 @@ def test_geographic_daily_driving_limit_is_ten_hours(daily_minutes, valid):
         assert error.value.code == "TRAVEL_TIME_INFEASIBLE"
 
 
+def test_geographic_package_rejects_reordered_customer_destinations():
+    state = _multi_leg_state()
+    itinerary = state["booking_details"]["itinerary"]
+    itinerary["route_destination_ids"] = [54, 51, 56]
+
+    with pytest.raises(PackageValidationError) as error:
+        validate_and_build_booking(state)
+
+    assert error.value.code == "INVALID_DESTINATION_ORDER"
+
+
 def test_multi_leg_package_rejects_missing_or_duplicate_leg():
     state = _multi_leg_state()
     state["booking_details"]["transport_selections"] = [

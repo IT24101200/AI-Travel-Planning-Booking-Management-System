@@ -192,12 +192,15 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
         }
 
         var routeDestinationIds = requestedDestinationIds;
-        var optimizedOrder = OptionalArray(itinerary, "route_destination_ids");
-        if (optimizedOrder.HasValue)
+        var suppliedRoute = OptionalArray(itinerary, "route_destination_ids");
+        if (suppliedRoute.HasValue)
         {
-            routeDestinationIds = optimizedOrder.Value.EnumerateArray().Select(value => value.GetInt32()).ToList();
-            if (!routeDestinationIds.OrderBy(id => id).SequenceEqual(requestedDestinationIds.OrderBy(id => id)) ||
-                !visitedDestinations.SequenceEqual(routeDestinationIds))
+            routeDestinationIds = suppliedRoute.Value.EnumerateArray().Select(value => value.GetInt32()).ToList();
+            if (!routeDestinationIds.SequenceEqual(requestedDestinationIds))
+                throw new ProposalPersistenceException(
+                    "DESTINATION_ORDER_CONTRACT_MISMATCH",
+                    "The planned route must preserve the customer's requested destination order.");
+            if (!visitedDestinations.SequenceEqual(routeDestinationIds))
                 throw new ProposalPersistenceException("DESTINATION_BACKTRACKING", "The route must visit every selected destination once and finish its journeys before moving on.");
             foreach (var day in schedule.EnumerateArray())
             {
@@ -223,7 +226,7 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             trip,
             currency,
             cancellationToken, revisionBooking?.Id);
-        if (optimizedOrder.HasValue)
+        if (suppliedRoute.HasValue)
         {
             foreach (var selection in validatedTransportSelections.Where(s => s.LegIndex.HasValue))
             {
@@ -641,10 +644,10 @@ public sealed class AgentProposalPersistenceService : IAgentProposalPersistenceS
             .Select(id => id!.Value)
             .ToList();
 
-        if (!requestedDestinationIds.OrderBy(id => id).SequenceEqual(suppliedIds.Distinct().OrderBy(id => id)))
+        if (!requestedDestinationIds.SequenceEqual(suppliedIds))
             throw new ProposalPersistenceException(
                 "DESTINATION_CONTRACT_MISMATCH",
-                "The proposal destination list does not match the TripRequest destination list.");
+                "The proposal destination list must preserve the TripRequest destination order.");
     }
 
     private static string? OptionalString(JsonElement parent, string name)

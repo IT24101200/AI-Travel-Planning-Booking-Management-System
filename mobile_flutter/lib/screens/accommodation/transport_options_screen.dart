@@ -381,25 +381,11 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              vehicle['image'] as String,
+                            child: AppNetworkImage(
+                              imageUrl: vehicle['image'] as String,
                               width: 100,
                               height: 75,
                               fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  Container(
-                                    width: 100,
-                                    height: 75,
-                                    color: isDark
-                                        ? const Color(0xFF26332D)
-                                        : const Color(0xFFE5E7EB),
-                                    child: Icon(
-                                      Icons.directions_car,
-                                      color: isDark
-                                          ? const Color(0xFF6B7A73)
-                                          : const Color(0xFF9CA3AF),
-                                    ),
-                                  ),
                             ),
                           ),
                           const SizedBox(width: 14),

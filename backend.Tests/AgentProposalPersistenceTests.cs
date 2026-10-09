@@ -43,22 +43,12 @@ public class AgentProposalPersistenceTests
     }
 
     [Fact]
-    public async Task OptimizedDestinationOrderUsesMatchingTransportLegs()
+    public async Task ReorderedDestinationOrderIsRejectedBeforePersistence()
     {
         var (context, connection) = await CreateThreeDestinationContextAsync();
         await using (context)
         await using (connection)
         {
-            var first = await context.TransportOptions.SingleAsync(t => t.Id == 30);
-            first.RouteTo = "Third Destination";
-            first.DepartureTime = new DateTime(2026, 10, 10, 12, 0, 0);
-            first.ArrivalTime = new DateTime(2026, 10, 10, 15, 0, 0);
-            var second = await context.TransportOptions.SingleAsync(t => t.Id == 31);
-            second.RouteFrom = "Third Destination";
-            second.RouteTo = "Second Destination";
-            second.DepartureTime = new DateTime(2026, 10, 11, 12, 0, 0);
-            second.ArrivalTime = new DateTime(2026, 10, 11, 15, 0, 0);
-            await context.SaveChangesAsync();
             var node = System.Text.Json.Nodes.JsonNode.Parse(ThreeDestinationProposal().GetRawText())!;
             var itinerary = node["itinerary"]!;
             itinerary["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[1,3,2]");
@@ -69,15 +59,15 @@ public class AgentProposalPersistenceTests
                 day!["travel_minutes"] = 120;
                 day["day_end_time"] = "17:00:00";
             }
-            await new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
-            var trip = await context.TripRequests.SingleAsync();
-            Assert.Equal(new[] { 1, 3, 2 }, TransportCompatibility.ResolveDestinationIds(trip));
-            Assert.Equal("Third Destination", (await context.BookingItems.SingleAsync(item => item.TransportLegIndex == 0)).TransportRouteToSnapshot);
+            var error = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
+                new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0));
+            Assert.Equal("DESTINATION_ORDER_CONTRACT_MISMATCH", error.Code);
+            Assert.Empty(await context.Bookings.ToListAsync());
         }
     }
 
     [Fact]
-    public async Task OptimizedPlanRejectsTransportDepartingBeforeSourceVisitsFinish()
+    public async Task RequestedOrderPlanRejectsTransportDepartingBeforeSourceVisitsFinish()
     {
         var (context, connection) = await CreateThreeDestinationContextAsync();
         await using (context)

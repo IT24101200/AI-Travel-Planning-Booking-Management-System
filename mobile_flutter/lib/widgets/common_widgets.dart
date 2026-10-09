@@ -20,28 +20,30 @@ class AppNetworkImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Image fallback() => Image.asset(
+          'assets/photos/sigiriya-1280.jpg',
+          width: width,
+          height: height,
+          fit: fit,
+        );
+
     Widget imageWidget;
 
-    if (imageUrl.startsWith('assets/')) {
+    if (imageUrl.trim().isEmpty) {
+      imageWidget = fallback();
+    } else if (imageUrl.startsWith('assets/')) {
       imageWidget = Image.asset(
         imageUrl,
         width: width,
         height: height,
         fit: fit,
         errorBuilder: (context, error, stackTrace) {
-          return Image.asset(
-            'assets/photos/sigiriya-1280.jpg',
-            width: width,
-            height: height,
-            fit: fit,
-          );
+          return fallback();
         },
       );
     } else {
       imageWidget = Image.network(
         imageUrl,
-        // Public catalog hosts may allow browser images without allowing CORS.
-        webHtmlElementStrategy: WebHtmlElementStrategy.prefer,
         width: width,
         height: height,
         fit: fit,
@@ -64,13 +66,7 @@ class AppNetworkImage extends StatelessWidget {
           );
         },
         errorBuilder: (context, error, stackTrace) {
-          // Automatic local fallback so images never fail to display
-          return Image.asset(
-            'assets/photos/sigiriya-1280.jpg',
-            width: width,
-            height: height,
-            fit: fit,
-          );
+          return fallback();
         },
       );
     }

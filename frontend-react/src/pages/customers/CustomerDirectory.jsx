@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  fetchCustomers,
+  fetchAllCustomers,
   fetchBookings,
   fetchCustomerTrips,
   updateCustomer,
@@ -13,8 +13,16 @@ import { LoadingState } from '../../components/ui/LoadingState.jsx'
 import { AlertBanner } from '../../components/ui/AlertBanner.jsx'
 import { useResponsive } from '../../lib/useResponsive.js'
 import { useAuth } from '../../lib/auth.jsx'
-import { formatLocalInstantDate } from '../../lib/dateTime.js'
+import { formatLocalInstantDate, formatLocalInstantDateTime } from '../../lib/dateTime.js'
 import { formatPrice } from '../../lib/formatPrice.js'
+import {
+  customerDeleteError,
+  filterDirectoryUsers,
+  isStaffRole,
+  paginateDirectoryUsers,
+  sortDirectoryUsers
+} from '../../lib/customerDirectoryModel.js'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog.jsx'
 import {
   SearchIcon,
   UserPlusIcon,
@@ -62,14 +70,15 @@ export default function CustomerDirectory() {
     fullName: '',
     email: '',
     phone: '',
-    password: 'Staff@123',
+    password: '',
     role: 'TravelAgent',
-    department: 'Tour Operations',
-    staffSecretCode: 'staff123'
+    department: 'Tour Operations'
   })
 
   // Account deletion state
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteError, setDeleteError] = useState(null)
 
   // Trip Records Modal State
   const [showTripsModal, setShowTripsModal] = useState(false)
@@ -85,29 +94,19 @@ export default function CustomerDirectory() {
   const [editError, setEditError] = useState(null)
   usePageTitle('Customer & Staff Directory · Serendib Trails')
 
-  async function loadCustomers(cancelled = false) {
+  async function loadCustomers(isCancelled = () => false) {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetchCustomers()
+      const res = await fetchAllCustomers()
       const live = Array.isArray(res) ? res : (res?.data || [])
-      if (!cancelled) {
+      if (!isCancelled()) {
         const mapped = live.map((c, idx) => {
-          const rawRole = c.role || 'Customer'
-          const nameLower = (c.fullName || c.name || '').toLowerCase()
-          const emailLower = (c.email || '').toLowerCase()
-          const isStaff =
-            rawRole.toLowerCase() === 'travelagent' ||
-            rawRole.toLowerCase() === 'admin' ||
-            rawRole.toLowerCase() === 'staff' ||
-            nameLower.includes('travel agent') ||
-            nameLower.includes('staff') ||
-            emailLower.includes('agent') ||
-            emailLower.includes('staff')
-          const roleStr = isStaff && rawRole.toLowerCase() === 'customer' ? 'TravelAgent' : rawRole
+          const roleStr = String(c.role || 'Customer').trim() || 'Customer'
+          const isStaff = isStaffRole(roleStr)
 
           // Generate initials for avatar
-          const fullName = c.fullName || c.name || (isStaff ? 'Staff Member' : 'Customer')
+          const fullName = c.fullName || c.name || 'Unnamed user'
           const parts = fullName.trim().split(' ')
           const initials = parts.length > 1
             ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
@@ -117,15 +116,17 @@ export default function CustomerDirectory() {
             id: c.id || idx + 1,
             name: fullName,
             initials: initials || 'ST',
-            email: c.email || `${fullName.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+            email: c.email || 'Email unavailable',
             role: roleStr,
             isStaff,
             department: c.department || (isStaff ? 'Operations' : null),
-            phone: c.phone || '+94 77 428 1120',
-            location: c.city ? `${c.city}, ${c.country || 'Sri Lanka'}` : 'Colombo, Sri Lanka',
-            joinedAt: c.joinedAt ? formatLocalInstantDate(c.joinedAt) : (c.createdAt ? formatLocalInstantDate(c.createdAt) : 'Today'),
+            phone: c.phone || 'Phone unavailable',
+            location: c.city ? `${c.city}, ${c.country || 'Sri Lanka'}` : 'Location unavailable',
+            joinedAtRaw: c.joinedAt || c.createdAt || null,
+            joinedAt: c.joinedAt ? formatLocalInstantDate(c.joinedAt) : (c.createdAt ? formatLocalInstantDate(c.createdAt) : 'Date unavailable'),
             trips: c.tripCount ?? c.trips ?? 0,
-            lastActive: c.lastActiveAt ? formatLocalInstantDate(c.lastActiveAt) : 'Today',
+            lastActiveAtRaw: c.lastActiveAt || null,
+            lastActive: c.lastActiveAt ? formatLocalInstantDateTime(c.lastActiveAt) : 'Date unavailable',
             hasPreference: c.hasPreference || !!(c.budgetMin || c.preferredActivities || c.preference),
             // Dynamic travel profile from database preference records
             travelProfile: {
@@ -143,11 +144,11 @@ export default function CustomerDirectory() {
         setDataList(mapped)
       }
     } catch (err) {
-      if (!cancelled) {
+      if (!isCancelled()) {
         setError(err.response?.data?.message || err.message || 'Failed to load user directory from database.')
       }
     } finally {
-      if (!cancelled) setLoading(false)
+      if (!isCancelled()) setLoading(false)
     }
   }
 
@@ -155,37 +156,23 @@ export default function CustomerDirectory() {
     let cancelled = false
     // This starts an async API load; its state updates occur after the request.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadCustomers(cancelled)
+    loadCustomers(() => cancelled)
     return () => { cancelled = true }
   }, [])
 
   const customerCount = useMemo(() => dataList.filter((u) => !u.isStaff).length, [dataList])
   const staffCount = useMemo(() => dataList.filter((u) => u.isStaff).length, [dataList])
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const filtered = dataList.filter((u) => {
-      if (category === 'Customers' && u.isStaff) return false
-      if (category === 'Staff' && !u.isStaff) return false
-      return (
-        !q ||
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        u.phone.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q)
-      )
-    })
-    const sorted = [...filtered].sort((a, b) => {
-      if (sort === 'trips') return b.trips - a.trips
-      if (sort === 'joined') return b.joinedAt.localeCompare(a.joinedAt)
-      return a.name.localeCompare(b.name)
-    })
-    return sorted
-  }, [dataList, query, sort, category])
+  const rows = useMemo(
+    () => sortDirectoryUsers(filterDirectoryUsers(dataList, category, query), sort),
+    [dataList, query, sort, category]
+  )
 
   const pageSize = isMobile ? 5 : 7
-  const pages = Math.max(1, Math.ceil(rows.length / pageSize))
-  const view = rows.slice((page - 1) * pageSize, page * pageSize)
+  const { currentPage, totalPages: pages, view } = useMemo(
+    () => paginateDirectoryUsers(rows, page, pageSize),
+    [rows, page, pageSize]
+  )
 
   // Clear selection if the selected user is filtered out or removed
   useEffect(() => {
@@ -210,11 +197,10 @@ export default function CustomerDirectory() {
       await registerStaff({
         fullName: inviteFormData.fullName.trim(),
         email: inviteFormData.email.trim(),
-        password: inviteFormData.password || 'Staff@123',
-        phone: inviteFormData.phone.trim() || '0771234567',
+        password: inviteFormData.password,
+        phone: inviteFormData.phone.trim(),
         role: inviteFormData.role,
-        department: inviteFormData.department,
-        staffSecretCode: inviteFormData.staffSecretCode || 'staff123'
+        department: inviteFormData.department
       })
       setInviteSuccess(`Staff account created for ${inviteFormData.fullName} (${inviteFormData.role}).`)
       await loadCustomers()
@@ -222,10 +208,9 @@ export default function CustomerDirectory() {
         fullName: '',
         email: '',
         phone: '',
-        password: 'Staff@123',
+        password: '',
         role: 'TravelAgent',
-        department: 'Tour Operations',
-        staffSecretCode: 'staff123'
+        department: 'Tour Operations'
       })
       setTimeout(() => {
         setShowInviteModal(false)
@@ -306,24 +291,24 @@ export default function CustomerDirectory() {
     }
   }
 
-  async function handleDeleteAccount(user) {
-    if (!user) return
-    // Prevent logged-in admin from deleting their own account
-    if (isSelfAccount(user)) {
-      alert('You cannot delete your own account.')
-      return
-    }
+  function handleDeleteAccount(user) {
+    if (!user || isSelfAccount(user)) return
+    setDeleteError(null)
+    setDeleteTarget(user)
+  }
 
-    const confirmMsg = `Are you sure you want to remove the account for ${user.name}? This action cannot be undone.`
-    if (!window.confirm(confirmMsg)) return
-
+  async function confirmDeleteAccount() {
+    if (!deleteTarget) return
     setDeleteLoading(true)
+    setDeleteError(null)
     try {
-      await deleteCustomer(user.id)
+      await deleteCustomer(deleteTarget.id)
+      setPage(1)
       setSelectedUser(null)
+      setDeleteTarget(null)
       await loadCustomers()
     } catch (err) {
-      alert(err.response?.data?.message || err.message || 'Failed to remove user account.')
+      setDeleteError(customerDeleteError(err))
     } finally {
       setDeleteLoading(false)
     }
@@ -498,7 +483,9 @@ export default function CustomerDirectory() {
                 onChange={(e) => setSort(e.target.value)}
               >
                 <option value="name">Name A–Z</option>
+                <option value="nameDesc">Name Z-A</option>
                 <option value="joined">Join Date newest</option>
+                <option value="lastActive">Last active newest</option>
                 <option value="trips">Trip Count</option>
               </select>
             </div>
@@ -508,11 +495,11 @@ export default function CustomerDirectory() {
             <table className="staff-table">
               <thead>
                 <tr>
-                  <th>NAME & EMAIL</th>
-                  <th>PHONE</th>
-                  <th>ROLE</th>
-                  <th>TRIPS</th>
-                  <th>LAST ACTIVE</th>
+                  <th scope="col">NAME & EMAIL</th>
+                  <th scope="col">PHONE</th>
+                  <th scope="col">ROLE</th>
+                  <th scope="col">TRIP REQUESTS</th>
+                  <th scope="col">LAST ACTIVE</th>
                 </tr>
               </thead>
               <tbody>
@@ -625,14 +612,14 @@ export default function CustomerDirectory() {
           {/* Pagination matching Figma */}
           <div className="staff-pagination">
             <span>
-              Showing {rows.length > 0 ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, rows.length)} of {rows.length} users
+              Showing {rows.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, rows.length)} of {rows.length} users
             </span>
             <div className="staff-pagination__btns">
               <button
                 type="button"
                 className="staff-page-btn"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
+                disabled={currentPage <= 1}
+                onClick={() => setPage(currentPage - 1)}
               >
                 Previous
               </button>
@@ -640,7 +627,7 @@ export default function CustomerDirectory() {
                 <button
                   key={p}
                   type="button"
-                  className={`staff-page-btn ${page === p ? 'is-active' : ''}`}
+                  className={`staff-page-btn ${currentPage === p ? 'is-active' : ''}`}
                   onClick={() => setPage(p)}
                 >
                   {p}
@@ -649,8 +636,8 @@ export default function CustomerDirectory() {
               <button
                 type="button"
                 className="staff-page-btn"
-                disabled={page >= pages}
-                onClick={() => setPage((p) => p + 1)}
+                disabled={currentPage >= pages}
+                onClick={() => setPage(currentPage + 1)}
               >
                 Next
               </button>
@@ -756,12 +743,12 @@ export default function CustomerDirectory() {
                 <span className="profile-stat-val">{selectedUser.joinedAt}</span>
               </div>
               <div className="profile-stat-box">
-                <span className="profile-stat-label">Last Active</span>
-                <span className="profile-stat-val">{selectedUser.lastActive}, 10:28 LKT</span>
+                  <span className="profile-stat-label">Last Active</span>
+                  <span className="profile-stat-val">{selectedUser.lastActive}</span>
               </div>
               <div className="profile-stat-box">
                 <span className="profile-stat-label">
-                  {selectedUser.isStaff ? 'Staff Role' : 'Completed Trips'}
+                    {selectedUser.isStaff ? 'Staff Role' : 'Trip Requests'}
                 </span>
                 <span className="profile-stat-val">
                   {selectedUser.isStaff ? selectedUser.role : selectedUser.trips}
@@ -837,6 +824,21 @@ export default function CustomerDirectory() {
           </aside>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete directory account?"
+        user={deleteTarget}
+        loading={deleteLoading}
+        error={deleteError}
+        onCancel={() => {
+          if (!deleteLoading) {
+            setDeleteTarget(null)
+            setDeleteError(null)
+          }
+        }}
+        onConfirm={confirmDeleteAccount}
+      />
 
       {/* ── Invite Staff Member Modal ── */}
       {showInviteModal && (

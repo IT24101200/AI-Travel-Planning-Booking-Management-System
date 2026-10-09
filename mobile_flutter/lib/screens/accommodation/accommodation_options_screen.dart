@@ -247,14 +247,9 @@ class _AccommodationOptionsScreenState
                       ? Icon(Icons.hotel, size: 40, color: colors.primary)
                       : ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            hotel['image'] as String,
+                          child: AppNetworkImage(
+                            imageUrl: hotel['image'] as String,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Icon(
-                              Icons.hotel,
-                              size: 40,
-                              color: colors.primary,
-                            ),
                           ),
                         ),
                 ),

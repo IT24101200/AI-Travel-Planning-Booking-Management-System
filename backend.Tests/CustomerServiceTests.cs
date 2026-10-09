@@ -83,5 +83,87 @@ namespace backend.Tests
             Assert.Equal("Alice New", updated.FullName);
             Assert.Equal("0987654321", updated.Phone);
         }
+
+        [Fact]
+        public async Task GetAllAsync_SearchesIdentityEmailWithoutNameOrPhoneMatch()
+        {
+            var context = CreateContext();
+            var userManager = CreateMockUserManager();
+            var service = new CustomerService(context, userManager.Object);
+            var user = new IdentityUser
+            {
+                Id = "cust-email",
+                Email = "traveller@example.test",
+                UserName = "traveller@example.test"
+            };
+            context.Users.Add(user);
+            context.Customers.Add(new Customer
+            {
+                Id = user.Id,
+                FullName = "Directory Person",
+                Phone = "0771234567",
+                Role = "Customer"
+            });
+            await context.SaveChangesAsync();
+
+            var result = await service.GetAllAsync("  EXAMPLE.TEST  ", "name", false, 1, 10);
+
+            var match = Assert.Single(result);
+            Assert.Equal(user.Id, match.Id);
+            Assert.Equal(user.Email, match.Email);
+        }
+
+        [Fact]
+        public async Task DeleteAsync_DeletesCustomerWithoutProtectedHistory()
+        {
+            var context = CreateContext();
+            var userManager = CreateMockUserManager();
+            var service = new CustomerService(context, userManager.Object);
+            context.Customers.Add(new Customer { Id = "safe-customer", FullName = "Disposable Fixture" });
+            await context.SaveChangesAsync();
+
+            var deleted = await service.DeleteAsync("safe-customer");
+
+            Assert.True(deleted);
+            Assert.False(await context.Customers.AnyAsync(c => c.Id == "safe-customer"));
+        }
+
+        [Fact]
+        public async Task DeleteAsync_BlocksCustomerWithTripHistoryBeforeMutation()
+        {
+            var context = CreateContext();
+            var userManager = CreateMockUserManager();
+            var service = new CustomerService(context, userManager.Object);
+            context.Customers.Add(new Customer { Id = "history-customer", FullName = "Retained History" });
+            context.TripRequests.Add(new TripRequest
+            {
+                CustomerId = "history-customer",
+                RawRequestText = "Historical request"
+            });
+            await context.SaveChangesAsync();
+
+            var error = await Assert.ThrowsAsync<CustomerDeletionConflictException>(() => service.DeleteAsync("history-customer"));
+
+            Assert.Contains("history", error.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(1, error.Details["tripRequests"]);
+            Assert.True(await context.Customers.AnyAsync(c => c.Id == "history-customer"));
+        }
+
+        [Fact]
+        public async Task DeleteAsync_BlocksTheLastAdministrator()
+        {
+            var context = CreateContext();
+            var userManager = CreateMockUserManager();
+            userManager.Setup(manager => manager.GetUsersInRoleAsync("Admin"))
+                .ReturnsAsync(new List<IdentityUser> { new() { Id = "only-admin" } });
+            var service = new CustomerService(context, userManager.Object);
+            context.Customers.Add(new Customer { Id = "only-admin", FullName = "Only Admin", Role = "Admin" });
+            await context.SaveChangesAsync();
+
+            var error = await Assert.ThrowsAsync<CustomerDeletionConflictException>(() => service.DeleteAsync("only-admin"));
+
+            Assert.Contains("last administrator", error.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(await context.Customers.AnyAsync(c => c.Id == "only-admin"));
+        }
     }
 }
