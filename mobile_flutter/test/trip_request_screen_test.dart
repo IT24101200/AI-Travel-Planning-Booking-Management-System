@@ -153,6 +153,8 @@ void main() {
 
     expect(submitted?['destinationId'], 11);
     expect(submitted?['airportPickup'], false);
+    expect(submitted?['starterLocationId'], isNull);
+    expect(submitted?['rawRequestText'], contains('Route origin: AI optimized.'));
     expect(submitted?['destinationIds'], [11, 22, 33]);
     expect(submitted?['destinations'], [
       {'id': 11, 'name': 'Anuradhapura', 'order': 0},
@@ -161,11 +163,63 @@ void main() {
     ]);
   });
 
+  testWidgets(
+    'starter location is submitted first while the planner may optimize remaining destinations',
+    (WidgetTester tester) async {
+      ApiService.mockGetDestinations = () async => [
+        {'id': 11, 'name': 'Anuradhapura'},
+        {'id': 22, 'name': 'Colombo'},
+        {'id': 33, 'name': 'Jaffna'},
+      ];
+      Map<String, dynamic>? submitted;
+      ApiService.mockCreateTripRequest = (payload) async {
+        submitted = payload;
+        return {'statusCode': 201, 'id': 702};
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: const TripRequestScreen(),
+          onGenerateRoute: (_) => MaterialPageRoute(
+            builder: (_) => const Scaffold(body: Text('Itinerary')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final name in ['Anuradhapura', 'Colombo', 'Jaffna']) {
+        await tester.tap(find.widgetWithText(ActionChip, name));
+        await tester.pump();
+      }
+
+      await tester.tap(find.byKey(const ValueKey('starter-location-dropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('starter-location-option-Colombo')),
+      );
+      await tester.pump();
+
+      await tester.ensureVisible(find.text('Generate AI Itinerary'));
+      await tester.tap(find.text('Generate AI Itinerary'));
+      await tester.pumpAndSettle();
+
+      expect(submitted?['destinationId'], 22);
+      expect(submitted?['starterLocationId'], 22);
+      expect(submitted?['destinationIds'], [22, 11, 33]);
+      expect(submitted?['destinations'], [
+        {'id': 22, 'name': 'Colombo', 'order': 0},
+        {'id': 11, 'name': 'Anuradhapura', 'order': 1},
+        {'id': 33, 'name': 'Jaffna', 'order': 2},
+      ]);
+    },
+  );
+
   testWidgets('airport pickup checkbox submits airport and arrival time', (
     tester,
   ) async {
     ApiService.mockGetDestinations = () async => [
       {'id': 1, 'name': 'Ella'},
+      {'id': 2, 'name': 'Kandy'},
     ];
     Map<String, dynamic>? submitted;
     ApiService.mockCreateTripRequest = (payload) async {
@@ -182,14 +236,17 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ActionChip, 'Ella'));
+    await tester.tap(find.widgetWithText(ActionChip, 'Kandy'));
     await tester.ensureVisible(find.text('Airport pickup'));
     await tester.tap(find.text('Airport pickup'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('starter-location-dropdown')), findsNothing);
     expect(find.text('Arrival airport'), findsOneWidget);
     await tester.ensureVisible(find.text('Generate AI Itinerary'));
     await tester.tap(find.text('Generate AI Itinerary'));
     await tester.pumpAndSettle();
     expect(submitted?['airportPickup'], true);
+    expect(submitted?['starterLocationId'], isNull);
     expect(submitted?['airportCode'], 'CMB');
     expect(submitted?['airportArrivalTime'], '08:00:00');
   });

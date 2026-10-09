@@ -53,6 +53,34 @@ namespace backend.Tests
         }
 
         [Fact]
+        public async Task CreateAsync_ExplicitStarterIsPersistedWithoutChangingSelectionContract()
+        {
+            await using var context = CreateContext();
+            context.Destinations.AddRange(
+                new Destination { Id = 11, Name = "Anuradhapura", NormalizedName = "ANURADHAPURA", Country = "Sri Lanka" },
+                new Destination { Id = 22, Name = "Colombo", NormalizedName = "COLOMBO", Country = "Sri Lanka" },
+                new Destination { Id = 33, Name = "Jaffna", NormalizedName = "JAFFNA", Country = "Sri Lanka" });
+            await context.SaveChangesAsync();
+
+            var result = await new TripRequestService(context).CreateAsync("cust-1", new TripRequestCreateDto
+            {
+                DestinationIds = new() { 11, 22, 33 },
+                StarterLocationId = 22,
+                RawRequestText = "Start in Colombo, then optimize the route",
+                StartDate = DateTime.UtcNow.Date.AddDays(7),
+                EndDate = DateTime.UtcNow.Date.AddDays(13),
+                TravellerCount = 2,
+                BudgetCeiling = 350000,
+                Currency = "LKR"
+            });
+
+            Assert.Equal(22, result.StarterLocationId);
+            Assert.Equal(22, result.DestinationId);
+            Assert.Equal(22, result.Destinations.Single(destination => destination.IsStarter).Id);
+            Assert.Contains("IsStarter", (await context.TripRequests.SingleAsync()).DestinationSelectionsJson);
+        }
+
+        [Fact]
         public async Task CreateAsync_MultipleDestinations_PreservesIdsNamesAndOrder()
         {
             await using var context = CreateContext();

@@ -22,6 +22,8 @@ class TripRequestScreen extends StatefulWidget {
 }
 
 class _TripRequestScreenState extends State<TripRequestScreen> {
+  static const _aiOptimizedStarter = '__ai_optimized__';
+
   // Destination text controller
   final _destinationCtrl = TextEditingController();
 
@@ -66,6 +68,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   // Selected destinations set (tracks checked states directly)
   final Set<String> _selectedDestinations = {};
+  String? _starterLocation;
 
   bool _isGenerating = false;
   bool _isCheckingAgentConnection = false;
@@ -86,7 +89,48 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
         );
       }
     }
+    _synchronizeStarterLocation();
     if (mounted) setState(() {});
+  }
+
+  List<String> _destinationNamesForRequest([String? input]) {
+    final parsed = _parseDestinations(input ?? _destinationCtrl.text);
+    final source = parsed.isNotEmpty ? parsed : _selectedDestinations.toList();
+    final names = <String>[];
+    final seen = <String>{};
+    for (final name in source) {
+      final trimmed = name.trim();
+      final key = trimmed.toLowerCase();
+      if (trimmed.isNotEmpty && seen.add(key)) names.add(trimmed);
+    }
+    return names;
+  }
+
+  void _synchronizeStarterLocation() {
+    final names = _destinationNamesForRequest();
+    if (_airportPickup || names.isEmpty) {
+      _starterLocation = null;
+      return;
+    }
+    final starter = _starterLocation?.toLowerCase();
+    if (starter != null &&
+        !names.any((name) => name.toLowerCase() == starter)) {
+      _starterLocation = null;
+    }
+  }
+
+  List<String> _orderedDestinationNames(String input) {
+    final names = _destinationNamesForRequest(input);
+    if (names.length < 2 || _starterLocation == null) return names;
+    final starterIndex = names.indexWhere(
+      (name) => name.toLowerCase() == _starterLocation!.toLowerCase(),
+    );
+    if (starterIndex <= 0) return names;
+    return [
+      names[starterIndex],
+      ...names.take(starterIndex),
+      ...names.skip(starterIndex + 1),
+    ];
   }
 
   @override
@@ -253,6 +297,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       _destinationCtrl.text = _formatDestinations(
         _selectedDestinations.toList(),
       );
+      _synchronizeStarterLocation();
     });
   }
 
@@ -299,11 +344,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
     return 'LKR ${currencyFmt.format(minEst)} – LKR ${currencyFmt.format(maxEst)}';
   }
 
-  /// Resolves every selected destination in input order. The first ID is
-  /// retained separately only for legacy backend clients.
+  /// Resolves every selected destination in the submitted route order. The
+  /// order is only pinned when the customer explicitly selected a starter.
   List<int> _resolveDestinationIds(String input) {
-    final names = _parseDestinations(input);
-    final source = names.isNotEmpty ? names : _selectedDestinations.toList();
+    final source = _orderedDestinationNames(input);
     final ids = <int>[];
     for (final name in source) {
       final id = _destinationIds[name.trim().toLowerCase()];
@@ -314,14 +358,13 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
 
   /// Builds the structured destination contract sent to the backend.
   List<Map<String, dynamic>> _resolveDestinationSelections(String input) {
-    final names = _parseDestinations(input);
-    final source = names.isNotEmpty ? names : _selectedDestinations.toList();
+    final source = _orderedDestinationNames(input);
     final selections = <Map<String, dynamic>>[];
-    for (var index = 0; index < source.length; index++) {
-      final name = source[index].trim();
-      final id = _destinationIds[name.toLowerCase()];
+    for (final name in source) {
+      final trimmed = name.trim();
+      final id = _destinationIds[trimmed.toLowerCase()];
       if (id == null || selections.any((item) => item['id'] == id)) continue;
-      selections.add({'id': id, 'name': name, 'order': index});
+      selections.add({'id': id, 'name': trimmed, 'order': selections.length});
     }
     return selections;
   }
@@ -400,16 +443,24 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
       _submissionError = null;
     });
     try {
-      final destinationIds = _resolveDestinationIds(destination);
-      final destinationSelections = _resolveDestinationSelections(destination);
+      final orderedNames = _orderedDestinationNames(destination);
+      final orderedDestinationText = _formatDestinations(orderedNames);
+      final destinationIds = _resolveDestinationIds(orderedDestinationText);
+      final destinationSelections = _resolveDestinationSelections(
+        orderedDestinationText,
+      );
       final response = await ApiService.createTripRequest({
         // Keep destinationId for older backend versions; the structured list
         // is the authoritative multi-destination contract.
         'destinationId': destinationIds.isEmpty ? null : destinationIds.first,
         'destinationIds': destinationIds,
         'destinations': destinationSelections,
+        'starterLocationId': _airportPickup || _starterLocation == null
+            ? null
+            : _destinationIds[_starterLocation!.trim().toLowerCase()],
         'rawRequestText':
-            'Destination: $destination. Interests: ${_selectedInterests.join(", ")}. '
+            'Route origin: ${_airportPickup ? '$_airportCode airport' : (_starterLocation ?? 'AI optimized')}. '
+            'Destinations: $orderedDestinationText. Interests: ${_selectedInterests.join(", ")}. '
             'Preferred budget range: $_currency ${_budgetMinimum.round()} to ${_budgetCeiling.round()}. '
             'Preferences: ${_specialRequestsCtrl.text.trim()}',
         'startDate': _startDate.toIso8601String(),
@@ -781,7 +832,7 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'PLANNED DESTINATION ORDER',
+                                'STARTING POINT (OPTIONAL)',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
@@ -793,7 +844,9 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'The AI will keep this order for transport legs.',
+                                _airportPickup
+                                    ? 'Airport pickup is the route origin. The AI will optimize the destination order from the airport.'
+                                    : 'Choose a starter location, or let the AI optimize the most efficient route for you.',
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 9,
                                   color: isDark
@@ -801,26 +854,73 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                                       : const Color(0xFF6E7772),
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              ...(_parseDestinations(_destinationCtrl.text)
-                                      .isNotEmpty
-                                  ? _parseDestinations(_destinationCtrl.text)
-                                  : _selectedDestinations.toList())
-                                  .asMap()
-                                  .entries
-                                  .map(
-                                    (entry) => Padding(
-                                      padding: const EdgeInsets.only(top: 2),
-                                      child: Text(
-                                        '${entry.key + 1}. ${entry.value}',
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                          color: theme.colorScheme.onSurface,
+                              if (!_airportPickup) ...[
+                                const SizedBox(height: 6),
+                                DropdownButtonFormField<String>(
+                                  key: const ValueKey(
+                                    'starter-location-dropdown',
+                                  ),
+                                  initialValue:
+                                      _starterLocation ?? _aiOptimizedStarter,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Starter location',
+                                    isDense: true,
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                      key: ValueKey(
+                                        'starter-location-option-ai',
+                                      ),
+                                      value: _aiOptimizedStarter,
+                                      child: Text('Let AI optimize route'),
+                                    ),
+                                    ..._destinationNamesForRequest().map(
+                                      (name) => DropdownMenuItem<String>(
+                                        key: ValueKey(
+                                          'starter-location-option-$name',
                                         ),
+                                        value: name,
+                                        child: Text(name),
                                       ),
                                     ),
+                                  ],
+                                  onChanged: (value) => setState(
+                                    () => _starterLocation =
+                                        value == _aiOptimizedStarter
+                                            ? null
+                                            : value,
                                   ),
+                                ),
+                              ],
+                              const SizedBox(height: 6),
+                              Text(
+                                _airportPickup
+                                    ? 'Origin: $_airportCode airport'
+                                    : _starterLocation == null
+                                    ? 'The agent will choose the destination order.'
+                                    : 'Starter: $_starterLocation · remaining stops optimized',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.colorScheme.onSurface,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              ..._orderedDestinationNames(
+                                _destinationCtrl.text,
+                              ).asMap().entries.map(
+                                (entry) => Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    '${entry.key + 1}. ${entry.value}',
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1066,8 +1166,10 @@ class _TripRequestScreenState extends State<TripRequestScreen> {
                   'Include arrival transfer in the route and budget.',
                 ),
                 value: _airportPickup,
-                onChanged: (value) =>
-                    setState(() => _airportPickup = value ?? false),
+                onChanged: (value) => setState(() {
+                  _airportPickup = value ?? false;
+                  if (_airportPickup) _starterLocation = null;
+                }),
               ),
               if (_airportPickup) ...[
                 DropdownButtonFormField<String>(

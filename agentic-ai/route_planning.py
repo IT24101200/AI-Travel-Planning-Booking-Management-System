@@ -161,15 +161,48 @@ def choose_tours(state, tours, destinations):
 
 
 def grouped_itinerary(state, tours, destinations):
-    """Build a grouped itinerary in the customer's persisted destination order.
+    """Build a route using an explicit starter, airport, or free optimization.
 
-    ``requested_destinations`` is an ordered product contract.  The
-    ``ordered_destinations`` helper remains available for explicit offline
-    route-analysis callers, but it must not silently rewrite a customer's
-    itinerary while building a bookable proposal.
+    The persisted destination order is only the customer's selection order;
+    it is not a starter instruction. A selected destination pins the first
+    stop, airport pickup pins the airport origin, and otherwise the optimizer
+    is free to choose the most efficient open path.
     """
     selected = choose_tours(state, tours, destinations)
-    order = [destination["destination_id"] for destination in destinations]
+    requested_order = [destination["destination_id"] for destination in destinations]
+    airport_origin = airport(state)
+    explicit_starter_id = state.get("starter_location_id")
+    if explicit_starter_id is not None and airport_origin is not None:
+        raise RoutePlanningError(
+            "STARTER_CONFLICT",
+            "Airport pickup is already the route origin; destination starter selection is not applicable.",
+        )
+
+    try:
+        explicit_starter_id = int(explicit_starter_id) if explicit_starter_id is not None else None
+    except (TypeError, ValueError):
+        raise RoutePlanningError("INVALID_STARTER_LOCATION", "The selected starter location is invalid.") from None
+
+    matrix = RoadMatrix([*selected, *([airport_origin] if airport_origin else [])])
+    if airport_origin:
+        order = ordered_destinations(destinations, selected, matrix, airport_origin)
+    elif explicit_starter_id is not None:
+        if explicit_starter_id not in requested_order:
+            raise RoutePlanningError(
+                "INVALID_STARTER_LOCATION",
+                "The selected starter location must be one of the requested destinations.",
+            )
+        starter = next(tour for tour in selected if tour["destination_id"] == explicit_starter_id)
+        order = [explicit_starter_id]
+        remaining = [
+            destination
+            for destination in destinations
+            if destination["destination_id"] != explicit_starter_id
+        ]
+        if remaining:
+            order.extend(ordered_destinations(remaining, selected, matrix, starter))
+    else:
+        order = ordered_destinations(destinations, selected, matrix)
     destination_order = {destination_id: index for index, destination_id in enumerate(order)}
     selected.sort(key=lambda t: (destination_order[t["destination_id"]], minutes(t.get("default_start_time"))))
     schedule = []

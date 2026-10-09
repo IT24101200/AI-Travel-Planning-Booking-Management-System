@@ -12,4 +12,10 @@ public sealed class TripRequestDestinationSelection
     public string Name { get; set; } = string.Empty;
 
     public int Order { get; set; }
+
+    /// <summary>
+    /// True only when the customer explicitly selected this destination as
+    /// the journey starter. Existing JSONB selections default to false.
+    /// </summary>
+    public bool IsStarter { get; set; }
 }
