@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../app_constants.dart';
 import '../../services/ticket_pdf_service.dart';
+import '../../utils/transport_leg_utils.dart';
 import '../../widgets/trip_confirmation_details.dart';
 import '../../widgets/common_widgets.dart';
 
@@ -48,9 +49,16 @@ class TripConfirmationScreen extends StatelessWidget {
     List<Map<String, dynamic>> items,
     Map<String, dynamic> booking,
   ) {
-    for (final item in items) {
-      if (item['hotelName'] != null) return item['hotelName'].toString();
-    }
+    final details = booking['tripDetails'];
+    final hotels = details is Map ? details['hotels'] : null;
+    final names = hotels is List && hotels.isNotEmpty
+        ? hotels.whereType<Map>().map((hotel) => hotel['name'])
+        : items.map((item) => item['hotelName']);
+    final stays = names
+        .map((name) => name?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toList();
+    if (stays.isNotEmpty) return stays.join('\n');
     final rootValue = booking['hotelName']?.toString().trim();
     return rootValue == null || rootValue.isEmpty
         ? 'Accommodation details unavailable'
@@ -61,18 +69,29 @@ class TripConfirmationScreen extends StatelessWidget {
     List<Map<String, dynamic>> items,
     Map<String, dynamic> booking,
   ) {
-    for (final item in items) {
-      if (item['transportOptionId'] != null || item['transportType'] != null) {
-        final type = item['transportType']?.toString().trim();
-        final from = item['routeFrom']?.toString().trim();
-        final to = item['routeTo']?.toString().trim();
-        final route =
-            from != null && from.isNotEmpty && to != null && to.isNotEmpty
-            ? ' ($from → $to)'
-            : '';
-        return '${type == null || type.isEmpty ? 'Transport' : type}$route';
-      }
+    final details = booking['tripDetails'];
+    final transports = details is Map ? details['transports'] : null;
+    final legs = transports is List && transports.isNotEmpty
+        ? transports.whereType<Map>().map(
+            (leg) => <String, dynamic>{
+              'transportType': leg['type'],
+              'routeFrom': leg['from'],
+              'routeTo': leg['to'],
+            },
+          )
+        : orderedTransportItems(items);
+    final names = <String>[];
+    for (final item in legs) {
+      final type = item['transportType']?.toString().trim();
+      final from = item['routeFrom']?.toString().trim();
+      final to = item['routeTo']?.toString().trim();
+      final route =
+          from != null && from.isNotEmpty && to != null && to.isNotEmpty
+          ? ' ($from → $to)'
+          : '';
+      names.add('${type == null || type.isEmpty ? 'Transport' : type}$route');
     }
+    if (names.isNotEmpty) return names.join('\n');
     final rootValue = booking['transportName']?.toString().trim();
     return rootValue == null || rootValue.isEmpty
         ? 'Transport details unavailable'
@@ -233,8 +252,11 @@ class TripConfirmationScreen extends StatelessWidget {
                         : const Color(0xFFF6EBCB),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         'BOOKING REFERENCE',
@@ -247,7 +269,6 @@ class TripConfirmationScreen extends StatelessWidget {
                           letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Text(
                         bookingRef,
                         style: GoogleFonts.plusJakartaSans(
@@ -417,28 +438,31 @@ Stops: $destinations
                           ),
                           elevation: 0,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.share_outlined,
-                              size: 16,
-                              color: isDark
-                                  ? AppColors.leaf400
-                                  : const Color(0xFF123F32),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Share Trip',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.share_outlined,
+                                size: 16,
                                 color: isDark
-                                    ? Colors.white
+                                    ? AppColors.leaf400
                                     : const Color(0xFF123F32),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Text(
+                                'Share Trip',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF123F32),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -456,8 +480,11 @@ Stops: $destinations
                             destination: tripTitle,
                             dates: dates,
                             stops: destinations,
-                            hotelName: hotelName,
-                            transportTitle: transportName,
+                            hotelName: hotelName.replaceAll('\n', '; '),
+                            transportTitle: transportName.replaceAll(
+                              '\n',
+                              '; ',
+                            ),
                             totalCost: totalCost,
                             currency: currency,
                             booking: booking,
@@ -484,28 +511,31 @@ Stops: $destinations
                           ),
                           elevation: 0,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.download_outlined,
-                              size: 16,
-                              color: isDark
-                                  ? AppColors.leaf400
-                                  : const Color(0xFF123F32),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Download PDF',
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.download_outlined,
+                                size: 16,
                                 color: isDark
-                                    ? Colors.white
+                                    ? AppColors.leaf400
                                     : const Color(0xFF123F32),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Text(
+                                'Download PDF',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? Colors.white
+                                      : const Color(0xFF123F32),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -580,19 +610,22 @@ Stops: $destinations
                     ),
                     elevation: 0,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.explore_outlined, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Back to Explore',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.explore_outlined, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Back to Explore',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -613,6 +646,7 @@ Stops: $destinations
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           width: 32,
@@ -648,8 +682,6 @@ Stops: $destinations
                   fontWeight: FontWeight.w600,
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

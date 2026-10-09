@@ -179,6 +179,14 @@ void main() {
               'bookingReference': 'ST-PAID-42',
               'totalCost': 25000,
               'currency': 'LKR',
+              'bookingItems': [
+                {'hotelName': 'Starter hotel only'},
+                {
+                  'transportType': 'Van',
+                  'routeFrom': 'Starter',
+                  'routeTo': 'First stop',
+                },
+              ],
               'tripDetails': tripDetails(),
             },
           ),
@@ -188,7 +196,76 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(TripConfirmationDetails), findsOneWidget);
+    expect(find.text('Kandy booked hotel\nElla booked hotel'), findsOneWidget);
+    expect(
+      find.text('Car (Airport → Kandy)\nVan (Kandy → Ella)'),
+      findsOneWidget,
+    );
+    expect(find.text('Starter hotel only'), findsNothing);
     expect(find.text('Email: operator@example.test'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('confirmation recap shows every stay and ordered transport leg', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    for (final width in [320.0, 768.0]) {
+      tester.view.physicalSize = Size(width, 800);
+      await tester.pumpWidget(
+        MaterialApp(
+          key: ValueKey(width),
+          onGenerateRoute: (_) => MaterialPageRoute(
+            settings: const RouteSettings(
+              arguments: {
+                'status': 'Confirmed',
+                'paymentStatus': 'Paid',
+                'bookingReference': 'ST-MULTI-STOP',
+                'bookingItems': [
+                  {'hotelName': 'Colombo hotel'},
+                  {
+                    'transportLegIndex': 2,
+                    'transportType': 'Car',
+                    'routeFrom': 'Yala',
+                    'routeTo': 'Arugam Bay',
+                  },
+                  {'hotelName': 'Bentota hotel'},
+                  {
+                    'transportLegIndex': 0,
+                    'transportType': 'Van',
+                    'routeFrom': 'Colombo',
+                    'routeTo': 'Bentota',
+                  },
+                  {'hotelName': 'Yala hotel'},
+                  {
+                    'transportLegIndex': 1,
+                    'transportType': 'Van',
+                    'routeFrom': 'Bentota',
+                    'routeTo': 'Yala',
+                  },
+                ],
+              },
+            ),
+            builder: (_) => const TripConfirmationScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final recap in [
+        'Colombo hotel\nBentota hotel\nYala hotel',
+        'Van (Colombo → Bentota)\nVan (Bentota → Yala)\nCar (Yala → Arugam Bay)',
+      ]) {
+        final finder = find.text(recap);
+        expect(finder, findsOneWidget);
+        await tester.ensureVisible(finder);
+        await tester.pumpAndSettle();
+        final text = tester.widget<Text>(finder);
+        expect(text.maxLines, isNull);
+        expect(text.overflow, isNot(TextOverflow.ellipsis));
+      }
+      expect(tester.takeException(), isNull);
+    }
   });
 }
