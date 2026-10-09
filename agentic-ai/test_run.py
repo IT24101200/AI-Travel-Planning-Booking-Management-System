@@ -1,4 +1,3 @@
-import os
 import json
 from agents.booking_agent import booking_node
 
@@ -36,10 +35,15 @@ mock_state = {
     }
 }
 
-print("Running ONLY Booking Agent (Student C)...")
-print("=========================================")
-result_state = booking_node(mock_state)
+def main():
+    print("Running ONLY Booking Agent (Student C)...")
+    print("=========================================")
+    result_state = booking_node(mock_state)
 
-print("\n--- AGENT C COMPLETED ---")
-print("\nFinal Booking Details (Your JSON Output):")
-print(json.dumps(result_state.get("booking_details"), indent=2))
+    print("\n--- AGENT C COMPLETED ---")
+    print("\nFinal Booking Details (Your JSON Output):")
+    print(json.dumps(result_state.get("booking_details"), indent=2))
+
+
+if __name__ == "__main__":
+    main()

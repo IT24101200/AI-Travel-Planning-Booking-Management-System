@@ -3,6 +3,7 @@ import os
 import requests
 from datetime import datetime, timedelta
 from decimal import Decimal
+from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from logger import log_agent_step
 from customer_revision import room_requested, reserved_quantity, transport_requested
@@ -32,6 +33,16 @@ _TRANSPORT_FAILURE_MESSAGES = {
 }
 
 MAX_TIMETABLE_PLANS = 256
+INVENTORY_WORKERS = 4
+
+
+def _inventory_map(function, values):
+    """Bound concurrent reads while preserving catalogue order and errors."""
+    values = list(values)
+    if len(values) < 2:
+        return [function(value) for value in values]
+    with ThreadPoolExecutor(max_workers=INVENTORY_WORKERS) as executor:
+        return list(executor.map(function, values))
 
 
 def _compatible_timetables(groups, state):
@@ -176,8 +187,10 @@ def build_booking_package(state):
         return _booking_failure(trip_id, "HOTEL_SEARCH_INCOMPLETE", str(error))
     available_rooms = []
     
-    for hotel in hotels:
-        rooms = search_hotel_rooms(hotel.get("id"), currency=currency)
+    room_catalogues = _inventory_map(
+        lambda hotel: search_hotel_rooms(hotel.get("id"), currency=currency), hotels
+    )
+    for hotel, rooms in zip(hotels, room_catalogues):
         for room in rooms:
             if revision and room.get("id") not in {pin["room_id"] for pin in revision.get("rooms", [])}:
                 continue
@@ -230,9 +243,12 @@ def build_booking_package(state):
     available_transports = []
     availability_mismatch_count = 0
     requested_legs = _requested_route_legs(requested_destinations)
-    for t in transports:
+    eligible_transports = [t for t in transports if t.get("capacity", 1) >= traveller_count]
+    transport_availability = _inventory_map(
+        lambda option: check_transport_availability(option.get("id")), eligible_transports
+    )
+    for t, avail in zip(eligible_transports, transport_availability):
         if t.get("capacity", 1) >= traveller_count:
-            avail = check_transport_availability(t.get("id"))
             is_trans_avail = avail and (avail.get("availableSeats", 0) + reserved_quantity(revision, "transport_option_id", t.get("id")) >= traveller_count
                 if "availableSeats" in avail else avail.get("isAvailable") is True)
             if is_trans_avail:
@@ -368,6 +384,7 @@ def build_booking_package(state):
         transport_search = None
         if geographic:
             availability_cache = {}
+            geometry_cache = {}
             def room_available(room, check_in, check_out):
                 if not room_requested(revision, room["room_id"], check_in, check_out):
                     return False
@@ -420,7 +437,8 @@ def build_booking_package(state):
                     transport_cost = sum(float(t["price"]) * traveller_count for t in combination)
                     try:
                         plan, stays = plan_overnights({**state, "transport_windows": windows, "transport_events": events,
-                            "budget_ceiling": float(state["budget_ceiling"]) - transport_cost}, itinerary, available_rooms, room_available)
+                            "budget_ceiling": float(state["budget_ceiling"]) - transport_cost}, itinerary, available_rooms, room_available,
+                            geometry_cache=geometry_cache)
                         cost = transport_cost + sum(float(r["price_per_night"]) * r["nights"] for r in stays)
                         candidates.append((plan["travel_distance_km"], cost, plan, stays, list(combination)))
                     except RoutePlanningError as error:

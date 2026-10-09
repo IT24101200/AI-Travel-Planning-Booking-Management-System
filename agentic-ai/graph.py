@@ -7,6 +7,7 @@ CoordinatorAgent -> ItineraryAgent -> BookingAgent -> ValidationAgent -> Retry /
 import sys
 import os
 import logging
+from time import perf_counter
 from typing import TypedDict, Optional, Dict, Any
 from langgraph.graph import StateGraph, START, END
 
@@ -19,7 +20,7 @@ from agents.booking_agent import booking_node
 from agents.validation_agent import validation_node
 from feasibility_preflight import preflight_node
 from destination_contract import normalize_requested_destinations
-from logger import log_agent_step, BACKEND_URL, agent_service_headers
+from logger import log_agent_step, BACKEND_URL, agent_service_headers, audit_log_session
 import httpx
 
 logger = logging.getLogger("AgentService")
@@ -57,6 +58,7 @@ class TripPlanningState(TypedDict, total=False):
     plan_json: Dict[str, Any]
     failure_reason: Optional[str]
     next_action: str
+    stage_durations_ms: Dict[str, int]
 
 
 def should_retry(state: TripPlanningState) -> str:
@@ -69,7 +71,7 @@ def should_retry(state: TripPlanningState) -> str:
 
 def after_preflight(state: TripPlanningState) -> str:
     """Skip itinerary/LLM work when a deterministic request check fails."""
-    return "evaluator" if state.get("status") == "PreflightFailed" else "itinerary"
+    return "evaluator" if state.get("status") == "PreflightFailed" else "coordinator"
 
 
 def build_travel_planning_graph():
@@ -78,19 +80,19 @@ def build_travel_planning_graph():
 
     # Register the 4 agent nodes, deterministic preflight, and evaluation node.
     workflow.add_node("coordinator", lambda state: _run_logged_node("CoordinatorAgent", coordinator_plan, state))
-    workflow.add_node("preflight", lambda state: _run_logged_node("CoordinatorAgent", preflight_node, state))
+    workflow.add_node("preflight", lambda state: _run_logged_node("PreflightFeasibility", preflight_node, state))
     workflow.add_node("itinerary", lambda state: _run_logged_node("ItineraryAgent", itinerary_node, state))
     workflow.add_node("booking", lambda state: _run_logged_node("BookingAgent", booking_node, state))
     workflow.add_node("validation", lambda state: _run_logged_node("ValidationAgent", validation_node, state))
     workflow.add_node("evaluator", lambda state: _run_logged_node("CoordinatorEvaluator", coordinator_retry_evaluator, state))
 
     # Linear execution flow
-    workflow.add_edge(START, "coordinator")
-    workflow.add_edge("coordinator", "preflight")
+    workflow.add_edge(START, "preflight")
+    workflow.add_edge("coordinator", "itinerary")
     workflow.add_conditional_edges(
         "preflight",
         after_preflight,
-        {"itinerary": "itinerary", "evaluator": "evaluator"},
+        {"coordinator": "coordinator", "evaluator": "evaluator"},
     )
     workflow.add_edge("itinerary", "booking")
     workflow.add_edge("booking", "validation")
@@ -112,13 +114,20 @@ def build_travel_planning_graph():
 def _run_logged_node(agent_name: str, node, state: TripPlanningState) -> dict:
     trip_id = state.get("trip_request_id", 0)
     logger.info("%s started for TripRequest #%s", agent_name, trip_id)
+    started = perf_counter()
     try:
         result = node(state)
+        duration_ms = round((perf_counter() - started) * 1000)
+        result["stage_durations_ms"] = {
+            **state.get("stage_durations_ms", {}),
+            agent_name: state.get("stage_durations_ms", {}).get(agent_name, 0) + duration_ms,
+        }
         logger.info(
-            "%s completed for TripRequest #%s with status=%s",
+            "%s completed for TripRequest #%s with status=%s duration_ms=%s",
             agent_name,
             trip_id,
             result.get("status", "unknown"),
+            duration_ms,
         )
         return result
     except Exception:
@@ -137,6 +146,7 @@ def _run_logged_node(agent_name: str, node, state: TripPlanningState) -> dict:
                 "error_code": "AGENT_STAGE_FAILURE",
             },
             status="Failed",
+            duration_ms=round((perf_counter() - started) * 1000),
         )
         raise
 
@@ -180,6 +190,18 @@ def sync_result_to_backend(trip_id: int, final_status: str, plan_json: dict, ret
 
 
 def run_travel_planning_pipeline(initial_data: dict) -> dict:
+    """Execute a pipeline with a reusable audit connection and total timing."""
+    started = perf_counter()
+    with audit_log_session():
+        result = _run_travel_planning_pipeline(initial_data)
+    result["pipeline_duration_ms"] = round((perf_counter() - started) * 1000)
+    logger.info("Pipeline timing for TripRequest #%s: total_ms=%s stages_ms=%s",
+                initial_data.get("trip_request_id", 0), result["pipeline_duration_ms"],
+                result.get("stage_durations_ms", {}))
+    return result
+
+
+def _run_travel_planning_pipeline(initial_data: dict) -> dict:
     """
     Executes the multi-agent graph with the given initial trip request payload.
     """

@@ -1,6 +1,7 @@
 from unittest.mock import patch
 from datetime import datetime
 import pytest
+import route_planning
 
 from route_planning import (RoutePlanningError, grouped_itinerary, plan_overnights, ordered_destinations, airport)
 
@@ -34,6 +35,23 @@ def state(days=5, budget=100000):
 
 def itinerary(tours):
     return {"total_estimated_cost": len(tours) * 100, "schedule": [{"day_number": i+1, "items": [t]} for i, t in enumerate(tours)]}
+
+
+def test_timetable_search_reuses_geometry_but_rechecks_budget_and_availability():
+    cache = {}
+    tours = [tour(1, 1, 80)]
+    rooms = [room(1, 80)]
+    with patch("route_planning._overnight_geometry", wraps=route_planning._overnight_geometry) as geometry:
+        expected = plan_overnights(state(3), itinerary(tours), rooms, lambda *_: True, LineRoads)
+        first = plan_overnights(state(3), itinerary(tours), rooms, lambda *_: True, LineRoads, geometry_cache=cache)
+        second = plan_overnights(state(3), itinerary(tours), rooms, lambda *_: True, LineRoads, geometry_cache=cache)
+        assert first == second == expected
+        assert geometry.call_count == 2  # Uncached reference and first cached plan.
+        with pytest.raises(RoutePlanningError):
+            plan_overnights(state(3, budget=100), itinerary(tours), rooms, lambda *_: True, LineRoads, geometry_cache=cache)
+        with pytest.raises(RoutePlanningError):
+            plan_overnights(state(3), itinerary(tours), rooms, lambda *_: False, LineRoads, geometry_cache=cache)
+        assert geometry.call_count == 2
 
 
 def test_destination_order_avoids_round_trip_between_east_and_west():
@@ -258,7 +276,7 @@ def test_geographic_booking_and_validation_use_dated_hotels_and_transfer(duplica
         patch.object(booking_agent, "check_room_availability", return_value={"isAvailable": True}),
         patch.object(booking_agent, "search_transports", return_value=transports),
         patch.object(booking_agent, "check_transport_availability", return_value={"isAvailable": True}),
-        patch.object(booking_agent, "plan_overnights", side_effect=lambda *args: plan_overnights(*args, matrix_factory=LineRoads)),
+        patch.object(booking_agent, "plan_overnights", side_effect=lambda *args, **kwargs: plan_overnights(*args, matrix_factory=LineRoads, **kwargs)),
         patch.object(booking_agent, "log_agent_step"),
     ):
         package = booking_agent.build_booking_package(request)

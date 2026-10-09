@@ -32,7 +32,7 @@ def test_revision_uses_exact_dated_rooms_and_transport_even_if_cheaper_same_time
         patch.object(booking_agent, "check_room_availability", side_effect=lambda hotel, *_args, **_kwargs: {"availableRooms": 0 if hotel == 1 else 1}),
         patch.object(booking_agent, "search_transports", return_value=TransportSearchResult(rows)),
         patch.object(booking_agent, "check_transport_availability", side_effect=lambda i: {"availableSeats": 0 if i == 30 else 1}),
-        patch.object(booking_agent, "plan_overnights", side_effect=lambda *args: plan_overnights(*args, matrix_factory=LineRoads)),
+        patch.object(booking_agent, "plan_overnights", side_effect=lambda *args, **kwargs: plan_overnights(*args, matrix_factory=LineRoads, **kwargs)),
         patch.object(booking_agent, "log_agent_step"),
     ):
         package = booking_agent.build_booking_package(request)

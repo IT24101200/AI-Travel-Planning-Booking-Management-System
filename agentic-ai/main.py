@@ -89,7 +89,9 @@ def run_pipeline_sync(payload: TripPipelineRequest):
             "status": result.get("status"),
             "retry_count": result.get("retry_count", 0),
             "failure_reason": result.get("failure_reason"),
-            "plan_json": result.get("plan_json")
+            "plan_json": result.get("plan_json"),
+            "stage_durations_ms": result.get("stage_durations_ms", {}),
+            "pipeline_duration_ms": result.get("pipeline_duration_ms"),
         }
     except Exception:
         logger.exception("Synchronous pipeline execution failed for TripRequest #%s", payload.trip_request_id)

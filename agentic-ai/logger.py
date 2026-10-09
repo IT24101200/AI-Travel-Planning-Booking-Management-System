@@ -9,6 +9,8 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
+from contextlib import contextmanager
+from contextvars import ContextVar
 import httpx
 from dotenv import load_dotenv
 
@@ -44,6 +46,18 @@ BACKEND_URL = _normalise_backend_url(
     os.getenv("BACKEND_URL") or os.getenv("BACKEND_API_URL") or "http://localhost:5138"
 )
 AGENT_SERVICE_API_KEY = os.getenv("AGENT_SERVICE_API_KEY", "").strip()
+_audit_client = ContextVar("audit_client", default=None)
+
+
+@contextmanager
+def audit_log_session():
+    """Reuse connections within a pipeline; concurrent trips stay isolated."""
+    with httpx.Client(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
+        token = _audit_client.set(client)
+        try:
+            yield
+        finally:
+            _audit_client.reset(token)
 
 
 def agent_service_headers():
@@ -105,12 +119,16 @@ def log_agent_step(
     # Send log to backend API
     try:
         url = f"{BACKEND_URL}/api/triprequest/agent-log"
-        with httpx.Client(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
+        client = _audit_client.get()
+        if client is None:
+            with httpx.Client(timeout=httpx.Timeout(5.0, connect=2.0)) as standalone:
+                response = standalone.post(url, json=payload, headers=agent_service_headers())
+        else:
             response = client.post(url, json=payload, headers=agent_service_headers())
-            if response.is_success:
-                return payload
-            else:
-                console.warning(f"Backend returned HTTP {response.status_code} when logging step '{step_name}'")
+        if response.is_success:
+            return payload
+        else:
+            console.warning(f"Backend returned HTTP {response.status_code} when logging step '{step_name}'")
     except Exception as e:
         # Backend might be offline during standalone agent testing; do not crash
         console.warning(f"Could not connect to backend ({BACKEND_URL}) to persist log: {e}")

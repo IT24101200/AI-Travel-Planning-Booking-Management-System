@@ -9,6 +9,7 @@ import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/agent_workflow_card.dart';
 import '../../utils/transport_leg_utils.dart';
+import '../../services/date_time_contract.dart';
 
 /// Booking status screen matching Figma frame 12 · Booking Status (node 7:11041)
 class BookingStatusScreen extends StatefulWidget {
@@ -70,7 +71,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     final start = DateTime.tryParse(booking['startDate']?.toString() ?? '');
     final end = DateTime.tryParse(booking['endDate']?.toString() ?? '');
     final travellers = booking['travellerCount'];
-    final travellerLabel = travellers == null ? '' : ' · $travellers travellers';
+    final travellerLabel = travellers == null
+        ? ''
+        : ' · $travellers travellers';
     if (start == null || end == null) return 'Dates unavailable$travellerLabel';
     return '${DateFormat('dd MMM yyyy').format(start)} – ${DateFormat('dd MMM yyyy').format(end)}$travellerLabel';
   }
@@ -91,12 +94,42 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
   }
 
   String _normalizeBookingStatus(dynamic status) {
-    if (status == 0 || status == '0' || status == 'Draft' || status == 'draft') return 'Draft';
-    if (status == 1 || status == '1' || status == 'AwaitingApproval' || status == 'awaiting_approval') return 'AwaitingApproval';
-    if (status == 2 || status == '2' || status == 'Confirmed' || status == 'confirmed') return 'Confirmed';
-    if (status == 3 || status == '3' || status == 'Rejected' || status == 'rejected') return 'Rejected';
-    if (status == 4 || status == '4' || status == 'Cancelled' || status == 'cancelled') return 'Cancelled';
-    if (status == 5 || status == '5' || status == 'Completed' || status == 'completed') return 'Completed';
+    if (status == 0 ||
+        status == '0' ||
+        status == 'Draft' ||
+        status == 'draft') {
+      return 'Draft';
+    }
+    if (status == 1 ||
+        status == '1' ||
+        status == 'AwaitingApproval' ||
+        status == 'awaiting_approval') {
+      return 'AwaitingApproval';
+    }
+    if (status == 2 ||
+        status == '2' ||
+        status == 'Confirmed' ||
+        status == 'confirmed') {
+      return 'Confirmed';
+    }
+    if (status == 3 ||
+        status == '3' ||
+        status == 'Rejected' ||
+        status == 'rejected') {
+      return 'Rejected';
+    }
+    if (status == 4 ||
+        status == '4' ||
+        status == 'Cancelled' ||
+        status == 'cancelled') {
+      return 'Cancelled';
+    }
+    if (status == 5 ||
+        status == '5' ||
+        status == 'Completed' ||
+        status == 'completed') {
+      return 'Completed';
+    }
     return status?.toString() ?? 'Draft';
   }
 
@@ -111,7 +144,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         setState(() {
           final returnedId = _positiveId(data?['id']);
           _booking = returnedId == id ? data : null;
-          if (_booking == null) _error = 'Booking not found or returned the wrong context.';
+          if (_booking == null) {
+            _error = 'Booking not found or returned the wrong context.';
+          }
           _loading = false;
         });
         if (_booking != null) {
@@ -173,7 +208,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
-          child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary),
+          child: CircularProgressIndicator(
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ),
       );
     }
@@ -197,9 +234,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
             ),
           ),
         ),
-        body: ErrorMessage(
-          message: _error!,
-        ),
+        body: ErrorMessage(message: _error!),
       );
     }
 
@@ -216,24 +251,29 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         total <= 0 ||
         currency.isEmpty) {
       return const Scaffold(
-        body: Center(child: Text('Booking pricing or reference data is unavailable.')),
+        body: Center(
+          child: Text('Booking pricing or reference data is unavailable.'),
+        ),
       );
     }
-    final tripTitle = (_booking!['tripTitle']?.toString().trim().isNotEmpty ?? false)
+    final tripTitle =
+        (_booking!['tripTitle']?.toString().trim().isNotEmpty ?? false)
         ? _booking!['tripTitle'].toString()
         : (_booking!['destinationName']?.toString().trim().isNotEmpty ?? false)
-            ? _booking!['destinationName'].toString()
-            : 'Trip details unavailable';
+        ? _booking!['destinationName'].toString()
+        : 'Trip details unavailable';
     final dates = _bookingDates(_booking!);
     final stops = _bookingDestinations(_booking!);
 
     final statusKey = _normalizeBookingStatus(_booking!['status']);
     final payments = _booking!['payments'];
-    final isPaid = _booking!['paymentStatus'] == 'Paid' ||
-        (payments is List && payments.any((payment) {
-          return payment is Map &&
-              payment['status']?.toString().toLowerCase() == 'paid';
-        }));
+    final isPaid =
+        _booking!['paymentStatus'] == 'Paid' ||
+        (payments is List &&
+            payments.any((payment) {
+              return payment is Map &&
+                  payment['status']?.toString().toLowerCase() == 'paid';
+            }));
     final isQrEligible =
         (statusKey == 'Confirmed' || statusKey == 'Completed') && isPaid;
 
@@ -334,26 +374,34 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       ),
                     ),
                   ),
-                  Column(
-                    children: [
-                      Text(
-                        'Booking status',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: theme.colorScheme.onSurface,
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Text(
+                          'Booking status',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: theme.colorScheme.onSurface,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Reference $reference',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
-                          fontWeight: FontWeight.w500,
+                        const SizedBox(height: 2),
+                        Text(
+                          'Reference $reference',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: isDark
+                                ? const Color(0xFF9EABA4)
+                                : const Color(0xFF6B7280),
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                   Container(
                     width: 44,
@@ -381,11 +429,7 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   color: statusBadgeBg,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  statusHeroIcon,
-                  color: statusBadgeColor,
-                  size: 28,
-                ),
+                child: Icon(statusHeroIcon, color: statusBadgeColor, size: 28),
               ),
               const SizedBox(height: 12),
               Container(
@@ -424,7 +468,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                     : 'Awaiting travel desk approval · Updates in real time',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
-                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                  color: isDark
+                      ? const Color(0xFF9EABA4)
+                      : const Color(0xFF6B7280),
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -439,7 +485,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   color: theme.cardColor,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                    color: isDark
+                        ? const Color(0xFF2E3D36)
+                        : AppColors.figmaCardBorder,
                   ),
                 ),
                 child: Column(
@@ -453,7 +501,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       subtitle: 'Trip request submitted',
                       time: 'Step 1',
                       showLine: true,
-                      lineColor: s2Completed || s2Active ? const Color(0xFF059669) : const Color(0xFFD1D5DB),
+                      lineColor: s2Completed || s2Active
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFD1D5DB),
                     ),
                     _buildStepRow(
                       icon: s2Completed ? Icons.check : null,
@@ -463,10 +513,14 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       title: 'Agent Review',
                       subtitle: isAwaiting
                           ? 'Awaiting agent approval'
-                          : (s2Completed ? 'Approval granted' : 'Pending review'),
+                          : (s2Completed
+                                ? 'Approval granted'
+                                : 'Pending review'),
                       time: 'Step 2',
                       showLine: true,
-                      lineColor: s3Completed || s3Active ? const Color(0xFF059669) : const Color(0xFFD1D5DB),
+                      lineColor: s3Completed || s3Active
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFD1D5DB),
                     ),
                     _buildStepRow(
                       icon: s3Completed ? Icons.check : null,
@@ -476,10 +530,14 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       title: 'Confirmed',
                       subtitle: isConfirmed
                           ? 'Services secured & confirmed'
-                          : (s3Completed ? 'Confirmed' : 'Pending confirmation'),
+                          : (s3Completed
+                                ? 'Confirmed'
+                                : 'Pending confirmation'),
                       time: 'Step 3',
                       showLine: true,
-                      lineColor: s4Completed ? const Color(0xFF059669) : const Color(0xFFD1D5DB),
+                      lineColor: s4Completed
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFD1D5DB),
                     ),
                     _buildStepRow(
                       icon: s4Completed ? Icons.check : null,
@@ -487,7 +545,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       isActive: s4Active,
                       isPending: s4Pending,
                       title: 'Ready',
-                      subtitle: s4Completed ? 'Tickets issued' : 'Ticket issued upon confirmation',
+                      subtitle: s4Completed
+                          ? 'Tickets issued'
+                          : 'Ticket issued upon confirmation',
                       time: 'Step 4',
                       showLine: false,
                     ),
@@ -592,10 +652,14 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E2822) : const Color(0xFFF3F7F5),
+                    color: isDark
+                        ? const Color(0xFF1E2822)
+                        : const Color(0xFFF3F7F5),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDark ? const Color(0xFF2E3D36) : const Color(0xFFD4E2DA),
+                      color: isDark
+                          ? const Color(0xFF2E3D36)
+                          : const Color(0xFFD4E2DA),
                     ),
                   ),
                   child: Row(
@@ -604,7 +668,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         width: 52,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: isDark ? const Color(0xFF2C261A) : const Color(0xFFFBF4E4),
+                          color: isDark
+                              ? const Color(0xFF2C261A)
+                              : const Color(0xFFFBF4E4),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -641,7 +707,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                               'Your digital QR boarding pass will appear here once approved by our travel desk.',
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 11,
-                                color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                                color: isDark
+                                    ? const Color(0xFF9EABA4)
+                                    : const Color(0xFF6B7280),
                               ),
                             ),
                           ],
@@ -656,7 +724,8 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
               _buildBookingItemsDetailSection(theme, isDark),
 
               // ── 4-Agent Execution and Reasoning Output Card ──
-              if (_booking?['tripRequestId'] is int && (_booking!['tripRequestId'] as int) > 0) ...[
+              if (_booking?['tripRequestId'] is int &&
+                  (_booking!['tripRequestId'] as int) > 0) ...[
                 const SizedBox(height: 16),
                 AgentWorkflowCard(
                   tripRequestId: _booking!['tripRequestId'] as int,
@@ -691,11 +760,14 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       children: [
                         Icon(Icons.payment_outlined, size: 18),
                         SizedBox(width: 8),
-                        Text(
-                          'Pay Now with Stripe',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                        Flexible(
+                          child: Text(
+                            'Pay Now with Stripe',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ],
@@ -739,11 +811,16 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         size: 18,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        isQrEligible ? 'View Confirmation' : 'Review Itinerary',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                      Flexible(
+                        child: Text(
+                          isQrEligible
+                              ? 'View Confirmation'
+                              : 'Review Itinerary',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ],
@@ -761,9 +838,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                   onPressed: _cancelBooking,
                   style: OutlinedButton.styleFrom(
                     backgroundColor: theme.cardColor,
-                    foregroundColor: isDark ? Colors.white : AppColors.figmaDarkGreen,
+                    foregroundColor: isDark
+                        ? Colors.white
+                        : AppColors.figmaDarkGreen,
                     side: BorderSide(
-                      color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder,
+                      color: isDark
+                          ? const Color(0xFF2E3D36)
+                          : AppColors.figmaCardBorder,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(26),
@@ -776,15 +857,22 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       Icon(
                         Icons.cancel_outlined,
                         size: 18,
-                        color: isDark ? Colors.white70 : AppColors.figmaDarkGreen,
+                        color: isDark
+                            ? Colors.white70
+                            : AppColors.figmaDarkGreen,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Cancel Booking',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? Colors.white : AppColors.figmaDarkGreen,
+                      Flexible(
+                        child: Text(
+                          'Cancel Booking',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? Colors.white
+                                : AppColors.figmaDarkGreen,
+                          ),
                         ),
                       ),
                     ],
@@ -799,7 +887,9 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 'Eligible items can be cancelled without charge until 8 October.',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 11,
-                  color: isDark ? const Color(0xFF9EABA4) : const Color(0xFF6B7280),
+                  color: isDark
+                      ? const Color(0xFF9EABA4)
+                      : const Color(0xFF6B7280),
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -903,37 +993,44 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: Theme.of(context).colorScheme.onSurface,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF9EABA4)
-                              : const Color(0xFF6B7280),
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF9EABA4)
+                                : const Color(0xFF6B7280),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  Text(
-                    time,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? const Color(0xFF9EABA4)
-                          : const Color(0xFF9CA3AF),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      time,
+                      textAlign: TextAlign.end,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF9EABA4)
+                            : const Color(0xFF9CA3AF),
+                      ),
                     ),
                   ),
                 ],
@@ -945,6 +1042,13 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
     );
   }
 
+  String _transportTime(Object? value) {
+    final time = parseLocalSchedule(value);
+    return time == null
+        ? 'Time unavailable'
+        : DateFormat('dd MMM yyyy, HH:mm').format(time);
+  }
+
   Widget _buildBookingItemsDetailSection(ThemeData theme, bool isDark) {
     final rawItems = _booking?['bookingItems'] as List? ?? [];
     final List<Map<String, dynamic>> items = [];
@@ -954,17 +1058,31 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
 
     if (items.isEmpty) return const SizedBox.shrink();
 
-    Map<String, dynamic>? hotelItem;
+    final hotelItems = items.where((item) {
+      final type = item['itemType']?.toString().toLowerCase();
+      return type == 'room' ||
+          type == 'hotel' ||
+          type == '1' ||
+          item['roomId'] != null ||
+          item['hotelName'] != null;
+    }).toList();
+    hotelItems.sort((left, right) {
+      final leftDate = parseDateOnly(left['checkInDate']);
+      final rightDate = parseDateOnly(right['checkInDate']);
+      if (leftDate == null && rightDate != null) return 1;
+      if (leftDate != null && rightDate == null) return -1;
+      final byDate = leftDate == null || rightDate == null
+          ? 0
+          : leftDate.compareTo(rightDate);
+      if (byDate != 0) return byDate;
+      return (_positiveId(left['id']) ?? 0).compareTo(
+        _positiveId(right['id']) ?? 0,
+      );
+    });
     final transportItems = orderedTransportItems(items);
-
-    for (var it in items) {
-      final type = it['itemType']?.toString().toLowerCase() ?? '';
-      if (type == 'hotel' || type == 'room' || it['hotelName'] != null) {
-        hotelItem ??= it;
-      }
+    if (hotelItems.isEmpty && transportItems.isEmpty) {
+      return const SizedBox.shrink();
     }
-
-    if (hotelItem == null && transportItems.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -981,15 +1099,19 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
         ),
         const SizedBox(height: 8),
 
-        // Hotel card
-        if (hotelItem != null)
+        // Keep every booked stay, including separate visits to the same hotel.
+        for (final hotelItem in hotelItems)
           Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: theme.cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF2E3D36)
+                    : AppColors.figmaCardBorder,
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1002,7 +1124,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Center(
-                    child: Icon(Icons.hotel_outlined, color: Color(0xFF1B5E20), size: 22),
+                    child: Icon(
+                      Icons.hotel_outlined,
+                      color: Color(0xFF1B5E20),
+                      size: 22,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1015,7 +1141,8 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              hotelItem['hotelName']?.toString() ?? 'Hotel details unavailable',
+                              hotelItem['hotelName']?.toString() ??
+                                  'Hotel details unavailable',
                               style: GoogleFonts.plusJakartaSans(
                                 fontWeight: FontWeight.w800,
                                 fontSize: 13.5,
@@ -1026,7 +1153,10 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE8F5E9),
                               borderRadius: BorderRadius.circular(8),
@@ -1045,23 +1175,36 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       const SizedBox(height: 3),
                       Text(
                         'Room: ${hotelItem['roomType'] ?? 'Room type unavailable'}${hotelItem['roomCapacity'] != null ? ' · Up to ${hotelItem['roomCapacity']} guests' : ''}',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       if (hotelItem['checkInDate'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           'Check-in: ${hotelItem['checkInDate'].toString().split('T').first}${hotelItem['checkOutDate'] != null ? ' · Check-out: ${hotelItem['checkOutDate'].toString().split('T').first}' : ''}',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                       if (hotelItem['subtotal'] != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          formatMoney(hotelItem['subtotal'], _booking?['currency']?.toString() ?? ''),
+                          formatMoney(
+                            hotelItem['subtotal'],
+                            (hotelItem['currency'] ?? _booking?['currency'])
+                                    ?.toString() ??
+                                '',
+                          ),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
-                            color: isDark ? AppColors.figmaGold : AppColors.figmaDarkGreen,
+                            color: isDark
+                                ? AppColors.figmaGold
+                                : AppColors.figmaDarkGreen,
                           ),
                         ),
                       ],
@@ -1073,13 +1216,18 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
           ),
 
         // Transport card
-        ...transportItems.map((transportItem) => Container(
+        ...transportItems.map(
+          (transportItem) => Container(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: theme.cardColor,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? const Color(0xFF2E3D36) : AppColors.figmaCardBorder),
+              border: Border.all(
+                color: isDark
+                    ? const Color(0xFF2E3D36)
+                    : AppColors.figmaCardBorder,
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1092,7 +1240,11 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const Center(
-                    child: Icon(Icons.directions_car_outlined, color: Color(0xFF0369A1), size: 22),
+                    child: Icon(
+                      Icons.directions_car_outlined,
+                      color: Color(0xFF0369A1),
+                      size: 22,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -1116,7 +1268,10 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: const Color(0xFFE0F2FE),
                               borderRadius: BorderRadius.circular(8),
@@ -1135,23 +1290,69 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                       const SizedBox(height: 3),
                       Text(
                         'Provider: ${transportItem['transportProvider'] ?? 'Provider unavailable'}',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 11.5, color: const Color(0xFF6B7280)),
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                      if (transportItem['routeFrom'] != null || transportItem['routeTo'] != null || transportItem['pickupLocation'] != null || transportItem['dropoffLocation'] != null) ...[
+                      if (transportItem['routeFrom'] != null ||
+                          transportItem['routeTo'] != null ||
+                          transportItem['pickupLocation'] != null ||
+                          transportItem['dropoffLocation'] != null) ...[
                         const SizedBox(height: 2),
                         Text(
                           'Route: ${transportItem['routeFrom'] ?? transportItem['pickupLocation'] ?? 'Origin'} → ${transportItem['routeTo'] ?? transportItem['dropoffLocation'] ?? 'Destination'}',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 10.5, color: const Color(0xFF9CA3AF)),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (transportItem['departureTime'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Departure: ${_transportTime(transportItem['departureTime'])}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (transportItem['arrivalTime'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Arrival: ${_transportTime(transportItem['arrivalTime'])}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (transportItem['quantity'] != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'Travellers: ${transportItem['quantity']}',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                       if (transportItem['subtotal'] != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          formatMoney(transportItem['subtotal'], _booking?['currency']?.toString() ?? ''),
+                          formatMoney(
+                            transportItem['subtotal'],
+                            (transportItem['currency'] ?? _booking?['currency'])
+                                    ?.toString() ??
+                                '',
+                          ),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
-                            color: isDark ? AppColors.figmaGold : AppColors.figmaDarkGreen,
+                            color: isDark
+                                ? AppColors.figmaGold
+                                : AppColors.figmaDarkGreen,
                           ),
                         ),
                       ],
@@ -1160,7 +1361,8 @@ class _BookingStatusScreenState extends State<BookingStatusScreen> {
                 ),
               ],
             ),
-          )),
+          ),
+        ),
       ],
     );
   }
