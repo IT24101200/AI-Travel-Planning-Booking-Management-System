@@ -95,6 +95,72 @@ public class ItineraryChangeTests
     }
 
     [Fact]
+    public async Task DetailedRevisionFitsAuditLogLimitAndFullPlanReachesAgentService()
+    {
+        var (db, connection) = await AgentProposalPersistenceTests.CreateContextAsync();
+        await using (db) await using (connection)
+        {
+            var id = await SeedAsync(db);
+            var trip = await db.TripRequests.SingleAsync();
+            var saved = JsonNode.Parse(trip.PlanJson!)!;
+            var firstDay = saved["itinerary"]!["schedule"]![0]!.DeepClone();
+            firstDay["travel_legs"] = JsonSerializer.SerializeToNode(new[] {
+                new { from = new { name = "Bandaranaike International Airport", latitude = 7.1808, longitude = 79.8841, kind = "airport" },
+                    to = new { name = "Hotel Royal Kandyan", latitude = 7.2774, longitude = 80.6159, kind = "hotel" }, distance_km = 113.0, duration_minutes = 180.0 },
+                new { from = new { name = "Hotel Royal Kandyan", latitude = 7.2774, longitude = 80.6159, kind = "hotel" },
+                    to = new { name = "Kandy Heritage Walk and Temple of the Sacred Tooth Relic", latitude = 7.2936, longitude = 80.6413, kind = "tour" }, distance_km = 7.0, duration_minutes = 20.0 },
+                new { from = new { name = "Kandy Heritage Walk and Temple of the Sacred Tooth Relic", latitude = 7.2936, longitude = 80.6413, kind = "tour" },
+                    to = new { name = "Hotel Royal Kandyan", latitude = 7.2774, longitude = 80.6159, kind = "hotel" }, distance_km = 7.5, duration_minutes = 25.0 }
+            });
+            var schedule = new JsonArray();
+            for (var day = 1; day <= 7; day++)
+            {
+                var entry = firstDay.DeepClone();
+                entry["day_number"] = day;
+                schedule.Add(entry);
+            }
+            saved["itinerary"]!["schedule"] = schedule;
+            trip.PlanJson = saved.ToJsonString();
+            await db.SaveChangesAsync();
+            Assert.True(trip.PlanJson.Length > 4000);
+            // SQLite does not enforce varchar lengths; emulate the production
+            // PostgreSQL AgentLogs.Input varchar(4000) constraint explicitly.
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TRIGGER AgentLogInputLimit BEFORE INSERT ON "AgentLogs"
+                WHEN length(NEW."Input") > 4000
+                BEGIN SELECT RAISE(ABORT, 'AgentLogs.Input exceeds varchar(4000)'); END;
+                """);
+            var handler = new RevisionHandler();
+            var clients = new Mock<IHttpClientFactory>();
+            clients.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(handler));
+            var planner = new RevisionPlanningService(db, clients.Object, new ConfigurationBuilder().Build());
+            var service = new ItineraryChangeService(db, new Roads(), planner, new CurrencyConversionService());
+            var transport = await db.BookingItems.SingleAsync(i => i.ItemType == BookingItemType.Transport);
+            await service.RequestAsync(id, "cust-1", new() { Notes = "Please use this transfer",
+                Transports = new() { new() { BookingItemId = transport.Id, TransportOptionId = 31 } } }, "Bearer test");
+            var revision = CustomerRevisionContract.Read(trip)!;
+            var sent = JsonNode.Parse(handler.Body!)!;
+            Assert.Equal(revision["id"]!.GetValue<string>(), sent["revision_request"]!["id"]!.GetValue<string>());
+            Assert.Equal(7, sent["revision_request"]!["baseline_itinerary"]!["schedule"]!.AsArray().Count);
+            Assert.Equal(31, sent["revision_request"]!["transports"]![0]!["transport_option_id"]!.GetValue<int>());
+            var audit = await db.AgentLogs.SingleAsync(l => l.AgentName == "Customer change request");
+            Assert.True(audit.Input!.Length <= 4000);
+            Assert.Contains(revision["id"]!.GetValue<string>(), audit.Input);
+            Assert.Equal(BookingStatus.AwaitingApproval, (await db.Bookings.SingleAsync()).Status);
+        }
+    }
+
+    private sealed class RevisionHandler : HttpMessageHandler
+    {
+        public string? Body { get; private set; }
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            Body = await request.Content!.ReadAsStringAsync(ct);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.Accepted);
+        }
+    }
+
+    [Fact]
     public async Task OptionsRespectRoadBoundaryCapacityRouteDateTypeAndOwnership()
     {
         var (db, connection) = await AgentProposalPersistenceTests.CreateContextAsync();

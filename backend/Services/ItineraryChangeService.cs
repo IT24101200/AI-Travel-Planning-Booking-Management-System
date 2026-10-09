@@ -147,8 +147,15 @@ public sealed class ItineraryChangeService(AppDbContext db, IHotelRoadDistanceSe
         })!;
         saved["revision_request"] = revision;
         trip.PlanJson = saved.ToJsonString(); trip.Status = TripRequestStatus.Planning; trip.FailureReason = null; trip.RetryCount = 0;
+        // AgentLogs.Input is varchar(4000). The complete revision, including
+        // its potentially large baseline route, belongs in PlanJson only.
+        var auditInput = JsonSerializer.Serialize(new {
+            revision_request_id = revision["id"]!.GetValue<string>(), booking_id = booking.Id,
+            hotel_changes = input.Hotels.Count, transport_changes = input.Transports.Count,
+            has_instructions = !string.IsNullOrWhiteSpace(input.Notes)
+        });
         db.AgentLogs.Add(new AgentLog { TripRequestId = trip.Id, AgentName = "Customer change request", StepName = "Requested hotel and transport changes",
-            Input = revision.ToJsonString(), Output = "Preparing a revised proposal; current booking remains available.", Status = "Started", Timestamp = DateTime.UtcNow });
+            Input = auditInput, Output = "Preparing a revised proposal; current booking remains available.", Status = "Started", Timestamp = DateTime.UtcNow });
         await db.SaveChangesAsync(ct);
         await planner.TriggerAsync(trip.Id, input.Notes.Trim(), authorization, ct);
         await transaction.CommitAsync(ct);

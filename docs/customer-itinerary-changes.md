@@ -27,6 +27,8 @@ Only changed items need to be sent. The backend pins all stays and transfers, re
 
 The canonical `revision_request` is stored inside existing `TripRequest.PlanJson`; **no database migration is required**. It contains a unique request ID, source booking, baseline journeys, dated room choices and per-leg transport choices. Agent callback IDs must match the current request, preventing stale results from replacing a newer plan.
 
+The customer-change audit log stores the request ID, booking ID and change counts. The full route and instructions stay in `PlanJson` and are sent intact to the agents, avoiding the audit log's `varchar(4000)` size limit on detailed itineraries.
+
 The original booking remains active during replanning. Its inventory is excluded when rechecking availability for its replacement. A successful proposal must preserve the journey set, use the requested rooms for every occupied night, use the exact requested transport IDs per leg, fit the budget and pass existing travel checks. The backend then atomically discards the original itinerary, cancels its booking and creates a revised proposal awaiting approval, preserving both versions for audit.
 
 A failed revision restores the original trip status and retains its itinerary and booking, with a visible failure reason. Paid bookings or payments in progress require staff assistance. Approval decisions and new payments are blocked while a customer revision is pending.
