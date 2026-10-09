@@ -61,6 +61,7 @@ class RoadMatrix:
     def __init__(self, records):
         self.points = tuple(dict.fromkeys(point(record) for record in records))
         self.index = {p: i for i, p in enumerate(self.points)}
+        self._legs = {}
         if len(self.points) == 1:
             self.distances = self.durations = [[0]]
         else:
@@ -68,12 +69,15 @@ class RoadMatrix:
 
     def leg(self, source, target):
         a, b = self.index[point(source)], self.index[point(target)]
+        if (a, b) in self._legs:
+            return self._legs[a, b]
         distance, duration = self.distances[a][b], self.durations[a][b]
         if distance is None or duration is None:
             return float("inf"), float("inf")
         distance, duration = float(distance) / 1000, float(duration) / 60
         if not isfinite(distance) or not isfinite(duration) or min(distance, duration) < 0:
             raise RoutePlanningError("ROAD_ROUTING_UNAVAILABLE", "The road routing service returned invalid travel data.")
+        self._legs[a, b] = (distance, duration)
         return distance, duration
 
 
@@ -220,7 +224,26 @@ def grouped_itinerary(state, tours, destinations):
             "total_estimated_cost": sum(float(t["price"]) * state.get("traveller_count", 1) for t in selected)}
 
 
-def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatrix):
+def _overnight_geometry(tours, rooms, origin, matrix_factory):
+    """Prepare road data and hotel coverage independently of timetable/budget."""
+    matrix = matrix_factory([*tours, *rooms, *([origin] if origin else [])])
+    destination_ids = list(dict.fromkeys(t["destination_id"] for t in tours))
+    representatives = [next(t for t in tours if t["destination_id"] == i) for i in destination_ids]
+    hotel_coverage = {}
+    for room in rooms:
+        mask = 0
+        for i, representative in enumerate(representatives):
+            local = matrix.leg(room, representative)[0] <= 50
+            midway = any(matrix.leg(representative, room)[0] <= 70 and matrix.leg(room, other)[0] <= 70 and
+                         matrix.leg(representative, room)[0] + matrix.leg(room, other)[0] <= matrix.leg(representative, other)[0] * 1.25 + 10
+                         for j, other in enumerate(representatives) if abs(i-j) == 1)
+            if local or midway:
+                mask |= 1 << i
+        hotel_coverage[room["room_id"]] = mask
+    return matrix, destination_ids, hotel_coverage
+
+
+def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatrix, *, geometry_cache=None):
     """Pareto search over days, ordered tours, hotels, distance and room cost.
 
     Transfer-only days can use an intermediate hotel. No straight-line travel
@@ -235,21 +258,19 @@ def plan_overnights(state, itinerary, rooms, available, matrix_factory=RoadMatri
     if not tours or days < 2:
         raise RoutePlanningError("TRAVEL_TIME_INFEASIBLE", "Allow at least two days for a trip with overnight accommodation.")
     origin = airport(state)
-    matrix = matrix_factory([*tours, *rooms, *([origin] if origin else [])])
-    # Each label: next tour, current hotel, room cost, distance, schedule, stays.
-    destination_ids = list(dict.fromkeys(t["destination_id"] for t in tours))
-    representatives = [next(t for t in tours if t["destination_id"] == i) for i in destination_ids]
-    hotel_coverage = {}
-    for room in rooms:
-        mask = 0
-        for i, representative in enumerate(representatives):
-            local = matrix.leg(room, representative)[0] <= 50
-            midway = any(matrix.leg(representative, room)[0] <= 70 and matrix.leg(room, other)[0] <= 70 and
-                         matrix.leg(representative, room)[0] + matrix.leg(room, other)[0] <= matrix.leg(representative, other)[0] * 1.25 + 10
-                         for j, other in enumerate(representatives) if abs(i-j) == 1)
-            if local or midway:
-                mask |= 1 << i
-        hotel_coverage[room["room_id"]] = mask
+    key = (
+        tuple((tour["destination_id"], point(tour)) for tour in tours),
+        tuple((room["room_id"], point(room)) for room in rooms),
+        point(origin) if origin else None,
+        matrix_factory,
+    ) if geometry_cache is not None else None
+    if geometry_cache is not None and key in geometry_cache:
+        matrix, destination_ids, hotel_coverage = geometry_cache[key]
+    else:
+        geometry = _overnight_geometry(tours, rooms, origin, matrix_factory)
+        matrix, destination_ids, hotel_coverage = geometry
+        if geometry_cache is not None:
+            geometry_cache[key] = geometry
     full_coverage = (1 << len(destination_ids)) - 1
     labels = [(0, origin or tours[0], 0.0, 0.0, [], [], 0, 0.0, 0)]
     budget = float(state["budget_ceiling"]) - float(itinerary["total_estimated_cost"])

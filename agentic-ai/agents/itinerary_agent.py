@@ -9,7 +9,6 @@ from copy import deepcopy
 from logger import log_agent_step
 import os
 
-from google import genai
 from dotenv import load_dotenv
 
 # The tools directory is next to the agents directory. When the agentic-ai
@@ -595,6 +594,5 @@ def itinerary_node(state: dict) -> dict:
 
 
 # Packages that may require manual installation:
-# - google-generativeai
 # - python-dotenv
 # - requests (used by tools/search_tours.py)

@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import patch
 
-from logger import _RedactApiKeys, log_agent_step
+from logger import _RedactApiKeys, log_agent_step, audit_log_session, _audit_client
 
 
 def test_http_request_log_redacts_query_credentials():
@@ -27,3 +27,17 @@ def test_httpx_logger_filter_removes_key_before_handler_receives_record(caplog):
         logging.getLogger("httpx").info("HTTP Request: POST https://example.invalid/?key=%s", "another-secret")
     assert "another-secret" not in caplog.text
     assert "key=[REDACTED]" in caplog.text
+
+
+def test_pipeline_audit_logs_reuse_connection_and_reset_after_failure():
+    import pytest
+    with patch("logger.httpx.Client") as factory:
+        client = factory.return_value.__enter__.return_value
+        client.post.return_value.is_success = True
+        with pytest.raises(RuntimeError), audit_log_session():
+            log_agent_step(1, "CoordinatorAgent", "First")
+            log_agent_step(1, "BookingAgent", "Second")
+            assert factory.call_count == 1
+            assert client.post.call_count == 2
+            raise RuntimeError("test cleanup")
+        assert _audit_client.get() is None

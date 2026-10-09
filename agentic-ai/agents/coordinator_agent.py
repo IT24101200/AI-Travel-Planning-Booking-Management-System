@@ -136,8 +136,16 @@ def coordinator_plan(state: dict) -> dict:
     Return ONLY valid JSON.
     """
 
-    gemini_result = call_gemini_for_planning(prompt)
     strategy_info = {}
+    previous_summary = state.get("plan_summary") or {}
+    if retry_count > 0 and previous_summary.get("theme") and previous_summary.get("strategy"):
+        # Budget retries keep the same trip theme; recompute budgets locally.
+        strategy_info = {
+            "trip_theme": previous_summary["theme"],
+            "planning_strategy": previous_summary["strategy"],
+            "target_daily_budget": round(effective_budget / days, 2),
+        }
+    gemini_result = None if strategy_info else call_gemini_for_planning(prompt)
     if gemini_result:
         try:
             # Strip potential markdown formatting

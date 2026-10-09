@@ -48,6 +48,7 @@ def test_non_airport_early_catalogue_departure_is_kept():
 
 
 def test_distinct_large_timetables_return_verified_package_with_search_limit_metadata():
+    import route_planning
     from agents import booking_agent
     from route_planning import plan_overnights
     from test_route_planning import LineRoads, itinerary, room, state, tour
@@ -70,7 +71,8 @@ def test_distinct_large_timetables_return_verified_package_with_search_limit_met
         patch.object(booking_agent, "check_room_availability", return_value={"isAvailable": True}),
         patch.object(booking_agent, "search_transports", return_value=TransportSearchResult(rows)),
         patch.object(booking_agent, "check_transport_availability", return_value={"isAvailable": True}),
-        patch.object(booking_agent, "plan_overnights", side_effect=lambda *args: plan_overnights(*args, matrix_factory=LineRoads)) as planner,
+        patch.object(booking_agent, "plan_overnights", side_effect=lambda *args, **kwargs: plan_overnights(*args, matrix_factory=LineRoads, **kwargs)) as planner,
+        patch.object(route_planning, "_overnight_geometry", wraps=route_planning._overnight_geometry) as geometry,
         patch.object(booking_agent, "log_agent_step"),
     ):
         package = booking_agent.build_booking_package(request)
@@ -78,5 +80,6 @@ def test_distinct_large_timetables_return_verified_package_with_search_limit_met
     assert package["persistence_status"] == "READY_FOR_PERSISTENCE"
     assert package["transport_search"] == {"evaluated_timetables": 256, "search_limited": True}
     assert planner.call_count == 256
+    assert geometry.call_count == 1
     assert sum(s["nights"] for s in package["room_selections"]) == 4
     assert all(d["travel_minutes"] <= 600 for d in package["itinerary"]["schedule"])
