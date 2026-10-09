@@ -102,6 +102,10 @@ namespace backend.Services
             if (dto.AirportPickup && (dto.AirportCode is not ("CMB" or "HRI") || dto.AirportArrivalTime < TimeSpan.Zero || dto.AirportArrivalTime >= TimeSpan.FromDays(1)))
                 throw new ArgumentException("Select a valid airport and arrival time for pickup.");
             var destinationIds = NormalizeDestinationIds(dto);
+            if (dto.AirportPickup && dto.StarterLocationId.HasValue)
+                throw new ArgumentException("Airport pickup is already the route origin; do not select a destination starter.");
+            if (dto.StarterLocationId.HasValue && !destinationIds.Contains(dto.StarterLocationId.Value))
+                throw new ArgumentException("The selected starter location must be one of the requested destinations.");
             var destinationEntities = destinationIds.Count == 0
                 ? new List<Destination>()
                 : await _db.Destinations
@@ -123,15 +127,17 @@ namespace backend.Services
                 {
                     Id = id,
                     Name = destinationsById[id].Name,
-                    Order = order
+                    Order = order,
+                    IsStarter = dto.StarterLocationId == id
                 })
                 .ToList();
 
             var tripRequest = new TripRequest
             {
                 CustomerId = customerId,
-                // Preserve the first selection for legacy singular consumers.
-                DestinationId = destinationIds.Count == 0 ? null : destinationIds[0],
+                // Keep the legacy singular field for older consumers; route
+                // origin semantics come from StarterLocationId or airport pickup.
+                DestinationId = dto.StarterLocationId ?? (destinationIds.Count == 0 ? null : destinationIds[0]),
                 DestinationSelectionsJson = selections.Count == 0
                     ? null
                     : JsonSerializer.Serialize(selections),
@@ -532,9 +538,11 @@ namespace backend.Services
                     {
                         Id = selection.Id,
                         Name = selection.Name,
-                        Order = selection.Order
+                        Order = selection.Order,
+                        IsStarter = selection.IsStarter
                     })
                     .ToList(),
+                StarterLocationId = selections.FirstOrDefault(selection => selection.IsStarter)?.Id,
                 RawRequestText = t.RawRequestText,
                 StartDate = t.StartDate,
                 EndDate = t.EndDate,

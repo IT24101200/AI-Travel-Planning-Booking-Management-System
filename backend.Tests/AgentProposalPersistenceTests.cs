@@ -43,7 +43,7 @@ public class AgentProposalPersistenceTests
     }
 
     [Fact]
-    public async Task ReorderedDestinationOrderIsRejectedBeforePersistence()
+    public async Task StarterPreservingOptimizedDestinationOrderIsPersisted()
     {
         var (context, connection) = await CreateThreeDestinationContextAsync();
         await using (context)
@@ -54,15 +54,92 @@ public class AgentProposalPersistenceTests
             itinerary["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[1,3,2]");
             itinerary["schedule"]![1]!["items"]![0]!["tour_id"] = 102;
             itinerary["schedule"]![2]!["items"]![0]!["tour_id"] = 101;
+            var firstLeg = await context.TransportOptions.SingleAsync(option => option.Id == 30);
+            firstLeg.RouteTo = "Third Destination";
+            firstLeg.DepartureTime = new DateTime(2026, 10, 10, 12, 0, 0);
+            firstLeg.ArrivalTime = new DateTime(2026, 10, 10, 15, 0, 0);
+            var secondLeg = await context.TransportOptions.SingleAsync(option => option.Id == 31);
+            secondLeg.RouteFrom = "Third Destination";
+            secondLeg.RouteTo = "Second Destination";
+            secondLeg.DepartureTime = new DateTime(2026, 10, 11, 12, 0, 0);
+            secondLeg.ArrivalTime = new DateTime(2026, 10, 11, 15, 0, 0);
             foreach (var day in itinerary["schedule"]!.AsArray())
             {
                 day!["travel_minutes"] = 120;
                 day["day_end_time"] = "17:00:00";
             }
+            await new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
+
+            var transportItems = await context.BookingItems
+                .Where(item => item.ItemType == BookingItemType.Transport)
+                .OrderBy(item => item.TransportLegIndex)
+                .ToListAsync();
+            Assert.Equal(new[] { "Test Destination", "Third Destination" },
+                transportItems.Select(item => item.TransportRouteFromSnapshot));
+            Assert.Equal(new[] { "Third Destination", "Second Destination" },
+                transportItems.Select(item => item.TransportRouteToSnapshot));
+        }
+    }
+
+    [Fact]
+    public async Task RouteThatChangesTheSelectedStarterIsRejected()
+    {
+        var (context, connection) = await CreateThreeDestinationContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var node = System.Text.Json.Nodes.JsonNode.Parse(ThreeDestinationProposal().GetRawText())!;
+            node["itinerary"]!["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[2,1,3]");
+
             var error = await Assert.ThrowsAsync<ProposalPersistenceException>(() =>
                 new AgentProposalPersistenceService(context).PersistAsync(1, JsonSerializer.SerializeToElement(node), 0));
             Assert.Equal("DESTINATION_ORDER_CONTRACT_MISMATCH", error.Code);
             Assert.Empty(await context.Bookings.ToListAsync());
+        }
+    }
+
+    [Fact]
+    public async Task RouteMayStartAtAnyRequestedDestinationWhenStarterWasNotSelected()
+    {
+        var (context, connection) = await CreateThreeDestinationContextAsync();
+        await using (context)
+        await using (connection)
+        {
+            var trip = await context.TripRequests.SingleAsync();
+            trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
+            {
+                new { Id = 1, Name = "ignored", Order = 0 },
+                new { Id = 2, Name = "ignored", Order = 1 },
+                new { Id = 3, Name = "ignored", Order = 2 }
+            });
+
+            var node = System.Text.Json.Nodes.JsonNode.Parse(ThreeDestinationProposal().GetRawText())!;
+            var itinerary = node["itinerary"]!;
+            itinerary["route_destination_ids"] = System.Text.Json.Nodes.JsonNode.Parse("[2,3,1]");
+            itinerary["schedule"]![0]!["items"]![0]!["tour_id"] = 101;
+            itinerary["schedule"]![1]!["items"]![0]!["tour_id"] = 102;
+            itinerary["schedule"]![2]!["items"]![0]!["tour_id"] = 100;
+            var firstLeg = await context.TransportOptions.SingleAsync(option => option.Id == 30);
+            firstLeg.RouteFrom = "Second Destination";
+            firstLeg.RouteTo = "Third Destination";
+            firstLeg.DepartureTime = new DateTime(2026, 10, 10, 12, 0, 0);
+            firstLeg.ArrivalTime = new DateTime(2026, 10, 10, 15, 0, 0);
+            var secondLeg = await context.TransportOptions.SingleAsync(option => option.Id == 31);
+            secondLeg.RouteFrom = "Third Destination";
+            secondLeg.RouteTo = "Test Destination";
+            secondLeg.DepartureTime = new DateTime(2026, 10, 11, 12, 0, 0);
+            secondLeg.ArrivalTime = new DateTime(2026, 10, 11, 15, 0, 0);
+            foreach (var day in itinerary["schedule"]!.AsArray())
+            {
+                day!["travel_minutes"] = 120;
+                day["day_end_time"] = "17:00:00";
+            }
+            await context.SaveChangesAsync();
+
+            await new AgentProposalPersistenceService(context)
+                .PersistAsync(1, JsonSerializer.SerializeToElement(node), 0);
+
+            Assert.Single(await context.Bookings.ToListAsync());
         }
     }
 
@@ -186,9 +263,9 @@ public class AgentProposalPersistenceTests
         var trip = await context.TripRequests.SingleAsync();
         trip.DestinationSelectionsJson = JsonSerializer.Serialize(new[]
         {
-            new { Id = 1, Name = "ignored", Order = 0 },
-            new { Id = 2, Name = "ignored", Order = 1 },
-            new { Id = 3, Name = "ignored", Order = 2 }
+            new { Id = 1, Name = "ignored", Order = 0, IsStarter = true },
+            new { Id = 2, Name = "ignored", Order = 1, IsStarter = false },
+            new { Id = 3, Name = "ignored", Order = 2, IsStarter = false }
         });
         var firstLeg = await context.TransportOptions.SingleAsync();
         firstLeg.RouteFrom = "Test Destination";

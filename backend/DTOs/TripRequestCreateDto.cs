@@ -17,6 +17,13 @@ namespace backend.DTOs
 
         public List<TripRequestDestinationInputDto> Destinations { get; set; } = new();
 
+        /// <summary>
+        /// Optional customer-selected starting destination. When omitted the
+        /// agent may choose the most efficient route; airport pickup is the
+        /// origin when AirportPickup is true.
+        /// </summary>
+        public int? StarterLocationId { get; set; }
+
         [Required(ErrorMessage = "Request text is required.")]
         [MaxLength(2000)]
         public string RawRequestText { get; set; } = string.Empty;

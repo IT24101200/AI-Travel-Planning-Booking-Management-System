@@ -13,7 +13,11 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from logger import log_agent_step
-from destination_contract import DestinationContractError, normalize_requested_destinations
+from destination_contract import (
+    DestinationContractError,
+    is_valid_route_order,
+    normalize_requested_destinations,
+)
 
 
 class PackageValidationError(ValueError):
@@ -208,10 +212,15 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
     route_ids = itinerary.get("route_destination_ids")
     if route_ids is not None:
         requested_order = [destination["destination_id"] for destination in requested_destinations]
-        if route_ids != requested_order:
+        if not is_valid_route_order(
+            route_ids,
+            requested_order,
+            starter_location_id=state.get("starter_location_id"),
+            airport_pickup=bool(state.get("airport_pickup")),
+        ):
             raise PackageValidationError(
                 "INVALID_DESTINATION_ORDER",
-                "The planned route must preserve the customer's requested destination order.",
+                "The planned route must include every selected destination and respect the selected route origin.",
             )
         visited = []
         for day in schedule:
@@ -359,6 +368,7 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
             "customer_id": state.get("customer_id"),
             "requested_destinations": state.get("requested_destinations", []),
             "destination_ids": state.get("destination_ids", []),
+            "starter_location_id": state.get("starter_location_id"),
             "airport_pickup": state.get("airport_pickup", False),
             "airport_code": state.get("airport_code", "CMB"),
             "plan_summary": state.get("plan_summary", {}),
