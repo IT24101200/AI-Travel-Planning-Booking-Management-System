@@ -177,6 +177,12 @@ def build_booking_package(state):
             trip_id,
             "INVALID_DESTINATION_ORDER",
             "The planned route must include every selected destination and respect the selected route origin.",
+            diagnostics={
+                "requested_destination_ids": requested_order,
+                "planned_destination_ids": planned_order,
+                "starter_location_id": state.get("starter_location_id"),
+                "airport_pickup": bool(state.get("airport_pickup")),
+            },
         )
     
     geographic = bool(itinerary.get("route_destination_ids"))
@@ -675,4 +681,6 @@ def booking_node(state: dict) -> dict:
     result = build_booking_package(state)
     if isinstance(result, dict) and "total_package_cost" in result and "total_cost" not in result:
         result["total_cost"] = result["total_package_cost"]
-    return {**state, "booking_details": result, "itinerary": result.get("itinerary", state.get("itinerary", {}))}
+    return {**state, "booking_details": result,
+            "status": result.get("status", state.get("status", "InPlanning")),
+            "itinerary": result.get("itinerary", state.get("itinerary", {}))}

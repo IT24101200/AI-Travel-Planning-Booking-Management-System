@@ -554,6 +554,7 @@ def itinerary_node(state: dict) -> dict:
         "destination_id": state.get("destination_id") or primary_destination.get("destination_id"),
         "destination_name": state.get("destination_name") or primary_destination.get("destination_name"),
         "requested_destinations": requested_destinations,
+        "starter_location_id": state.get("starter_location_id"),
         "start_date": state.get("start_date"),
         "end_date": state.get("end_date"),
         "traveller_count": state.get("traveller_count"),
