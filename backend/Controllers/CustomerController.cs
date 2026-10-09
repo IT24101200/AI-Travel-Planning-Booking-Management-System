@@ -127,6 +127,7 @@ namespace backend.Controllers
         [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> DeleteCustomer(string id)
         {
@@ -142,13 +143,20 @@ namespace backend.Controllers
                 return NotFound(new { message = "User not found." });
             }
 
-            var deleted = await _customerService.DeleteAsync(id);
-            if (!deleted)
+            try
             {
-                return BadRequest(new { message = "Unable to delete user account." });
-            }
+                var deleted = await _customerService.DeleteAsync(id);
+                if (!deleted)
+                {
+                    return BadRequest(new { message = "Unable to delete user account." });
+                }
 
-            return Ok(new { message = "User account deleted successfully." });
+                return Ok(new { message = "User account deleted successfully." });
+            }
+            catch (CustomerDeletionConflictException ex)
+            {
+                return Conflict(new { message = ex.Message, references = ex.Details });
+            }
         }
 
         /// <summary>

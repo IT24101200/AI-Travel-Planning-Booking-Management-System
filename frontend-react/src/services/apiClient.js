@@ -99,6 +99,26 @@ export async function fetchCustomers(params = {}) {
   return data
 }
 
+/** Fetch every directory page while preserving the backend's count contract. */
+export async function fetchAllCustomers(params = {}) {
+  const pageSize = Math.min(50, Math.max(1, Number(params.pageSize) || 50))
+  const records = []
+  let page = 1
+  let totalCount
+
+  while (true) {
+    const response = await fetchCustomers({ ...params, page, pageSize })
+    const current = Array.isArray(response) ? response : (response?.data || [])
+    records.push(...current)
+    totalCount = Number(response?.totalCount) || totalCount || records.length
+    const totalPages = Array.isArray(response) ? 1 : Math.max(1, Number(response?.totalPages) || 1)
+    if (Array.isArray(response) || page >= totalPages) break
+    page += 1
+  }
+
+  return { data: records, totalCount }
+}
+
 export async function updateCustomer(id, data) {
   const { data: res } = await api.put(`/Customer/${id}`, data)
   return res

@@ -113,10 +113,10 @@ namespace backend.Controllers
 
         /// <summary>
         /// Register a new staff account (TravelAgent or Admin).
-        /// Requires a secret staff code if unauthenticated, or allows authenticated staff to invite colleagues.
+        /// Requires an authenticated administrator; staff invitations are never anonymous.
         /// </summary>
         [HttpPost("register-staff")]
-        [AllowAnonymous]
+        [Authorize(Roles = "Admin")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> RegisterStaff([FromBody] RegisterStaffDto dto)
@@ -126,22 +126,6 @@ namespace backend.Controllers
                 var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
                 return BadRequest(new { message = "Validation failed.", errors = errors });
             }
-
-            // Only Administrators can invite staff, or unauthenticated initial setup with the secret code
-            var isAuthenticated = User.Identity?.IsAuthenticated == true;
-            var isAdminCaller = isAuthenticated && User.IsInRole("Admin");
-
-            if (isAuthenticated && !isAdminCaller)
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Only administrators can invite or register new staff accounts." });
-            }
-
-            var correctCode = _configuration["StaffSecretCode"];
-            if (!isAdminCaller && string.IsNullOrWhiteSpace(correctCode))
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Staff registration is not configured." });
-
-            if (!isAdminCaller && (string.IsNullOrWhiteSpace(dto.StaffSecretCode) || dto.StaffSecretCode != correctCode))
-                return BadRequest(new { message = "Invalid staff secret code." });
 
             // Only allow valid roles
             var allowedRoles = new[] { "TravelAgent", "Admin" };
