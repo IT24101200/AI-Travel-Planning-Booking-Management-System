@@ -16,6 +16,7 @@ namespace backend.DTOs
         public string Channel { get; set; } = string.Empty;
         public string MessageType { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+        public TripConfirmationDto? TripDetails { get; set; }
         public string? ReferenceType { get; set; }
         public string? ReferenceId { get; set; }
         public string? EventKey { get; set; }

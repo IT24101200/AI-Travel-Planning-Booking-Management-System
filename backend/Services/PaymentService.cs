@@ -51,6 +51,10 @@ public sealed class PaymentService : IPaymentService
                 .Include(b => b.Customer)
                 .Include(b => b.Payments)
                 .Include(b => b.Itinerary).ThenInclude(i => i.TripRequest)
+                .Include(b => b.Itinerary).ThenInclude(i => i.ItineraryItems).ThenInclude(i => i.Tour)
+                .Include(b => b.BookingItems).ThenInclude(i => i.Room).ThenInclude(r => r!.Hotel)
+                .Include(b => b.BookingItems).ThenInclude(i => i.TransportOption)
+                .AsSplitQuery()
                 .SingleOrDefaultAsync(b => b.Id == dto.BookingId);
 
             if (booking == null)
@@ -133,19 +137,23 @@ public sealed class PaymentService : IPaymentService
             payment.Status = stripeResult.Succeeded ? PaymentStatus.Paid : PaymentStatus.Failed;
             payment.FailureReason = stripeResult.Succeeded ? null : SafeFailure(stripeResult.FailureReason);
             payment.PaymentDate = DateTime.UtcNow;
+            var tripDetails = stripeResult.Succeeded ? TripConfirmationBuilder.Build(booking) : null;
             await _notifications.CreateEventNotificationAsync(
                 booking.CustomerId,
                 stripeResult.Succeeded ? MessageType.PaymentSucceeded : MessageType.PaymentFailed,
                 stripeResult.Succeeded
-                    ? "Your payment was successful."
+                    ? $"Your payment was successful. Booking {booking.BookingReference} is paid. Your complete trip plan, booked hotels, transport and available contact details are attached."
                     : "Your payment could not be completed. Please try again.",
                 "Booking",
                 booking.Id.ToString(),
-                $"payment:{payment.Id}:{(stripeResult.Succeeded ? "succeeded" : "failed")}");
+                $"payment:{payment.Id}:{(stripeResult.Succeeded ? "succeeded" : "failed")}",
+                tripDetails: tripDetails);
             await _db.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            return Map(payment, booking);
+            var result = Map(payment, booking);
+            result.TripDetails = tripDetails;
+            return result;
         }
         finally
         {

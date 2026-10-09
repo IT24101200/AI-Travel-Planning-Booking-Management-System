@@ -27,6 +27,13 @@ namespace backend.Models
         [MaxLength(150)]
         public string Provider { get; set; } = string.Empty;
 
+        [MaxLength(30)]
+        public string? ContactPhone { get; set; }
+
+        [MaxLength(254)]
+        [EmailAddress]
+        public string? ContactEmail { get; set; }
+
         // ── Route: where it goes from/to ──
         [Required]
         [MaxLength(200)]

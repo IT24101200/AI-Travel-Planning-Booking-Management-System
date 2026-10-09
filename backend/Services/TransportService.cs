@@ -242,6 +242,8 @@ namespace backend.Services
             {
                 Type               = transportType,
                 Provider           = dto.Provider,
+                ContactPhone       = dto.ContactPhone?.Trim(),
+                ContactEmail       = dto.ContactEmail?.Trim(),
                 RouteFrom          = dto.RouteFrom,
                 RouteTo            = dto.RouteTo,
                 RouteFromLatitude  = dto.RouteFromLatitude,
@@ -287,6 +289,8 @@ namespace backend.Services
                 }
             }
             transport.Provider           = dto.Provider;
+            transport.ContactPhone       = dto.ContactPhone?.Trim();
+            transport.ContactEmail       = dto.ContactEmail?.Trim();
             transport.RouteFrom          = dto.RouteFrom;
             transport.RouteTo            = dto.RouteTo;
             transport.RouteFromLatitude  = dto.RouteFromLatitude;
@@ -376,6 +380,8 @@ namespace backend.Services
             Id                 = t.Id,
             Type               = t.Type.ToString(),     // enum → string for the API response
             Provider           = t.Provider,
+            ContactPhone       = t.ContactPhone,
+            ContactEmail       = t.ContactEmail,
             RouteFrom          = t.RouteFrom,
             RouteTo            = t.RouteTo,
             RouteFromLatitude  = t.RouteFromLatitude,

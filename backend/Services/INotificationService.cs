@@ -20,6 +20,7 @@ namespace backend.Services
             string referenceType,
             string referenceId,
             string eventKey,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default,
+            TripConfirmationDto? tripDetails = null);
     }
 }

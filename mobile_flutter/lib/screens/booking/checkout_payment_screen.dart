@@ -79,7 +79,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final start = _dateLabel(booking['startDate']);
     final end = _dateLabel(booking['endDate']);
     final travellers = booking['travellerCount'];
-    final travellerLabel = travellers == null ? '' : ' · $travellers travellers';
+    final travellerLabel = travellers == null
+        ? ''
+        : ' · $travellers travellers';
     if (start.isEmpty || end.isEmpty) return 'Dates unavailable$travellerLabel';
     return '$start – $end$travellerLabel';
   }
@@ -133,7 +135,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           final returnedId = _positiveId(data?['id']);
           if (data == null || returnedId != id) {
             _booking = null;
-            _error = 'Booking #$id was not found or returned the wrong context.';
+            _error =
+                'Booking #$id was not found or returned the wrong context.';
           } else {
             _booking = data;
             final customerName = data['customerName']?.toString().trim();
@@ -182,7 +185,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final currency = _booking!['currency']?.toString().trim();
     if (amount == null || amount <= 0 || currency == null || currency.isEmpty) {
       setState(() {
-        _paymentMessage = 'Payment amount and currency are unavailable for this booking.';
+        _paymentMessage =
+            'Payment amount and currency are unavailable for this booking.';
       });
       return;
     }
@@ -226,7 +230,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
       final bookingId = _positiveId(_booking!['id']);
       if (bookingId == null) {
-        setState(() => _paymentMessage = 'A valid booking is required for payment.');
+        setState(
+          () => _paymentMessage = 'A valid booking is required for payment.',
+        );
         return;
       }
 
@@ -250,6 +256,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         updatedBooking['paymentId'] = result['id'];
         updatedBooking['paymentStatus'] = result['status'];
         updatedBooking['stripeReference'] = result['stripeReference'];
+        updatedBooking['tripDetails'] = result['tripDetails'];
         updatedBooking['customerName'] = _nameController.text.trim();
 
         Navigator.pushReplacementNamed(
@@ -366,10 +373,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     final double remainder =
         total - (accommodationCost + toursCost + transfersCost);
     final double taxesCost = remainder > 0 ? remainder : 0.0;
-    final transactionCurrency = _booking!['currency']?.toString().trim().toUpperCase() ?? '';
-    final tripTitle = _booking!['tripTitle']?.toString().trim().isNotEmpty == true
+    final transactionCurrency =
+        _booking!['currency']?.toString().trim().toUpperCase() ?? '';
+    final tripTitle =
+        _booking!['tripTitle']?.toString().trim().isNotEmpty == true
         ? _booking!['tripTitle'].toString()
-        : _booking!['destinationName']?.toString() ?? 'Trip details unavailable';
+        : _booking!['destinationName']?.toString() ??
+              'Trip details unavailable';
     final dates = _bookingDates(_booking!);
     final stops = _bookingDestinations(_booking!);
 
@@ -646,11 +656,19 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                     ),
 
                     // Cost breakdown items with selected hotel & transport awareness
-                    _buildCostItem(accommodationLabel, accommodationCost, transactionCurrency),
+                    _buildCostItem(
+                      accommodationLabel,
+                      accommodationCost,
+                      transactionCurrency,
+                    ),
                     const SizedBox(height: 8),
                     _buildCostItem(toursLabel, toursCost, transactionCurrency),
                     const SizedBox(height: 8),
-                    _buildCostItem(transportLabel, transfersCost, transactionCurrency),
+                    _buildCostItem(
+                      transportLabel,
+                      transfersCost,
+                      transactionCurrency,
+                    ),
                     const SizedBox(height: 8),
                     _buildCostItem(
                       taxesCost > 0
@@ -983,9 +1001,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: (!isConfirmed ||
-                          !hasAuthoritativePaymentData ||
-                          _paying)
+                  onPressed:
+                      (!isConfirmed || !hasAuthoritativePaymentData || _paying)
                       ? null
                       : _pay,
                   style: ElevatedButton.styleFrom(
@@ -1063,12 +1080,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         ),
         const SizedBox(width: 8),
         Text(
-          amount > 0
-              ? formatMoney(
-                  amount,
-                  currency,
-                )
-              : 'Included',
+          amount > 0 ? formatMoney(amount, currency) : 'Included',
           style: GoogleFonts.plusJakartaSans(
             fontSize: 13,
             fontWeight: FontWeight.w700,

@@ -170,6 +170,7 @@ namespace backend.DTOs
 
     public class PaymentDto
     {
+        public TripConfirmationDto? TripDetails { get; set; }
         public int Id { get; set; }
         public int BookingId { get; set; }
         public string BookingReference { get; set; } = string.Empty;

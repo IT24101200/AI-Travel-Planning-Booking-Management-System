@@ -48,6 +48,8 @@ export function buildTransportPayload(form) {
   return {
     type: form.type,
     provider: String(form.provider || '').trim(),
+    contactPhone: String(form.contactPhone || '').trim() || null,
+    contactEmail: String(form.contactEmail || '').trim() || null,
     routeFrom: String(form.from || '').trim(),
     routeTo: String(form.to || '').trim(),
     price: Number(form.price),
