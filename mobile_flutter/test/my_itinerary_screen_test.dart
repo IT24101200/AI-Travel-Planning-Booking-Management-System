@@ -638,7 +638,21 @@ void main() {
       ApiService.mockGetTripRequest = (_) async => {
         'id': 10,
         'status': revised ? 'AwaitingApproval' : 'Planned',
+        if (!revised) 'failureReason': 'Previous change request failed.',
       };
+      ApiService.mockGetAgentLogs = (_) async => [
+        for (final agent in [
+          'CoordinatorAgent',
+          'ItineraryAgent',
+          'BookingAgent',
+          'ValidationAgent',
+        ])
+          {
+            'agentName': agent,
+            'status': 'Failed',
+            'output': 'Old internal diagnostics',
+          },
+      ];
       ApiService.mockStreamAgentLogs = (_) => events.stream;
       ApiService.mockGetItineraryChangeOptions = (_) async => {
         'hotels': [],
@@ -647,8 +661,25 @@ void main() {
       ApiService.mockSubmitItineraryChanges = (_, _) async => {
         'tripRequestId': 10,
       };
+      Future<void> revealAgentSummary() async {
+        final scrollable = find.descendant(
+          of: find.byKey(const ValueKey('journey-scroll')),
+          matching: find.byType(Scrollable),
+        );
+        tester.state<ScrollableState>(scrollable).position.jumpTo(0);
+        await tester.pump();
+        await tester.scrollUntilVisible(
+          find.text('AI Planning Engine'),
+          150,
+          scrollable: scrollable,
+        );
+        await tester.pumpAndSettle();
+      }
+
       await tester.pumpWidget(buildTestWidget());
       await tester.pumpAndSettle();
+      await revealAgentSummary();
+      expect(find.text('FAILED'), findsNWidgets(4));
       await tester.ensureVisible(find.text('Edit'));
       await tester.tap(find.text('Edit'));
       await tester.pumpAndSettle();
@@ -667,6 +698,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(TripSelectionService.activeBookingItineraryId, 43);
       expect(TripSelectionService.activeBookingId, 101);
+      await revealAgentSummary();
+      expect(find.text('FAILED'), findsNothing);
+      expect(find.text('SUCCESS'), findsNWidgets(4));
+      expect(find.text('Your latest itinerary is ready'), findsOneWidget);
+      expect(find.text('Previous change request failed.'), findsNothing);
+      expect(find.text('Old internal diagnostics'), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await events.close();

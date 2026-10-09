@@ -2,17 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
 import '../app_constants.dart';
 import '../services/api_service.dart';
 import '../services/date_time_contract.dart';
 
-/// 4-Agent Multi-Agent Workflow Card
-/// Displays live execution status, logs, and outputs for:
-/// 1. Coordinator Agent (Goals & Budget Allocation)
-/// 2. Itinerary Agent (Activity Scheduling & Route)
-/// 3. Booking Agent (Hotel & Transport Availability)
-/// 4. Validation Agent (Commercial Rules & Approval Gate)
+/// Customer-facing progress and results for the latest planning attempt.
+/// Detailed execution history is available in the staff web dashboard.
 class AgentWorkflowCard extends StatefulWidget {
   const AgentWorkflowCard({
     super.key,
@@ -38,9 +33,6 @@ class AgentWorkflowCard extends StatefulWidget {
 class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
   List<dynamic> _logs = [];
   Timer? _pollingTimer;
-  // Keep the workflow compact by default; users can expand any agent to view
-  // its persisted server output.
-  final Set<String> _expandedAgents = <String>{};
 
   static const List<Map<String, dynamic>> _agentMeta = [
     {
@@ -48,6 +40,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
       'aliases': ['coordinator', 'coordinatoragent', 'coordinatorevaluator'],
       'name': 'Coordinator Agent',
       'role': 'Trip Goals & Budget Allocation',
+      'result': 'Trip goals and budget ready',
       'icon': Icons.alt_route_rounded,
       'stepNum': 1,
     },
@@ -56,6 +49,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
       'aliases': ['itinerary', 'itineraryagent'],
       'name': 'Itinerary Agent',
       'role': 'Daily Schedule & Non-Overlapping Route',
+      'result': 'Journeys and routes scheduled',
       'icon': Icons.calendar_month_outlined,
       'stepNum': 2,
     },
@@ -64,6 +58,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
       'aliases': ['booking', 'bookingagent'],
       'name': 'Booking Agent',
       'role': 'Live Hotel & Transport Availability',
+      'result': 'Hotels and transport selected',
       'icon': Icons.hotel_outlined,
       'stepNum': 3,
     },
@@ -72,6 +67,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
       'aliases': ['validation', 'validationagent'],
       'name': 'Validation Agent',
       'role': 'Commercial Rules & Human Approval Gate',
+      'result': 'Itinerary checked and ready for approval',
       'icon': Icons.shield_outlined,
       'stepNum': 4,
     },
@@ -146,20 +142,59 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
     }
   }
 
-  List<Map<String, dynamic>> _getLogsForAgent(Map<String, dynamic> meta) {
+  bool get _hasFailureReason =>
+      widget.failureReason?.trim().isNotEmpty ?? false;
+
+  bool get _hasSuccessfulPlan =>
+      !_hasFailureReason &&
+      const {
+        'awaitingapproval',
+        'approved',
+      }.contains(widget.pipelineStatus?.toLowerCase());
+
+  List<Map<String, dynamic>> _latestAttemptLogs() {
+    // REST snapshots and live events can arrive out of order. Use timestamps
+    // with original order as a tie-breaker for legacy/missing timestamps.
+    final ordered = _logs.indexed
+        .where((entry) => entry.$2 is Map)
+        .map((entry) => (entry.$1, Map<String, dynamic>.from(entry.$2 as Map)))
+        .toList();
+    ordered.sort((a, b) {
+      final at = parseInstant(a.$2['timestamp']);
+      final bt = parseInstant(b.$2['timestamp']);
+      final byTime = (at ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+        bt ?? DateTime.fromMillisecondsSinceEpoch(0),
+      );
+      return byTime != 0 ? byTime : a.$1.compareTo(b.$1);
+    });
+    var start = 0;
+    for (var i = 0; i < ordered.length; i++) {
+      final step = ordered[i].$2['stepName']?.toString().toLowerCase();
+      if (step == 'initializepipeline' ||
+          step == 'requested hotel and transport changes' ||
+          step == 'decomposeandallocatebudget' ||
+          step == 'triggerretryoptimization') {
+        start = i;
+      }
+    }
+    return ordered.skip(start).map((entry) => entry.$2).toList();
+  }
+
+  List<Map<String, dynamic>> _getLogsForAgent(
+    Map<String, dynamic> meta,
+    List<Map<String, dynamic>> latestLogs,
+  ) {
     final aliases = (meta['aliases'] as List<String>)
         .map((a) => a.toLowerCase())
         .toSet();
     final result = <Map<String, dynamic>>[];
-    for (final raw in _logs) {
-      if (raw is Map) {
-        final agentName = (raw['agentName'] ?? '')
-            .toString()
-            .toLowerCase()
-            .replaceAll(' ', '');
-        if (aliases.contains(agentName)) {
-          result.add(Map<String, dynamic>.from(raw));
-        }
+    for (final raw in latestLogs) {
+      final agentName = (raw['agentName'] ?? '')
+          .toString()
+          .toLowerCase()
+          .replaceAll(' ', '');
+      if (aliases.contains(agentName)) {
+        result.add(raw);
       }
     }
     return result;
@@ -220,12 +255,15 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
   ) {
     final pipelineStatus = widget.pipelineStatus?.toLowerCase() ?? '';
 
-    if (agentLogs.any(_isAgentOutcomeFailure)) {
-      return 'Failed';
-    }
+    // A persisted proposal passed validation. It can arrive before its final
+    // log snapshot, so historical failures must not override that result.
+    // Failed revisions restore the old proposal with a failure reason and are
+    // deliberately excluded here.
+    if (_hasSuccessfulPlan) return 'Success';
 
     if (agentLogs.isNotEmpty) {
       final last = agentLogs.last;
+      if (_isAgentOutcomeFailure(last)) return 'Failed';
       final status = (last['status'] ?? '').toString();
       if (status.toLowerCase() == 'success' ||
           status.toLowerCase() == 'completed' ||
@@ -248,49 +286,20 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
     return 'NotStarted';
   }
 
-  String _formatLogContent(dynamic content) {
-    if (content == null) return '';
-    final s = content.toString().trim();
-    if (s.isEmpty || s == 'null') return '';
-
-    try {
-      final decoded = json.decode(s);
-      if (decoded is Map) {
-        final buffer = StringBuffer();
-        decoded.forEach((key, val) {
-          final cleanKey = key.toString().replaceAll('_', ' ');
-          final capitalizedKey = cleanKey.isEmpty
-              ? ''
-              : '${cleanKey[0].toUpperCase()}${cleanKey.substring(1)}';
-          if (val is Map || val is List) {
-            buffer.writeln('• $capitalizedKey: ${json.encode(val)}');
-          } else {
-            buffer.writeln('• $capitalizedKey: $val');
-          }
-        });
-        return buffer.toString().trim();
-      } else if (decoded is List) {
-        return decoded.map((e) => '• ${e.toString()}').join('\n');
-      }
-    } catch (_) {
-      // Return as plain text
-    }
-
-    return s;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final pipelineStatus = widget.pipelineStatus ?? 'Planning';
+    final latestLogs = _latestAttemptLogs();
+    final statuses = [
+      for (final meta in _agentMeta)
+        _getAgentStatus(meta, _getLogsForAgent(meta, latestLogs)),
+    ];
     final hasFailure =
-        widget.failureReason != null ||
-        pipelineStatus.toLowerCase() == 'failed' ||
-        _logs.any(
-          (l) =>
-              l is Map && _isAgentOutcomeFailure(Map<String, dynamic>.from(l)),
-        );
+        _hasFailureReason ||
+        widget.pipelineStatus?.toLowerCase() == 'failed' ||
+        statuses.contains('Failed');
+    final isComplete = statuses.every((status) => status == 'Success');
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 10),
@@ -403,8 +412,10 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                       const SizedBox(height: 2),
                       Text(
                         hasFailure
-                            ? 'Agent execution encountered an issue'
-                            : 'Orchestrating specialized travel agents',
+                            ? 'We couldn’t complete the latest request'
+                            : isComplete
+                            ? 'Your latest itinerary is ready'
+                            : 'Planning your journey',
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           color: hasFailure
@@ -417,23 +428,12 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  color: isDark ? Colors.white70 : const Color(0xFF5A7067),
-                  constraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                  padding: EdgeInsets.zero,
-                  onPressed: _fetchLogs,
-                  tooltip: 'Refresh Agent Logs',
-                ),
               ],
             ),
           ),
 
           // Global Failure Banner if failed
-          if (widget.failureReason != null && widget.failureReason!.isNotEmpty)
+          if (_hasFailureReason)
             Container(
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(12),
@@ -456,7 +456,7 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Agent Execution Output / Error',
+                          'Planning update',
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -465,7 +465,9 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          widget.failureReason!,
+                          ApiService.safeAgentFailureMessage(
+                            widget.failureReason,
+                          ),
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             color: const Color(0xFFB91C1C),
@@ -483,28 +485,10 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
-              children: _agentMeta.map((meta) {
-                final agentLogs = _getLogsForAgent(meta);
-                final status = _getAgentStatus(meta, agentLogs);
-                final agentKey = meta['key'] as String;
-                final isExpanded = _expandedAgents.contains(agentKey);
-
-                return _buildAgentItem(
-                  meta: meta,
-                  status: status,
-                  logs: agentLogs,
-                  isExpanded: isExpanded,
-                  onToggle: () {
-                    setState(() {
-                      if (isExpanded) {
-                        _expandedAgents.remove(agentKey);
-                      } else {
-                        _expandedAgents.add(agentKey);
-                      }
-                    });
-                  },
-                );
-              }).toList(),
+              children: [
+                for (var i = 0; i < _agentMeta.length; i++)
+                  _buildAgentItem(meta: _agentMeta[i], status: statuses[i]),
+              ],
             ),
           ),
         ],
@@ -515,9 +499,6 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
   Widget _buildAgentItem({
     required Map<String, dynamic> meta,
     required String status,
-    required List<Map<String, dynamic>> logs,
-    required bool isExpanded,
-    required VoidCallback onToggle,
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSuccess =
@@ -570,278 +551,101 @@ class _AgentWorkflowCardState extends State<AgentWorkflowCard> {
       child: Column(
         children: [
           // Agent Row Header
-          InkWell(
-            onTap: onToggle,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: badgeBg,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      meta['icon'] as IconData,
-                      size: 16,
-                      color: badgeText,
-                    ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                  child: Icon(
+                    meta['icon'] as IconData,
+                    size: 16,
+                    color: badgeText,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Agent ${meta['stepNum']}: ${meta['name']}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        (isSuccess ? meta['result'] : meta['role']) as String,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10.5,
+                          color: const Color(0xFF6E7772),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 104),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: badgeBg,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
+                            Icon(statusIcon, size: 11, color: badgeText),
+                            const SizedBox(width: 4),
+                            Flexible(
                               child: Text(
-                                'Agent ${meta['stepNum']}: ${meta['name']}',
+                                status == 'NotStarted'
+                                    ? 'NOT STARTED'
+                                    : status.toUpperCase(),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                softWrap: false,
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: badgeText,
+                                  letterSpacing: 0.3,
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        Text(
-                          meta['role'] as String,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10.5,
-                            color: const Color(0xFF6E7772),
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 104),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: badgeBg,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(statusIcon, size: 11, color: badgeText),
-                              const SizedBox(width: 4),
-                              Flexible(
-                                child: Text(
-                                  status == 'NotStarted'
-                                      ? 'NOT STARTED'
-                                      : status.toUpperCase(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  softWrap: false,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: badgeText,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    isExpanded
-                        ? Icons.keyboard_arrow_up
-                        : Icons.keyboard_arrow_down,
-                    size: 18,
-                    color: const Color(0xFF6E7772),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-
-          // Expanded Logs & Agent Outputs
-          if (isExpanded) ...[
-            const Divider(height: 1, color: Color(0xFFE5ECE8)),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: logs.isEmpty
-                  ? Text(
-                      isRunning
-                          ? 'Agent is processing trip requirements...'
-                          : 'Waiting for upstream pipeline stage...',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontStyle: FontStyle.italic,
-                        color: const Color(0xFF8A969B),
-                      ),
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: logs.map((log) {
-                        final stepName =
-                            log['stepName']?.toString() ?? 'Reasoning Step';
-                        final outputFormatted = _formatLogContent(
-                          log['output'],
-                        );
-                        final inputFormatted = _formatLogContent(log['input']);
-                        final stepStatus =
-                            log['status']?.toString() ?? 'Success';
-                        final timestamp = log['timestamp']?.toString();
-                        String timeStr = '';
-                        if (timestamp != null) {
-                          try {
-                            final dt = parseInstant(timestamp);
-                            if (dt != null) {
-                              timeStr = DateFormat('HH:mm:ss').format(dt);
-                            }
-                          } catch (_) {}
-                        }
-
-                        final stepFailed = stepStatus.toLowerCase() == 'failed';
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: stepFailed
-                                ? const Color(0xFFFFF5F5)
-                                : isDark
-                                ? const Color(0xFF131F19)
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: stepFailed
-                                  ? const Color(0xFFFEB2B2)
-                                  : isDark
-                                  ? const Color(0xFF263830)
-                                  : const Color(0xFFEBEFEA),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(
-                                    stepFailed
-                                        ? Icons.error_outline
-                                        : Icons.check_circle_outline,
-                                    size: 13,
-                                    color: stepFailed
-                                        ? const Color(0xFFDC2626)
-                                        : const Color(0xFF13684B),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: Text(
-                                      stepName,
-                                      style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: stepFailed
-                                            ? const Color(0xFF991B1B)
-                                            : Theme.of(
-                                                context,
-                                              ).colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  ),
-                                  if (timeStr.isNotEmpty)
-                                    Flexible(
-                                      child: Text(
-                                        timeStr,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        textAlign: TextAlign.end,
-                                        style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 10,
-                                          color: const Color(0xFF8A969B),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              if (outputFormatted.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Output / Decisions:',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF5A7067),
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(0xFF1B2822)
-                                        : const Color(0xFFF7FAF8),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    outputFormatted,
-                                    softWrap: true,
-                                    style: GoogleFonts.firaCode(
-                                      fontSize: 10,
-                                      color: isDark
-                                          ? const Color(0xFFD1DCD6)
-                                          : const Color(0xFF2D3748),
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              if (stepFailed && inputFormatted.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Input context:',
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF991B1B),
-                                  ),
-                                ),
-                                Text(
-                                  inputFormatted,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 9.5,
-                                    color: const Color(0xFF742A2A),
-                                  ),
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
-            ),
-          ],
         ],
       ),
     );

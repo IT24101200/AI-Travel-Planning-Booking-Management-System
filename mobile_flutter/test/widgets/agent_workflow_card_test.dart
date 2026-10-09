@@ -94,7 +94,7 @@ void main() {
     },
   );
 
-  testWidgets('long failed diagnostics stay within narrow widths when expanded', (
+  testWidgets('customer summaries hide detailed logs at supported widths', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -159,19 +159,12 @@ void main() {
       );
       await tester.pump();
 
-      for (final title in [
-        'Agent 1: Coordinator Agent',
-        'Agent 2: Itinerary Agent',
-        'Agent 3: Booking Agent',
-        'Agent 4: Validation Agent',
-      ]) {
-        final finder = find.text(title);
-        if (finder.evaluate().isNotEmpty) {
-          await tester.ensureVisible(finder.first);
-          await tester.tap(finder.first);
-          await tester.pump();
-        }
-      }
+      expect(find.textContaining('diagnostic'), findsNothing);
+      expect(find.textContaining('TRANSPORT_CATALOGUE_'), findsNothing);
+      expect(find.text('Output / Decisions:'), findsNothing);
+      expect(find.text('Input context:'), findsNothing);
+      expect(find.byTooltip('Refresh Agent Logs'), findsNothing);
+      expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
 
       expect(
         tester.takeException(),
@@ -179,5 +172,160 @@ void main() {
         reason: 'RenderFlex exception at width ${width.toInt()}px',
       );
     }
+  });
+
+  List<Map<String, dynamic>> attempt(String time, String status) => [
+    {
+      'agentName': 'CoordinatorAgent',
+      'stepName': 'InitializePipeline',
+      'status': 'Started',
+      'timestamp': '${time}00Z',
+    },
+    for (final entry in [
+      'CoordinatorAgent',
+      'ItineraryAgent',
+      'BookingAgent',
+      'ValidationAgent',
+    ].indexed)
+      {
+        'agentName': entry.$2,
+        'stepName': 'Finished planning stage',
+        'status': status,
+        'timestamp': '$time${entry.$1 + 10}Z',
+        'output': status == 'Failed' ? 'Old failed diagnostics' : 'Raw output',
+      },
+  ];
+
+  Future<void> showCard(
+    WidgetTester tester,
+    List<dynamic> logs, {
+    String status = 'Planning',
+    String? failureReason,
+  }) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: AgentWorkflowCard(
+              tripRequestId: 166,
+              initialLogs: logs,
+              pipelineStatus: status,
+              failureReason: failureReason,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+  }
+
+  testWidgets('successful hotel revision replaces the failed attempt', (
+    tester,
+  ) async {
+    final failed = attempt('2026-10-09T10:00:', 'Failed');
+    await showCard(
+      tester,
+      failed,
+      status: 'Failed',
+      failureReason: 'Old failure',
+    );
+    expect(find.text('FAILED'), findsNWidgets(4));
+
+    // A reconnect snapshot may return the history in reverse timestamp order.
+    await showCard(tester, [
+      ...attempt('2026-10-09T11:00:', 'Success').reversed,
+      ...failed.reversed,
+    ], status: 'AwaitingApproval');
+
+    expect(find.text('SUCCESS'), findsNWidgets(4));
+    expect(find.text('FAILED'), findsNothing);
+    expect(find.text('Old failure'), findsNothing);
+    expect(find.text('Your latest itinerary is ready'), findsOneWidget);
+    expect(find.text('Hotels and transport selected'), findsOneWidget);
+    expect(find.text('Raw output'), findsNothing);
+  });
+
+  testWidgets('new revision resets previous failures before agents finish', (
+    tester,
+  ) async {
+    final previous = attempt('2026-10-09T10:00:', 'Failed');
+    final revision = {
+      'agentName': 'Customer change request',
+      'stepName': 'Requested hotel and transport changes',
+      'status': 'Started',
+      'timestamp': '2026-10-09T11:00:00Z',
+    };
+    await showCard(tester, [...previous, revision]);
+    expect(find.text('FAILED'), findsNothing);
+    expect(find.text('RUNNING'), findsOneWidget);
+    expect(find.text('NOT STARTED'), findsNWidgets(3));
+
+    await showCard(tester, [
+      ...previous,
+      revision,
+      ...attempt('2026-10-09T11:01:', 'Success').take(2),
+    ]);
+    expect(find.text('SUCCESS'), findsOneWidget);
+    expect(find.text('FAILED'), findsNothing);
+    expect(find.text('NOT STARTED'), findsNWidgets(3));
+  });
+
+  testWidgets('latest stage result wins even without attempt markers', (
+    tester,
+  ) async {
+    await showCard(tester, [
+      {'agentName': 'BookingAgent', 'status': 'Failed'},
+      {'agentName': 'BookingAgent', 'status': 'Success'},
+    ]);
+    expect(find.text('SUCCESS'), findsOneWidget);
+    expect(find.text('FAILED'), findsNothing);
+  });
+
+  testWidgets('accepted proposal wins while final logs are catching up', (
+    tester,
+  ) async {
+    await showCard(
+      tester,
+      attempt('2026-10-09T10:00:', 'Failed'),
+      status: 'AwaitingApproval',
+    );
+    expect(find.text('SUCCESS'), findsNWidgets(4));
+    expect(find.text('FAILED'), findsNothing);
+  });
+
+  testWidgets(
+    'failed revision of an existing proposal still shows its reason',
+    (tester) async {
+      await showCard(
+        tester,
+        [
+          ...attempt('2026-10-09T10:00:', 'Success'),
+          ...attempt('2026-10-09T11:00:', 'Failed'),
+        ],
+        status: 'AwaitingApproval',
+        failureReason: 'Selected hotel is unavailable.',
+      );
+      expect(find.text('FAILED'), findsNWidgets(4));
+      expect(find.text('SUCCESS'), findsNothing);
+      expect(find.text('Selected hotel is unavailable.'), findsOneWidget);
+      expect(find.text('Your latest itinerary is ready'), findsNothing);
+    },
+  );
+
+  testWidgets('coordinator retry resets downstream stage failures', (
+    tester,
+  ) async {
+    await showCard(tester, [
+      ...attempt('2026-10-09T10:00:', 'Failed'),
+      {
+        'agentName': 'CoordinatorAgent',
+        'stepName': 'DecomposeAndAllocateBudget',
+        'status': 'Success',
+        'timestamp': '2026-10-09T10:01:00Z',
+      },
+    ]);
+    expect(find.text('SUCCESS'), findsOneWidget);
+    expect(find.text('FAILED'), findsNothing);
+    expect(find.text('NOT STARTED'), findsNWidgets(3));
   });
 }
