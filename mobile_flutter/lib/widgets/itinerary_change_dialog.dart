@@ -72,6 +72,23 @@ class _ItineraryChangeDialogState extends State<ItineraryChangeDialog> {
       setState(() => _error = 'Select an alternative or enter instructions.');
       return;
     }
+    final unavailableHotel = hotels.any(
+      (g) => !(g['options'] as List? ?? []).whereType<Map>().any(
+        (o) => o['roomId'] == _rooms[g['bookingItemId']],
+      ),
+    );
+    final unavailableTransport = transports.any(
+      (g) => !(g['options'] as List? ?? []).whereType<Map>().any(
+        (o) => o['transportOptionId'] == _transports[g['bookingItemId']],
+      ),
+    );
+    if (unavailableHotel || unavailableTransport) {
+      setState(
+        () => _error =
+            'A selected option is currently unavailable. Retry the options or choose another.',
+      );
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -122,6 +139,11 @@ class _ItineraryChangeDialogState extends State<ItineraryChangeDialog> {
           : '${option['provider']} · ${option['type']} · ${option['departureTime'].toString().substring(11, 16)}–${option['arrivalTime'].toString().substring(11, 16)} · ${_money(option)}';
       values[id] = '${id == current ? 'Current: ' : ''}$details';
     }
+    values.putIfAbsent(
+      selected,
+      () =>
+          'Selected choice is currently unavailable. Retry or choose another.',
+    );
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Column(
@@ -141,6 +163,14 @@ class _ItineraryChangeDialogState extends State<ItineraryChangeDialog> {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
+          if (group['availabilityNotice'] is String) ...[
+            Text(group['availabilityNotice'] as String),
+            TextButton.icon(
+              onPressed: _loading || _submitting ? null : _load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry nearby hotels'),
+            ),
+          ],
           DropdownButtonFormField<int>(
             key: ValueKey('${hotel ? 'hotel' : 'transport'}-$itemId'),
             initialValue: selected,
@@ -174,7 +204,7 @@ class _ItineraryChangeDialogState extends State<ItineraryChangeDialog> {
                     }
                   },
           ),
-          if (values.length == 1)
+          if (values.length == 1 && group['availabilityNotice'] == null)
             const Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text('No available alternatives for these dates.'),

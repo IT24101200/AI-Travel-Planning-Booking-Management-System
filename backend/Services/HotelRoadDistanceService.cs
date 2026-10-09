@@ -18,6 +18,8 @@ public sealed class HotelRoadDistanceService(IHttpClientFactory clients, IConfig
         if (!Located(origin)) throw new InvalidOperationException("This hotel's map location is missing. Please contact your travel agent.");
         using var client = clients.CreateClient();
         client.Timeout = TimeSpan.FromSeconds(25);
+        // The public OSRM service rejects requests with an empty User-Agent.
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("AITravelPlanner/1.0");
         string Point(Hotel h) => FormattableString.Invariant($"{h.Longitude},{h.Latitude}");
         foreach (var batch in hotels.Where(h => h.Id != origin.Id && Located(h)).Chunk(98))
         {

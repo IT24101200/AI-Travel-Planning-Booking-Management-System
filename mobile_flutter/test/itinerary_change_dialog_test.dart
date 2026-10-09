@@ -153,4 +153,63 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'Routing notice keeps transport usable and hotel retry preserves its selection',
+    (tester) async {
+      var lookups = 0;
+      Map<String, dynamic>? submitted;
+      ApiService.mockGetItineraryChangeOptions = (_) async {
+        final result = options();
+        if (lookups++ == 0) {
+          final hotel = (result['hotels'] as List).first as Map;
+          hotel['availabilityNotice'] =
+              'Nearby hotel distances could not be verified.';
+          hotel['options'] = [(hotel['options'] as List).first];
+        }
+        return result;
+      };
+      ApiService.mockSubmitItineraryChanges = (_, body) async {
+        submitted = body;
+        return {'tripRequestId': 7};
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.dark(),
+          home: const Scaffold(body: ItineraryChangeDialog(itineraryId: 42)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Nearby hotel distances could not be verified.'),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('transport-2')));
+      await tester.tap(find.byKey(const ValueKey('transport-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Comfort Transfer').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Retry nearby hotels'));
+      await tester.tap(find.text('Retry nearby hotels'));
+      await tester.pumpAndSettle();
+      expect(lookups, 2);
+      expect(
+        find.text('Nearby hotel distances could not be verified.'),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('hotel-1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Nearby Hotel').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Request changes'));
+      await tester.pumpAndSettle();
+      expect(submitted?['hotels'], [
+        {'bookingItemId': 1, 'roomId': 21},
+      ]);
+      expect(submitted?['transports'], [
+        {'bookingItemId': 2, 'transportOptionId': 31},
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

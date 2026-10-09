@@ -30,6 +30,7 @@ public sealed class HotelChangeGroupDto
     public string HotelName { get; set; } = "";
     public string CheckInDate { get; set; } = "";
     public string CheckOutDate { get; set; } = "";
+    public string? AvailabilityNotice { get; set; }
     public List<HotelChangeOptionDto> Options { get; set; } = new();
 }
 public sealed class HotelChangeOptionDto

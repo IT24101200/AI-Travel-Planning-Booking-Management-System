@@ -16,9 +16,13 @@ public class ItineraryChangeTests
     private sealed class RouteHandler : HttpMessageHandler
     {
         public Uri? Requested { get; private set; }
+        public string? UserAgent { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             Requested = request.RequestUri;
+            UserAgent = request.Headers.UserAgent.ToString();
+            if (string.IsNullOrWhiteSpace(UserAgent))
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden));
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) {
                 Content = new StringContent("{\"code\":\"Ok\",\"distances\":[[15000,15001,null]]}") });
         }
@@ -41,12 +45,19 @@ public class ItineraryChangeTests
         Assert.False(distances.ContainsKey(14));
         Assert.Contains("/table/v1/driving/80,7;80.1,7;80.2,7;80.3,7", handler.Requested!.AbsoluteUri);
         Assert.Contains("annotations=distance", handler.Requested.Query);
+        Assert.Equal("AITravelPlanner/1.0", handler.UserAgent);
     }
 
     private sealed class Roads : IHotelRoadDistanceService
     {
         public Task<Dictionary<int, double>> FromHotelAsync(Hotel origin, IReadOnlyList<Hotel> hotels, CancellationToken ct) =>
             Task.FromResult(new Dictionary<int, double> { [10] = 0, [11] = 15, [12] = 15.01 });
+    }
+    private sealed class UnavailableRoads(bool timeout) : IHotelRoadDistanceService
+    {
+        public Task<Dictionary<int, double>> FromHotelAsync(Hotel origin, IReadOnlyList<Hotel> hotels, CancellationToken ct) =>
+            timeout ? Task.FromException<Dictionary<int, double>>(new TaskCanceledException("Routing timed out")) :
+                Task.FromException<Dictionary<int, double>>(new HttpRequestException("Routing rejected request"));
     }
     private sealed class Planner(bool fail = false) : IRevisionPlanningService
     {
@@ -95,6 +106,32 @@ public class ItineraryChangeTests
             Assert.Equal(150m, options.Hotels.Single().Options.Single(o => o.RoomId == 21).Total);
             Assert.Equal(new[] { 30, 31 }, options.Transports.Single().Options.Select(o => o.TransportOptionId));
             await Assert.ThrowsAsync<KeyNotFoundException>(() => Service(db).OptionsAsync(id, "someone-else"));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RoutingFailureKeepsSameHotelAndTransportDropdownsAvailable(bool timeout)
+    {
+        var (db, connection) = await AgentProposalPersistenceTests.CreateContextAsync();
+        await using (db) await using (connection)
+        {
+            var id = await SeedAsync(db);
+            var planner = new Planner();
+            var service = new ItineraryChangeService(db, new UnavailableRoads(timeout), planner, new CurrencyConversionService());
+            var options = await service.OptionsAsync(id, "cust-1");
+            Assert.Equal(new[] { 20 }, options.Hotels.Single().Options.Select(o => o.RoomId));
+            Assert.Contains("could not be verified", options.Hotels.Single().AvailabilityNotice);
+            Assert.Equal(new[] { 30, 31 }, options.Transports.Single().Options.Select(o => o.TransportOptionId));
+            var room = await db.BookingItems.SingleAsync(i => i.ItemType == BookingItemType.Room);
+            await Assert.ThrowsAsync<ArgumentException>(() => service.RequestAsync(id, "cust-1", new() {
+                Hotels = new() { new() { BookingItemId = room.Id, RoomId = 21 } } }, "Bearer test"));
+            Assert.False(planner.Called);
+            var transport = await db.BookingItems.SingleAsync(i => i.ItemType == BookingItemType.Transport);
+            await service.RequestAsync(id, "cust-1", new() { Transports = new() {
+                new() { BookingItemId = transport.Id, TransportOptionId = 31 } } }, "Bearer test");
+            Assert.True(planner.Called);
         }
     }
 

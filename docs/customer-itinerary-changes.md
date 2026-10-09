@@ -32,3 +32,5 @@ The original booking remains active during replanning. Its inventory is excluded
 A failed revision restores the original trip status and retains its itinerary and booking, with a visible failure reason. Paid bookings or payments in progress require staff assistance. Approval decisions and new payments are blocked while a customer revision is pending.
 
 Deploy the backend and agent service together before using the updated Flutter client. Existing `ROUTING_BASE_URL` configures OSRM; the default is `https://router.project-osrm.org`. Road-routing failures return a retryable error rather than approximating the 15 km limit.
+
+The hotel lookup sends `User-Agent: AITravelPlanner/1.0`; the public OSRM server rejects requests without a User-Agent. All hotel distance lookups share an eight-second timeout budget. If routing fails, the options endpoint still returns transport choices and available rooms in the same hotel, with a per-stay notice and a **Retry nearby hotels** button. Other hotels are excluded until their road distance can be verified; the 15 km rule remains enforced when submitting changes.

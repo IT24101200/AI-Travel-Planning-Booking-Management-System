@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 namespace backend.Services;
 
 public sealed class ItineraryChangeService(AppDbContext db, IHotelRoadDistanceService roads,
-    IRevisionPlanningService planner, ICurrencyConversionService currency)
+    IRevisionPlanningService planner, ICurrencyConversionService currency, ILogger<ItineraryChangeService>? logger = null)
 {
     private async Task<Booking> ContextAsync(int itineraryId, string customerId, CancellationToken ct)
     {
@@ -44,16 +44,31 @@ public sealed class ItineraryChangeService(AppDbContext db, IHotelRoadDistanceSe
         var trip = booking.Itinerary.TripRequest;
         var result = new ItineraryChangeOptionsDto();
         var hotels = await db.Hotels.Where(h => h.Status == HotelStatus.Active).ToListAsync(ct);
+        using var routingBudget = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        routingBudget.CancelAfter(TimeSpan.FromSeconds(8));
         foreach (var item in booking.BookingItems.Where(i => i.ItemType == BookingItemType.Room).OrderBy(i => i.CheckInDate))
         {
             if (item.Room?.Hotel is not Hotel origin || !item.CheckInDate.HasValue || !item.CheckOutDate.HasValue) continue;
-            var distances = await roads.FromHotelAsync(origin, hotels, ct);
-            var nearIds = distances.Where(pair => pair.Value <= 15).Select(pair => pair.Key).ToList();
-            var rooms = await db.Rooms.Include(r => r.Hotel).Where(r => nearIds.Contains(r.HotelId) &&
-                r.Status == RoomStatus.Active && r.Hotel.Status == HotelStatus.Active && r.Capacity >= trip.TravellerCount).ToListAsync(ct);
             var group = new HotelChangeGroupDto { BookingItemId = item.Id, CurrentRoomId = item.RoomId!.Value,
                 HotelName = origin.Name, CheckInDate = item.CheckInDate.Value.ToString("yyyy-MM-dd"),
                 CheckOutDate = item.CheckOutDate.Value.ToString("yyyy-MM-dd") };
+            Dictionary<int, double> distances;
+            try
+            {
+                routingBudget.Token.ThrowIfCancellationRequested();
+                distances = await roads.FromHotelAsync(origin, hotels, routingBudget.Token);
+            }
+            catch (Exception error) when (!ct.IsCancellationRequested && (error is HttpRequestException or OperationCanceledException))
+            {
+                logger?.LogWarning(error, "Could not verify nearby hotel distances for Hotel #{HotelId}.", origin.Id);
+                // Same-building rooms need no external distance lookup. Other
+                // hotels remain unavailable until their road distance is verified.
+                distances = new Dictionary<int, double> { [origin.Id] = 0 };
+                group.AvailabilityNotice = "Nearby hotel distances could not be verified. Showing rooms at your current hotel only. Retry to load nearby hotels; transport choices remain available.";
+            }
+            var nearIds = distances.Where(pair => pair.Value <= 15).Select(pair => pair.Key).ToList();
+            var rooms = await db.Rooms.Include(r => r.Hotel).Where(r => nearIds.Contains(r.HotelId) &&
+                r.Status == RoomStatus.Active && r.Hotel.Status == HotelStatus.Active && r.Capacity >= trip.TravellerCount).ToListAsync(ct);
             foreach (var room in rooms)
             {
                 if (await RoomInventory.BookedPeakAsync(db, room.Id, item.CheckInDate.Value, item.CheckOutDate.Value, booking.Id) >= room.TotalRooms) continue;
