@@ -42,3 +42,11 @@ backend.Tests/coverage/
 database/hotel_records_before_real_data.json
 .tmp-hotel-db/
 **/.pytest_cache/
+
+# Generated agent evidence may contain customer trip data. Export privately.
+agentic-ai/evidence/runs/
+agentic-ai/evidence/reports/
+agentic-ai/test-results/
+/.idea/caches/
+/backend/app.db
+backend.Tests/TestResults/

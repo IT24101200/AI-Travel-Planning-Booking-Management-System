@@ -1,3 +1,10 @@
+"""Member C: select available hotels and every transport leg for B's itinerary.
+
+This agent proposes inventory. Member D validates the proposal; ASP.NET persists
+it for staff approval. Selection here does not reserve inventory or take payment.
+See docs/MEMBER_C_LEARNING_GUIDE.md for the end-to-end walkthrough.
+"""
+
 import json
 import os
 import requests
@@ -136,6 +143,7 @@ def _remove_markdown_fences(text):
     return cleaned.strip()
 
 def build_booking_package(state):
+    """Read shared trip constraints and return a priced package or coded failure."""
     trip_id = state.get("trip_request_id")
     destination_id = state.get("destination_id")
     start_date = state.get("start_date")
@@ -501,6 +509,7 @@ def build_booking_package(state):
                 step_name="Selected complete multi-leg transport plan",
                 step_type="Plan",
                 output_data=multi_leg_package,
+                reason="Choose a feasible complete timetable and hotel stays; rank candidates by road distance, then cost. Respect dates, capacity and budget.",
             )
         except Exception as error:
             print(f"Warning: Failed to log multi-leg transport selection: {error}")
@@ -558,8 +567,10 @@ Rules:
         nights = 1
 
     parsed_result = None
+    selected_model = None
     try:
         if aiml_api_key:
+            selected_model = "gpt-4o-mini (AIML API)"
             response = requests.post(
                 "https://api.aimlapi.com/v1/chat/completions",
                 headers={
@@ -578,6 +589,7 @@ Rules:
         else:
             api_key = os.getenv("GOOGLE_API_KEY_BOOKING") or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
             if api_key:
+                selected_model = "gemini-3.8-flash"
                 import httpx
                 url = f"https://generativelanguage.googleapis.com/v1beta/interactions?key={api_key}"
                 with httpx.Client(timeout=4.0) as client:
@@ -594,6 +606,7 @@ Rules:
         print(f"[Warning] Booking Agent LLM request failed ({error}), using deterministic selection fallback.")
 
     if not isinstance(parsed_result, dict) or not parsed_result.get("selected_room"):
+        selected_model = None
         # Deterministic fallback: pick cheapest available room and transport
         best_room = min(available_rooms, key=lambda r: float(r.get("price_per_night", 0)))
         best_transport = min(available_transports, key=lambda t: float(t.get("price", 0)))
@@ -666,6 +679,9 @@ Rules:
             step_name="Assembled priced booking package",
             step_type="Plan",
             output_data=parsed_result,
+            reason="Select available catalogue inventory; restore trusted prices and recalculate tours per traveller, rooms per night and transport per traveller.",
+            execution_mode="llm_response" if selected_model else "deterministic_fallback",
+            model=selected_model,
         )
     except Exception as error:
         print(f"Warning: Failed to log 'Assembled priced booking package': {error}")

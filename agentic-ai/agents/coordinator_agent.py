@@ -139,8 +139,10 @@ def coordinator_plan(state: dict) -> dict:
     """
 
     strategy_info = {}
+    execution_mode = "deterministic_fallback"
     previous_summary = state.get("plan_summary") or {}
     if retry_count > 0 and previous_summary.get("theme") and previous_summary.get("strategy"):
+        execution_mode = "reused_strategy"
         # Budget retries keep the same trip theme; recompute budgets locally.
         strategy_info = {
             "trip_theme": previous_summary["theme"],
@@ -149,6 +151,7 @@ def coordinator_plan(state: dict) -> dict:
         }
     gemini_result = None if strategy_info else call_gemini_for_planning(prompt)
     if gemini_result:
+        execution_mode = "llm_response"
         try:
             # Strip potential markdown formatting
             clean_json = gemini_result.replace("```json", "").replace("```", "").strip()
@@ -202,6 +205,9 @@ def coordinator_plan(state: dict) -> dict:
             "destination_ids": [destination["destination_id"] for destination in requested_destinations],
         },
         output_data=plan_summary,
+        reason="Allocate 35% tours, 45% hotels, 15% transport and 5% buffer; reuse strategy on economy retry.",
+        execution_mode=execution_mode,
+        model="gemini-3.8-flash" if gemini_result else None,
         status="Success"
     )
 

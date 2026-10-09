@@ -9,6 +9,7 @@ import '../../widgets/hotel_route_map.dart';
 import '../../widgets/itinerary_journey_layout.dart';
 import '../../main.dart' show currencyNotifier;
 
+/// Browses published hotel rates, maps and paid room booking snapshots.
 class AccommodationOptionsScreen extends StatefulWidget {
   const AccommodationOptionsScreen({
     super.key,
@@ -30,6 +31,8 @@ class _AccommodationOptionsScreenState
   List<Map<String, dynamic>> _bookedHotels = [];
   bool _loading = true;
   String? _error;
+  String? _bookingsError;
+  bool _bookingsLoading = true;
   String? _selectedId;
   String _selectedCategory = 'Available';
 
@@ -52,20 +55,20 @@ class _AccommodationOptionsScreenState
     setState(() {
       _loading = true;
       _error = null;
+      _bookingsError = null;
+      _bookingsLoading = true;
     });
+    _loadBookedHotels(request);
     try {
-      final results = await Future.wait([
-        ApiService.getHotels(currency: currencyNotifier.value),
-        ApiService.getMyBookings(),
-      ]);
+      final hotels = await ApiService.getHotels(
+        currency: currencyNotifier.value,
+      );
       if (!mounted || request != _request) return;
-      final bookedRooms = BookedInventoryService.paidRoomItems(results[1]);
       setState(() {
-        _hotels = results[0]
+        _hotels = hotels
             .whereType<Map>()
             .map(HotelCatalogService.displayStay)
             .toList();
-        _bookedHotels = bookedRooms.map(_displayBookedStay).toList();
         _loading = false;
       });
     } catch (error) {
@@ -73,6 +76,29 @@ class _AccommodationOptionsScreenState
       setState(() {
         _error = error.toString();
         _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadBookedHotels(int request) async {
+    try {
+      if (ApiService.mockGetMyBookings == null &&
+          await ApiService.getToken() == null) {
+        throw const ApiException('Sign in to see your booked hotels.');
+      }
+      final bookings = await ApiService.getMyBookings();
+      if (!mounted || request != _request) return;
+      setState(() {
+        _bookedHotels = BookedInventoryService.paidRoomItems(
+          bookings,
+        ).map(_displayBookedStay).toList();
+        _bookingsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _bookingsError = error.toString();
+        _bookingsLoading = false;
       });
     }
   }
@@ -124,10 +150,22 @@ class _AccommodationOptionsScreenState
         ],
       ),
       body: SafeArea(
-        child: _loading
+        child: _loading || (_selectedCategory == 'Booked' && _bookingsLoading)
             ? const Center(child: CircularProgressIndicator())
-            : _error != null
-            ? ErrorMessage(message: _error!, onRetry: _loadHotels)
+            : (_selectedCategory == 'Booked' ? _bookingsError : _error) != null
+            ? Column(
+                children: [
+                  _categorySelector(),
+                  Expanded(
+                    child: ErrorMessage(
+                      message: (_selectedCategory == 'Booked'
+                          ? _bookingsError
+                          : _error)!,
+                      onRetry: _loadHotels,
+                    ),
+                  ),
+                ],
+              )
             : selected == null
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

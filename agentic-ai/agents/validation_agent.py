@@ -356,6 +356,7 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
                 "currency": state.get("currency"),
             },
             output_data=checks,
+            reason="Independently recalculate the package and check IDs, dates, currency and budget before human approval.",
         )
 
         result = {

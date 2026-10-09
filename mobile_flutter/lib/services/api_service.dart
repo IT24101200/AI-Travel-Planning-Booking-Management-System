@@ -40,27 +40,37 @@ class ApiService {
     return url.endsWith('/api') ? url : '$url/api';
   }
 
-  /// Convert project-owned media paths into URLs reachable by this client.
+  /// Resolves catalogue image paths against the deployed API or their HTTPS host.
   ///
-  /// Arbitrary third-party absolute URLs are rejected so Flutter web does not
-  /// create browser requests that can fail on CORS or disappear later.
+  /// Catalogue uploads can live in Supabase or another HTTPS image host.
+  /// Images are public requests and never receive the customer's API token.
   static String resolveMediaUrl(String? path) {
     if (path == null || path.trim().isEmpty) return '';
     final value = path.trim();
     if (value.startsWith('assets/')) {
       return value;
     }
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      final uri = Uri.tryParse(value);
-      final projectUri = Uri.tryParse(baseUrl);
-      if (uri == null || projectUri == null || uri.host != projectUri.host) {
-        return '';
-      }
-      return value;
-    }
     final serverRoot = baseUrl.endsWith('/api')
         ? baseUrl.substring(0, baseUrl.length - 4)
         : baseUrl;
+    final uri = Uri.tryParse(value.startsWith('//') ? 'https:$value' : value);
+    if (uri == null) return '';
+    if (uri.hasScheme) {
+      if (uri.userInfo.isNotEmpty || uri.host.isEmpty) return '';
+      if (uri.scheme == 'https') return uri.toString();
+      // Old local upload URLs must target the API server on a physical phone.
+      if (uri.scheme == 'http' &&
+          {'localhost', '127.0.0.1', '10.0.2.2'}.contains(uri.host) &&
+          uri.path.startsWith('/uploads/')) {
+        return '$serverRoot${uri.path}';
+      }
+      if (uri.scheme == 'http' && uri.host == Uri.parse(serverRoot).host) {
+        return Uri.parse(serverRoot)
+            .resolveUri(uri.replace(scheme: Uri.parse(serverRoot).scheme))
+            .toString();
+      }
+      return '';
+    }
     return '$serverRoot/${value.replaceFirst(RegExp(r'^/+'), '')}';
   }
 
@@ -757,6 +767,57 @@ class ApiService {
       page++;
     } while (page <= totalPages);
     return hotels;
+  }
+
+  /// Loads one transport catalogue page without fetching every timetable.
+  ///
+  /// The screen requests another page only when the customer asks for more.
+  /// A large total page count does not invalidate the requested page.
+  static Future<Map<String, dynamic>> getTransportOptionsPage({
+    int page = 1,
+    int pageSize = 20,
+    String? currency,
+  }) async {
+    if (mockGetTransportOptions != null) {
+      return {
+        'data': await mockGetTransportOptions!(currency: currency),
+        'totalPages': 1,
+      };
+    }
+    final response = mockGetTransportPage != null
+        ? await mockGetTransportPage!(
+            page: page,
+            pageSize: pageSize,
+            currency: currency,
+          )
+        : await get(
+            Uri(
+              path: 'transport',
+              queryParameters: {
+                'page': '$page',
+                'pageSize': '$pageSize',
+                'currency': ?currency,
+              },
+            ).toString(),
+          );
+    _requireSuccess(response);
+    final decoded = _decode(response);
+    if (decoded is! Map || decoded['data'] is! List) {
+      throw const ApiException(
+        'The transport catalogue returned an invalid page. Please retry.',
+      );
+    }
+    final pages = int.tryParse('${decoded['totalPages']}');
+    final rows = decoded['data'] as List;
+    if (pages == null ||
+        pages < 0 ||
+        (pages == 0 && rows.isNotEmpty) ||
+        rows.any((row) => row is! Map || row['id'] == null)) {
+      throw const ApiException(
+        'The transport catalogue returned invalid pagination data. Please retry.',
+      );
+    }
+    return {'data': rows, 'totalPages': pages};
   }
 
   static Future<List<dynamic>> getTransportOptions({String? currency}) async {

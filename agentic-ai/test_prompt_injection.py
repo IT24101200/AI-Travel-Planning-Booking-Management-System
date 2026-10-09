@@ -1,8 +1,10 @@
 """Prompt-injection resistance test for the itinerary agent."""
 
-# The backend must be running locally before this script is executed.
+# Exercise a malicious model response against deterministic validation offline.
 
 import sys
+import json
+from unittest.mock import Mock, patch
 
 from agents.itinerary_agent import build_itinerary
 
@@ -37,7 +39,24 @@ def test_prompt_injection_cannot_bypass_validation_rules():
         "preferred_activities": ["Heritage", INJECTION_TEXT],
     }
 
-    result = build_itinerary(trip_request)
+    tour = {"id": 101, "name": "Heritage Walk", "destination_id": 2,
+            "price": 25000, "currency": "LKR", "duration": 2,
+            "default_start_time": "09:00:00", "status": "Active"}
+    malicious = {"total_estimated_cost": 50000, "schedule": [{"day_number": 1, "items": [
+        {"tour_id": 101, "destination_id": 2, "price": 25000,
+         "start_time": "09:00:00", "end_time": "11:00:00"},
+    ]}]}
+    response = Mock(status_code=200)
+    response.json.return_value = {"output_text": json.dumps(malicious)}
+    with patch("agents.itinerary_agent.search_tours", return_value=[tour]), patch(
+        "httpx.Client.post", return_value=response
+    ), patch("agents.itinerary_agent.log_agent_step"), patch.dict(
+        "os.environ", {"GOOGLE_API_KEY_ITINERARY": "offline-test-key"}
+    ):
+        result = build_itinerary(trip_request)
+    # An unavailable catalogue or missing API key must not pass this test.
+    assert result.get("error") == "Validation failed"
+    assert any("budget" in str(detail).lower() for detail in result.get("details", []))
 
     if "schedule" in result:
         total_cost = 0.0

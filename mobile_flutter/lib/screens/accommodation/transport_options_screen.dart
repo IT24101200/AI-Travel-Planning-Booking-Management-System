@@ -8,7 +8,9 @@ import '../../services/trip_selection_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../main.dart' show currencyNotifier;
 
-/// Transport options screen matching Figma frame 09 · Transport Options (node 7:10825)
+/// Browses transport inventory and displays paid transfers in the Booked tab.
+///
+/// Catalogue selection is a planning preference; the backend owns reservations.
 class TransportOptionsScreen extends StatefulWidget {
   const TransportOptionsScreen({super.key});
 
@@ -21,6 +23,13 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   List<Map<String, dynamic>> _bookedOptions = [];
   bool _loading = true;
   String? _error;
+  String? _bookingsError;
+  bool _bookingsLoading = true;
+  int _request = 0;
+  int _page = 1;
+  bool _hasMore = false;
+  bool _loadingMore = false;
+  String? _moreError;
   String _selectedCategory = 'Car Rental';
 
   final List<String> _categories = [
@@ -35,35 +44,102 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
   void initState() {
     super.initState();
     TripSelectionService.selectedTransport = null;
+    currencyNotifier.addListener(_loadTransport);
     _loadTransport();
   }
 
+  @override
+  void dispose() {
+    currencyNotifier.removeListener(_loadTransport);
+    super.dispose();
+  }
+
   Future<void> _loadTransport() async {
+    final request = ++_request;
     setState(() {
       _loading = true;
       _error = null;
+      _bookingsError = null;
+      _bookingsLoading = true;
+      _page = 1;
+      _hasMore = false;
+      _loadingMore = false;
+      _moreError = null;
     });
+    // Private booking history must not delay or break the public catalogue.
+    _loadBookedTransport(request);
     try {
-      final results = await Future.wait([
-        ApiService.getTransportOptions(currency: currencyNotifier.value),
-        ApiService.getMyBookings(),
-      ]);
-      if (mounted) {
+      final result = await ApiService.getTransportOptionsPage(
+        currency: currencyNotifier.value,
+      );
+      if (mounted && request == _request) {
         setState(() {
-          _options = results[0];
-          _bookedOptions = BookedInventoryService.paidTransportItems(
-            results[1],
-          ).map(_displayBookedTransport).toList();
+          _options = result['data'] as List;
+          _hasMore = (result['totalPages'] as int) > 1;
           _loading = false;
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && request == _request) {
         setState(() {
           _error = e.toString();
           _loading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    final request = _request;
+    setState(() {
+      _loadingMore = true;
+      _moreError = null;
+    });
+    try {
+      final result = await ApiService.getTransportOptionsPage(
+        page: _page + 1,
+        currency: currencyNotifier.value,
+      );
+      if (!mounted || request != _request) return;
+      final seen = _options.map((option) => '${option['id']}').toSet();
+      setState(() {
+        _options.addAll(
+          (result['data'] as List).where((row) => seen.add('${row['id']}')),
+        );
+        _page++;
+        _hasMore = _page < (result['totalPages'] as int);
+        _loadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _moreError = error.toString();
+        _loadingMore = false;
+      });
+    }
+  }
+
+  Future<void> _loadBookedTransport(int request) async {
+    try {
+      if (ApiService.mockGetMyBookings == null &&
+          await ApiService.getToken() == null) {
+        throw const ApiException('Sign in to see your booked transport.');
+      }
+      final bookings = await ApiService.getMyBookings();
+      if (!mounted || request != _request) return;
+      setState(() {
+        _bookedOptions = BookedInventoryService.paidTransportItems(
+          bookings,
+        ).map(_displayBookedTransport).toList();
+        _bookingsLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _request) return;
+      setState(() {
+        _bookingsError = error.toString();
+        _bookingsLoading = false;
+      });
     }
   }
 
@@ -89,7 +165,7 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
+    if (_loading || (_selectedCategory == 'Booked' && _bookingsLoading)) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: Center(
@@ -100,7 +176,10 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
       );
     }
 
-    if (_error != null) {
+    final visibleError = _selectedCategory == 'Booked'
+        ? _bookingsError
+        : _error;
+    if (visibleError != null) {
       return Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -118,7 +197,17 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
             ),
           ),
         ),
-        body: ErrorMessage(message: _error!, onRetry: _loadTransport),
+        body: Column(
+          children: [
+            _categorySelector(Theme.of(context)),
+            Expanded(
+              child: ErrorMessage(
+                message: visibleError,
+                onRetry: _loadTransport,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -530,31 +619,12 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                           ElevatedButton(
                             onPressed: vehicle['booked'] == true
                                 ? null
-                                : () async {
+                                : () {
                                     TripSelectionService.selectedTransport =
                                         vehicle;
-                                    int? bookingId =
-                                        TripSelectionService.activeBookingId;
-                                    if (bookingId == null) {
-                                      try {
-                                        final bookings =
-                                            await ApiService.getMyBookings();
-                                        if (bookings.isNotEmpty &&
-                                            bookings.first is Map &&
-                                            bookings.first['id'] is int) {
-                                          bookingId =
-                                              bookings.first['id'] as int;
-                                          TripSelectionService.activeBookingId =
-                                              bookingId;
-                                        }
-                                      } catch (_) {}
-                                    }
-                                    if (!context.mounted) return;
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/checkout',
-                                      arguments: bookingId ?? 101,
-                                    );
+                                    // A catalogue choice has no payable booking ID.
+                                    // Review the itinerary and use its approved checkout.
+                                    Navigator.pushNamed(context, '/itinerary');
                                   },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isDark
@@ -585,6 +655,15 @@ class _TransportOptionsScreenState extends State<TransportOptionsScreen> {
                 );
               }),
 
+              if (_selectedCategory != 'Booked' && _hasMore) ...[
+                if (_moreError != null) Text(_moreError!),
+                OutlinedButton(
+                  onPressed: _loadingMore ? null : _loadMore,
+                  child: Text(
+                    _loadingMore ? 'Loading transport…' : 'Load more transport',
+                  ),
+                ),
+              ],
               const SizedBox(height: 6),
 
               // ── Scenic Train Tip Card ──

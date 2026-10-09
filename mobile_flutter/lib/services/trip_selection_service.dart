@@ -1,7 +1,9 @@
 import 'package:latlong2/latlong.dart';
 
 /// Keeps hotel, vehicle, itinerary and booking choices consistent across screens.
-
+///
+/// These in-memory preferences do not reserve inventory or change a persisted
+/// package. Itinerary changes go through the backend revision workflow.
 class TripSelectionService {
   // Currently selected hotel or resort from AccommodationOptionsScreen
   static Map<String, dynamic>? selectedHotel;
@@ -28,7 +30,7 @@ class TripSelectionService {
     activeBookingId = bookingId;
   }
 
-  /// Resets all in-memory selections
+  /// Resets all in-memory selections.
   static void reset() {
     selectedHotel = null;
     hotelDirectionsOrigin = null;
@@ -39,6 +41,6 @@ class TripSelectionService {
     activeBookingItineraryId = null;
   }
 
-  /// Alias for reset
+  /// Clears selections through [reset].
   static void clear() => reset();
 }

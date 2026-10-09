@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_flutter/screens/accommodation/accommodation_options_screen.dart';
@@ -89,6 +92,86 @@ void main() {
     ApiService.mockGetMyBookings = null;
     ApiService.mockGetHotels = null;
     ApiService.mockGetTransportOptions = null;
+    ApiService.mockGetTransportPage = null;
+  });
+
+  testWidgets(
+    'transport catalogue loads while private booking history is pending',
+    (tester) async {
+      final pending = Completer<List<dynamic>>();
+      ApiService.mockGetMyBookings = () => pending.future;
+      await tester.binding.setSurfaceSize(const Size(430, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        const MaterialApp(home: TransportOptionsScreen()),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Available Cars'), findsOneWidget);
+      pending.completeError(const ApiException('Booking history unavailable'));
+      await tester.pumpAndSettle();
+      expect(find.text('Available Cars'), findsOneWidget);
+      await tester.ensureVisible(find.text('Booked'));
+      await tester.tap(find.text('Booked'));
+      await tester.pumpAndSettle();
+      expect(find.text('Booking history unavailable'), findsOneWidget);
+    },
+  );
+
+  testWidgets('transport screen requests the next page only after Load more', (
+    tester,
+  ) async {
+    final pages = <int>[];
+    ApiService.mockGetTransportOptions = null;
+    ApiService.mockGetTransportPage =
+        ({required int page, required int pageSize, String? currency}) async {
+          pages.add(page);
+          return http.Response(
+            jsonEncode({
+              'data': [
+                {
+                  'id': page,
+                  'type': 'Van',
+                  'provider': 'Provider $page',
+                  'price': 5000,
+                  'currency': 'LKR',
+                  'capacity': 8,
+                },
+              ],
+              'totalPages': 2042,
+            }),
+            200,
+          );
+        };
+    await tester.binding.setSurfaceSize(const Size(430, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: TransportOptionsScreen()));
+    await tester.pumpAndSettle();
+    expect(pages, [1]);
+    await tester.ensureVisible(find.text('Load more transport'));
+    await tester.tap(find.text('Load more transport'));
+    await tester.pumpAndSettle();
+    expect(pages, [1, 2]);
+    expect(find.text('Provider 1'), findsOneWidget);
+    expect(find.text('Provider 2'), findsOneWidget);
+  });
+
+  testWidgets('hotel catalogue survives unavailable booking history', (
+    tester,
+  ) async {
+    ApiService.mockGetMyBookings = () async =>
+        throw const ApiException('Booking history unavailable');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AccommodationOptionsScreen(
+          mapBuilder: (_) => const ColoredBox(color: Colors.blue),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Available Hotel'), findsWidgets);
+    await tester.tap(find.text('Booked'));
+    await tester.pumpAndSettle();
+    expect(find.text('Booking history unavailable'), findsOneWidget);
   });
 
   testWidgets('Accommodation Booked category shows only paid hotel items', (

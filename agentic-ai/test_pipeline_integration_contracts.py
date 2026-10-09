@@ -252,7 +252,7 @@ def test_pipeline_initialization_redacts_access_token():
     captured = {}
 
     def fake_log_agent_step(**kwargs):
-        captured.update(kwargs["input_data"])
+        captured.update(kwargs.get("input_data") or {})
 
     class _App:
         def invoke(self, initial_data):

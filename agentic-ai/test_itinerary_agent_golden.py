@@ -1,10 +1,10 @@
 """Golden-case tests for the itinerary agent."""
 
-# The backend must be running locally before this script is executed.
+# Catalogue and model HTTP are mocked; this suite also runs offline as a script.
 
 import sys
 import os
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from agents.itinerary_agent import build_itinerary
 from tools.search_tours import search_tours
@@ -50,7 +50,9 @@ def _build_offline_itinerary(trip_request):
     # key when the agent is run outside this offline test fixture.
     with patch("agents.itinerary_agent.search_tours", _offline_search_tours), patch(
         "agents.itinerary_agent.log_agent_step"
-    ), patch.dict(os.environ, {"GOOGLE_API_KEY_ITINERARY": "offline-test-key"}):
+    ), patch.dict(os.environ, {"GOOGLE_API_KEY_ITINERARY": "offline-test-key"}), patch(
+        "httpx.Client.post", return_value=Mock(status_code=503)
+    ):
         return build_itinerary(trip_request)
 
 

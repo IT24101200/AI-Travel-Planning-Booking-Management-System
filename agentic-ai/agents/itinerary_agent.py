@@ -172,7 +172,7 @@ def validate_itinerary(result, trip_request, available_tours):
 
 
 def build_itinerary(trip_request):
-    """Ask Gemini to build an itinerary for a structured trip request.
+    """Build a catalogue-backed itinerary using routes or a validated LLM draft.
 
     ``requested_destinations`` is an ordered list. Singular destination fields
     are accepted for backward compatibility and normalized to a one-item list.
@@ -325,7 +325,14 @@ def build_itinerary(trip_request):
 
     if len(requested_destinations) > 1 or trip_request.get("airport_pickup") or all(t.get("latitude") is not None for t in available_tours):
         try:
-            return grouped_itinerary(trip_request, available_tours, requested_destinations)
+            result = grouped_itinerary(trip_request, available_tours, requested_destinations)
+            log_agent_step(
+                trip_request_id=trip_request["trip_request_id"], agent_name="ItineraryAgent",
+                step_name="Planned geographic itinerary", step_type="Plan",
+                reason="Preserve every destination and the chosen starter; use road travel times and the trip date window.",
+                output_data=result,
+            )
+            return result
         except RoutePlanningError as error:
             return {"status": "ItineraryFailed", "error_code": error.code, "error": str(error)}
 
@@ -402,6 +409,7 @@ Rules:
         }
 
     parsed_result = None
+    execution_mode = "llm_response"
     try:
         import httpx
         url = f"https://generativelanguage.googleapis.com/v1beta/interactions?key={api_key}"
@@ -419,6 +427,7 @@ Rules:
         print(f"[Warning] Itinerary Agent Gemini call failed ({error}), using deterministic scheduling fallback.")
 
     if not isinstance(parsed_result, dict) or not parsed_result.get("schedule"):
+        execution_mode = "deterministic_fallback"
         # Deterministic fallback: schedule available tours across trip days
         days_count = 3
         try:
@@ -509,9 +518,12 @@ Rules:
         log_agent_step(
             trip_request_id=trip_request["trip_request_id"],
             agent_name="ItineraryAgent",
-            step_name="Generated draft itinerary via Gemini",
+            step_name="Generated draft itinerary",
             step_type="Plan",
             output_data=parsed_result,
+            reason="Schedule only catalogue tours, then validate dates, prices and overlaps.",
+            execution_mode=execution_mode,
+            model="gemini-3.8-flash" if execution_mode == "llm_response" else None,
         )
     except Exception as error:
         print(f"Warning: Failed to log 'Generated draft itinerary via Gemini': {error}")
@@ -530,6 +542,7 @@ Rules:
             step_name="Validated itinerary against business rules",
             step_type="Validation",
             output_data={"passed": is_valid, "errors": validation_errors},
+            status="Success" if is_valid else "Failed",
         )
     except Exception as error:
         print(
@@ -584,6 +597,11 @@ def itinerary_node(state: dict) -> dict:
             "error": "Itinerary Agent returned an invalid result.",
         }
     if result.get("error"):
+        log_agent_step(
+            trip_request_id=state.get("trip_request_id", 0), agent_name="ItineraryAgent",
+            step_name="Itinerary planning rejected", step_type="Outcome",
+            output_data=result, status="Failed",
+        )
         return {"itinerary": result, "status": result.get("status", "ItineraryFailed")}
 
     # Persistence is deliberately deferred until the final validation result.

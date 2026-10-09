@@ -1,7 +1,7 @@
 """
 logger.py - Shared Agent Audit Logger
-Logs every reasoning cycle and decision step of each agent to the backend database.
-If the backend is not running, falls back to local console logging.
+Records observable agent steps in local JSONL and the backend audit database.
+Local full-output evidence remains available when the backend audit call fails.
 """
 
 import os
@@ -11,8 +11,10 @@ import re
 from datetime import datetime, timezone
 from contextlib import contextmanager
 from contextvars import ContextVar
+from uuid import uuid4
 import httpx
 from dotenv import load_dotenv
+from evidence import append_record, bounded_json, sanitize
 
 # Load environment variables
 load_dotenv()
@@ -47,6 +49,7 @@ BACKEND_URL = _normalise_backend_url(
 )
 AGENT_SERVICE_API_KEY = os.getenv("AGENT_SERVICE_API_KEY", "").strip()
 _audit_client = ContextVar("audit_client", default=None)
+_audit_run_id = ContextVar("audit_run_id", default=None)
 
 
 @contextmanager
@@ -54,10 +57,12 @@ def audit_log_session():
     """Reuse connections within a pipeline; concurrent trips stay isolated."""
     with httpx.Client(timeout=httpx.Timeout(5.0, connect=2.0)) as client:
         token = _audit_client.set(client)
+        run_token = _audit_run_id.set(uuid4().hex)
         try:
             yield
         finally:
             _audit_client.reset(token)
+            _audit_run_id.reset(run_token)
 
 
 def agent_service_headers():
@@ -85,15 +90,32 @@ def log_agent_step(
     input_data=None,
     output_data=None,
     status: str = "Success",
-    duration_ms: int = None
+    duration_ms: int = None,
+    reason: str = None,
+    execution_mode: str = "deterministic",
+    model: str = None,
 ):
     """
     Sends an agent audit log entry to the ASP.NET Core backend API.
     Persists to the PostgreSQL AgentLogs table.
     """
     now_iso = datetime.now(timezone.utc).isoformat()
-    formatted_input = format_payload(input_data)
-    formatted_output = format_payload(output_data)
+    # Keep evidence metadata inside Output because the backend's StepType,
+    # ToolName and DurationMs properties are currently NotMapped by EF Core.
+    evidence_output = dict(output_data) if isinstance(output_data, dict) else {"result": output_data}
+    evidence_output["_evidence"] = {
+        "schema_version": 1,
+        "context": os.getenv("AGENT_EVIDENCE_CONTEXT", "runtime"),
+        "run_id": _audit_run_id.get() or uuid4().hex,
+        "reason": str(reason or (output_data.get("error") if isinstance(output_data, dict) else None) or step_name)[:700],
+        "execution_mode": execution_mode,
+        "model": model,
+        "step_type": step_type,
+        "tool_name": tool_name,
+        "duration_ms": duration_ms,
+    }
+    safe_input = sanitize(input_data)
+    safe_output = sanitize(evidence_output)
 
     # Print clean progress line to console
     console.info(f"[{agent_name}] Step: '{step_name}' | Status: {status} | TripRequest: {trip_request_id}")
@@ -110,11 +132,24 @@ def log_agent_step(
         "stepType": step_type,
         "toolName": tool_name,
         "durationMs": duration_ms,
-        "input": formatted_input[:4000] if formatted_input else None,
-        "output": formatted_output[:4000] if formatted_output else None,
+        "input": bounded_json(safe_input),
+        "output": bounded_json(safe_output),
         "status": status,
         "timestamp": now_iso
     }
+
+    try:
+        append_record({**payload, "input": safe_input, "output": safe_output})
+    except OSError as error:
+        console.warning("Could not save local agent evidence: %s", error)
+
+    _post_audit_payload(payload)
+    return payload
+
+
+def _post_audit_payload(payload):
+    """Best-effort remote audit transport, isolated for offline unit tests."""
+    step_name = payload["stepName"]
 
     # Send log to backend API
     try:

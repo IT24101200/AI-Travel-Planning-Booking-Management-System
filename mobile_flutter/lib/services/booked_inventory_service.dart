@@ -1,7 +1,13 @@
+/// Extracts paid inventory snapshots for the catalogue screens' Booked tabs.
+///
+/// Planned stays and transfers appear in the itinerary before payment. These
+/// tabs intentionally describe paid bookings and keep every matching item.
 class BookedInventoryService {
+  /// Returns every room item belonging to a paid booking.
   static List<Map<String, dynamic>> paidRoomItems(List<dynamic> bookings) =>
       _paidItems(bookings, _isRoom);
 
+  /// Returns every transport leg belonging to a paid booking.
   static List<Map<String, dynamic>> paidTransportItems(
     List<dynamic> bookings,
   ) => _paidItems(bookings, _isTransport);

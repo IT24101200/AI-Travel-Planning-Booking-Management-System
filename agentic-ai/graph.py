@@ -27,6 +27,9 @@ logger = logging.getLogger("AgentService")
 
 
 class TripPlanningState(TypedDict, total=False):
+    # Agents exchange structured fields through LangGraph, not direct chat.
+    # A returns target_budgets; B returns itinerary; C returns booking_details;
+    # D returns validation_result and plan_json. Node patches retain other keys.
     trip_request_id: int
     customer_id: str
     destination_id: Optional[int]
@@ -294,6 +297,15 @@ def _run_travel_planning_pipeline(initial_data: dict) -> dict:
         final_status = "Failed"
         final_state["status"] = final_status
         final_state["failure_reason"] = "The backend could not save the generated proposal. Check the planning log for the rejection reason."
+
+    log_agent_step(
+        trip_request_id=trip_id, agent_name="Pipeline", step_name="Completed planning run",
+        step_type="Outcome", status="Failed" if final_status == "Failed" else "Success",
+        reason="Record the final planning result and whether ASP.NET accepted the callback; approval and payment remain separate.",
+        output_data={"status": final_status, "backend_synced": synced, "retry_count": retries,
+                     "failure_reason": final_state.get("failure_reason"),
+                     "stage_durations_ms": final_state.get("stage_durations_ms", {})},
+    )
 
     logger.info("Pipeline completed for TripRequest #%s with status=%s", trip_id, final_status)
 
