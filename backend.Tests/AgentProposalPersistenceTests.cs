@@ -118,6 +118,16 @@ public class AgentProposalPersistenceTests
             Assert.Equal(new decimal[] { 50m, 75m }, stays.Select(item => item.Subtotal));
             Assert.Equal(stays[0].CheckOutDate, stays[1].CheckInDate);
             Assert.Equal(375m, (await context.Bookings.SingleAsync()).TotalCost);
+            var booking = await context.Bookings.SingleAsync();
+            var response = await new BookingService(context).GetBookingByIdAsync(booking.Id, "cust-1");
+            var displayedStays = response!.BookingItems.Where(item => item.ItemType == BookingItemType.Room)
+                .OrderBy(item => item.CheckInDate).ToList();
+            Assert.Equal(2, displayedStays.Count);
+            Assert.Equal(stays.Select(item => item.RoomId), displayedStays.Select(item => item.RoomId));
+            Assert.Equal(stays.Select(item => item.CheckInDate), displayedStays.Select(item => item.CheckInDate));
+            Assert.Equal(stays.Select(item => item.CheckOutDate), displayedStays.Select(item => item.CheckOutDate));
+            Assert.Equal(stays.Select(item => item.Subtotal), displayedStays.Select(item => item.Subtotal));
+            Assert.All(displayedStays, item => Assert.False(string.IsNullOrWhiteSpace(item.HotelName)));
         }
     }
 
@@ -303,6 +313,23 @@ public class AgentProposalPersistenceTests
             Assert.Equal(new[] { "Second Destination", "Third Destination" }, transportItems.Select(item => item.TransportRouteToSnapshot).ToArray());
             Assert.Equal(new[] { 50m, 70m }, transportItems.Select(item => item.Subtotal).ToArray());
             Assert.Equal(820m, booking.TotalCost);
+            // Booking display must use every saved leg, even after catalogue edits.
+            var option = await context.TransportOptions.SingleAsync(item => item.Id == 30);
+            option.Provider = "Changed catalogue provider";
+            option.RouteTo = "Changed catalogue destination";
+            option.DepartureTime = option.DepartureTime.AddDays(5);
+            option.Price = 999m;
+            await context.SaveChangesAsync();
+            var response = await new BookingService(context).GetBookingByIdAsync(booking.Id, "cust-1");
+            var displayedLegs = response!.BookingItems.Where(item => item.ItemType == BookingItemType.Transport).ToList();
+            Assert.Equal(2, displayedLegs.Count);
+            Assert.Equal(transportItems.Select(item => item.TransportLegIndex), displayedLegs.Select(item => item.TransportLegIndex));
+            Assert.Equal(transportItems.Select(item => item.TransportProviderSnapshot), displayedLegs.Select(item => item.TransportProvider));
+            Assert.Equal(transportItems.Select(item => item.TransportRouteFromSnapshot), displayedLegs.Select(item => item.RouteFrom));
+            Assert.Equal(transportItems.Select(item => item.TransportRouteToSnapshot), displayedLegs.Select(item => item.RouteTo));
+            Assert.Equal(transportItems.Select(item => item.TransportDepartureTimeSnapshot), displayedLegs.Select(item => item.DepartureTime));
+            Assert.Equal(transportItems.Select(item => item.TransportArrivalTimeSnapshot), displayedLegs.Select(item => item.ArrivalTime));
+            Assert.Equal(transportItems.Select(item => item.Subtotal), displayedLegs.Select(item => item.Subtotal));
         }
     }
 
