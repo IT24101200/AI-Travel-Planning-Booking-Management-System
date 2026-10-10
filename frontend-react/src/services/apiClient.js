@@ -4,9 +4,8 @@ export { notificationErrorMessage } from './notificationErrors.js'
 /**
  * Thin axios wrapper for the ASP.NET backend.
  *
- * Note: /api/destination and /api/tour are [Authorize]-protected, so the public
- * marketing site renders from src/data/*. Only the planner talks to the API,
- * and it degrades gracefully when the backend is not running.
+ * Customer-owned planner calls use the same bearer token and ASP.NET contracts
+ * as the Flutter application; the browser never calls the Python service.
  */
 const viteEnv = import.meta.env || {}
 const baseURL = viteEnv.VITE_API_BASE_URL
@@ -43,33 +42,109 @@ api.interceptors.response.use(
   }
 )
 
-/** Shapes the form state into the backend's TripRequestCreateDto. */
-export function toTripRequestDto(form) {
-  // The site's destination ids are slugs, not database keys, so only send a real
-  // integer through; otherwise the place is carried in rawRequestText instead.
-  const destinationId = Number.parseInt(form.destinationId, 10)
-
-  return {
-    destinationId: Number.isNaN(destinationId) ? null : destinationId,
-    rawRequestText: form.notes.trim(),
-    startDate: new Date(form.startDate).toISOString(),
-    endDate: new Date(form.endDate).toISOString(),
-    travellerCount: Number(form.travellers),
-    budgetCeiling: Number(form.budget),
-    currency: form.currency,
-  }
-}
-
-/** POST /api/TripRequest */
-export async function submitTripRequest(form) {
-  const { data } = await api.post('/TripRequest', toTripRequestDto(form))
+/**
+ * Create a canonical, ordered TripRequest through ASP.NET Core.
+ * React never calls the Python agent service directly.
+ */
+export async function createTripRequest(payload) {
+  const { data } = await api.post('/TripRequest', payload)
   return data
 }
 
 /** GET /api/Destination - fetch destinations */
 export async function fetchDestinations() {
-  const { data } = await api.get('/Destination')
+  const { data } = await api.get('/Destination', { params: { page: 1, pageSize: 1000 } })
   return data
+}
+
+/** Fetch the authenticated customer's own TripRequest page. */
+export async function fetchMyTripRequests(page = 1, pageSize = 10) {
+  const { data } = await api.get('/TripRequest/my', { params: { page, pageSize } })
+  return data
+}
+
+/** Fetch one customer-owned TripRequest and its current server status. */
+export async function fetchTripRequest(tripRequestId) {
+  const { data } = await api.get(`/TripRequest/${tripRequestId}`)
+  return data
+}
+
+/** Fetch persisted agent logs for a customer-owned TripRequest. */
+export async function fetchTripAgentLogs(tripRequestId) {
+  const { data } = await api.get(`/TripRequest/${tripRequestId}/logs`)
+  return data
+}
+
+/** Fetch the ASP.NET health proxy result for the AI service. */
+export async function fetchAgentHealth() {
+  const { data } = await api.get('/AgentTrigger/health')
+  return data
+}
+
+function apiUrl(path) {
+  const base = String(api.defaults.baseURL || '').replace(/\/$/, '')
+  return `${base}/${String(path).replace(/^\//, '')}`
+}
+
+function parseSseEvent(block) {
+  const lines = block.split(/\r?\n/)
+  const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() || 'message'
+  const data = lines
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice(5).trimStart())
+    .join('\n')
+
+  if (!data) return { event, data: null }
+  try {
+    return { event, data: JSON.parse(data) }
+  } catch {
+    return { event, data }
+  }
+}
+
+/**
+ * Consume the authenticated ASP.NET SSE stream with fetch so the existing
+ * bearer token can be attached. Returns an AbortController-backed cleanup.
+ */
+export function subscribeTripAgentLogs(tripRequestId, onEvent) {
+  const controller = new AbortController()
+  let closed = false
+
+  const promise = (async () => {
+    const token = localStorage.getItem('accessToken')
+    const response = await fetch(apiUrl(`/TripRequest/${tripRequestId}/logs/stream`), {
+      headers: {
+        Accept: 'text/event-stream',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      signal: controller.signal,
+    })
+
+    if (!response.ok || !response.body) {
+      throw new Error(`Agent log stream unavailable (${response.status}).`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (!closed) {
+      const { value, done } = await reader.read()
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+      const blocks = buffer.split(/\r?\n\r?\n/)
+      buffer = blocks.pop() || ''
+      blocks.filter(Boolean).forEach((block) => onEvent(parseSseEvent(block)))
+      if (done) break
+    }
+  })()
+
+  return {
+    promise,
+    close: () => {
+      closed = true
+      controller.abort()
+    },
+  }
 }
 
 /** POST /api/Destination - create destination */
