@@ -3,7 +3,7 @@
 from unittest.mock import Mock
 import pytest
 from agents.validation_agent import validation_node
-from test_validation_agent import _state
+from tests.validation.test_validation_agent import _state
 from tools import validation_tools
 
 pytestmark = pytest.mark.member_d

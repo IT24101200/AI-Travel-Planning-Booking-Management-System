@@ -51,7 +51,7 @@ def test_distinct_large_timetables_return_verified_package_with_search_limit_met
     import route_planning
     from agents import booking_agent
     from route_planning import plan_overnights
-    from test_route_planning import LineRoads, itinerary, room, state, tour
+    from tests.itinerary.test_route_planning import LineRoads, itinerary, room, state, tour
     from tools.availability_tools import TransportSearchResult
 
     tours = [tour(1, 1, 80), tour(2, 2, 80.2)]

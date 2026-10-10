@@ -28,6 +28,8 @@ class PackageValidationError(ValueError):
         self.code = code
 
 
+# --- Strict field-level validation helpers --------------------------------
+
 def _decimal(value: Any, field: str) -> Decimal:
     try:
         result = Decimal(str(value))
@@ -86,19 +88,24 @@ def _require_mapping(value: Any, field: str) -> dict[str, Any]:
     return value
 
 
+# --- Commercial validation and DTO construction ---------------------------
+
 def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     """Validate upstream state and return (BookingCreateDto payload, checks)."""
 
+    # Rule 1: Booking details must be an object and must not contain an upstream error.
     booking = _require_mapping(state.get("booking_details"), "booking_details")
     if booking.get("error"):
         raise PackageValidationError(
             "UPSTREAM_BOOKING_FAILED", str(booking["error"])
         )
 
+    # Rule 2: The itinerary supplied by BookingAgent must be an object.
     itinerary = _require_mapping(
         booking.get("itinerary") or state.get("itinerary"), "itinerary"
     )
     try:
+        # Rule 3: Requested destinations must satisfy the destination contract.
         # Legacy pipeline fixtures may not carry a destination at the booking
         # validation stage. Enforce complete coverage only when a destination
         # contract is actually present; the itinerary agent still requires one
@@ -106,19 +113,25 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
         requested_destinations = normalize_requested_destinations(state, required=False)
     except DestinationContractError as error:
         raise PackageValidationError(error.code, str(error)) from None
+    # Rule 4: A customer ID is required before creating a booking proposal.
     customer_id = str(state.get("customer_id") or "").strip()
     if not customer_id:
         raise PackageValidationError(
             "MISSING_CUSTOMER", "customer_id is required to create a booking."
         )
 
+    # Rule 5: Traveller count must be a positive integer.
     travellers = _positive_int(state.get("traveller_count", 1), "traveller_count")
+    # Rule 6: Trip dates must be valid ISO dates and the end cannot precede the start.
     nights = _trip_nights(state.get("start_date"), state.get("end_date"))
+    # Rule 7: The requested currency must be supported.
     request_currency = _currency(state.get("currency"), "request currency")
+    # Rule 8: The package currency must also be supported.
     package_currency = _currency(
         booking.get("currency") or itinerary.get("currency") or request_currency,
         "package currency",
     )
+    # Rule 9: Request and package currencies must match.
     if request_currency != package_currency:
         raise PackageValidationError(
             "CURRENCY_MISMATCH",
@@ -126,7 +139,9 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
             f"{request_currency}.",
         )
 
+    # Rule 10: Budget ceiling must be a finite, non-negative number.
     budget = _decimal(state.get("budget_ceiling"), "budget_ceiling")
+    # Rule 11: Reported package total must be numeric and greater than zero.
     reported_total = _decimal(
         booking.get("total_cost", booking.get("total_package_cost")),
         "booking total",
@@ -136,6 +151,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
             "INVALID_TOTAL", "Booking total must be greater than zero."
         )
 
+    # Rule 12: Itinerary schedule must be a list.
     items: list[dict[str, Any]] = []
     calculated_total = Decimal("0")
     schedule = itinerary.get("schedule", [])
@@ -144,6 +160,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
             "INVALID_ITINERARY", "itinerary.schedule must be a list."
         )
     for day in schedule:
+        # Rule 13: Every itinerary day must be an object with an items list.
         day_map = _require_mapping(day, "itinerary day")
         day_items = day_map.get("items", [])
         if not isinstance(day_items, list):
@@ -151,6 +168,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                 "INVALID_ITINERARY", "Each itinerary day must contain an items list."
             )
         for tour in day_items:
+            # Rule 14: Every tour item must have a valid positive ID and price.
             tour_map = _require_mapping(tour, "tour item")
             tour_id = _positive_int(
                 tour_map.get("tour_id") or tour_map.get("tourId"), "tour_id"
@@ -166,6 +184,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                 }
             )
 
+    # Rule 15: A multi-destination itinerary must cover every requested destination.
     if len(requested_destinations) > 1:
         requested_ids = {destination["destination_id"] for destination in requested_destinations}
         scheduled_ids = {
@@ -182,6 +201,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                 + ", ".join(str(destination_id) for destination_id in sorted(missing_ids)),
             )
 
+    # Rule 16: At least one dated hotel stay must be supplied.
     selections = booking.get("room_selections")
     legacy_room = selections is None
     if selections is None:
@@ -192,14 +212,17 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
     expected_check_in = datetime.fromisoformat(str(state["start_date"]).replace("Z", "+00:00")).date()
     trip_end = datetime.fromisoformat(str(state["end_date"]).replace("Z", "+00:00")).date()
     for value in selections:
+        # Rule 17: Each room stay must be an object with a positive room ID.
         room = _require_mapping(value, "room stay")
         room_id = _positive_int(room.get("room_id") or room.get("roomId"), "room_id")
         check_in = datetime.fromisoformat(str(room["check_in"]).replace("Z", "+00:00")).date()
         check_out = datetime.fromisoformat(str(room["check_out"]).replace("Z", "+00:00")).date()
+        # Rule 18: Room stays must cover the trip nights exactly once and in order.
         same_day_legacy = legacy_room and check_in == check_out == trip_end
         if check_in != expected_check_in or (check_out <= check_in and not same_day_legacy) or check_out > trip_end:
             raise PackageValidationError("INVALID_ROOM_STAYS", "Hotel stays must cover every trip night exactly once, in date order.")
         expected_check_in = check_out
+        # Rule 19: Room price must be a finite, non-negative number.
         room_price = _decimal(room.get("price_per_night", room.get("pricePerNight")), "room price_per_night")
         room_total = room_price * max(1, (check_out - check_in).days)
         calculated_total += room_total
@@ -209,6 +232,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
     if expected_check_in != trip_end:
         raise PackageValidationError("INVALID_ROOM_STAYS", "Hotel stays do not cover the complete trip.")
 
+    # Rule 20: Planned route must respect requested destinations and starter origin.
     route_ids = itinerary.get("route_destination_ids")
     if route_ids is not None:
         requested_order = [destination["destination_id"] for destination in requested_destinations]
@@ -224,15 +248,18 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
             )
         visited = []
         for day in schedule:
+            # Rule 21: Daily driving time cannot exceed ten hours.
             if _decimal(day.get("travel_minutes", 0), "daily driving") > 600:
                 raise PackageValidationError("TRAVEL_TIME_INFEASIBLE", "A day exceeds ten hours driving.")
             for item in day.get("items", []):
                 destination = item.get("destination_id")
                 if not visited or visited[-1] != destination:
                     visited.append(destination)
+        # Rule 22: Destinations must be visited contiguously without backtracking.
         if visited != route_ids:
             raise PackageValidationError("DESTINATION_BACKTRACKING", "Complete a destination's journeys before travelling to the next destination.")
 
+    # Rule 23: Multi-leg plans must contain exactly one valid index for every leg.
     if len(requested_destinations) > 1 or state.get("airport_pickup"):
         selections = booking.get("transport_selections")
         expected_count = len(requested_destinations) - 1 + int(bool(state.get("airport_pickup")))
@@ -270,6 +297,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                 or selection.get("transportId"),
                 "transport_option_id",
             )
+            # Rule 24: Every multi-leg transport selection needs a valid ID and price.
             transport_price = _decimal(
                 selection.get("price", selection.get("unit_price", selection.get("unitPrice"))),
                 "transport price",
@@ -292,6 +320,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
                 }
             )
     else:
+        # Rule 25: A single-leg plan needs one valid transport ID and price.
         transport = _require_mapping(
             booking.get("selected_transport"), "selected_transport"
         )
@@ -310,6 +339,7 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
             }
         )
 
+    # Rule 26: Recalculated total must match the reported total and stay within budget.
     if abs(calculated_total - reported_total) > Decimal("0.01"):
         raise PackageValidationError(
             "TOTAL_MISMATCH",
@@ -340,10 +370,14 @@ def validate_and_build_booking(state: dict[str, Any]) -> tuple[dict[str, Any], d
     return payload, checks
 
 
+# --- LangGraph validation and approval node -------------------------------
+
 def validation_node(state: dict[str, Any]) -> dict[str, Any]:
     """LangGraph node for Student D's validation and approval gate."""
 
     trip_id = int(state.get("trip_request_id") or 0)
+    # Rule 27: A valid proposal stops at AwaitingApproval; this node never
+    # creates a booking or initiates payment directly.
     try:
         payload, checks = validate_and_build_booking(state)
         log_agent_step(
@@ -389,6 +423,8 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
             "plan_json": plan_json,
             "status": "AwaitingApproval",
         }
+    # Expected business-rule failures are returned with stable error codes so
+    # CoordinatorAgent can decide whether a retry is allowed.
     except PackageValidationError as error:
         code = getattr(error, "code", "BOOKING_CREATION_FAILED")
         message = str(error)
@@ -429,6 +465,7 @@ def validation_node(state: dict[str, Any]) -> dict[str, Any]:
             "validation_result": validation_result,
             "status": "ValidationFailed",
         }
+    # Unexpected errors fail closed and cannot reach payment or persistence.
     except Exception as error:
         # Unexpected failures are still fail-closed and never create a fake
         # successful result or continue to payment.

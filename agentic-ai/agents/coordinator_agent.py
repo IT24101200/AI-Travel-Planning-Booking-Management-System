@@ -23,6 +23,8 @@ logger = logging.getLogger("CoordinatorAgent")
 # Retrieve Gemini API key if present
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
+# These failures cannot be fixed by reducing the budget. The graph should stop
+# rather than retrying the same impossible route or invalid customer request.
 NON_RETRYABLE_FAILURE_CODES = {
     "INVALID_DESTINATION_ORDER",
     "INVALID_STARTER_LOCATION",
@@ -43,6 +45,8 @@ NON_RETRYABLE_FAILURE_CODES = {
     "TRAVELLER_COUNT_INVALID",
 }
 
+
+# --- Coordinator helper functions -----------------------------------------
 
 def calculate_days(start_date_str: str, end_date_str: str) -> int:
     """Helper to calculate total trip days from ISO date strings."""
@@ -81,11 +85,14 @@ def call_gemini_for_planning(prompt: str) -> str:
     return None
 
 
+# --- Coordinator planning node --------------------------------------------
+
 def coordinator_plan(state: dict) -> dict:
     """
     Coordinator Agent Node:
     Decomposes the customer request and sets target budgets.
     """
+    # Read the shared request state and normalize all requested destinations.
     trip_id = state.get("trip_request_id", 0)
     customer_id = state.get("customer_id", "Unknown")
     raw_text = state.get("raw_request_text", "")
@@ -106,8 +113,8 @@ def coordinator_plan(state: dict) -> dict:
 
     days = calculate_days(start_date, end_date)
 
-    # 1. Budget Breakdown allocation rules (Spec Section 9)
-    # If this is a retry run, apply an economy adjustment (-15%)
+    # Create the deterministic budget envelope used by the downstream agents.
+    # If this is a retry run, apply an economy adjustment (-15%).
     discount_factor = 0.85 if retry_count > 0 else 1.0
     effective_budget = budget * discount_factor
 
@@ -116,7 +123,8 @@ def coordinator_plan(state: dict) -> dict:
     transport_budget = round(effective_budget * 0.15, 2)
     buffer_budget = round(effective_budget * 0.05, 2)
 
-    # 2. Call Gemini for high-level trip theme and strategy
+    # Ask the optional LLM for a high-level theme; the budget arithmetic remains
+    # deterministic even when the LLM is unavailable or returns invalid JSON.
     prompt = f"""
     You are the Lead Travel Planning Coordinator AI.
     Analyze this customer trip request:
@@ -189,7 +197,7 @@ def coordinator_plan(state: dict) -> dict:
         "status": "InPlanning"
     }
 
-    # Audit log this reasoning step
+    # Record the coordinator decision for audit/evidence reporting.
     log_agent_step(
         trip_request_id=trip_id,
         agent_name="CoordinatorAgent",
@@ -211,7 +219,7 @@ def coordinator_plan(state: dict) -> dict:
         status="Success"
     )
 
-    # Return updated state
+    # Pass only coordinator-owned planning fields to the next graph node.
     return {
         "status": "InPlanning",
         "requested_destinations": requested_destinations,
@@ -221,6 +229,8 @@ def coordinator_plan(state: dict) -> dict:
         "trip_days": days
     }
 
+
+# --- Retry decision node ---------------------------------------------------
 
 def coordinator_retry_evaluator(state: dict) -> dict:
     """
@@ -235,6 +245,7 @@ def coordinator_retry_evaluator(state: dict) -> dict:
     is_valid = validation.get("is_valid", True)
     failure_code = validation.get("upstream_error_code") or validation.get("error_code")
 
+    # A valid package proceeds to the human approval gate.
     if is_valid:
         # All good, trip successfully validated!
         return {
@@ -242,6 +253,7 @@ def coordinator_retry_evaluator(state: dict) -> dict:
             "next_action": "complete"
         }
 
+    # Route, date, capacity and request-contract failures are terminal.
     if failure_code in NON_RETRYABLE_FAILURE_CODES:
         failure_msg = validation.get("error", "The selected transport catalogue cannot satisfy this request.")
         log_agent_step(
@@ -268,6 +280,7 @@ def coordinator_retry_evaluator(state: dict) -> dict:
             "next_action": "fail",
         }
 
+    # Only budget-like failures receive one controlled economy retry.
     if current_retries < 1:
         # Retry once with economy discount
         new_retry_count = current_retries + 1
