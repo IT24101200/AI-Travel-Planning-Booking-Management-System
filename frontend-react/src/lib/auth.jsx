@@ -55,6 +55,33 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  const register = useCallback(async (fullName, email, password, phone = '') => {
+    const base = import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? 'http://localhost:5138/api' : '')
+    const res = await fetch(`${base}/Auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fullName, email, password, phone }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const error = new Error(data.message || 'Registration failed.')
+      error.status = res.status
+      throw error
+    }
+
+    const next = {
+      email,
+      userId: data.userId || null,
+      fullName: data.fullName || fullName,
+      token: data.token || data.accessToken,
+      role: 'customer',
+    }
+    localStorage.setItem('st_session', JSON.stringify(next))
+    localStorage.setItem('accessToken', next.token)
+    setSession(next)
+    return next
+  }, [])
+
   const logout = useCallback(() => {
     localStorage.removeItem('st_session')
     localStorage.removeItem('accessToken')
@@ -62,8 +89,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user: session, role: session?.role ?? null, login, logout }),
-    [session, login, logout],
+    () => ({ user: session, role: session?.role ?? null, login, register, logout }),
+    [session, login, register, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

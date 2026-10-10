@@ -1,372 +1,441 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Masthead } from '../../components/layout/Masthead.jsx'
 import { Reveal } from '../../components/ui/Reveal.jsx'
 import { CheckIcon, SparkleIcon } from '../../components/ui/Icons.jsx'
-import { destinations } from '../../data/destinations.js'
-import { agents, brand } from '../../data/site.js'
-import { submitTripRequest } from '../../services/apiClient.js'
+import { AgentHealthBadge } from '../../components/planner/AgentHealthBadge.jsx'
+import { AgentWorkflowPanel } from '../../components/planner/AgentWorkflowPanel.jsx'
+import { PlanResult } from '../../components/planner/PlanResult.jsx'
+import {
+  createTripRequest,
+  fetchAgentHealth,
+  fetchDestinations,
+  fetchTripAgentLogs,
+  fetchTripRequest,
+  subscribeTripAgentLogs,
+} from '../../services/apiClient.js'
+import {
+  addDestination,
+  buildTripRequestPayload,
+  dateStringFromOffset,
+  isTerminalTripStatus,
+  MAX_NOTES,
+  mergeAgentLogs,
+  moveDestination,
+  safePlannerError,
+  SUPPORTED_CURRENCIES,
+  validatePlannerForm,
+} from '../../lib/plannerModel.js'
+import { brand, agents } from '../../data/site.js'
 import { usePageTitle } from '../../lib/hooks.js'
-import { useScene } from '../../lib/sceneContext.js'
 
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'AUD', 'LKR']
-const PARTY_SIZES = [1, 2, 3, 4, 6, 8]
-const MAX_NOTES = 2000
-
-const EMPTY = {
-  destinationId: '',
-  startDate: '',
-  endDate: '',
-  travellers: '2',
-  budget: '',
-  currency: 'USD',
+const EMPTY_FORM = {
+  startDate: dateStringFromOffset(7),
+  endDate: dateStringFromOffset(13),
+  travellerCount: '2',
+  budgetCeiling: '',
+  currency: 'LKR',
   notes: '',
+  starterLocationId: '',
+  airportPickup: false,
+  airportCode: 'CMB',
+  airportArrivalTime: '08:00',
 }
 
-/** yyyy-mm-dd, `offset` days from today — for the date inputs' `min`. */
-function toDateString(offset = 0) {
-  const d = new Date()
-  d.setDate(d.getDate() + offset)
-  return d.toISOString().split('T')[0]
+function statusCopy(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'planning': return 'Your AI travel plan is being prepared.'
+    case 'planned': return 'A proposal was generated. The next step is the travel-agent review.'
+    case 'awaitingapproval': return 'Your proposal is ready and is awaiting travel-agent approval.'
+    case 'failed': return 'Planning could not be completed.'
+    case 'cancelled': return 'This trip request was cancelled.'
+    case 'approved': return 'Your proposal was approved. Booking and payment remain separate steps.'
+    case 'rejected': return 'This proposal was not approved.'
+    default: return 'Trip request submitted. AI planning has started.'
+  }
 }
 
-/** Mirrors the server-side rules on TripRequestCreateDto so we fail fast. */
-function validate(form) {
-  const errors = {}
-  const notes = form.notes.trim()
-  const budget = Number(form.budget)
-
-  if (!form.startDate) errors.startDate = 'Pick an arrival date.'
-  if (!form.endDate) errors.endDate = 'Pick a departure date.'
-  else if (form.startDate && form.endDate <= form.startDate)
-    errors.endDate = 'Departure has to be after arrival.'
-
-  if (!form.budget) errors.budget = 'Give the agents a ceiling to work under.'
-  else if (Number.isNaN(budget) || budget <= 0) errors.budget = 'Use a number above zero.'
-
-  if (notes.length < 20) errors.notes = 'A sentence or two makes a real difference.'
-  else if (notes.length > MAX_NOTES) errors.notes = `Keep it under ${MAX_NOTES} characters.`
-
-  return errors
+function fieldError(errors, touched, key) {
+  return touched ? errors[key] : null
 }
 
 export default function Planner() {
-  const { activeId, setActiveId } = useScene()
-  const [form, setForm] = useState(EMPTY)
+  const [form, setForm] = useState(EMPTY_FORM)
+  const [destinations, setDestinations] = useState([])
+  const [selectedDestinations, setSelectedDestinations] = useState([])
+  const [destinationQuery, setDestinationQuery] = useState('')
+  const [destinationToAdd, setDestinationToAdd] = useState('')
+  const [destinationsLoading, setDestinationsLoading] = useState(true)
+  const [destinationsError, setDestinationsError] = useState('')
+  const [health, setHealth] = useState(null)
+  const [healthLoading, setHealthLoading] = useState(true)
   const [touched, setTouched] = useState(false)
-  const [status, setStatus] = useState({ state: 'idle' })
-  usePageTitle('AI Planner')
+  const [submitState, setSubmitState] = useState({ phase: 'idle' })
+  const [trip, setTrip] = useState(null)
+  const [logs, setLogs] = useState([])
+  const [monitorError, setMonitorError] = useState('')
+  const [usingPolling, setUsingPolling] = useState(false)
+  usePageTitle('AI Trip Planner')
+
+  const loadDestinations = useCallback(async () => {
+    setDestinationsLoading(true)
+    setDestinationsError('')
+    try {
+      const response = await fetchDestinations()
+      const rows = Array.isArray(response) ? response : response?.data || []
+      setDestinations(rows.filter((destination) => Number(destination?.id) > 0 && destination?.name))
+    } catch (error) {
+      setDestinationsError(safePlannerError(error, 'Destinations could not be loaded. Please try again.'))
+    } finally {
+      setDestinationsLoading(false)
+    }
+  }, [])
+
+  const checkAgentHealth = useCallback(async () => {
+    setHealthLoading(true)
+    try {
+      setHealth(await fetchAgentHealth())
+    } catch {
+      setHealth({ status: 'unavailable', reachable: false })
+    } finally {
+      setHealthLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    if (!activeId) setActiveId('galle')
-  }, [activeId, setActiveId])
+    const initialLoad = window.setTimeout(() => {
+      loadDestinations()
+      checkAgentHealth()
+    }, 0)
+    return () => window.clearTimeout(initialLoad)
+  }, [checkAgentHealth, loadDestinations])
 
-  const errors = useMemo(() => validate(form), [form])
-  const errorOf = (key) => (touched ? errors[key] : undefined)
+  const errors = useMemo(
+    () => validatePlannerForm({ ...form, destinations: selectedDestinations }),
+    [form, selectedDestinations],
+  )
+  const filteredDestinations = useMemo(() => {
+    const query = destinationQuery.trim().toLowerCase()
+    return destinations.filter((destination) => {
+      if (selectedDestinations.some((selected) => Number(selected.id) === Number(destination.id))) return false
+      return !query || `${destination.name} ${destination.country || ''}`.toLowerCase().includes(query)
+    })
+  }, [destinationQuery, destinations, selectedDestinations])
 
-  const nights = useMemo(() => {
-    if (!form.startDate || !form.endDate) return 0
-    const ms = new Date(form.endDate) - new Date(form.startDate)
-    return ms > 0 ? Math.round(ms / 86_400_000) : 0
-  }, [form.startDate, form.endDate])
+  const update = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }))
+  const selectedStarter = form.starterLocationId
+    ? selectedDestinations.find((destination) => Number(destination.id) === Number(form.starterLocationId))
+    : null
 
-  const update = (key) => (event) =>
-    setForm((prev) => ({ ...prev, [key]: event.target.value }))
+  function addSelectedDestination(event) {
+    const destination = destinations.find((item) => String(item.id) === event.target.value)
+    if (destination) setSelectedDestinations((current) => addDestination(current, destination))
+    setDestinationToAdd('')
+  }
+
+  function removeSelectedDestination(id) {
+    setSelectedDestinations((current) => current.filter((destination) => Number(destination.id) !== Number(id)))
+    setForm((current) => Number(current.starterLocationId) === Number(id) ? { ...current, starterLocationId: '' } : current)
+  }
+
+  function reorderSelectedDestination(index, direction) {
+    setSelectedDestinations((current) => moveDestination(current, index, direction))
+  }
 
   async function onSubmit(event) {
     event.preventDefault()
     setTouched(true)
-    if (Object.keys(errors).length) return
+    if (Object.keys(errors).length > 0 || submitState.phase === 'submitting') return
 
-    setStatus({ state: 'sending' })
+    setSubmitState({ phase: 'submitting' })
+    setTrip(null)
+    setLogs([])
+    setMonitorError('')
+    setUsingPolling(false)
     try {
-      // Our local slugs ("ella") are not backend keys, so the chosen place travels
-      // as prose — the agents read rawRequestText anyway.
-      const chosen = destinations.find((d) => d.id === form.destinationId)
-      const notes = chosen
-        ? `Anchor destination: ${chosen.name} (${chosen.region}).\n${form.notes.trim()}`
-        : form.notes.trim()
-      const data = await submitTripRequest({ ...form, notes: notes.slice(0, MAX_NOTES) })
-      setStatus({ state: 'sent', reference: data?.id ?? data?.tripRequestId ?? null })
+      const response = await createTripRequest(buildTripRequestPayload({ ...form, destinations: selectedDestinations }))
+      const id = Number(response?.id ?? response?.tripRequestId)
+      if (!Number.isInteger(id) || id <= 0) throw new Error('The server did not return a TripRequest ID.')
+      setTrip(response)
+      setSubmitState({ phase: 'submitted', tripRequestId: id })
     } catch (error) {
       const code = error?.response?.status
-      if (code === 401 || code === 403) {
-        setStatus({ state: 'auth' })
-      } else if (!error?.response) {
-        setStatus({ state: 'offline' })
-      } else {
-        setStatus({
-          state: 'error',
-          message: error.response?.data?.message ?? error.message ?? 'Unknown error.',
-        })
-      }
+      setSubmitState({
+        phase: code === 401 || code === 403 ? 'auth' : 'error',
+        message: safePlannerError(error, code === 401 || code === 403 ? 'Your session has expired. Please sign in again.' : undefined),
+      })
     }
   }
+
+  useEffect(() => {
+    const tripRequestId = submitState.tripRequestId
+    if (!tripRequestId) return undefined
+
+    let active = true
+    let terminal = false
+    let pollingTimer
+    let stream
+
+    const stopPolling = () => {
+      if (pollingTimer) window.clearInterval(pollingTimer)
+      pollingTimer = undefined
+    }
+
+    const refresh = async () => {
+      const [requestResult, logsResult] = await Promise.allSettled([
+        fetchTripRequest(tripRequestId),
+        fetchTripAgentLogs(tripRequestId),
+      ])
+      if (!active) return
+      if (requestResult.status === 'fulfilled' && requestResult.value) {
+        setTrip(requestResult.value)
+        if (isTerminalTripStatus(requestResult.value.status)) {
+          terminal = true
+          stopPolling()
+        }
+      }
+      if (logsResult.status === 'fulfilled') setLogs((current) => mergeAgentLogs(current, logsResult.value))
+      if (requestResult.status === 'rejected' && logsResult.status === 'rejected') {
+        setMonitorError('Live progress is temporarily unavailable. We will keep checking the saved request.')
+      }
+    }
+
+    const startPolling = () => {
+      if (!active || pollingTimer) return
+      setUsingPolling(true)
+      pollingTimer = window.setInterval(refresh, 4000)
+    }
+
+    refresh()
+    try {
+      stream = subscribeTripAgentLogs(tripRequestId, (event) => {
+        if (!active) return
+        if (event.event === 'agent-log' && event.data) setLogs((current) => mergeAgentLogs(current, [event.data]))
+        if (event.event === 'trip-status' && event.data) {
+          setTrip((current) => ({ ...(current || {}), ...event.data, id: tripRequestId }))
+          if (isTerminalTripStatus(event.data.status)) {
+            terminal = true
+            stream?.close()
+            stopPolling()
+          }
+        }
+      })
+      stream.promise.catch(() => {
+        if (active && !terminal) {
+          setMonitorError('Live progress is unavailable; showing saved updates instead.')
+          startPolling()
+        }
+      })
+    } catch {
+      startPolling()
+    }
+
+    return () => {
+      active = false
+      stopPolling()
+      stream?.close()
+    }
+  }, [submitState.tripRequestId])
+
+  const tripStatus = trip?.status || 'Submitted'
+  const statusFailure = tripStatus === 'Failed' ? safePlannerError({ message: trip?.failureReason }, 'Planning could not be completed. Please retry later.') : ''
+  const visibleError = (key) => fieldError(errors, touched, key)
 
   return (
     <>
       <Masthead
-        eyebrow="AI Planner"
-        title="Describe the trip. We will draft the route."
-        lede="Tell us the shape of it in plain words. Four agents work out a day-by-day plan, then a Colombo travel agent signs it off before it reaches you."
-        crumbs={[{ label: 'AI Planner' }]}
+        eyebrow="AI Trip Planner"
+        title="Build the route you want. Let the agents work out the details."
+        lede="Choose destinations in your preferred order, share the trip constraints that matter, and follow the persisted planning workflow through ASP.NET Core."
+        crumbs={[{ label: 'AI Trip Planner' }]}
       />
 
       <section className="section section--overlap">
         <div className="shell planner">
           <Reveal className="panel planner__card">
+            <div className="planner-form-heading">
+              <div>
+                <span className="eyebrow">Customer request</span>
+                <h2>Tell us about your trip</h2>
+              </div>
+              <AgentHealthBadge health={health} loading={healthLoading} onRetry={checkAgentHealth} />
+            </div>
+
             <form className="form" onSubmit={onSubmit} noValidate>
               <div className="field">
-                <label className="field__label" htmlFor="destinationId">
-                  Anchor destination
-                </label>
+                <label className="field__label" htmlFor="destination-search">Destinations</label>
+                <input
+                  id="destination-search"
+                  className="input"
+                  placeholder="Search Sri Lankan destinations"
+                  value={destinationQuery}
+                  onChange={(event) => setDestinationQuery(event.target.value)}
+                  disabled={destinationsLoading}
+                />
                 <select
-                  id="destinationId"
+                  id="destination-picker"
                   className="select"
-                  value={form.destinationId}
-                  onChange={update('destinationId')}
+                  value={destinationToAdd}
+                  onChange={addSelectedDestination}
+                  disabled={destinationsLoading || Boolean(destinationsError)}
+                  aria-describedby="destination-hint"
                 >
-                  <option value="">No preference — surprise us</option>
-                  {destinations.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name} · {d.region}
-                    </option>
+                  <option value="">{destinationsLoading ? 'Loading destinations…' : 'Add a destination'}</option>
+                  {filteredDestinations.map((destination) => (
+                    <option key={destination.id} value={destination.id}>{destination.name}{destination.country ? ` · ${destination.country}` : ''}</option>
                   ))}
                 </select>
-                <span className="field__hint">
-                  Optional. The route can still cover several regions.
-                </span>
+                {destinationsError ? (
+                  <div className="notice notice--error" role="alert">
+                    <span>{destinationsError}</span>
+                    <button type="button" className="link-button" onClick={loadDestinations}>Retry</button>
+                  </div>
+                ) : null}
+                <span className="field__hint" id="destination-hint">Select at least one. Choices stay in the order you select and can be rearranged below.</span>
+                {visibleError('destinations') ? <span className="field__error" role="alert">{errors.destinations}</span> : null}
               </div>
 
-              <div className="form__row">
-                <div className="field">
-                  <label className="field__label" htmlFor="startDate">
-                    Arrival
-                  </label>
-                  <input
-                    id="startDate"
-                    type="date"
-                    className="input"
-                    min={toDateString(1)}
-                    value={form.startDate}
-                    onChange={update('startDate')}
-                    aria-invalid={Boolean(errorOf('startDate'))}
-                    aria-describedby={errorOf('startDate') ? 'startDate-error' : undefined}
-                  />
-                  {errorOf('startDate') ? (
-                    <span className="field__error" id="startDate-error">
-                      {errors.startDate}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="field">
-                  <label className="field__label" htmlFor="endDate">
-                    Departure
-                  </label>
-                  <input
-                    id="endDate"
-                    type="date"
-                    className="input"
-                    min={form.startDate || toDateString(2)}
-                    value={form.endDate}
-                    onChange={update('endDate')}
-                    aria-invalid={Boolean(errorOf('endDate'))}
-                    aria-describedby={errorOf('endDate') ? 'endDate-error' : undefined}
-                  />
-                  {errorOf('endDate') ? (
-                    <span className="field__error" id="endDate-error">
-                      {errors.endDate}
-                    </span>
-                  ) : (
-                    <span className="field__hint">
-                      {nights ? `${nights} night${nights === 1 ? '' : 's'} on the ground` : 'Two nights minimum'}
-                    </span>
-                  )}
-                </div>
+              <div className="planner-order" aria-label="Selected destination order">
+                {selectedDestinations.length === 0 ? <p className="planner-order__empty">No destinations selected yet.</p> : null}
+                {selectedDestinations.map((destination, index) => (
+                  <div className="planner-order__item" key={destination.id}>
+                    <span className="planner-order__number">{index + 1}</span>
+                    <strong>{destination.name}</strong>
+                    <div className="planner-order__actions">
+                      <button type="button" className="planner-order__button" onClick={() => reorderSelectedDestination(index, 'up')} disabled={index === 0} aria-label={`Move ${destination.name} up`}>↑</button>
+                      <button type="button" className="planner-order__button" onClick={() => reorderSelectedDestination(index, 'down')} disabled={index === selectedDestinations.length - 1} aria-label={`Move ${destination.name} down`}>↓</button>
+                      <button type="button" className="planner-order__remove" onClick={() => removeSelectedDestination(destination.id)}>Remove</button>
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="field">
-                <span className="field__label" id="travellers-label">
-                  Travellers
-                </span>
-                <div className="seg" role="group" aria-labelledby="travellers-label">
-                  {PARTY_SIZES.map((size) => (
-                    <button
-                      key={size}
-                      type="button"
-                      className="seg__btn"
-                      aria-pressed={form.travellers === String(size)}
-                      onClick={() => setForm((prev) => ({ ...prev, travellers: String(size) }))}
-                    >
-                      {size === 8 ? '8+' : size}
-                    </button>
-                  ))}
+                <label className="field__label" htmlFor="starter-location">Starting location</label>
+                <select
+                  id="starter-location"
+                  className="select"
+                  value={form.starterLocationId}
+                  onChange={update('starterLocationId')}
+                  disabled={form.airportPickup || selectedDestinations.length === 0}
+                >
+                  <option value="">Let the AI choose the most efficient start</option>
+                  {selectedDestinations.map((destination) => <option key={destination.id} value={destination.id}>{destination.name}</option>)}
+                </select>
+                <span className="field__hint">Choosing a starter pins the journey origin. Leave it blank to let the agent optimize the route.</span>
+                {selectedStarter ? <span className="field__hint">Selected starter: {selectedStarter.name}</span> : null}
+                {visibleError('starterLocationId') ? <span className="field__error" role="alert">{errors.starterLocationId}</span> : null}
+              </div>
+
+              <div className="form__row">
+                <div className="field">
+                  <label className="field__label" htmlFor="start-date">Start date</label>
+                  <input id="start-date" type="date" className="input" min={dateStringFromOffset(1)} max={dateStringFromOffset(60)} value={form.startDate} onChange={update('startDate')} aria-invalid={Boolean(visibleError('startDate'))} />
+                  {visibleError('startDate') ? <span className="field__error" role="alert">{errors.startDate}</span> : null}
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor="end-date">End date</label>
+                  <input id="end-date" type="date" className="input" min={form.startDate || dateStringFromOffset(1)} max={dateStringFromOffset(60)} value={form.endDate} onChange={update('endDate')} aria-invalid={Boolean(visibleError('endDate'))} />
+                  {visibleError('endDate') ? <span className="field__error" role="alert">{errors.endDate}</span> : null}
                 </div>
               </div>
 
               <div className="form__row">
                 <div className="field">
-                  <label className="field__label" htmlFor="budget">
-                    Budget ceiling
-                  </label>
-                  <input
-                    id="budget"
-                    type="number"
-                    inputMode="decimal"
-                    min="1"
-                    step="50"
-                    className="input"
-                    placeholder="2400"
-                    value={form.budget}
-                    onChange={update('budget')}
-                    aria-invalid={Boolean(errorOf('budget'))}
-                    aria-describedby={errorOf('budget') ? 'budget-error' : undefined}
-                  />
-                  {errorOf('budget') ? (
-                    <span className="field__error" id="budget-error">
-                      {errors.budget}
-                    </span>
-                  ) : (
-                    <span className="field__hint">Total for the whole party, excluding flights.</span>
-                  )}
+                  <label className="field__label" htmlFor="traveller-count">Travellers</label>
+                  <input id="traveller-count" type="number" min="1" max="100" step="1" className="input" value={form.travellerCount} onChange={update('travellerCount')} aria-invalid={Boolean(visibleError('travellerCount'))} />
+                  {visibleError('travellerCount') ? <span className="field__error" role="alert">{errors.travellerCount}</span> : null}
                 </div>
-
                 <div className="field">
-                  <label className="field__label" htmlFor="currency">
-                    Currency
-                  </label>
-                  <select
-                    id="currency"
-                    className="select"
-                    value={form.currency}
-                    onChange={update('currency')}
-                  >
-                    {CURRENCIES.map((code) => (
-                      <option key={code} value={code}>
-                        {code}
-                      </option>
-                    ))}
+                  <label className="field__label" htmlFor="budget-ceiling">Budget ceiling</label>
+                  <input id="budget-ceiling" type="number" min="0.01" step="0.01" className="input" placeholder="250000" value={form.budgetCeiling} onChange={update('budgetCeiling')} aria-invalid={Boolean(visibleError('budgetCeiling'))} />
+                  {visibleError('budgetCeiling') ? <span className="field__error" role="alert">{errors.budgetCeiling}</span> : null}
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor="currency">Currency</label>
+                  <select id="currency" className="select" value={form.currency} onChange={update('currency')}>
+                    {SUPPORTED_CURRENCIES.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
                   </select>
-                  <span className="field__hint">Quotes come back in this currency.</span>
+                  {visibleError('currency') ? <span className="field__error" role="alert">{errors.currency}</span> : null}
                 </div>
-
               </div>
+
+              <fieldset className="planner-fieldset">
+                <legend>Airport arrival</legend>
+                <label className="planner-checkbox">
+                  <input type="checkbox" checked={form.airportPickup} onChange={(event) => setForm((current) => ({ ...current, airportPickup: event.target.checked, starterLocationId: event.target.checked ? '' : current.starterLocationId }))} />
+                  <span>Use an airport pickup as the trip origin</span>
+                </label>
+                {form.airportPickup ? (
+                  <div className="form__row">
+                    <div className="field">
+                      <label className="field__label" htmlFor="airport-code">Airport</label>
+                      <select id="airport-code" className="select" value={form.airportCode} onChange={update('airportCode')}>
+                        <option value="CMB">CMB · Bandaranaike International</option>
+                        <option value="HRI">HRI · Mattala Rajapaksa International</option>
+                      </select>
+                      {visibleError('airportCode') ? <span className="field__error" role="alert">{errors.airportCode}</span> : null}
+                    </div>
+                    <div className="field">
+                      <label className="field__label" htmlFor="airport-arrival">Arrival time</label>
+                      <input id="airport-arrival" type="time" className="input" value={form.airportArrivalTime} onChange={update('airportArrivalTime')} />
+                      {visibleError('airportArrivalTime') ? <span className="field__error" role="alert">{errors.airportArrivalTime}</span> : null}
+                    </div>
+                  </div>
+                ) : <span className="field__hint">Optional. When enabled, the airport is sent as the origin and no destination starter is pinned.</span>}
+              </fieldset>
 
               <div className="field">
-                <label className="field__label" htmlFor="notes">
-                  What do you actually want out of it?
-                </label>
-                <textarea
-                  id="notes"
-                  className="textarea"
-                  maxLength={MAX_NOTES}
-                  placeholder="Two of us, first time in Sri Lanka. Hill country and one beach, no early starts, happy on trains. Keen on wildlife but not a 5am safari every day."
-                  value={form.notes}
-                  onChange={update('notes')}
-                  aria-invalid={Boolean(errorOf('notes'))}
-                  aria-describedby={errorOf('notes') ? 'notes-error' : 'notes-hint'}
-                />
-                {errorOf('notes') ? (
-                  <span className="field__error" id="notes-error">
-                    {errors.notes}
-                  </span>
-                ) : (
-                  <span className="field__hint" id="notes-hint">
-                    {form.notes.trim().length}/{MAX_NOTES} · pace, must-sees, dietary needs, mobility
-                    — all of it helps.
-                  </span>
-                )}
+                <label className="field__label" htmlFor="planner-notes">Preferences and notes</label>
+                <textarea id="planner-notes" className="textarea" maxLength={MAX_NOTES} placeholder="Quiet stays, vegetarian meals, easy-paced mornings, and the experiences you care about." value={form.notes} onChange={update('notes')} aria-invalid={Boolean(visibleError('notes'))} />
+                {visibleError('notes') ? <span className="field__error" role="alert">{errors.notes}</span> : <span className="field__hint">{form.notes.trim().length}/{MAX_NOTES} · pace, food, mobility, interests, and must-sees all help.</span>}
               </div>
 
-              <button className="btn" type="submit" disabled={status.state === 'sending'}>
+              <section className="planner-review" aria-labelledby="planner-review-title">
+                <div className="planner-section-heading">
+                  <div><span className="eyebrow">Review</span><h2 id="planner-review-title">Ready to send</h2></div>
+                </div>
+                <p>{selectedDestinations.length ? selectedDestinations.map((destination) => destination.name).join(' → ') : 'Choose destinations above'}</p>
+                <p>{form.startDate || 'Start date'} → {form.endDate || 'End date'} · {form.travellerCount} travellers · {form.budgetCeiling || 'Budget not set'} {form.currency}</p>
+                <p>{form.airportPickup ? `${form.airportCode} airport pickup at ${form.airportArrivalTime}` : selectedStarter ? `Starting at ${selectedStarter.name}` : 'AI chooses the route origin'}</p>
+              </section>
+
+              <button className="btn" type="submit" disabled={submitState.phase === 'submitting'}>
                 <SparkleIcon size={16} />
-                {status.state === 'sending' ? 'Sending to the agents…' : 'Draft my itinerary'}
+                {submitState.phase === 'submitting' ? 'Submitting request…' : 'Generate AI travel plan'}
               </button>
 
               <div aria-live="polite">
-                {status.state === 'sent' ? (
-                  <div className="notice">
-                    <b>Request received.</b>
-                    <span>
-                      The itinerary, booking and validation agents are on it
-                      {status.reference ? ` — your reference is #${status.reference}` : ''}. A travel
-                      agent reviews the draft before you hear from us, usually within a working day.
-                    </span>
-                  </div>
-                ) : null}
-
-                {status.state === 'auth' ? (
-                  <div className="notice notice--warn">
-                    <b>We could not attach this to an account.</b>
-                    <span>
-                      Trip requests need a signed-in traveller profile. Nothing is lost — email the
-                      same brief to <a href={`mailto:${brand.email}`}>{brand.email}</a> and we will
-                      raise it for you.
-                    </span>
-                  </div>
-                ) : null}
-
-                {status.state === 'offline' ? (
-                  <div className="notice notice--warn">
-                    <b>The planning service is not answering.</b>
-                    <span>
-                      Your brief is still in the form, so nothing is lost. Try again in a minute, or
-                      send it to <a href={`mailto:${brand.email}`}>{brand.email}</a> and a human will
-                      pick it up.
-                    </span>
-                  </div>
-                ) : null}
-
-                {status.state === 'error' ? (
-                  <div className="notice notice--error">
-                    <b>That did not go through.</b>
-                    <span>{status.message}</span>
-                  </div>
-                ) : null}
+                {submitState.phase === 'auth' ? <div className="notice notice--warn"><strong>Sign-in required.</strong><span>{submitState.message} <Link to="/customer-login">Sign in again</Link>.</span></div> : null}
+                {submitState.phase === 'error' ? <div className="notice notice--error" role="alert"><strong>Request was not submitted.</strong><span>{submitState.message}</span></div> : null}
+                {submitState.tripRequestId ? <div className="notice"><strong>Trip request #{submitState.tripRequestId} submitted.</strong><span>{statusCopy(tripStatus)} This is not a confirmed booking.</span></div> : null}
               </div>
             </form>
           </Reveal>
 
-          <Reveal className="panel planner__side" delay={120}>
-            <h3>Who reads your request</h3>
-            <div className="agent-list">
-              {agents.map((agent) => (
-                <div className="agent" key={agent.name}>
-                  <span className="agent__dot" aria-hidden="true">
-                    <CheckIcon size={14} />
-                  </span>
-                  <div>
-                    <b>{agent.name}</b>
-                    <span>{agent.role}</span>
-                  </div>
+          <Reveal className="planner__side" delay={120}>
+            {submitState.tripRequestId ? (
+              <>
+                <AgentWorkflowPanel logs={logs} status={tripStatus} />
+                {trip ? <p className="field__hint">Planning attempt: {Number(trip.retryCount || 0) + 1}. Retry decisions remain with the Coordinator.</p> : null}
+                {usingPolling || monitorError ? <p className="field__hint">{monitorError || 'Checking saved progress…'}</p> : null}
+                {tripStatus === 'AwaitingApproval' || tripStatus === 'Planned' ? <PlanResult trip={trip} /> : null}
+                {tripStatus === 'Failed' ? <div className="notice notice--error" role="alert"><strong>Planning could not be completed.</strong><span>{statusFailure}</span></div> : null}
+              </>
+            ) : (
+              <>
+                <h3>How your request moves</h3>
+                <div className="agent-list">
+                  {agents.map((agent) => <div className="agent" key={agent.name}><span className="agent__dot" aria-hidden="true"><CheckIcon size={14} /></span><div><b>{agent.name}</b><span>{agent.role}</span></div></div>)}
                 </div>
-              ))}
-            </div>
-
-            <dl className="spec">
-              <div>
-                <dt>Typical turnaround</dt>
-                <dd>Under 1 working day</dd>
-              </div>
-              <div>
-                <dt>Deposit to hold</dt>
-                <dd>15%</dd>
-              </div>
-              <div>
-                <dt>Free changes until</dt>
-                <dd>14 days out</dd>
-              </div>
-            </dl>
-
-            <p className="field__hint">
-              No payment details here — a draft costs nothing. Not sure where to start?{' '}
-              <Link to="/destinations">Browse destinations</Link> first.
-            </p>
+                <p className="field__hint">The request is saved by ASP.NET Core before the AI pipeline is dispatched. You can follow the persisted status here.</p>
+                <p className="field__hint">No payment details are collected on this screen. Need inspiration? <Link to="/destinations">Browse destinations</Link>.</p>
+                <p className="field__hint">Need help? <a href={`mailto:${brand.email}`}>{brand.email}</a></p>
+              </>
+            )}
           </Reveal>
         </div>
       </section>
     </>
   )
 }
-

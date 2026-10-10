@@ -77,7 +77,7 @@ export function Navbar() {
               Sign out
             </button>
           ) : (
-            <Link className="btn btn--sm btn--nav-outline" to="/login" onClick={close}>
+            <Link className="btn btn--sm btn--nav-outline" to="/customer-login" onClick={close}>
               Sign in
             </Link>
           )}
@@ -130,7 +130,7 @@ export function Navbar() {
               Sign out ({user.email})
             </button>
           ) : (
-            <Link className="btn btn--block" to="/login" onClick={close}>
+            <Link className="btn btn--block" to="/customer-login" onClick={close}>
               Sign in
             </Link>
           )}

@@ -2,13 +2,13 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../lib/auth.jsx'
 import { normalizeRole } from '../../lib/roles.js'
 
-/** Guards /staff/* — redirects anonymous users or customers to /login with access denied. */
-export function RequireAuth({ children, roles = ['TravelAgent', 'Admin'] }) {
+/** Guards a route while allowing the caller to choose its sign-in destination. */
+export function RequireAuth({ children, roles = ['TravelAgent', 'Admin'], loginPath = '/login' }) {
   const auth = useAuth()
   const location = useLocation()
 
   if (!auth?.user) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+    return <Navigate to={loginPath} replace state={{ from: location.pathname }} />
   }
 
   const role = normalizeRole(auth.role)
@@ -18,7 +18,7 @@ export function RequireAuth({ children, roles = ['TravelAgent', 'Admin'] }) {
   if (!isStaff) {
     return (
       <Navigate
-        to="/login"
+        to={loginPath}
         replace
         state={{ error: 'Access denied: Customer accounts cannot access the staff management console.' }}
       />

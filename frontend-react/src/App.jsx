@@ -20,6 +20,7 @@ import About from './pages/site/About.jsx'
 import Contact from './pages/site/Contact.jsx'
 import NotFound from './pages/site/NotFound.jsx'
 import Login from './pages/auth/Login.jsx'
+import CustomerLogin from './pages/auth/CustomerLogin.jsx'
 import CustomerDirectory from './pages/customers/CustomerDirectory.jsx'
 import NotificationLogs from './pages/customers/NotificationLogs.jsx'
 import TourCatalogManagement from './pages/tours/TourCatalogManagement.jsx'
@@ -43,7 +44,8 @@ export default function App() {
   const weatherTheme = useWeatherTheme()
   const isStaffRoute = pathname.startsWith('/staff')
   const isLoginRoute = pathname === '/login'
-  const isStaffOrLogin = isStaffRoute || isLoginRoute
+  const isCustomerLoginRoute = pathname === '/customer-login'
+  const isStaffOrLogin = isStaffRoute || isLoginRoute || isCustomerLoginRoute
   const timeOfDay = weatherTheme?.timeOfDay || 'morning'
 
   const setActiveId = useCallback((id) => {
@@ -87,10 +89,18 @@ export default function App() {
               <Route path="/destinations" element={<Destinations />} />
               <Route path="/destinations/:id" element={<DestinationDetail />} />
               <Route path="/experiences" element={<Experiences />} />
-              <Route path="/planner" element={<Planner />} />
+              <Route
+                path="/planner"
+                element={
+                  <RequireAuth roles={['Customer', 'TravelAgent', 'Admin']} loginPath="/customer-login">
+                    <Planner />
+                  </RequireAuth>
+                }
+              />
               <Route path="/about" element={<About />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/customer-login" element={<CustomerLogin />} />
 
               <Route
                 path="/staff"
