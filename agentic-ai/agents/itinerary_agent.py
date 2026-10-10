@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 # The tools directory is next to the agents directory. When the agentic-ai
 # directory is the Python working directory, this imports tools/search_tours.py.
-from tools.search_tours import search_tours
+from tools.search_tours import search_tours, unique_tours
 from route_planning import grouped_itinerary, RoutePlanningError
 from destination_contract import (
     DestinationContractError,
@@ -65,6 +65,7 @@ def validate_itinerary(result, trip_request, available_tours):
     # The total cost is calculated from every scheduled item's price below.
     total_cost = 0.0
     traveller_count = trip_request["traveller_count"]
+    scheduled_tour_ids = set()
 
     for day in result.get("schedule", []):
         day_number = day.get("day_number")
@@ -78,6 +79,10 @@ def validate_itinerary(result, trip_request, available_tours):
 
         for item in items:
             tour_id = item.get("tour_id")
+            tour_key = str(tour_id)
+            if tour_key in scheduled_tour_ids:
+                errors.append(f"Tour ID {tour_id} is scheduled more than once")
+            scheduled_tour_ids.add(tour_key)
             matching_tour = tours_by_id.get(tour_id)
 
             # Rule 1: Every tour must exist in the search results and be Active.
@@ -286,6 +291,8 @@ def build_itinerary(trip_request):
                     "Duration",
                 ),
                 "category": _get_tour_value(tour, "category", "Category"),
+                "description": _get_tour_value(tour, "description", "Description"),
+                "image_url": _get_tour_value(tour, "image_url", "imageUrl", "ImageUrl"),
                 "destination_id": _get_tour_value(
                     tour, "destination_id", "destinationId", "DestinationId"
                 ),
@@ -303,6 +310,9 @@ def build_itinerary(trip_request):
                 "longitude": _get_tour_value(tour, "longitude", "Longitude"),
             }
         )
+
+    # Collapse repeated IDs and exact tour data before either planner runs.
+    available_tours = unique_tours(available_tours)
 
     revision = trip_request.get("revision_request") or {}
     if revision:
@@ -352,6 +362,7 @@ AVAILABLE TOURS:
 {tours_json}
 
 Rules:
+Never schedule the same tour ID more than once during the trip.
 1. Use only tours whose status is Active (case-insensitive).
 2. Include at least one tour from every requested destination. Do not silently
    drop a destination because another has more tours.

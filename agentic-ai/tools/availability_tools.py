@@ -11,6 +11,18 @@ TRANSPORT_PAGE_SIZE = 50
 MAX_TRANSPORT_SEARCH_PAGES = 100
 
 
+def _get_availability(endpoint, **kwargs):
+    """Retry one timed-out read; HTTP and payload errors retain their handling."""
+    for attempt in range(2):
+        try:
+            response = requests.get(endpoint, timeout=10, **kwargs)
+            response.raise_for_status()
+            return response.json()
+        except requests.Timeout:
+            if attempt == 1:
+                raise
+
+
 class HotelSearchError(RuntimeError):
     """Raised when the complete paginated hotel catalogue cannot be read."""
 
@@ -111,9 +123,7 @@ def check_room_availability(hotel_id, room_id, check_in, check_out, currency=Non
         params = {"checkIn": check_in, "checkOut": check_out}
         if currency:
             params["currency"] = currency
-        response = requests.get(endpoint, params=params, timeout=10)
-        response.raise_for_status()
-        return response.json()
+        return _get_availability(endpoint, params=params)
     except Exception as e:
         print(f"Error checking availability for room {room_id}: {e}")
         return None
@@ -369,9 +379,7 @@ def classify_transport_failure(diagnostics, availability_mismatch_count=0):
 def check_transport_availability(transport_id):
     endpoint = f"{BACKEND_BASE_URL.rstrip('/')}/api/transport/{transport_id}/availability"
     try:
-        response = requests.get(endpoint, timeout=10)
-        response.raise_for_status()
-        return response.json()
+        return _get_availability(endpoint)
     except Exception as e:
         print(f"Error checking availability for transport {transport_id}: {e}")
         return None

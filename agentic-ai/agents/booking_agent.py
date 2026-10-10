@@ -52,7 +52,44 @@ def _inventory_map(function, values):
         return list(executor.map(function, values))
 
 
-def _compatible_timetables(groups, state):
+def _tour_times_fit(state, itinerary, windows):
+    """Check an optimistic schedule before spending a full hotel-search attempt.
+
+    Ignore road travel and hotel restrictions here. Only reject when even this
+    relaxed schedule cannot place the ordered tours inside the transfer windows.
+    """
+    date = datetime.fromisoformat(str(state["start_date"]).replace("Z", "+00:00")).date()
+    end = datetime.fromisoformat(str(state["end_date"]).replace("Z", "+00:00")).date()
+    # Early transfer days can begin at 06:00. Use that optimistic bound for
+    # every day here; the full planner still enforces each actual day window.
+    now, count = EARLIEST_TRANSFER_START, 0
+    for day in itinerary.get("schedule", []):
+        for tour in day.get("items", []):
+            # Leave incomplete input to the authoritative planner/validator.
+            if not all(key in tour for key in ("destination_id", "start_time", "end_time")):
+                return True
+            preferred = minutes(tour["start_time"])
+            duration = minutes(tour["end_time"]) - preferred
+            earliest, latest = windows.get(tour["destination_id"], (None, None))
+            if earliest and date < earliest.date():
+                date, now, count = earliest.date(), EARLIEST_TRANSFER_START, 0
+            while date <= end:
+                start = max(now, preferred, earliest.hour * 60 + earliest.minute
+                            if earliest and date == earliest.date() else EARLIEST_TRANSFER_START)
+                finish = start + duration
+                if latest and (date > latest.date() or
+                               (date == latest.date() and finish > latest.hour * 60 + latest.minute)):
+                    return False
+                if count < 2 and finish <= DAY_END:
+                    now, count = finish + 45, count + 1
+                    break
+                date, now, count = date + timedelta(days=1), EARLIEST_TRANSFER_START, 0
+            else:
+                return False
+    return True
+
+
+def _compatible_timetables(groups, state, itinerary=None):
     """Yield distinct, chronological schedules without building a Cartesian product.
 
     Equal schedules are interchangeable after route/capacity/availability checks;
@@ -91,15 +128,27 @@ def _compatible_timetables(groups, state):
         latest_next_departure = max(row[0] for row in distinct[index + 1])
         distinct[index] = [row for row in distinct[index] if row[1] <= latest_next_departure]
 
-    def extend(index, previous_arrival, selected):
+    route_ids = (itinerary or {}).get("route_destination_ids", [])
+    offset = int(bool(state.get("airport_pickup")))
+
+    def extend(index, previous_arrival, selected, windows):
         if index == len(distinct):
             yield tuple(selected)
             return
         for departure, arrival, option in distinct[index]:
             if previous_arrival is None or departure >= previous_arrival:
-                yield from extend(index + 1, arrival, [*selected, option])
+                next_windows = dict(windows)
+                if route_ids:
+                    target = route_ids[index + 1 - offset]
+                    next_windows[target] = (arrival, next_windows.get(target, (None, None))[1])
+                    if index >= offset:
+                        source = route_ids[index - offset]
+                        next_windows[source] = (next_windows.get(source, (None, None))[0], departure)
+                    if not _tour_times_fit(state, itinerary, next_windows):
+                        continue
+                yield from extend(index + 1, arrival, [*selected, option], next_windows)
 
-    yield from extend(0, None, [])
+    yield from extend(0, None, [], {})
 
 
 def _booking_failure(trip_id, code, message, diagnostics=None):
@@ -165,6 +214,14 @@ def build_booking_package(state):
             trip_id,
             itinerary.get("error_code", "INVALID_ITINERARY"),
             itinerary.get("error", "A valid itinerary proposal is required."),
+        )
+
+    tour_ids = [str(item["tour_id"]) for day in itinerary.get("schedule", [])
+                for item in day.get("items", []) if item.get("tour_id") is not None]
+    if len(tour_ids) != len(set(tour_ids)):
+        return _booking_failure(
+            trip_id, "DUPLICATE_ITINERARY_TOUR",
+            "The itinerary contains a repeated tour. Please generate a new plan.",
         )
 
     requested_destinations = state.get("requested_destinations")
@@ -398,6 +455,7 @@ def build_booking_package(state):
         transport_search = None
         if geographic:
             availability_cache = {}
+            unverified_rooms = set()
             geometry_cache = {}
             def room_available(room, check_in, check_out):
                 if not room_requested(revision, room["room_id"], check_in, check_out):
@@ -405,6 +463,8 @@ def build_booking_package(state):
                 key = (room["room_id"], check_in, check_out)
                 if key not in availability_cache:
                     result = check_room_availability(room["hotel_id"], room["room_id"], check_in, check_out, currency=currency)
+                    if result is None:
+                        unverified_rooms.add(room["room_id"])
                     availability_cache[key] = bool(result and (
                         result.get("availableRooms", 0) + reserved_quantity(revision, "room_id", room["room_id"], check_in, check_out) > 0
                         if "availableRooms" in result else result.get("isAvailable") is True))
@@ -412,7 +472,7 @@ def build_booking_package(state):
             try:
                 groups = [[option for option in available_transports if option.get("leg_index") == index]
                           for index in range(len(requested_legs))] if requested_legs else [available_transports]
-                combinations = _compatible_timetables(groups, state) if requested_legs else [tuple(selected_transports)]
+                combinations = _compatible_timetables(groups, state, itinerary) if requested_legs else [tuple(selected_transports)]
                 candidates = []
                 last_error = None
                 evaluated = 0
@@ -458,12 +518,21 @@ def build_booking_package(state):
                     except RoutePlanningError as error:
                         last_error = error
                 if not candidates:
+                    if unverified_rooms:
+                        raise RoutePlanningError(
+                            "ROOM_AVAILABILITY_UNVERIFIED",
+                            "Room availability checks could not be completed. Please retry planning; the route has not been proven infeasible.",
+                            {"unverified_room_ids": sorted(unverified_rooms)},
+                        )
                     if search_limited:
                         raise RoutePlanningError("ROUTE_SEARCH_LIMIT", "No feasible package was found within the transport search limit. Please narrow the travel dates or destinations.")
                     raise last_error or RoutePlanningError("TRANSPORT_TIMETABLE_INFEASIBLE", "No transport timetable fits the journeys and hotel stays.")
                 transport_search = {"evaluated_timetables": evaluated, "search_limited": search_limited}
                 _, _, itinerary, room_selections, selected_transports = min(candidates, key=lambda candidate: candidate[:2])
                 if any(not room_available(room, room["check_in"], room["check_out"]) for room in room_selections):
+                    if unverified_rooms:
+                        raise RoutePlanningError("ROOM_AVAILABILITY_UNVERIFIED", "The selected hotel stay could not be verified. Please retry planning.",
+                                                 {"unverified_room_ids": sorted(unverified_rooms)})
                     raise RoutePlanningError("NO_VALID_ROOM", "A selected hotel is no longer available for the complete stay. Please retry.")
                 selected_room = room_selections[0]
             except RoutePlanningError as error:

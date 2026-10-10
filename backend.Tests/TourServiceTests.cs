@@ -18,6 +18,24 @@ namespace backend.Tests
         }
 
         [Fact]
+        public async Task SearchAsync_DeduplicatesAllBusinessFieldsBeforePaging()
+        {
+            using var context = CreateContext();
+            context.Destinations.Add(new Destination { Id = 1, Name = "Kandy", Country = "Sri Lanka" });
+            context.Tours.AddRange(
+                new Tour { Id = 1, DestinationId = 1, Name = "Forest Walk", Category = "Nature", Price = 40800, Currency = "LKR", Description = "Guided walk" },
+                new Tour { Id = 2, DestinationId = 1, Name = "Forest Walk", Category = "Nature", Price = 40800, Currency = "LKR", Description = "Guided walk", CreatedAt = DateTime.UtcNow.AddDays(1) },
+                new Tour { Id = 3, DestinationId = 1, Name = "Forest Walk", Category = "Nature", Price = 40800, Currency = "LKR", Description = "Private walk" });
+            await context.SaveChangesAsync();
+            var service = new TourService(context);
+            var first = await service.SearchAsync(null, 1, null, null, null, null, "price", false, 1, 1);
+            var second = await service.SearchAsync(null, 1, null, null, null, null, "price", false, 2, 1);
+            Assert.Equal(1, Assert.Single(first).Id);
+            Assert.Equal(3, Assert.Single(second).Id);
+            Assert.Equal(3, await context.Tours.CountAsync());
+        }
+
+        [Fact]
         public async Task SearchAsync_FiltersByCategory_ReturnsOnlyMatchingTours()
         {
             // Arrange

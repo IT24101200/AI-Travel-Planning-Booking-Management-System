@@ -59,14 +59,26 @@ namespace backend.Services
             var statusFilter = string.IsNullOrWhiteSpace(status) ? "Active" : status;
             query = query.Where(t => t.Status == statusFilter);
 
-            query = sortBy?.ToLower() switch
+            // Keep the oldest ID for exact catalogue duplicates before paging.
+            // Prices alone never identify duplicates; travel options are separate.
+            query = query.Where(t => !_context.Tours.Any(other =>
+                other.Id < t.Id && other.DestinationId == t.DestinationId &&
+                other.Name == t.Name && other.Category == t.Category &&
+                other.Description == t.Description && other.ImageUrl == t.ImageUrl &&
+                other.Price == t.Price && other.Currency == t.Currency &&
+                other.DurationHours == t.DurationHours && other.DefaultStartTime == t.DefaultStartTime &&
+                other.Latitude == t.Latitude && other.Longitude == t.Longitude &&
+                other.Status == t.Status));
+
+            var orderedQuery = sortBy?.ToLower() switch
             {
                 "price" => descending ? query.OrderByDescending(t => t.Price) : query.OrderBy(t => t.Price),
                 "duration" => descending ? query.OrderByDescending(t => t.DurationHours) : query.OrderBy(t => t.DurationHours),
                 _ => descending ? query.OrderByDescending(t => t.Name) : query.OrderBy(t => t.Name)
             };
 
-            var tours = await query
+            var tours = await orderedQuery
+                .ThenBy(t => t.Id)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .ToListAsync();

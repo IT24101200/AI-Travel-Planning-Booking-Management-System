@@ -6,6 +6,7 @@ from math import isfinite
 import os
 
 import requests
+from tools.search_tours import unique_tours
 
 
 AIRPORTS = {
@@ -142,6 +143,9 @@ def clock(value):
 
 def choose_tours(state, tours, destinations):
     """Reserve coverage before spending remaining activity budget."""
+    # Catalogue rows can repeat across queries or differ in non-ID metadata.
+    # A journey must only be selected once, regardless of those differences.
+    tours = unique_tours(tours)
     budget = float(state.get("target_budgets", {}).get("tours_budget") or state["budget_ceiling"])
     travellers = state.get("traveller_count", 1)
     chosen = []
@@ -155,7 +159,7 @@ def choose_tours(state, tours, destinations):
         raise RoutePlanningError("BUDGET_EXCEEDED", "The activity budget cannot cover at least one journey in every selected destination. Increase the budget or select fewer destinations.")
     days = (datetime.fromisoformat(str(state["end_date"]).replace("Z", "+00:00")).date() - datetime.fromisoformat(str(state["start_date"]).replace("Z", "+00:00")).date()).days + 1
     for tour in tours:
-        if tour in chosen or str(tour.get("status", "")).lower() != "active":
+        if str(tour["id"]) in {str(t["id"]) for t in chosen} or str(tour.get("status", "")).lower() != "active":
             continue
         cost = float(tour["price"]) * travellers
         if len(chosen) < days and total + cost <= budget:

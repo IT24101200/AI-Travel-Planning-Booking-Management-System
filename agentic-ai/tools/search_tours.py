@@ -10,6 +10,33 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def unique_tours(tours):
+    """Keep the first row for each ID or exact set of tour business fields."""
+    fields = (
+        ("destination_id", "destinationId", "DestinationId"),
+        ("name", "tour_name", "tourName", "Name"),
+        ("category", "Category"), ("description", "Description"),
+        ("image_url", "imageUrl", "ImageUrl"), ("price", "Price"),
+        ("currency", "Currency"),
+        ("duration", "duration_hours", "durationHours", "DurationHours", "Duration"),
+        ("default_start_time", "defaultStartTime", "DefaultStartTime"),
+        ("latitude", "Latitude"), ("longitude", "Longitude"), ("status", "Status"),
+    )
+    seen_ids, seen_data = set(), set()
+    result = []
+    for tour in tours:
+        tour_id = next((tour[key] for key in ("id", "tour_id", "tourId", "Id") if key in tour), None)
+        if tour_id is None:
+            continue
+        signature = tuple(next((tour[key] for key in names if key in tour), None) for names in fields)
+        if str(tour_id) in seen_ids or signature in seen_data:
+            continue
+        seen_ids.add(str(tour_id))
+        seen_data.add(signature)
+        result.append(tour)
+    return result
+
+
 def search_tours(destination_id, category=None, max_price=None, currency=None):
     """Tool: search_tours(destination_id, category, max_price) — queries the
     ASP.NET Core GET /api/tour endpoint to retrieve candidate tours.
@@ -60,11 +87,11 @@ def search_tours(destination_id, category=None, max_price=None, currency=None):
             return []
 
         # Keep only dictionary objects with an exact status value of "Active".
-        return [
+        return unique_tours([
             tour
             for tour in tours
             if isinstance(tour, dict) and tour.get("status") == "Active"
-        ]
+        ])
     except ValueError as error:
         # response.json() raises ValueError when the response is not valid JSON.
         print(f"Error searching tours: the backend returned invalid JSON ({error}).")
