@@ -7,7 +7,7 @@ import graph
 from agents import booking_agent, coordinator_agent, itinerary_agent, validation_agent
 from main import app
 from route_planning import AIRPORTS, plan_overnights
-from test_route_planning import LineRoads, tour
+from tests.itinerary.test_route_planning import LineRoads, tour
 from tools.availability_tools import TransportSearchResult
 
 

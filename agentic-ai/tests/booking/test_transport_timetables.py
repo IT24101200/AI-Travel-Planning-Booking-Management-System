@@ -63,7 +63,7 @@ def test_early_departures_do_not_exhaust_search_before_a_feasible_next_day_trans
     from agents import booking_agent
     from agents.validation_agent import validate_and_build_booking
     from route_planning import plan_overnights
-    from test_route_planning import LineRoads, itinerary, state, tour
+    from tests.itinerary.test_route_planning import LineRoads, itinerary, state, tour
     from tools.availability_tools import TransportSearchResult
 
     tours = [tour(1, 1, 80), tour(2, 2, 82)]
@@ -113,7 +113,7 @@ def test_three_destination_route_with_daily_morning_transfers_passes_validation(
     from agents import booking_agent
     from agents.validation_agent import validate_and_build_booking
     from route_planning import plan_overnights
-    from test_route_planning import LineRoads, itinerary, state, tour
+    from tests.itinerary.test_route_planning import LineRoads, itinerary, state, tour
     from tools.availability_tools import TransportSearchResult
 
     destinations = [(51, "Colombo", 80), (41, "Kandy", 82), (34, "Ella", 84)]
@@ -150,7 +150,7 @@ def test_distinct_large_timetables_return_verified_package_with_search_limit_met
     import route_planning
     from agents import booking_agent
     from route_planning import plan_overnights
-    from test_route_planning import LineRoads, itinerary, room, state, tour
+    from tests.itinerary.test_route_planning import LineRoads, itinerary, room, state, tour
     from tools.availability_tools import TransportSearchResult
 
     tours = [tour(1, 1, 80), tour(2, 2, 80.2)]

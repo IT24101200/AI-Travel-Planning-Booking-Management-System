@@ -25,6 +25,9 @@ from destination_contract import (
 # Read variables from a local .env file (if one exists) into the environment.
 load_dotenv()
 
+
+# --- Catalogue and response normalization helpers -------------------------
+
 def _get_tour_value(tour, *possible_names):
     """Return a tour field while allowing common API naming variations."""
     for name in possible_names:
@@ -50,12 +53,16 @@ def _remove_markdown_fences(text):
     return cleaned.strip()
 
 
+# --- Deterministic itinerary validation -----------------------------------
+
 def validate_itinerary(result, trip_request, available_tours):
     """Check a generated itinerary using deterministic Python rules.
 
     The function returns two values as a tuple: a Boolean that says whether
     the itinerary is valid, and a list containing any validation errors.
     """
+    # The LLM may suggest a schedule, but these business rules decide whether
+    # the schedule is safe to pass to BookingAgent.
     errors = []
 
     # Build a lookup table so each scheduled tour ID can be checked quickly.
@@ -176,6 +183,8 @@ def validate_itinerary(result, trip_request, available_tours):
     return (len(errors) == 0, errors)
 
 
+# --- Main itinerary construction ------------------------------------------
+
 def build_itinerary(trip_request):
     """Build a catalogue-backed itinerary using routes or a validated LLM draft.
 
@@ -183,6 +192,8 @@ def build_itinerary(trip_request):
     are accepted for backward compatibility and normalized to a one-item list.
     """
 
+    # First enforce the destination contract, including the customer's order
+    # and selected starter location when one was supplied.
     try:
         requested_destinations = normalize_requested_destinations(
             trip_request, required=True
@@ -268,6 +279,8 @@ def build_itinerary(trip_request):
             "error": "No active tours are available for the selected destination.",
         }
 
+    # Normalize the backend catalogue into the stable shape used by planning
+    # and validation, without performing client-side currency conversion.
     req_curr = (trip_request.get("currency") or "LKR").upper()
     available_tours = []
     for tour in candidate_tours:
@@ -314,6 +327,8 @@ def build_itinerary(trip_request):
     # Collapse repeated IDs and exact tour data before either planner runs.
     available_tours = unique_tours(available_tours)
 
+    # A revision keeps the customer's existing tours while refreshing their
+    # current catalogue details and prices.
     revision = trip_request.get("revision_request") or {}
     if revision:
         # Hotel/transport changes preserve the customer's selected journeys.
@@ -333,6 +348,8 @@ def build_itinerary(trip_request):
         baseline["total_estimated_cost"] = round(total, 2)
         return baseline
 
+    # Use deterministic geographic planning whenever the route can be modeled.
+    # This preserves the selected starter while allowing optimization afterward.
     if len(requested_destinations) > 1 or trip_request.get("airport_pickup") or all(t.get("latitude") is not None for t in available_tours):
         try:
             result = grouped_itinerary(trip_request, available_tours, requested_destinations)
@@ -346,6 +363,8 @@ def build_itinerary(trip_request):
         except RoutePlanningError as error:
             return {"status": "ItineraryFailed", "error_code": error.code, "error": str(error)}
 
+    # Legacy single-destination plans without geographic data use the LLM
+    # prompt below, followed by the same deterministic validation rules.
     # JSON formatting keeps the structured trip and tour data unambiguous in
     # the prompt. default=str safely represents date-like values if supplied.
     trip_json = json.dumps(trip_request, indent=2, default=str)
@@ -437,6 +456,8 @@ Never schedule the same tour ID more than once during the trip.
     except Exception as error:
         print(f"[Warning] Itinerary Agent Gemini call failed ({error}), using deterministic scheduling fallback.")
 
+    # If the LLM is unavailable or produces no schedule, use a safe local
+    # round-robin fallback over the real catalogue records.
     if not isinstance(parsed_result, dict) or not parsed_result.get("schedule"):
         execution_mode = "deterministic_fallback"
         # Deterministic fallback: schedule available tours across trip days
@@ -539,7 +560,7 @@ Never schedule the same tour ID more than once during the trip.
     except Exception as error:
         print(f"Warning: Failed to log 'Generated draft itinerary via Gemini': {error}")
 
-    # Check Gemini's proposed schedule with plain Python before returning it.
+    # Check the model/fallback schedule with plain Python before returning it.
     is_valid, validation_errors = validate_itinerary(
         parsed_result,
         trip_request,
@@ -566,11 +587,14 @@ Never schedule the same tour ID more than once during the trip.
     return parsed_result
 
 
+# --- LangGraph adapter -----------------------------------------------------
+
 def itinerary_node(state: dict) -> dict:
     """
     LangGraph adapter: maps the shared pipeline state into the input shape
     build_itinerary() expects, calls it, and merges the result back into state.
     """
+    # Convert the graph's shared state into the build_itinerary input contract.
     requested_destinations = normalize_requested_destinations(state)
     primary_destination = requested_destinations[0] if requested_destinations else {}
     trip_request = {

@@ -6,7 +6,7 @@ import pytest
 from agents import booking_agent, itinerary_agent
 from customer_revision import room_requested
 from route_planning import plan_overnights
-from test_route_planning import LineRoads, itinerary, state, tour
+from tests.itinerary.test_route_planning import LineRoads, itinerary, state, tour
 from tools.availability_tools import TransportSearchResult
 
 

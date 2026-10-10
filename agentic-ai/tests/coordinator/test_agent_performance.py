@@ -66,7 +66,10 @@ def test_invalid_request_skips_coordinator_and_inventory_and_has_stage_timings()
 
 def test_manual_booking_demo_does_not_run_during_test_discovery():
     with patch("agents.booking_agent.booking_node") as booking:
-        runpy.run_path(str(Path(__file__).with_name("test_run.py")), run_name="test_run")
+        runpy.run_path(
+            str(Path(__file__).parents[1] / "booking" / "test_run.py"),
+            run_name="test_run",
+        )
     booking.assert_not_called()
 
 

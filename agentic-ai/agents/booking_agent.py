@@ -43,6 +43,8 @@ MAX_TIMETABLE_PLANS = 256
 INVENTORY_WORKERS = 4
 
 
+# --- Shared booking helpers ------------------------------------------------
+
 def _inventory_map(function, values):
     """Bound concurrent reads while preserving catalogue order and errors."""
     values = list(values)
@@ -181,6 +183,7 @@ def _booking_failure(trip_id, code, message, diagnostics=None):
         result["planning_diagnostics"] = diagnostics
     return result
 
+
 def _remove_markdown_fences(text):
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -191,8 +194,13 @@ def _remove_markdown_fences(text):
             cleaned = cleaned.rstrip()[:-3]
     return cleaned.strip()
 
+
+# --- Main booking-package construction ------------------------------------
+
 def build_booking_package(state):
     """Read shared trip constraints and return a priced package or coded failure."""
+    # Validate the upstream itinerary and destination order before querying
+    # inventory. This prevents booking against an invalid route.
     trip_id = state.get("trip_request_id")
     destination_id = state.get("destination_id")
     start_date = state.get("start_date")
@@ -250,6 +258,8 @@ def build_booking_package(state):
             },
         )
     
+    # Geographic plans can use hotels near multiple stops; legacy plans search
+    # only the primary destination.
     geographic = bool(itinerary.get("route_destination_ids"))
     # Geographic plans may use a nearby or intermediate hotel in another city.
     try:
@@ -258,6 +268,8 @@ def build_booking_package(state):
         return _booking_failure(trip_id, "HOTEL_SEARCH_INCOMPLETE", str(error))
     available_rooms = []
     
+    # Read room inventory concurrently, then retain only active, capacity-fit
+    # rooms that are available for the complete requested stay.
     room_catalogues = _inventory_map(
         lambda hotel: search_hotel_rooms(hotel.get("id"), currency=currency), hotels
     )
@@ -293,7 +305,7 @@ def build_booking_package(state):
         output_data={"available_rooms": len(available_rooms)}
     )
 
-    # 2. Search transports from the complete, route/date-compatible catalogue.
+    # Search transports from the complete route/date-compatible catalogue.
     if geographic:
         by_id = {d["destination_id"]: d for d in requested_destinations}
         requested_destinations = [by_id[i] for i in itinerary["route_destination_ids"]]
@@ -310,6 +322,7 @@ def build_booking_package(state):
     except TransportSearchError as error:
         return _booking_failure(trip_id, "TRANSPORT_SEARCH_INCOMPLETE", str(error))
 
+    # Keep diagnostics for user-facing failure messages and agent evidence.
     transport_diagnostics = dict(getattr(transports, "diagnostics", {}) or {})
     available_transports = []
     availability_mismatch_count = 0
@@ -453,6 +466,8 @@ def build_booking_package(state):
         selected_room = min(available_rooms, key=lambda room: float(room.get("price_per_night", 0)))
         room_selections = None
         transport_search = None
+        # For a geographic trip, evaluate complete multi-leg timetables together
+        # with hotel stays so each leg and overnight is feasible as one package.
         if geographic:
             availability_cache = {}
             unverified_rooms = set()
@@ -584,6 +599,8 @@ def build_booking_package(state):
             print(f"Warning: Failed to log multi-leg transport selection: {error}")
         return multi_leg_package
 
+    # Single-destination legacy plans use the model only to choose from already
+    # verified inventory; all IDs, prices and totals are restored from Python.
     itinerary_json = json.dumps(itinerary, indent=2, default=str)
     rooms_json = json.dumps(available_rooms, indent=2, default=str)
     transports_json = json.dumps(available_transports, indent=2, default=str)
@@ -674,6 +691,8 @@ Rules:
     except Exception as error:
         print(f"[Warning] Booking Agent LLM request failed ({error}), using deterministic selection fallback.")
 
+    # Fall back to the cheapest available real inventory when no model response
+    # is available or the response does not contain a usable room selection.
     if not isinstance(parsed_result, dict) or not parsed_result.get("selected_room"):
         selected_model = None
         # Deterministic fallback: pick cheapest available room and transport
@@ -713,7 +732,7 @@ Rules:
             "error_code": "INVALID_TRANSPORT_SELECTION",
             "error": "Selected transport was not returned by the backend availability search.",
         }
-    # Preserve Student B's persisted itinerary exactly; do not trust the LLM to
+    # Preserve the itinerary exactly; do not trust the LLM to
     # reproduce its database ID or schedule without alteration.
     parsed_result["itinerary"] = itinerary
     parsed_result["currency"] = currency
@@ -758,11 +777,14 @@ Rules:
     return parsed_result
 
 
+# --- LangGraph adapter -----------------------------------------------------
+
 def booking_node(state: dict) -> dict:
     """
     LangGraph adapter: receives pipeline state, checks availability, 
     and returns a concrete, priced booking package.
     """
+    # Keep the graph state intact while attaching BookingAgent's package.
     result = build_booking_package(state)
     if isinstance(result, dict) and "total_package_cost" in result and "total_cost" not in result:
         result["total_cost"] = result["total_package_cost"]
